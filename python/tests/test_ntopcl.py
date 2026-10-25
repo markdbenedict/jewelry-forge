@@ -24,7 +24,7 @@ def test_parse_real_no_inputs_log():
 def test_make_input_rules():
     assert ntopcl.make_input("W", "scalar", 4, "mm") == {"name": "W", "type": "scalar", "value": 4.0, "units": "mm"}
     assert ntopcl.make_input("T", "scalar", [0.1, 0.2], "mm")["values"] == [0.1, 0.2]
-    assert ntopcl.make_input("P", "file_path", Path("C:/x/y.stl"))["value"] == "C:/x/y.stl"
+    assert ntopcl.make_input("P", "file_path", Path("C:/x/y.stl"))["value"] == str(Path("C:/x/y.stl"))  # native separators
     assert ntopcl.make_input("N", "integer", 6.0)["value"] == 6
     assert ntopcl.make_input("B", "bool", 1)["value"] is True
     assert ntopcl.make_input("C", "point", (1, 2, 3), "mm")["value"] == [1.0, 2.0, 3.0]

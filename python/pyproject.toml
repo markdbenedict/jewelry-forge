@@ -14,6 +14,7 @@ dependencies = [
     "rtree>=1.1",
     "scipy>=1.11",
     "embreex>=2.17",   # fast ray casting for the wall-thickness check (4000 rays on 1M triangles < 1 s)
+    "networkx>=3.0",   # trimesh uses it to split a mesh into shells
 ]
 
 [project.optional-dependencies]
