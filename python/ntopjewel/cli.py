@@ -59,7 +59,15 @@ def cmd_doctor(_: argparse.Namespace) -> int:
 
 def cmd_templates(a: argparse.Namespace) -> int:
     out = Path(a.out) if a.out else config.out_dir() / "templates" / Path(a.notebook).stem
-    i, o = ntopcl.templates(Path(a.notebook), out)
+    try:
+        i, o = ntopcl.templates(Path(a.notebook), out)
+    except ntopcl.NtopclError as e:
+        msg = str(e)
+        print(msg.strip())
+        if "Output of function not set" in msg:
+            print("\nThe notebook's Output section is empty. In nTop, type the output variable's name "
+                  "(e.g. Volume) into the Output section, save, and rerun.")
+        return 2
     print(f"wrote {i}\n      {o}")
     print(i.read_text(encoding="utf-8"))
     if a.catalog:
