@@ -1,0 +1,42 @@
+# Phase 0 "hello band": flat band = outer cylinder minus bore cylinder.
+# Built in the nTop GUI from ntop/recipes/band-primitive.md. Input names here must match the
+# notebook's declared input names exactly (verify with: python -m ntopjewel templates
+# ntop/notebooks/ring_band.ntop --catalog ring_band).
+notebook: ring_band.ntop
+version: 0.1.0
+title: Flat band (two cylinders), Phase 0 hello band
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Mass Properties volume of the final band (density 1), used by the gate as a cross-check.
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + band thickness. Python computes it from size and thickness.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2, from tables.inner_diameter_mm(size, system) + allowance.
+  Width:
+    type: scalar
+    units: mm
+    min: 1.5
+    max: 15.0
+    default: 4.0
+    doc: Band width along the ring axis (Z in nTop).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.002
+    max: 0.05
+    default: 0.01
+    doc: Mesh from Implicit Body tolerance. 0.01 mm is plenty for a 50 µm printer.
+  Output Path:
+    type: file_path
+    doc: Absolute path of the STL to write (Export Mesh block). Python sets it.

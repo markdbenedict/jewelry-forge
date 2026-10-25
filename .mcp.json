@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ntop-docs": {
+      "type": "http",
+      "url": "https://docs.ntop.com/mcp"
+    }
+  }
+}

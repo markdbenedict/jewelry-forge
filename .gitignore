@@ -1,0 +1,23 @@
+# scratch output: every STL/3MF/JSON/PNG a run produces
+out/*
+!out/.gitkeep
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# nTop / Blender scratch
+*.blend1
+*.blend2
+ntopcl.log
+input_template.json
+output_template.json
+
+# OS
+Thumbs.db
+.DS_Store
