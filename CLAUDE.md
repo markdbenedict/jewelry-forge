@@ -9,8 +9,8 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 
 - **Units:** 1 unit = 1 mm everywhere (nTop notebooks, Blender scenes, Python, STL).
   Angles in degrees. Volumes in mm³, weights in grams.
-- **Ring axis:** in nTop notebooks the ring axis is **Z** (band lies flat on XY, centred
-  on the origin). In Blender scenes the ring axis is **Y** (ring stands upright on the
+- **Ring axis:** in nTop notebooks the ring axis is **Z** (band lies flat on XY; the Phase 0
+  band spans z = 0 … Width, profile blocks from Phase 1 centre on the origin). In Blender scenes the ring axis is **Y** (ring stands upright on the
   floor); `blender/photo.py` assumes this. The mesh gate detects the axis from the mesh.
 - **Ring sizing:** US size → inner diameter `11.63 + 0.8128 × size` mm. Other systems
   convert through `ntopjewel.tables`. Sizes are never typed into a notebook; Python

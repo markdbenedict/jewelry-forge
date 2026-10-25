@@ -7,61 +7,67 @@ custom block; this notebook stays as the simplest possible runner.
 
 **Time.** 20–30 minutes in the nTop GUI. Save as `ntop/notebooks/ring_band.ntop`.
 
-**Conventions.** Units mm. Ring axis = Z, band centred on the origin (z from −Width/2 to
-+Width/2). Input names must match `catalog/ring_band.yaml` exactly (case and spaces).
+**Conventions.** Units mm. Ring axis = Z. In this Phase 0 notebook the band spans
+z = 0 … Width (not centred on the origin); the gate does not care, and centring arrives
+with the profile block in Phase 1. Input names must match `catalog/ring_band.yaml`
+exactly (case and spaces).
 
-nTop lets you type a variable's name, or a short expression such as `Width / 2`, into
-any scalar field. Where a step says *type an expression*, do that; if your build refuses
-the expression, use a Math > Operations block (Divide, Add) to compute the same number.
+**Two nTop habits that avoid most errors.**
+1. *Build with plain numbers first, then turn inputs into variables.* Right-click an
+   input's name → **Make Variable**. The variable inherits the input's unit. A variable
+   created on its own has no unit, and a length input will refuse it (unit mismatch);
+   if that happens, type the value with its unit (`9.553 mm`) into the variable.
+2. *Variables are chips.* Drag a chip into an input to use it; hold CTRL while dragging
+   to reuse a chip that is already placed somewhere.
 
-## 1. Variables (these become the notebook inputs)
+## 1. Geometry (Body section)
 
-Add five variable blocks (type the value, then rename the block with F2 / double-click):
+The nTop **Cylinder** block takes **Point 1, Point 2, Radius** (the two points are the
+ends of the axis).
 
-| Variable name (exact) | Type | Test value | Notes |
-| --- | --- | --- | --- |
-| `Outer Radius` | Scalar, mm | 9.553 | bore radius + thickness; US 6, 1.3 mm band |
-| `Bore Radius` | Scalar, mm | 8.253 | US 6 inner diameter 16.507 / 2 |
-| `Width` | Scalar, mm | 4.0 | |
-| `Mesh Tolerance` | Scalar, mm | 0.01 | Mesh from Implicit Body tolerance |
-| `Output Path` | File Path (or Text) | `C:\Users\markd\src\jewelry-forge\out\band\test.stl` | Python overwrites this per run |
-
-Right-click each → **Make model input** (or drag it into the **Inputs** section). The
-Inputs section should list exactly these five, in this order.
-
-## 2. Geometry (Body section)
-
-1. **Outer cylinder** — Create > Primitives > **Cylinder**.
-   Radius = `Outer Radius`, Height = `Width`. Centre it on the origin along Z: if the
-   block has a Frame/origin input, set the origin to `(0, 0, -Width / 2)` with the axis
-   along +Z. Rename the block `Outer`.
-   *Check:* select it; the Properties panel bounding box should read z −2.0 … +2.0 with
-   the test values.
-2. **Bore cylinder** — another Cylinder. Radius = `Bore Radius`, Height = `Width + 2`,
-   origin `(0, 0, -Width / 2 - 1)`. Rename `Bore`. (1 mm past each face so the subtract
-   cuts clean through.)
-3. **Band** — Modeling > Booleans > **Boolean Subtract**. Body = `Outer`, Subtraction
-   body (or Bodies list) = `Bore`. Blend type **Sharp**, Blend radius 0. Rename `Band`.
+1. **Outer** — add a Cylinder. Point 1 = `0 mm, 0 mm, 0 mm`; Point 2 = `0 mm, 0 mm, 4 mm`;
+   Radius = `9.553 mm`. Rename the block `Outer` (double-click its name).
+2. Right-click the **Radius** input name on `Outer` → **Make Variable**. Rename the new
+   variable `Outer Radius` (it already holds 9.553 mm).
+3. **Width** — add a **Point** block: X `0 mm`, Y `0 mm`, Z `4 mm`. Drag it into `Outer`'s
+   **Point 2**. Right-click the Point block's **Z** input → Make Variable → rename `Width`.
+4. **Bore** — add a second Cylinder. Point 1 = `0 mm, 0 mm, -10 mm`; Point 2 =
+   `0 mm, 0 mm, 40 mm` (far longer than any band, so no arithmetic is needed);
+   Radius = `8.253 mm`. Rename `Bore`. Right-click Radius → Make Variable → `Bore Radius`.
+5. **Band** — add **Boolean Subtract** (Modeling > Booleans). Drag `Outer` into the body
+   input and `Bore` into the subtraction input. Blend type Sharp. Rename `Band`.
    *Check:* a flat ring, 19.11 mm across, 4 mm tall.
-4. **Volume** — Modeling > Evaluation > **Mass Properties**. Body = `Band`, Density = 1
-   (any unit; we read the volume). Rename the block `Mass Properties`. Open its
-   properties and drag the **Volume** value out as a variable; name that variable
-   `Volume`. *Check:* ≈ 290.95 mm³ for the test values (π·(9.553² − 8.253²)·4).
-5. **Mesh** — Structures > Mesh > **Mesh from Implicit Body**. Body = `Band`,
-   Tolerance = `Mesh Tolerance`, Min feature size 0.1 mm (default sharpen settings).
-   Rename `Mesh`.
-6. **Export** — Utilities > Exchange > **Export Mesh**. Mesh = `Mesh`, File = `Output Path`,
-   format STL (binary), units mm. Rename `Export Mesh`.
+6. **Volume** — add **Mass Properties** (Modeling > Evaluation). Body = `Band`, Density
+   `1 g/cm^3`. Open the block's info panel (`?`), Properties tab, and drag **Volume** into
+   the notebook; rename that variable `Volume`. *Check:* ≈ 290.95 mm³
+   (π · (9.553² − 8.253²) · 4).
+7. **Mesh** — add **Mesh from Implicit Body** (Structures > Mesh). Body = `Band`,
+   Tolerance `0.01 mm`. Right-click Tolerance → Make Variable → `Mesh Tolerance`.
+   Leave feature size and sharpening at their defaults. Rename the block `Mesh`.
+8. **Export** — add **Export Mesh** (Utilities > Exchange). Mesh = `Mesh`; file =
+   `C:\Users\markd\src\jewelry-forge\out\band\test.stl`; STL; mm. Right-click the file
+   input → Make Variable → `Output Path`.
 
-## 3. Output
+## 2. Inputs and Output
 
-In the **Output** section type `Volume` (the variable from step 4). nTop allows one
-Output per notebook; the STL leaves through the Export Mesh block, not the Output.
+- Drag the five variables into the **Inputs** section at the top of the notebook, in this
+  order: `Outer Radius`, `Bore Radius`, `Width`, `Mesh Tolerance`, `Output Path`.
+  (If your build offers right-click → *Make model input* instead, that does the same.)
+- In the **Output** section type `Volume`. nTop allows one Output per notebook; the STL
+  leaves through the Export Mesh block, not the Output.
 
-## 4. Save and verify
+| Input (exact name) | Type | Test value |
+| --- | --- | --- |
+| `Outer Radius` | Scalar, mm | 9.553 (US 6 bore + 1.3 mm) |
+| `Bore Radius` | Scalar, mm | 8.253 (US 6 inner Ø 16.507 / 2) |
+| `Width` | Scalar, mm | 4 |
+| `Mesh Tolerance` | Scalar, mm | 0.01 |
+| `Output Path` | File path (or Text) | `...\out\band\test.stl` |
 
-1. Save as `ntop/notebooks/ring_band.ntop` (File > Save As into the repo clone).
-2. In PowerShell, from the repo root with the venv active:
+## 3. Save and verify
+
+1. File → Save As `C:\Users\markd\src\jewelry-forge\ntop\notebooks\ring_band.ntop`.
+2. PowerShell, repo root, venv active:
 
    ```powershell
    python -m ntopjewel templates ntop\notebooks\ring_band.ntop --catalog ring_band
@@ -80,20 +86,21 @@ Output per notebook; the STL leaves through the Export Mesh block, not the Outpu
 4. Send Claude `out\band\ring_band_US6.output.json` once: it confirms how nTop writes a
    scalar Output, which the parser currently tolerates in several shapes.
 
-## 5. If something does not line up
+## 4. If something does not line up
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
+| input turns red when a variable is dropped in | variable has no unit | type the value with its unit (`9.553 mm`) into the variable, or recreate it from the input with Make Variable |
 | `catalog drift: notebook declares input 'Outer radius'` | name differs by case/space | rename the variable in the GUI |
 | `[E] ... Output Path` or no STL written | Export Mesh wants a Text input, or the folder does not exist | switch the variable type to Text; the runner creates the folder, but check the path |
-| STL written but gate says width 6.0 | the Bore cylinder height leaked into the band | check Bore is the *subtraction* body, not `Outer` |
-| inner Ø off by exactly the thickness | radii swapped | `Outer` radius is the larger one |
+| STL written but gate says width 50 | the bore cylinder became the band | `Outer` goes in the body input, `Bore` in the subtraction input |
+| inner Ø off by exactly the thickness | radii swapped | `Outer Radius` is the larger one |
 | volume differs from analytic by > 2 % | Mesh Tolerance too coarse | 0.01 mm; the gate compares against nTop's own volume as well |
 
-## 6. What Phase 1 adds (not now)
+## 5. What Phase 1 adds (not now)
 
 A `Band from profile` custom block: Revolve Profile of a profile built from curves (flat,
-D, court, half-round, knife-edge), plus a comfort-fit bore made by subtracting a torus of
-tube radius `(W²/4 + relief²) / (2·relief)` (see `tables.torus_for_sagitta`) and a domed
-outer surface by intersecting with a torus the same way. Engraving, milgrain and
-textures follow as separate blocks.
+D, court, half-round, knife-edge), centred on the origin, plus a comfort-fit bore made
+by subtracting a torus of tube radius `(W²/4 + relief²) / (2·relief)` (see
+`tables.torus_for_sagitta`) and a domed outer surface by intersecting with a torus the
+same way. Engraving, milgrain and textures follow as separate blocks.
