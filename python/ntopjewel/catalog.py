@@ -122,6 +122,22 @@ def names() -> list[str]:
     return sorted(p.stem for p in d.glob("*.yaml")) if d.exists() else []
 
 
+# nTop's own `-t` template names types differently from its Automate documentation
+# (6.3.3 writes `real` for a scalar). Names in one group are the same thing to us.
+TYPE_ALIASES = (
+    {"scalar", "real"},
+    {"text", "file_path"},
+    {"integer", "int"},
+    {"bool", "boolean"},
+)
+
+
+def same_type(a: str | None, b: str | None) -> bool:
+    if a is None or b is None or a == b:
+        return True
+    return any(a in group and b in group for group in TYPE_ALIASES)
+
+
 def compare_with_template(cat: Catalog, input_template: Path) -> list[str]:
     """Differences between a catalog entry and nTop's own `-t` input template."""
     tpl = json.loads(Path(input_template).read_text(encoding="utf-8"))
@@ -130,7 +146,7 @@ def compare_with_template(cat: Catalog, input_template: Path) -> list[str]:
     for name in tpl_inputs:
         if name not in cat.inputs:
             problems.append(f"notebook declares input {name!r} missing from catalog")
-        elif tpl_inputs[name].get("type") not in (None, cat.inputs[name].type):
+        elif not same_type(tpl_inputs[name].get("type"), cat.inputs[name].type):
             problems.append(f"input {name!r}: notebook type {tpl_inputs[name].get('type')!r} "
                             f"!= catalog type {cat.inputs[name].type!r}")
     for name in cat.inputs:

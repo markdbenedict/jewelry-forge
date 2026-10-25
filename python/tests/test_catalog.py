@@ -10,7 +10,7 @@ def test_ring_band_catalog_loads_and_builds():
     by = {e["name"]: e for e in inputs}
     assert by["Width"]["value"] == 4.0 and by["Width"]["units"] == "mm"          # default applied
     assert by["Mesh Tolerance"]["value"] == 0.01
-    assert by["Output Path"] == {"name": "Output Path", "type": "file_path", "value": "C:\\o\\b.stl"}
+    assert by["Output Path"] == {"name": "Output Path", "type": "text", "value": "C:\\o\\b.stl"}
     assert "catalog" in cat.describe() or "ring_band" in cat.describe()
 
 
@@ -28,3 +28,8 @@ def test_template_diff(fake_ntopcl, band_notebook, tmp_path):
     cat = catalog.load("ring_band")
     i, _ = ntopcl.templates(band_notebook, tmp_path / "tpl")
     assert catalog.compare_with_template(cat, i) == []
+
+
+def test_type_aliases():
+    assert catalog.same_type("real", "scalar") and catalog.same_type("text", "file_path")
+    assert catalog.same_type(None, "scalar") and not catalog.same_type("point", "scalar")

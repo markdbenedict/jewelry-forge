@@ -38,5 +38,5 @@ inputs:
     default: 0.01
     doc: Mesh from Implicit Body tolerance. 0.01 mm is plenty for a 50 µm printer.
   Output Path:
-    type: file_path
-    doc: Absolute path of the STL to write (Export Mesh block). Python sets it.
+    type: text
+    doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop). Python sets it.

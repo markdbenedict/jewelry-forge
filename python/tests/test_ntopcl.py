@@ -83,3 +83,19 @@ def test_templates(fake_ntopcl, band_notebook, tmp_path):
     doc = json.loads(i.read_text())
     assert {e["name"] for e in doc["inputs"]} == {"Outer Radius", "Bore Radius", "Width", "Mesh Tolerance", "Output Path"}
     assert json.loads(o.read_text())[0]["name"] == "Volume"
+
+
+def test_run_uses_template_type_names(fake_ntopcl, band_notebook, tmp_path, monkeypatch):
+    """Types are spelled the way nTop's own -t template spells them (real, text)."""
+    import json as _json
+    monkeypatch.setenv("JEWELRY_OUT", str(tmp_path / "out"))
+    inputs = [ntopcl.make_input("Outer Radius", "scalar", 9.553, "mm"),
+              ntopcl.make_input("Bore Radius", "scalar", 8.253, "mm"),
+              ntopcl.make_input("Width", "scalar", 4.0, "mm"),
+              ntopcl.make_input("Mesh Tolerance", "scalar", 0.01, "mm"),
+              ntopcl.make_input("Output Path", "file_path", str(tmp_path / "b.stl"))]
+    res = ntopcl.run(band_notebook, inputs, tmp_path / "run", tag="b")
+    sent = {e["name"]: e["type"] for e in _json.loads(res.input_json.read_text())["inputs"]}
+    assert sent == {"Outer Radius": "real", "Bore Radius": "real", "Width": "real",
+                    "Mesh Tolerance": "real", "Output Path": "text"}
+    assert (tmp_path / "out" / "templates" / "ring_band" / "input_template.json").exists()

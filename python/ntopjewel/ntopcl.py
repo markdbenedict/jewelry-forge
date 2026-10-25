@@ -72,6 +72,24 @@ def make_input(name: str, type_: str, value: Any, units: str | None = None) -> d
     return entry
 
 
+def apply_template_types(inputs: Iterable[dict], input_template: Path) -> list[dict]:
+    """Rename each input's `type` to what nTop's own `-t` template declares for that name.
+
+    nTop's template is the authority for type spelling (6.3.3 writes `real`, the docs say
+    `scalar`). Inputs the template does not know are left as they are.
+    """
+    tpl = json.loads(Path(input_template).read_text(encoding="utf-8"))
+    tpl_types = {e["name"]: e.get("type") for e in tpl.get("inputs", []) if "name" in e}
+    out = []
+    for entry in inputs:
+        e = dict(entry)
+        t = tpl_types.get(e["name"])
+        if t:
+            e["type"] = t
+        out.append(e)
+    return out
+
+
 def input_json(inputs: Iterable[dict], title: str = "", description: str = "") -> dict:
     inputs = list(inputs)
     names = [i["name"] for i in inputs]
@@ -215,11 +233,26 @@ def _exe() -> Path:
     return exe
 
 
+def template_dir(notebook: Path) -> Path:
+    return config.out_dir() / "templates" / Path(notebook).stem
+
+
+def ensure_template(notebook: Path, exe: Path | None = None, refresh: bool = False) -> Path:
+    """nTop's own input template for this notebook (generated once, cached under out/templates)."""
+    d = template_dir(notebook)
+    i = d / "input_template.json"
+    if refresh or not i.exists() or i.stat().st_mtime < Path(notebook).stat().st_mtime:
+        i, _ = templates(notebook, d, exe)
+    return i
+
+
 def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: str = "run",
         verbosity: int = 2, timeout_s: float = 3600, extra_args: Iterable[str] = (),
-        exe: Path | None = None) -> RunResult:
+        exe: Path | None = None, use_template: bool = True) -> RunResult:
     """Run one notebook. `inputs` None or empty -> no `-j` (nTopCL rejects empty inputs).
 
+    With `use_template` (default) the input types are spelled the way nTop's own `-t`
+    template spells them for this notebook (regenerated when the notebook is newer).
     Writes <out_dir>/<tag>.input.json, <tag>.output.json and <tag>.ntopcl.log.
     Raises NtopclError on failure (with the RunResult attached).
     """
@@ -231,6 +264,8 @@ def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: st
     exe = exe or _exe()
 
     inputs = list(inputs or [])
+    if inputs and use_template:
+        inputs = apply_template_types(inputs, ensure_template(notebook, exe))
     in_path = None
     if inputs:
         in_path = write_input_json(out_dir / f"{tag}.input.json", inputs, title=tag)

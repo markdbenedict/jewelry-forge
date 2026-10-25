@@ -47,9 +47,11 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   `nTop successfully built.` present. nTopCL can exit 0 after a failed block.
 - Per-block timing lines look like `15:57:33 [I]: Sphere_0 complete 0ms`; the runner
   parses them into the report.
-- Input types: `bool`, `scalar` (+ `units`), `integer`, `text`, `file_path`, `point`,
-  `vector` (+ `units`, required for some vectors), `enum` (integer id). A scalar may carry
-  `values: [..]` to sweep one parameter in a single run.
+- Input types (Automate docs): `bool`, `scalar` (+ `units`), `integer`, `text`, `file_path`,
+  `point`, `vector` (+ `units`, required for some vectors), `enum` (integer id). A scalar may
+  carry `values: [..]` to sweep one parameter in a single run. **nTop's own `-t` template
+  spells a scalar `real` and an export path `text`** (seen 2026-10-25); the runner copies
+  the template's spelling, so never hand-write type names.
 - Output JSON is a list of `{name, type, value, components}`; an `implicit` output comes
   back as base64. Scalar output shape is to be confirmed on the first real band run.
 

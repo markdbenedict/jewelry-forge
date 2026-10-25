@@ -30,7 +30,9 @@ ends of the axis).
 2. Right-click the **Radius** input name on `Outer` → **Make Variable**. Rename the new
    variable `Outer Radius` (it already holds 9.553 mm).
 3. **Width** — add a **Point** block: X `0 mm`, Y `0 mm`, Z `4 mm`. Drag it into `Outer`'s
-   **Point 2**. Right-click the Point block's **Z** input → Make Variable → rename `Width`.
+   **Point 2**. Right-click the **Z** input *inside the Point block* → Make Variable →
+   rename `Width`. (Making the whole Point block the variable gives a `point` input,
+   which the catalog rejects; `Width` must be a scalar.)
 4. **Bore** — add a second Cylinder. Point 1 = `0 mm, 0 mm, -10 mm`; Point 2 =
    `0 mm, 0 mm, 40 mm` (far longer than any band, so no arithmetic is needed);
    Radius = `8.253 mm`. Rename `Bore`. Right-click Radius → Make Variable → `Bore Radius`.
@@ -62,7 +64,7 @@ ends of the axis).
 | `Bore Radius` | Scalar, mm | 8.253 (US 6 inner Ø 16.507 / 2) |
 | `Width` | Scalar, mm | 4 |
 | `Mesh Tolerance` | Scalar, mm | 0.01 |
-| `Output Path` | File path (or Text) | `...\out\band\test.stl` |
+| `Output Path` | Text | `...\out\band\test.stl` |
 
 ## 3. Save and verify
 
@@ -74,7 +76,9 @@ ends of the axis).
    ```
 
    It prints the input template nTop generated and either `catalog matches the notebook`
-   or the names that differ. Fix names in the GUI until it matches.
+   or the names that differ. Fix names in the GUI until it matches. (nTop spells a scalar
+   `real` and a path `text` in its template; the runner copies that spelling, so those
+   are not drift. A `point` where a scalar is expected is.)
 3. First real run:
 
    ```powershell

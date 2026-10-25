@@ -51,11 +51,12 @@ if args and args[0] == "-t":
     nb = Path(args[1])
     inputs = []
     if "band" in nb.name:
-        inputs = [{"name": "Outer Radius", "type": "scalar", "value": 0, "units": "mm"},
-                  {"name": "Bore Radius", "type": "scalar", "value": 0, "units": "mm"},
-                  {"name": "Width", "type": "scalar", "value": 0, "units": "mm"},
-                  {"name": "Mesh Tolerance", "type": "scalar", "value": 0, "units": "mm"},
-                  {"name": "Output Path", "type": "file_path", "value": ""}]
+        # nTop 6.3.3 spells these `real` and `text` in its own template (seen 2026-10-25)
+        inputs = [{"name": "Outer Radius", "type": "real", "value": 0, "units": "mm"},
+                  {"name": "Bore Radius", "type": "real", "value": 0, "units": "mm"},
+                  {"name": "Width", "type": "real", "value": 0, "units": "mm"},
+                  {"name": "Mesh Tolerance", "type": "real", "value": 0, "units": "mm"},
+                  {"name": "Output Path", "type": "text", "value": ""}]
     Path("input_template.json").write_text(json.dumps({"title": nb.stem, "description": "", "inputs": inputs}, indent=4))
     Path("output_template.json").write_text(json.dumps([{"name": "Volume", "type": "scalar", "components": [], "value": 0}], indent=4))
     sys.exit(0)
