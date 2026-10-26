@@ -46,6 +46,11 @@ TEST_VALUES = {
 }
 INPUT_ORDER = list(TEST_VALUES) + ["Output Path"]
 
+# Identifier alternatives, tried in order; "implicit" keeps scalar/mesh overloads (subtract<real,real>) out.
+SUBTRACT = [["boolean subtract", "implicit"], ["subtract", "implicit"], ["difference", "implicit"], ["boolean subtract"]]
+INTERSECT = [["boolean intersect", "implicit"], ["intersect", "implicit"], ["boolean intersect"]]
+OFFSET = [["offset body", "implicit"], ["offset", "implicit body"], ["offset body"]]
+
 DEFAULTS = {
     "values": TEST_VALUES,
     "test_output": str(REPO / "out" / "api" / "ring_band_profile_test.stl"),
@@ -96,59 +101,59 @@ def build(notebook, params: dict | None = None) -> dict:
 
         # ---- points on the axis, z from the Z variables --------------------------------
         for label, zvar in (("P Bottom", "Z Bottom"), ("P Top", "Z Top")):
-            pid = h.add(label, "point<real,real,real>", mask="point", must=["real,real,real"])
+            pid = h.add(label, "point<real,real,real>", mask="point", must=[["point<real,real,real"], ["point", "real,real,real"]])
             h.set(pid, ["X"], 0.0, "mm")
             h.set(pid, ["Y"], 0.0, "mm")
             h.wire(h.blocks[zvar], pid, ["Z"])
 
         # ---- cylinders -------------------------------------------------------------------
-        outer = h.add("Outer", "cylinder<point,point,real>", mask="cylinder", must=["point,point,real"])
+        outer = h.add("Outer", "cylinder<point,point,real>", mask="cylinder", must=[["cylinder", "point,point,real"], ["cylinder", "point", "real"]])
         h.wire(h.blocks["P Bottom"], outer, ["Point 1"])
         h.wire(h.blocks["P Top"], outer, ["Point 2"])
         h.wire(h.blocks["Outer Radius"], outer, ["Radius"])
 
-        bore = h.add("Bore", "cylinder<point,point,real>", mask="cylinder", must=["point,point,real"])
+        bore = h.add("Bore", "cylinder<point,point,real>", mask="cylinder", must=[["cylinder", "point,point,real"], ["cylinder", "point", "real"]])
         h.set(bore, ["Point 1"], [0.0, 0.0, -10.0], "mm")
         h.set(bore, ["Point 2"], [0.0, 0.0, 10.0], "mm")
         h.wire(h.blocks["Bore Radius"], bore, ["Radius"])
 
         # ---- flat band -------------------------------------------------------------------
-        band = h.add("Band", mask="subtract", must=["boolean subtract"])
+        band = h.add("Band", mask="subtract", must=SUBTRACT)
         h.wire(outer, band, ["Primary Body", "Body"])
         h.to_list(bore, band, ["Subtraction Bodies", "Bodies"])
 
         # ---- dome: intersect with a torus ------------------------------------------------
-        dome_t = h.add("Dome Torus", "torus<point,vector,real,real>", mask="torus", must=["torus"])
+        dome_t = h.add("Dome Torus", "torus<point,vector,real,real>", mask="torus", must=[["torus", "point", "vector"], ["torus"]])
         h.set(dome_t, ["Center"], [0.0, 0.0, 0.0], "mm")
         h.set(dome_t, ["Axis"], [0.0, 0.0, 1.0])
         h.wire(h.blocks["Dome Ring Radius"], dome_t, ["Radius"])
         h.wire(h.blocks["Dome Tube Radius"], dome_t, ["Torus radius", "Torus Radius", "Tube"])
 
-        domed = h.add("Domed", mask="intersect", must=["boolean intersect"])
+        domed = h.add("Domed", mask="intersect", must=INTERSECT)
         h.to_list(band, domed, ["Bodies"])
         h.to_list(dome_t, domed, ["Bodies"])
 
         # ---- comfort bore: subtract a torus ----------------------------------------------
-        comfort_t = h.add("Comfort Torus", "torus<point,vector,real,real>", mask="torus", must=["torus"])
+        comfort_t = h.add("Comfort Torus", "torus<point,vector,real,real>", mask="torus", must=[["torus", "point", "vector"], ["torus"]])
         h.set(comfort_t, ["Center"], [0.0, 0.0, 0.0], "mm")
         h.set(comfort_t, ["Axis"], [0.0, 0.0, 1.0])
         h.wire(h.blocks["Comfort Ring Radius"], comfort_t, ["Radius"])
         h.wire(h.blocks["Comfort Tube Radius"], comfort_t, ["Torus radius", "Torus Radius", "Tube"])
 
-        shaped = h.add("Shaped", mask="subtract", must=["boolean subtract"])
+        shaped = h.add("Shaped", mask="subtract", must=SUBTRACT)
         h.wire(domed, shaped, ["Primary Body", "Body"])
         h.to_list(comfort_t, shaped, ["Subtraction Bodies", "Bodies"])
 
         # ---- edge round: offset in, offset out ------------------------------------------
-        shrunk = h.add("Shrunk", mask="offset body", must=["offset body"])
+        shrunk = h.add("Shrunk", mask="offset", must=OFFSET)
         h.wire(shaped, shrunk, ["Body"])
         h.wire(h.blocks["Edge Round Inward"], shrunk, ["Distance", "Offset"])
-        profile = h.add("Band Profile", mask="offset body", must=["offset body"])
+        profile = h.add("Band Profile", mask="offset", must=OFFSET)
         h.wire(shrunk, profile, ["Body"])
         h.wire(h.blocks["Edge Round"], profile, ["Distance", "Offset"])
 
         # ---- measure, mesh, export ------------------------------------------------------
-        mass = h.add("Mass Properties", mask="mass properties", must=["mass properties"])
+        mass = h.add("Mass Properties", mask="mass", must=[["mass properties", "implicit"], ["mass properties"], ["mass", "implicit"]])
         h.wire(profile, mass, ["Body"])
         dens, dens_units = p["density"]
         try:
@@ -156,11 +161,11 @@ def build(notebook, params: dict | None = None) -> dict:
         except Exception as e:                  # some overloads take no density
             h.log.append(f"density not set ({e})")
 
-        mesh = h.add("Mesh", mask="mesh from implicit", must=["mesh from implicit body"])
+        mesh = h.add("Mesh", mask="mesh", must=[["mesh from implicit body"], ["mesh from implicit"], ["mesh", "implicit body"]])
         h.wire(profile, mesh, ["Body"])
         h.wire(h.blocks["Mesh Tolerance"], mesh, ["Tolerance"])
 
-        export = h.add("Export Mesh", mask="export mesh", must=["export mesh"])
+        export = h.add("Export Mesh", mask="export", must=[["export mesh"], ["export", "mesh"]])
         h.wire(mesh, export, ["Mesh"])
         h.wire(out_var, export, ["File", "Path", "Filename", "File Path", "Output"])
 

@@ -29,6 +29,27 @@ def test_identifier_lookup_exact_then_mask():
         h.identifier("lathe<real>", mask="lathe", must=["lathe"])
 
 
+def test_identifier_alternatives_skip_scalar_decoys():
+    h = NotebookHelper(FakeNotebook())
+    # "subtract<real,real>" is shorter; requiring "implicit" keeps it out
+    assert h.identifier(mask="subtract", must=[["boolean subtract", "implicit"], ["subtract", "implicit"]]).startswith("boolean subtract<implicit")
+    assert h.identifier(mask="offset", must=[["offset body", "implicit"], ["offset", "implicit body"]]) == "offset body<implicit body,real>"
+    with pytest.raises(ConsoleError) as e:
+        h.identifier(mask="subtract", must=["boolean subtract", "mesh"])
+    msg = str(e.value)
+    assert "nearest" in msg and "boolean subtract<implicit body" in msg and "subtract<real,real>" in msg
+
+
+def test_identifier_falls_back_to_masked_queries():
+    """list_available_blocks() returning a partial list must not hide blocks that a masked query finds."""
+    nb = FakeNotebook(unmasked_limit=3)                 # only sphere, point, cylinder come back unmasked
+    h = NotebookHelper(nb)
+    assert len(h.available()) == 3
+    ident = h.identifier(mask="subtract", must=[["boolean subtract", "implicit"]])
+    assert ident.startswith("boolean subtract") and ident in h.available()
+    assert h.identifier("torus<point,vector,real,real>") == "torus<point,vector,real,real>"   # exact, after a lookup
+
+
 def test_input_name_matching_and_wiring():
     nb = FakeNotebook()
     h = NotebookHelper(nb)
@@ -109,6 +130,19 @@ def test_band_profile_raises_on_failed_block(tmp_path):
     with pytest.raises(ConsoleError, match="failed to build"):
         mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
                        "test_output": str(tmp_path / "t.stl")})
+
+
+def test_discover_script_reports_identifiers_and_inputs():
+    mod = load_recipe("discover")
+    nb = FakeNotebook(unmasked_limit=4)
+    res = mod.build(nb, {})
+    text = "\n".join(res["summary"])
+    assert "PARTIAL" in text                                  # the fake hides most blocks from the unmasked call
+    assert "boolean subtract<implicit body" in text and "Primary Body:implicit body" in text
+    assert "Subtraction Bodies:list<implicit body>" in text
+    assert "add_real_variable" in text and "core.var" in text
+    assert res["probed"]["torus<point,vector,real,real>"]["inputs"][0][0] == "Center"
+    assert nb.saved == [] and nb.fresh == 1                   # scratch only, never saved
 
 
 # ------------------------------------------------------------------ the SSH console wrapper

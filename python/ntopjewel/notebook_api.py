@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -233,19 +234,69 @@ class NotebookHelper:
             self._available = list(self.nb.list_available_blocks())
         return self._available
 
-    def identifier(self, *candidates: str, mask: str = "", must: Iterable[str] = (), prefer_shortest: bool = True) -> str:
+    def lookup(self, mask: str) -> list[str]:
+        """Ask nTop for identifiers matching `mask` (both spellings) and merge them into the cache."""
+        found: list[str] = []
+        for m in dict.fromkeys([mask, mask.lower(), mask.title()]):
+            try:
+                found.extend(self.nb.list_available_blocks(m))
+            except Exception as e:  # pragma: no cover - depends on nTop
+                self.log.append(f"list_available_blocks({m!r}) failed: {e}")
+        avail = self.available()
+        new = [f for f in dict.fromkeys(found) if f not in avail]
+        avail.extend(new)
+        return found
+
+    @staticmethod
+    def _alternatives(must) -> list[list[str]]:
+        """`must` is a list of substrings (all required) or a list of such lists (tried in order)."""
+        must = list(must) if not isinstance(must, str) else [must]
+        if must and all(isinstance(m, (list, tuple)) for m in must):
+            return [list(m) for m in must]
+        return [must] if must else [[]]
+
+    def identifier(self, *candidates: str, mask: str = "", must: Iterable = (), prefer_shortest: bool = True) -> str:
         """First exact candidate that exists, else the identifier containing every `must`
-        substring (case-insensitive) among those matching `mask`. Raises listing near misses."""
+        substring (case-insensitive) among those matching `mask`; `must` may list
+        alternatives (`[["boolean subtract", "implicit"], ["subtract", "implicit"]]`).
+        Falls back to masked `list_available_blocks` queries in case the unmasked list is
+        incomplete. Raises with the nearest identifiers it saw."""
         avail = self.available()
         for c in candidates:
             if c in avail:
                 return c
-        pool = [a for a in avail if mask.lower() in a.lower()] if mask else avail
-        hits = [a for a in pool if all(m.lower() in a.lower() for m in must)]
+        alts = self._alternatives(must)
+        if alts == [[]] and candidates:            # no `must`: the candidates themselves, then their head words
+            alts = [[c.lower()] for c in candidates] + [[c.split("<")[0].lower()] for c in candidates]
+        words = {w for c in candidates for w in re.findall(r"[a-z]+", c.split("<")[0].lower())}
+        words |= {w for alt in alts for m in alt for w in re.findall(r"[a-z]+", m.lower())}
+        if mask:
+            words |= set(re.findall(r"[a-z]+", mask.lower()))
+        words -= {"body", "real", "point", "list", "implicit", "of", "from", "to", "by", "and", "a", "the"}
+
+        def search() -> tuple[list[str], list[str]]:
+            pool = [a for a in avail if mask.lower() in a.lower()] if mask else list(avail)
+            for alt in alts:
+                hits = [a for a in pool if all(m.lower() in a.lower() for m in alt)]
+                if hits:
+                    return hits, pool
+            return [], pool
+
+        hits, pool = search()
+        if not hits:                                   # the unmasked list may be partial: ask again by word
+            for q in dict.fromkeys([mask, *(w for w in words)]):
+                if q:
+                    self.lookup(q)
+            for c in candidates:
+                if c in avail:
+                    return c
+            hits, pool = search()
         if not hits:
-            near = [a for a in avail if any((c.split("<")[0].lower() in a.lower()) for c in candidates)][:15]
-            raise ConsoleError(f"no block identifier for {candidates or must}; near misses: {near}")
-        hits.sort(key=lambda s: (len(s), s)) if prefer_shortest else None
+            near = pool[:25] if pool else [a for a in avail if any(w in a.lower() for w in words)][:25]
+            raise ConsoleError(f"no block identifier for {candidates or must} (mask {mask!r}) among {len(avail)} "
+                               f"available; nearest: {near}")
+        if prefer_shortest:
+            hits.sort(key=lambda s: (len(s), s))
         return hits[0]
 
     # ---- blocks ------------------------------------------------------------------------

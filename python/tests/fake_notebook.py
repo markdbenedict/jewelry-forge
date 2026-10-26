@@ -28,6 +28,8 @@ SIGNATURES = {
         "Mesh from Implicit Body", [("Body", "implicit body"), ("Tolerance", "real"), ("Min. feature size", "real"),
                                     ("Sharpen", "bool"), ("Simplify", "bool")], "mesh"),
     "export mesh<mesh,text,unit,format>": ("Export Mesh", [("Mesh", "mesh"), ("File", "text"), ("Units", "unit"), ("Format", "format")], "file"),
+    "subtract<real,real>": ("Subtract", [("A", "real"), ("B", "real")], "real"),          # scalar decoy
+    "offset<mesh,real>": ("Offset Mesh", [("Mesh", "mesh"), ("Distance", "real")], "mesh"),   # mesh decoy
     "text<text>": ("Text", [("Text", "text")], "text"),
     "core.var": ("Variable", [("Input", "any")], "any"),
 }
@@ -35,8 +37,9 @@ PROPERTIES = {"mass properties": ["Mass", "Volume", "Center of Mass", "Surface A
 
 
 class FakeNotebook:
-    def __init__(self, available=None, fail_blocks=()):
+    def __init__(self, available=None, fail_blocks=(), unmasked_limit=None):
         self.available_ids = list(available or SIGNATURES)
+        self.unmasked_limit = unmasked_limit      # simulate a partial list from list_available_blocks()
         self.blocks: dict[str, dict] = {}       # id -> {funcId, name, inputs: {name: value}, lists: {name: [ids]}, wired: {input: (src, prop)}}
         self.variables: dict[str, dict] = {}    # id -> {value, units, wraps, wired}
         self.counter: dict[str, int] = {}
@@ -50,7 +53,10 @@ class FakeNotebook:
 
     # ---- discovery ----------------------------------------------------------------
     def list_available_blocks(self, mask: str = ""):
-        return [i for i in self.available_ids if mask in i]
+        hits = [i for i in self.available_ids if mask in i]         # case-sensitive, like a real substring match
+        if not mask and self.unmasked_limit is not None:
+            hits = hits[: self.unmasked_limit]
+        return hits
 
     def list_sections(self):
         return [{"name": "Section 1", "id": "section_0"}]
@@ -207,8 +213,9 @@ class FakeNotebook:
 
     # ---- files --------------------------------------------------------------------
     def new_notebook(self):
-        self.__init__(self.available_ids, self.fail_blocks)
-        self.fresh += 1
+        fresh = self.fresh
+        self.__init__(self.available_ids, self.fail_blocks, self.unmasked_limit)
+        self.fresh = fresh + 1
 
     def save_notebook_as(self, notebook_path: str):
         self.saved.append(notebook_path)

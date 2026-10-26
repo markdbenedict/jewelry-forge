@@ -150,6 +150,9 @@ def _console(a: argparse.Namespace):
 
 def _print_build_result(res: dict) -> None:
     r = res.get("result") or {}
+    if r.get("summary"):                      # discovery-style scripts speak for themselves
+        print("\n".join(str(x) for x in r["summary"]))
+        return
     print(f"saved     : {r.get('saved')}")
     print(f"recipe    : {r.get('recipe')}")
     if "volume" in r:
@@ -216,6 +219,7 @@ def cmd_api(a: argparse.Namespace) -> int:
         print(f"api build failed: {e}")
         return 2
     _print_build_result(res)
+    print(f"\nfull result: {work_dir / (script.stem + '.result.json')}")
     return 0
 
 
