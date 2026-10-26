@@ -29,10 +29,13 @@ ends of the axis).
    Radius = `9.553 mm`. Rename the block `Outer` (double-click its name).
 2. Right-click the **Radius** input name on `Outer` → **Make Variable**. Rename the new
    variable `Outer Radius` (it already holds 9.553 mm).
-3. **Width** — add a **Point** block: X `0 mm`, Y `0 mm`, Z `4 mm`. Drag it into `Outer`'s
-   **Point 2**. Right-click the **Z** input *inside the Point block* → Make Variable →
-   rename `Width`. (Making the whole Point block the variable gives a `point` input,
-   which the catalog rejects; `Width` must be a scalar.)
+3. **Width** — the components of a Point input cannot be made variables, and a scalar
+   chip dropped on the Point 2 row is rejected (it would replace the whole point). So:
+   add a **Scalar** variable with the value `4 mm` (unit included) and rename it `Width`;
+   add a **Point** block (X, Y, Z inputs) with X `0 mm`, Y `0 mm`, and drag the `Width`
+   chip into its **Z**; then drag the Point block's name chip onto `Outer`'s **Point 2**
+   row (a Point chip on a Point input is accepted). `Width` must stay a scalar; making
+   the Point block itself an input gives a `point`, which the catalog rejects.
 4. **Bore** — add a second Cylinder. Point 1 = `0 mm, 0 mm, -10 mm`; Point 2 =
    `0 mm, 0 mm, 40 mm` (far longer than any band, so no arithmetic is needed);
    Radius = `8.253 mm`. Rename `Bore`. Right-click Radius → Make Variable → `Bore Radius`.
