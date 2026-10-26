@@ -20,7 +20,7 @@ class BandSpec:
     width_mm: float = 4.0
     thickness_mm: float = 1.3
     allowance_mm: float = 0.0        # added to the inner diameter (print/cast calibration)
-    mesh_tolerance_mm: float = 0.01
+    mesh_tolerance_mm: float = 0.1       # nTop: 2 x voxel size; 0.1 mm = 50 µm voxels
 
     @property
     def inner_diameter_mm(self) -> float:

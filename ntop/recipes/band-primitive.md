@@ -46,9 +46,12 @@ ends of the axis).
    `1 g/cm^3`. Open the block's info panel (`?`), Properties tab, and drag **Volume** into
    the notebook; rename that variable `Volume`. *Check:* ≈ 290.95 mm³
    (π · (9.553² − 8.253²) · 4).
-7. **Mesh** — add **Mesh from Implicit Body** (Structures > Mesh). Body = `Band`,
-   Tolerance `0.01 mm`. Right-click Tolerance → Make Variable → `Mesh Tolerance`.
-   Leave feature size and sharpening at their defaults. Rename the block `Mesh`.
+7. **Mesh** — add **Mesh from Implicit Body** (Utilities > Conversion). Body = `Band`,
+   Tolerance `0.1 mm`. Right-click Tolerance → Make Variable → `Mesh Tolerance`.
+   Leave Min. feature size, Sharpen and Simplify at their defaults. Rename the block
+   `Mesh`. *nTop's Tolerance is twice the voxel size and triangle count scales with
+   1/tolerance²: 0.1 mm ≈ 0.5 M triangles for a band; 0.01 mm produced 57 M triangles
+   and a 2.7 GB STL on 2026-10-25.*
 8. **Export** — add **Export Mesh** (Utilities > Exchange). Mesh = `Mesh`; file =
    `C:\Users\markd\src\jewelry-forge\out\band\test.stl`; STL; mm. Right-click the file
    input → Make Variable → `Output Path`.
@@ -66,7 +69,7 @@ ends of the axis).
 | `Outer Radius` | Scalar, mm | 9.553 (US 6 bore + 1.3 mm) |
 | `Bore Radius` | Scalar, mm | 8.253 (US 6 inner Ø 16.507 / 2) |
 | `Width` | Scalar, mm | 4 |
-| `Mesh Tolerance` | Scalar, mm | 0.01 |
+| `Mesh Tolerance` | Scalar, mm | 0.1 |
 | `Output Path` | Text | `...\out\band\test.stl` |
 
 ## 3. Save and verify
@@ -102,7 +105,7 @@ ends of the axis).
 | `[E] ... Output Path` or no STL written | Export Mesh wants a Text input, or the folder does not exist | switch the variable type to Text; the runner creates the folder, but check the path |
 | STL written but gate says width 50 | the bore cylinder became the band | `Outer` goes in the body input, `Bore` in the subtraction input |
 | inner Ø off by exactly the thickness | radii swapped | `Outer Radius` is the larger one |
-| volume differs from analytic by > 2 % | Mesh Tolerance too coarse | 0.01 mm; the gate compares against nTop's own volume as well |
+| volume differs from analytic by > 2 % | Mesh Tolerance too coarse | 0.1 mm is the default; the gate compares against nTop's own volume as well |
 
 ## 5. What Phase 1 adds (not now)
 

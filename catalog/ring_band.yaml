@@ -33,10 +33,13 @@ inputs:
   Mesh Tolerance:
     type: scalar
     units: mm
-    min: 0.002
-    max: 0.05
-    default: 0.01
-    doc: Mesh from Implicit Body tolerance. 0.01 mm is plenty for a 50 µm printer.
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: >-
+      Mesh from Implicit Body tolerance = 2 x voxel size; triangle count scales with 1/tolerance².
+      0.1 mm = 50 µm voxels (the printer's pixel) and ~0.5 M triangles for a band; 0.01 mm gave
+      57 M triangles (2.7 GB STL) on 2026-10-25.
   Output Path:
     type: text
     doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop). Python sets it.

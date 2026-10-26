@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--width", type=float, default=4.0)
     b.add_argument("--thickness", type=float, default=1.3)
     b.add_argument("--allowance", type=float, default=0.0, help="mm added to the inner diameter")
-    b.add_argument("--tolerance", type=float, default=0.01, help="Mesh from Implicit Body tolerance, mm")
+    b.add_argument("--tolerance", type=float, default=0.1, help="Mesh from Implicit Body tolerance (= 2 x voxel size), mm")
     b.add_argument("--out")
     b.add_argument("--notebook")
     b.add_argument("--deliver", action="store_true", help="copy a passing STL to the Jewelry folder")

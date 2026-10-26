@@ -9,7 +9,7 @@ def test_ring_band_catalog_loads_and_builds():
     inputs = cat.build_inputs({"Outer Radius": 9.5, "Bore Radius": 8.25, "Output Path": "C:\\o\\b.stl"})
     by = {e["name"]: e for e in inputs}
     assert by["Width"]["value"] == 4.0 and by["Width"]["units"] == "mm"          # default applied
-    assert by["Mesh Tolerance"]["value"] == 0.01
+    assert by["Mesh Tolerance"]["value"] == 0.1
     assert by["Output Path"] == {"name": "Output Path", "type": "text", "value": "C:\\o\\b.stl"}
     assert "catalog" in cat.describe() or "ring_band" in cat.describe()
 

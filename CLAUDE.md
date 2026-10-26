@@ -53,7 +53,10 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   spells a scalar `real` and an export path `text`** (seen 2026-10-25); the runner copies
   the template's spelling, so never hand-write type names.
 - Output JSON is a list of `{name, type, value, components}`; an `implicit` output comes
-  back as base64. Scalar output shape is to be confirmed on the first real band run.
+  back as base64; a `real` output is `{"val": <SI number>, "units": {"length": 3}, "isFinite": true}`
+  (metres, kilograms); `ntopcl.scalar_value` converts to mm / g.
+- **Mesh from Implicit Body `Tolerance` = 2 × voxel size**, triangle count ∝ 1/tolerance².
+  Default 0.1 mm (50 µm voxels). 0.01 mm produced a 57 M-triangle, 2.7 GB band STL.
 
 ## Repo map
 

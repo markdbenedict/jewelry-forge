@@ -184,6 +184,11 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     rep.weights_g = tables.weights_g(rep.volume_mm3, metals)
 
     c = rep.checks
+    dense = rep.triangles > 5_000_000
+    c.append(Check("mesh density", not dense,
+                   f"{rep.triangles:,} triangles" + ("; far denser than a printer can use: raise Mesh Tolerance "
+                                                     "(nTop tolerance = 2 x voxel size)" if dense else ""),
+                   hard=False))
     c.append(Check("watertight", rep.watertight, "closed mesh" if rep.watertight else "open edges or holes"))
     c.append(Check("winding", rep.winding_consistent, "consistent" if rep.winding_consistent else "inconsistent face winding"))
     c.append(Check("shells", rep.shells == shells, f"{rep.shells} (expected {shells})"))
