@@ -110,15 +110,29 @@ class BandSpec:
 
     @property
     def comfort_torus(self) -> tuple[float, float]:
-        """(ring radius R_c, tube radius ρ_c) of the torus subtracted to make the barrel bore.
+        """(ring radius R_c, tube radius ρ_c) of the torus the band is INTERSECTED with to
+        make the barrel bore: its tube circle is centred outside the bore at r_i + ρ_c, so
+        its inner side touches the bore at the mid-plane and stands `c` further out at the
+        edges. (Subtracting this torus removes the band instead - seen 2026-10-26.)
 
-        No relief (comfort <= MIN_SAGITTA) is a small torus sitting inside the bore, clear of
-        the band, so the subtract removes nothing.
+        No relief (comfort <= MIN_SAGITTA) is a torus centred ON the bore and big enough to
+        swallow the whole section, so the intersect removes nothing.
         """
         if self.comfort <= MIN_SAGITTA:
-            return self.bore_radius_mm - 1.5, 1.0
+            rho = math.hypot(self.thickness_mm, self.width_mm / 2) + 0.5
+            return self.bore_radius_mm, rho
         rho, _ = tables.torus_for_sagitta(self.width_mm, self.comfort)
         return self.bore_radius_mm + rho, rho
+
+    def section_mask(self, r, z):
+        """True where (r, z) lies in the designed cross-section before edge rounding:
+        band ∩ dome torus ∩ comfort torus. Pure arithmetic; used by the tests and the gate."""
+        rd, td = self.dome_torus
+        rc, tc = self.comfort_torus
+        in_band = (r >= self.bore_radius_mm) & (r <= self.outer_radius_mm) & (abs(z) <= self.width_mm / 2)
+        in_dome = (r - rd) ** 2 + z ** 2 <= td ** 2
+        in_comfort = (r - rc) ** 2 + z ** 2 <= tc ** 2
+        return in_band & in_dome & in_comfort
 
     @property
     def label(self) -> str:

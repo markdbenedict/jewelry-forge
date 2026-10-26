@@ -74,8 +74,8 @@ def test_profile_presets_and_limits():
     assert flat.dome == band.MIN_SAGITTA and flat.comfort == band.MIN_SAGITTA
     rd, td = flat.dome_torus                      # torus centred on the outer surface, swallowing the section
     assert rd == pytest.approx(flat.outer_radius_mm) and td > (1.3 ** 2 + 4) ** 0.5
-    rc, tc = flat.comfort_torus                   # torus inside the bore, clear of the band
-    assert rc + tc < flat.bore_radius_mm and rc > 0
+    rc, tc = flat.comfort_torus                   # torus centred on the bore, swallowing the section
+    assert rc == pytest.approx(flat.bore_radius_mm) and tc > (1.3 ** 2 + 4) ** 0.5
     assert flat.warnings() == []
     thin = band.BandSpec(size=6, thickness_mm=1.0, profile="half-round")      # edge would be 0.4 mm
     assert any("edge would be" in p for p in thin.validate())
@@ -112,3 +112,26 @@ def test_band_delivery(fake_ntopcl, profile_notebook, tmp_path, monkeypatch):
                      deliver=True, deliver_project="Bands")
     assert res.delivered == tmp_path / "Jewelry" / "Bands" / "ring_band_flat_US7.stl"
     assert res.delivered.exists()
+
+
+def test_profile_booleans_give_the_designed_section():
+    """Sample band ∩ dome ∩ comfort on an (r, z) grid: full thickness at the mid-plane, the designed
+    edge thickness at the edges, and a flat profile untouched. (The first API build subtracted the
+    comfort torus and produced a 0 mm shell - this is the guard against that.)"""
+    import numpy as np
+    r = np.linspace(0, 14, 5601)
+    for name, mid, edge in (("court", 1.3, 1.3 - 0.325 - 0.286), ("flat", 1.3, 1.3)):
+        s = band.BandSpec(size=6, profile=name)
+        def thickness(zq):
+            row = s.section_mask(r, zq)
+            return r[row].max() - r[row].min() if row.any() else 0.0
+        assert thickness(0.0) == pytest.approx(mid, abs=0.01), name
+        assert thickness(1.999) == pytest.approx(edge, abs=0.02), name
+        assert thickness(2.5) == 0.0                                   # nothing outside the band width
+        assert 0 < thickness(1.0) <= mid + 1e-9
+        # the section is one solid run of material at every height, never a split or a sliver
+        for zq in (0.0, 0.5, 1.0, 1.5, 1.9):
+            row = s.section_mask(r, zq)
+            idx = np.flatnonzero(row)
+            assert idx[-1] - idx[0] + 1 == len(idx), (name, zq)
+            assert thickness(zq) >= edge - 0.02, (name, zq)

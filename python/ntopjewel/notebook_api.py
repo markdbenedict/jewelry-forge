@@ -212,10 +212,16 @@ try:
     _params = json.load(open(r"{params_path}", encoding="utf-8"))
     _out = getattr(_mod, "{entry}")(notebook, _params)
     _result = {{"status": "ok", "script": r"{script}", "result": _out}}
-except Exception:
+except Exception as _e:
     _result["traceback"] = traceback.format_exc()
+    _result["error"] = f"{{type(_e).__name__}}: {{_e}}"
 json.dump(_result, open(r"{result_path}", "w", encoding="utf-8"), indent=2, default=str)
-print("{DONE}" if _result["status"] == "ok" else "{FAIL}")
+if _result["status"] == "ok":
+    print("{DONE}")
+else:
+    print("FAILED:", _result["error"].splitlines()[0][:300])
+    print("details:", r"{result_path}")
+    print("{FAIL}")
 '''
 
 
@@ -335,6 +341,23 @@ class NotebookHelper:
     def inputs(self, block_id: str) -> list[dict]:
         return [i for i in self.nb.list_block_inputs(block_id) if not i.get("isReturnValue")]
 
+    def properties(self, block_id: str) -> list[str]:
+        """Property names of a built block; tolerates dicts, strings or a dict-of-dicts answer."""
+        try:
+            raw = self.nb.list_block_properties(block_id)
+        except Exception as e:
+            self.log.append(f"list_block_properties({block_id}) failed: {e}")
+            return []
+        if isinstance(raw, dict):
+            raw = list(raw.get("properties", raw.keys()))
+        out = []
+        for pr in raw or []:
+            if isinstance(pr, dict):
+                out.append(str(pr.get("name") or pr.get("id") or pr))
+            else:
+                out.append(str(pr))
+        return out
+
     def input_name(self, block_id: str, *candidates: str) -> str:
         """The block's actual input name matching one of `candidates` (exact, then case-insensitive, then contains)."""
         names = [i["name"] for i in self.inputs(block_id)]
@@ -388,15 +411,47 @@ class NotebookHelper:
         self.log.append(f"var {name} wraps {block_id}")
         return info["id"]
 
-    def property_var(self, name: str, source_id: str, prop: str) -> str:
-        """An empty variable fed by a property of `source_id` (e.g. Mass Properties -> Volume)."""
-        info = self.nb.add_variable(name)
-        var_id = info["id"]
-        names = [i["name"] for i in self.nb.list_block_inputs(var_id) if not i.get("isReturnValue")] or ["x"]
-        self.nb.connect_block_property(source_id, prop, var_id, names[0])
-        self.blocks[name] = var_id
-        self.log.append(f"var {name} <- {source_id}.{prop}")
-        return var_id
+    def property_var(self, name: str, source_id: str, prop: str, units: str = "mm^3") -> str:
+        """A variable fed by a property of `source_id` (e.g. Mass Properties -> Volume): first an
+        untyped variable (`add_variable`, input `x`), else a real variable (`core.var<real>`,
+        input `Input`) when the untyped one refuses the connection."""
+        errors = []
+        try:
+            info = self.nb.add_variable(name)
+            var_id = info["id"]
+            names = [i["name"] for i in self.nb.list_block_inputs(var_id) if not i.get("isReturnValue")] or ["x"]
+            self.nb.connect_block_property(source_id, prop, var_id, names[0])
+            self.blocks[name] = var_id
+            self.log.append(f"var {name} <- {source_id}.{prop} (untyped variable, input {names[0]})")
+            return var_id
+        except Exception as e:
+            errors.append(f"untyped variable: {e}")
+        real_name = name if name not in self.blocks else f"{name} value"
+        try:
+            info = self.nb.add_real_variable(real_name + " tmp", 0.0, units)
+            var_id = info["id"]
+            self.nb.connect_block_property(source_id, prop, var_id, "Input")
+            try:
+                var_id = self.nb.rename_variable(var_id, real_name)["id"]
+            except Exception as e:  # keep the temporary name rather than fail
+                self.log.append(f"rename of {var_id} failed: {e}")
+            self.blocks[name] = var_id
+            self.log.append(f"var {name} <- {source_id}.{prop} (real variable {var_id})")
+            return var_id
+        except Exception as e:
+            errors.append(f"real variable: {e}")
+        raise ConsoleError(f"could not feed a variable from {source_id}.{prop}: " + "; ".join(errors))
+
+    def diagnostics(self) -> dict:
+        """What the helper knows, for an error report: identifiers, ids, log, best-effort states."""
+        states = {}
+        for label, bid in list(self.blocks.items())[-40:]:
+            try:
+                st = self.nb.block_state(bid)
+                states[label] = st.get("buildState", "?") + (f": {st['error']}" if st.get("error") else "")
+            except Exception as e:
+                states[label] = f"?: {e}"
+        return {"identifiers": self.identifiers, "blocks": self.blocks, "states": states, "log": self.log[-60:]}
 
     def declare_inputs(self, ids: Iterable[str]) -> None:
         for i in ids:

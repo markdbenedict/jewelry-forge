@@ -47,7 +47,7 @@ dome on a wide band can give a dome torus with ring radius <= 0, which nTop may 
 Python: inner diameter from `tables.inner_diameter_mm(size, system)` + allowance, radii,
 z = ±W/2, both torus radii, edge offsets, file name `ring_band_<profile>_<label>.stl`,
 gate expectations (inner/outer Ø and width ± 0.05 mm, volume ± 2 % vs nTop, wall floor =
-min(0.5 mm, 0.8 x designed edge thickness)). Notebook: intersect, subtract, two offsets,
+min(0.5 mm, 0.8 x designed edge thickness)). Notebook: one intersect (band, dome torus, comfort torus), two offsets,
 Mass Properties, mesh, export. Inputs are listed in `catalog/ring_band_profile.yaml`.
 
 ## Report back

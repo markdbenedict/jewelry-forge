@@ -14,13 +14,15 @@ subtracts and offsets. Time: 20–30 minutes, starting from `ring_band.ntop`.
 - Dome: intersect the flat band with a torus whose tube circle has radius
   ρ_d = (W²/4 + d²)/(2d) and sits at ring radius R_d = r_o − ρ_d. The circle touches the
   outer surface at the mid-plane and is `d` lower at the edges.
-- Comfort bore: subtract a torus with ρ_c = (W²/4 + c²)/(2c) at ring radius R_c = r_i + ρ_c.
-  It touches the bore at the mid-plane and relieves it by `c` at the edges.
+- Comfort bore: **intersect** with a torus with ρ_c = (W²/4 + c²)/(2c) at ring radius
+  R_c = r_i + ρ_c. Its inner side touches the bore at the mid-plane and stands `c` further
+  out at the edges, so the kept material has a barrel bore. (Subtracting this torus removes
+  the band - its tube covers the whole section.)
 - Edge round: Offset Body by −e, then by +e. Shrinking and regrowing an implicit rounds
   every edge with radius e and leaves the flat faces where they were.
 - Python computes all six numbers (`python -m ntopjewel band --profile court --dry-run`
   prints them). For a flat outside it passes a torus that swallows the section, so the
-  intersect removes nothing; for no bore relief, a small torus inside the bore.
+  intersect removes nothing; for no bore relief, a torus centred on the bore that does the same.
 
 The band is centred on the origin along Z (z = ±W/2), which Phase 2 needs for heads.
 
@@ -61,14 +63,13 @@ Inward, Mesh Tolerance, Output Path (12).
 3. **Dome torus** — add **Torus** (Create → Primitives). Center `0 mm, 0 mm, 0 mm`; Axis
    `0, 0, 1`; Radius = `Dome Ring Radius` chip; Torus radius = `Dome Tube Radius` chip.
    Rename `Dome Torus`.
-4. **Domed** — add **Boolean Intersect** (Modeling → Booleans). Bodies = `Band` (the existing
-   Boolean Subtract) and `Dome Torus`. Blend Sharp. Rename `Domed`.
-   *Check:* the outside now bulges; the band is 1.3 mm thick at the middle, thinner at the edges.
-5. **Comfort torus** — add another **Torus**. Center `0 mm, 0 mm, 0 mm`; Axis `0, 0, 1`;
+4. **Comfort torus** — add another **Torus**. Center `0 mm, 0 mm, 0 mm`; Axis `0, 0, 1`;
    Radius = `Comfort Ring Radius`; Torus radius = `Comfort Tube Radius`. Rename `Comfort Torus`.
-6. **Shaped** — add **Boolean Subtract**. Primary body = `Domed`; Subtraction body =
-   `Comfort Torus`. Rename `Shaped`. *Check:* the bore is now barrel-shaped (wider at the
-   edges).
+5. **Shaped** — add **Boolean Intersect** (Modeling → Booleans). Bodies = `Band` (the existing
+   Boolean Subtract), `Dome Torus` and `Comfort Torus`. Blend Sharp. Rename `Shaped`.
+   *Check:* the outside bulges and the bore is barrel-shaped; the band is 1.3 mm thick at the
+   middle and about 0.69 mm at the edges (court).
+6. (no step - kept so the numbering below matches the older copy)
 7. **Edge round** — add **Offset Body** (Modeling → Operations). Body = `Shaped`, Distance =
    `Edge Round Inward` chip. Rename `Shrunk`. Add a second **Offset Body**: Body = `Shrunk`,
    Distance = `Edge Round` chip. Rename `Band Profile`. *Check:* all four edges are rounded;
@@ -105,7 +106,7 @@ must match the hello band (290.9 mm³) within the edge rounding.
 | --- | --- | --- |
 | Torus block refuses the Radius / Torus radius pair | a shallow dome on a wide band gives a ring radius ≤ 0 | the dry run warns about it; use `--dome` a little larger or a narrower band |
 | `Domed` is empty or a thin ring | Intersect used the wrong torus, or the dome torus is centred off the origin | Center must be `0, 0, 0`; Radius chip is `Dome Ring Radius` |
-| Bore unchanged after step 6 | comfort torus not touching the band | Radius chip is `Comfort Ring Radius` (≈ 15.4 mm for the test), tube ≈ 7.1 mm |
+| Band vanishes to a thin shell | comfort torus subtracted instead of intersected | step 5 is a Boolean Intersect with all three bodies |
 | gate: width 20 or more | the bore cylinder went into the Intersect | step 4 uses `Band`, not `Bore` |
 | gate: wall p1 far below 0.69 | edge round too big for the edge, or offsets reversed | `--dome`/`--comfort` smaller, or swap the offset chips |
 | volume differs from nTop's by > 2 % | Mesh Tolerance too coarse for the rounded edges | try 0.05 mm once; expect ~4x the triangles |

@@ -39,6 +39,8 @@ Windows 11 laptops, Python per nTop's bundled console.
 - Whether a property of a built block (`Mass Properties.Volume`) can feed an empty
   variable created with `add_variable(name)` and then be the notebook Output.
 - Whether `export_as_recipe(path, True)` writes a recipe we can diff in git.
+- The shape of `list_block_properties()` answers (dicts with `name`? strings?) - the helper
+  accepts either and logs what it saw.
 - Whether `block_state` answers for variables (the helper tolerates a refusal).
 
 ## Findings

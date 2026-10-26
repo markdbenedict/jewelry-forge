@@ -92,17 +92,19 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert nb.inputs == mod.INPUT_ORDER
     assert nb.output == "Volume"
     assert nb.fresh == 1 and nb.saved == [str(tmp_path / "rb.ntop")] and nb.recipes == [str(tmp_path / "rb.json")]
-    # wiring: both cylinders fed by variables, band = outer minus bore, dome intersect, comfort subtract, two offsets
+    # wiring: both cylinders fed by variables, band = outer minus bore, one intersect with both tori, two offsets
     b = nb.blocks
     outer, bore = res["blocks"]["Outer"], res["blocks"]["Bore"]
     assert b[outer]["wired"]["Radius"][0] == "Outer Radius" and b[bore]["wired"]["Radius"][0] == "Bore Radius"
     assert b[outer]["wired"]["Point 2"][0] == res["blocks"]["P Top"]
     band = res["blocks"]["Band"]
     assert b[band]["wired"]["Primary Body"][0] == outer and b[band]["lists"]["Subtraction Bodies"] == [bore]
-    domed = res["blocks"]["Domed"]
-    assert b[domed]["lists"]["Bodies"] == [band, res["blocks"]["Dome Torus"]]
     shaped = res["blocks"]["Shaped"]
-    assert b[shaped]["lists"]["Subtraction Bodies"] == [res["blocks"]["Comfort Torus"]]
+    assert b[shaped]["lists"]["Bodies"] == [band, res["blocks"]["Dome Torus"], res["blocks"]["Comfort Torus"]]
+    assert "Domed" not in res["blocks"]
+    for t in ("Dome Torus", "Comfort Torus"):
+        assert b[res["blocks"][t]]["inputs"]["Axis"] == ([0.0, 0.0, 1.0], "") and b[res["blocks"][t]]["wired"]["Torus Radius"]
+    assert b[res["blocks"]["Shrunk"]]["wired"]["Body"][0] == shaped
     prof = res["blocks"]["Band Profile"]
     assert b[prof]["wired"]["Distance"][0] == "Edge Round"
     assert b[res["blocks"]["Shrunk"]]["wired"]["Distance"][0] == "Edge Round Inward"
@@ -118,7 +120,7 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert set(res["states"]) == set(res["blocks"]) and all(v == "e_OK" for v in res["states"].values())
     ids = res["identifiers"]
     assert ids["Band"] == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>"
-    assert ids["Domed"] == "boolean_intersect<blend_enum,real_field,list<implicit>>"
+    assert ids["Shaped"] == "boolean_intersect<blend_enum,real_field,list<implicit>>"
     assert ids["Shrunk"] == "offset_implicit<implicit,real_field>"
     assert ids["Mass Properties"] == "mass_properties_from_body<implicit,real_field,real>"
     assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
@@ -143,10 +145,12 @@ def test_band_profile_path_variable_fallback(tmp_path):
 
 def test_band_profile_raises_on_failed_block(tmp_path):
     mod = load_recipe("band_profile")
-    nb = FakeNotebook(fail_blocks={"Implicit Body_2"})     # the second subtract / shaped body
-    with pytest.raises(ConsoleError, match="failed to build"):
+    nb = FakeNotebook(fail_blocks={"Implicit Body_1"})     # the intersect (Shaped)
+    with pytest.raises(ConsoleError, match="failed to build") as e:
         mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
                        "test_output": str(tmp_path / "t.stl")})
+    msg = str(e.value)
+    assert "diagnostics" in msg and "forced failure" in msg and "boolean_intersect" in msg   # log + states travel with the error
 
 
 def test_discover_script_reports_identifiers_and_inputs():
@@ -195,6 +199,8 @@ def test_console_reports_script_failure(tmp_path):
     c = Console(key=tmp_path / "nokey", transport=transport)
     with pytest.raises(ConsoleError, match="boom"):
         c.run_script(bad, {}, work_dir=tmp_path / "api")
+    res = json.loads((tmp_path / "api" / "bad.result.json").read_text(encoding="utf-8"))
+    assert res["error"] == "RuntimeError: boom"            # the console also prints this line before the sentinel
 
 
 def test_console_missing_key_message(tmp_path):

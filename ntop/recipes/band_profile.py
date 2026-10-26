@@ -3,8 +3,8 @@
 What it builds (see band-profile.md for the geometry and ntopjewel.band for the numbers):
 
     inputs (12 real/text variables, in catalog order)
-    Outer / Bore cylinders  ->  Boolean Subtract  ->  ∩ Dome Torus  ->  − Comfort Torus
-    -> Offset Body (−e) -> Offset Body (+e) = Band Profile
+    Outer / Bore cylinders  ->  Boolean Subtract (Band)  ->  Boolean Intersect with Dome Torus
+    and Comfort Torus (Shaped)  ->  Offset Body (−e) -> Offset Body (+e) = Band Profile
     -> Mass Properties (Volume -> variable "Volume" = the notebook Output)
     -> Mesh from Implicit Body -> Export Mesh (file = Output Path)
 
@@ -105,6 +105,15 @@ def _set_axis(h: NotebookHelper, block_id: str) -> None:
 
 
 def build(notebook, params: dict | None = None) -> dict:
+    """Entry point for `api build band_profile`; see the module docstring."""
+    h = NotebookHelper(notebook)
+    try:
+        return _build(notebook, params, h)
+    except Exception as e:
+        raise ConsoleError(f"{type(e).__name__}: {e}\n--- diagnostics ---\n{json.dumps(h.diagnostics(), indent=1, default=str)[:8000]}") from e
+
+
+def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
     p = {**DEFAULTS, **(params or {})}
     values = {**TEST_VALUES, **(p.get("values") or {})}
     test_output = str(p["test_output"])
@@ -112,7 +121,6 @@ def build(notebook, params: dict | None = None) -> dict:
     for key in ("save_to", "recipe_to"):
         Path(p[key]).parent.mkdir(parents=True, exist_ok=True)
 
-    h = NotebookHelper(notebook)
     if p["fresh"]:
         notebook.new_notebook()
         h._available = None
@@ -146,27 +154,25 @@ def build(notebook, params: dict | None = None) -> dict:
         h.wire(outer, band, ["Primary Body", "Body"])
         h.to_list(bore, band, ["Subtraction Bodies", "Bodies"])
 
-        # ---- dome: intersect with a torus ------------------------------------------------
+        # ---- dome and comfort bore: both tori are INTERSECTED with the band ----------------
+        # The dome torus (centred inside the outer surface) keeps the domed outside; the comfort
+        # torus (centred outside the bore) keeps the barrel bore. Subtracting the comfort torus
+        # removes the band instead (its tube covers the whole section) - seen 2026-10-26.
         dome_t = h.add("Dome Torus", TORUS, mask="torus", must=[["torus", "point", "vector"], ["torus"]])
         h.set(dome_t, ["Center"], [0.0, 0.0, 0.0], "mm")
         _set_axis(h, dome_t)
         h.wire(h.blocks["Dome Ring Radius"], dome_t, ["Radius"])
         h.wire(h.blocks["Dome Tube Radius"], dome_t, ["Torus radius", "Torus Radius", "Tube"])
 
-        domed = h.add("Domed", mask="intersect", must=INTERSECT)
-        h.to_list(band, domed, ["Bodies"])
-        h.to_list(dome_t, domed, ["Bodies"])
-
-        # ---- comfort bore: subtract a torus ----------------------------------------------
         comfort_t = h.add("Comfort Torus", TORUS, mask="torus", must=[["torus", "point", "vector"], ["torus"]])
         h.set(comfort_t, ["Center"], [0.0, 0.0, 0.0], "mm")
         _set_axis(h, comfort_t)
         h.wire(h.blocks["Comfort Ring Radius"], comfort_t, ["Radius"])
         h.wire(h.blocks["Comfort Tube Radius"], comfort_t, ["Torus radius", "Torus Radius", "Tube"])
 
-        shaped = h.add("Shaped", mask="subtract", must=SUBTRACT)
-        h.wire(domed, shaped, ["Primary Body", "Body"])
-        h.to_list(comfort_t, shaped, ["Subtraction Bodies", "Bodies"])
+        shaped = h.add("Shaped", mask="intersect", must=INTERSECT)
+        for body_id in (band, dome_t, comfort_t):
+            h.to_list(body_id, shaped, ["Bodies"])
 
         # ---- edge round: offset in, offset out ------------------------------------------
         shrunk = h.add("Shrunk", mask="offset", must=OFFSET)
@@ -197,10 +203,14 @@ def build(notebook, params: dict | None = None) -> dict:
 
     # ---- let it build, then read the volume through a variable ------------------------
     h.assert_ok(mass, p["wait_s"])
-    props = [pr["name"] for pr in notebook.list_block_properties(mass)]
+    props = h.properties(mass)                   # names, whatever shape nTop returns them in
+    h.log.append(f"Mass Properties offers {props}")
     vol_prop = next((n for n in props if n.lower() == "volume"), None) or next((n for n in props if "volume" in n.lower()), None)
     if not vol_prop:
-        raise ConsoleError(f"Mass Properties has no Volume property; it offers {props}")
+        if props:
+            raise ConsoleError(f"Mass Properties has no Volume property; it offers {props}")
+        vol_prop = "Volume"                       # nothing listed: use the GUI's name and let the build tell us
+        h.log.append("no properties listed; trying the GUI name 'Volume'")
     vol_var = h.property_var("Volume", mass, vol_prop)
 
     # ---- declare the notebook inputs and the output -----------------------------------
@@ -212,7 +222,11 @@ def build(notebook, params: dict | None = None) -> dict:
     failed = {k: v for k, v in states.items() if not v.startswith("e_OK") and not v.startswith("?")}
     if failed:
         raise ConsoleError("blocks failed to build: " + json.dumps(failed, indent=2))
-    volume = h.output_value(vol_var)
+    try:
+        volume = h.output_value(vol_var)
+    except Exception as e:                      # the notebook is still fine without this number
+        h.log.append(f"get_block_output_meta failed: {e}")
+        volume = None
     notebook.save_notebook_as(p["save_to"])
     try:
         notebook.export_as_recipe(p["recipe_to"], True)
