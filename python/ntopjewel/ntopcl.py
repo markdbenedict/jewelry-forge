@@ -259,7 +259,7 @@ def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: st
     notebook = Path(notebook).resolve()
     if not notebook.exists():
         raise NtopclError(f"notebook not found: {notebook}")
-    out_dir = Path(out_dir)
+    out_dir = Path(out_dir).resolve()        # ntopcl runs with cwd=out_dir, so every path it gets must be absolute
     out_dir.mkdir(parents=True, exist_ok=True)
     exe = exe or _exe()
 
@@ -299,7 +299,7 @@ def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: st
 def templates(notebook: Path, out_dir: Path, exe: Path | None = None) -> tuple[Path, Path]:
     """`ntopcl -t notebook` -> (input_template.json, output_template.json) in out_dir."""
     notebook = Path(notebook).resolve()
-    out_dir = Path(out_dir)
+    out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     exe = exe or _exe()
     proc = subprocess.run([str(exe), "-t", str(notebook)], capture_output=True, text=True,

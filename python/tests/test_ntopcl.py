@@ -99,3 +99,16 @@ def test_run_uses_template_type_names(fake_ntopcl, band_notebook, tmp_path, monk
     assert sent == {"Outer Radius": "real", "Bore Radius": "real", "Width": "real",
                     "Mesh Tolerance": "real", "Output Path": "text"}
     assert (tmp_path / "out" / "templates" / "ring_band" / "input_template.json").exists()
+
+
+def test_run_with_relative_out_dir(fake_ntopcl, band_notebook, tmp_path, monkeypatch):
+    """ntopcl is started inside out_dir, so relative out paths must be made absolute first."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("JEWELRY_OUT", str(tmp_path / "out"))
+    inputs = [ntopcl.make_input("Outer Radius", "scalar", 9.553, "mm"),
+              ntopcl.make_input("Bore Radius", "scalar", 8.253, "mm"),
+              ntopcl.make_input("Width", "scalar", 4.0, "mm"),
+              ntopcl.make_input("Mesh Tolerance", "scalar", 0.01, "mm"),
+              ntopcl.make_input("Output Path", "text", str(tmp_path / "rel" / "b.stl"))]
+    res = ntopcl.run(band_notebook, inputs, Path("rel"), tag="r")
+    assert res.ok and res.input_json.is_absolute() and res.output_json.exists()
