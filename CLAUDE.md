@@ -66,13 +66,28 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - **Mesh from Implicit Body `Tolerance` = 2 × voxel size**, triangle count ∝ 1/tolerance².
   Default 0.1 mm (50 µm voxels). 0.01 mm produced a 57 M-triangle, 2.7 GB band STL.
 
-## Notebook API rules (from nTop's doc, Oct 2026; not yet exercised on Mark's laptop)
+## Notebook API rules (doc Oct 2026; console, SSH and discovery verified 2026-10-26 on nTop 6.3.3)
 
-- The console is **View > Python Console** (Ctrl+`) inside nTop; it exists only with the
-  Private Beta (Early Access) licence permission. Everything is a method of `notebook`
-  (`add_block`, `set_block_input`, `connect_block_property`, `append_to_list`,
-  `add_real_variable`, `add_variable`, `move_block_to_input`, `set_block_as_output`,
-  `block_state`, `save_notebook_as`, `export_as_recipe`, `paused_updates()` …).
+- The console is **View > Python Console** (Ctrl+`) inside nTop (present on Mark's licence).
+  Everything is a method of `notebook` (`add_block`, `set_block_input`,
+  `connect_block_property`, `append_to_list`, `add_real_variable`, `add_variable`,
+  `move_block_to_input`, `set_block_as_output`, `block_state`, `save_notebook_as`,
+  `export_as_recipe`, `paused_updates()` …).
+- **Identifiers are snake_case + the input type list, sometimes a `[x.y.z]` version**:
+  `boolean_subtract<blend_enum,real_field,implicit,list<implicit>>`,
+  `boolean_intersect<blend_enum,real_field,list<implicit>>`, `offset_implicit<implicit,real_field>`,
+  `mass_properties_from_body<implicit,real_field,real>`, `implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]`,
+  `export_mesh<file_path,mesh,unit_length_enum>`, `torus<point,vector,real,real>` (Center, Axis,
+  Radius, Torus Radius), `cylinder<point,point,real>`, `point<real,real,real>`,
+  `remap_cylindrical_implicit<implicit,real>`, `twist<implicit,plane,real_field>`,
+  `polar_array_implicit<implicit,real,integer,axis>`. 6.3.3 lists 2273; `api build discover`
+  dumps them with input names. Unversioned = current definition; else take the newest version.
+- **Typed variables are blocks `core.var<real|text|file_path|implicit|…>`** with one input
+  `Input`; bare `core.var` does not exist. `add_real_variable(name, v, "mm")` makes a
+  `core.var<real>` whose id is the name; `add_variable(name)` makes `core.var_any<any>` with
+  input `x`. `list_block_inputs` also lists the block's return value (`isReturnValue`).
+- nTop's Python persists between runs, so the driver purges `ntopjewel*` from `sys.modules`
+  before each run; without that an edited helper is not what runs.
 - SSH: `ssh -tt -i ~\.ssh\id_ntopcli -p 2222 localhost` while the console panel is open.
   Key-based only; `authorized_keys` written as ASCII (no BOM), owner-only. **One line per
   send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the

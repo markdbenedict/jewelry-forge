@@ -198,8 +198,12 @@ def collect_result(script: Path, result_path: Path, output: str = "") -> dict:
 def driver_source(script: Path, params_path: Path, result_path: Path, python_path: Path | None, entry: str) -> str:
     """Python that nTop's console runs: load the script by path, call entry(notebook, params)."""
     pp = f"sys.path.insert(0, r\"{python_path}\")" if python_path else ""
-    return f'''import sys, json, traceback, importlib.util
+    return f'''import sys, json, traceback, importlib, importlib.util
 {pp}
+# nTop's Python lives on between runs: drop our cached modules so edited files are what runs
+for _k in [k for k in list(sys.modules) if k == "ntopjewel" or k.startswith("ntopjewel.") or k == "{script.stem}"]:
+    del sys.modules[_k]
+importlib.invalidate_caches()
 _result = {{"status": "fail", "script": r"{script}"}}
 try:
     _spec = importlib.util.spec_from_file_location("{script.stem}", r"{script}")
@@ -216,6 +220,27 @@ print("{DONE}" if _result["status"] == "ok" else "{FAIL}")
 
 
 # ========================================================================= NotebookHelper
+VERSION_RE = re.compile(r"\[(\d+)\.(\d+)\.(\d+)\]$")
+
+
+def _norm(s: str) -> str:
+    """Identifiers are snake_case: compare case-insensitively with spaces as underscores."""
+    return s.lower().replace(" ", "_")
+
+
+def _rank(ident: str, terms: Iterable[str] = (), prefer_shortest: bool = True) -> tuple:
+    """Sort key: the identifier whose *name* (before `<`) matches a search term earliest wins
+    (`boolean_subtract<…>` over `slice_stack_boolean_subtract<…>`), then an unversioned
+    identifier (nTop's current definition), then the newest `[x.y.z]` version, then the
+    shortest, then alphabetical."""
+    m = VERSION_RE.search(ident)
+    ver = tuple(-int(x) for x in m.groups()) if m else ()
+    base = VERSION_RE.sub("", ident)
+    name = _norm(base.split("<")[0])
+    pos = min([name.find(_norm(t)) for t in terms if name.find(_norm(t)) >= 0] or [10 ** 6])
+    return (pos, 1 if m else 0, ver, len(base) if prefer_shortest else 0, ident)
+
+
 class NotebookHelper:
     """Conveniences over the `notebook` object inside nTop's Python Console."""
 
@@ -274,15 +299,15 @@ class NotebookHelper:
             words |= set(re.findall(r"[a-z]+", mask.lower()))
         words -= {"body", "real", "point", "list", "implicit", "of", "from", "to", "by", "and", "a", "the"}
 
-        def search() -> tuple[list[str], list[str]]:
-            pool = [a for a in avail if mask.lower() in a.lower()] if mask else list(avail)
+        def search() -> tuple[list[str], list[str], list[str]]:
+            pool = [a for a in avail if _norm(mask) in _norm(a)] if mask else list(avail)
             for alt in alts:
-                hits = [a for a in pool if all(m.lower() in a.lower() for m in alt)]
+                hits = [a for a in pool if all(_norm(m) in _norm(a) for m in alt)]
                 if hits:
-                    return hits, pool
-            return [], pool
+                    return hits, pool, list(alt) + ([mask] if mask else [])
+            return [], pool, []
 
-        hits, pool = search()
+        hits, pool, terms = search()
         if not hits:                                   # the unmasked list may be partial: ask again by word
             for q in dict.fromkeys([mask, *(w for w in words)]):
                 if q:
@@ -290,13 +315,12 @@ class NotebookHelper:
             for c in candidates:
                 if c in avail:
                     return c
-            hits, pool = search()
+            hits, pool, terms = search()
         if not hits:
             near = pool[:25] if pool else [a for a in avail if any(w in a.lower() for w in words)][:25]
             raise ConsoleError(f"no block identifier for {candidates or must} (mask {mask!r}) among {len(avail)} "
                                f"available; nearest: {near}")
-        if prefer_shortest:
-            hits.sort(key=lambda s: (len(s), s))
+        hits.sort(key=lambda s: _rank(s, terms, prefer_shortest))
         return hits[0]
 
     # ---- blocks ------------------------------------------------------------------------

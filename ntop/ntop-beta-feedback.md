@@ -14,18 +14,28 @@ Windows 11 laptops, Python per nTop's bundled console.
   the key from `scripts/setup-ntop-console.ps1`; `python -m ntopjewel api check` connected.
 - A fresh notebook's section id was `section_2`, not `section_0`: ids are not 0-based; never
   assume them.
-- `list_available_blocks()` returned a list in which no identifier contains the text
-  `boolean subtract` (our guess at the Boolean Subtract identifier was wrong, or the unmasked
-  list is partial). `api build discover` records what it actually offers.
+- `list_available_blocks()` returns 2273 identifiers on 6.3.3, snake_case with the input type
+  list and sometimes a `[x.y.z]` version (`boolean_subtract<blend_enum,real_field,implicit,list<implicit>>`,
+  also `[5.44.0]` and `[1.1.0]` variants). The doc's `sphere<point,real>` example is the only
+  hint at this form; a list of the current identifiers per block page would save every beta
+  user the discovery run. Masked and unmasked queries agree (nothing hidden).
+- `add_block("core.var")` → `No block with the identifier "core.var" is available`; typed
+  variables are `core.var<real>`, `core.var<text>`, `core.var<file_path>`, … (input `Input`).
+  `add_real_variable` returns funcId `core.var<real>` with the name as id; `add_variable(name)`
+  returns `core.var_any<any>` with input `x`.
+- `list_block_inputs` includes the block's return value (`isReturnValue: true`, named like
+  the block id, e.g. `Implicit Body_0: implicit`).
+- The console's Python keeps imported modules between runs (`sys.modules`), so a script that
+  imports a helper package sees stale code after the package changes unless it purges the
+  module first. Expected: documented, or a "fresh interpreter per script" option.
 
 ## Open questions to settle on the first real run
 
-- Exact identifiers for: point, cylinder (point/point/radius), torus, boolean subtract /
-  intersect, offset body, mass properties, mesh from implicit body, export mesh — recorded
-  automatically in `out/api/band_profile.result.json` → `identifiers`.
-- Whether `add_block("core.var")` + `set_block_input(id, "Input", "<text>")` makes a text
-  variable, or whether a Text block wrapped in `add_variable` is needed (the script tries
-  both; the result's `log` says which worked).
+- Whether a `core.var<file_path>` variable renamed with `rename_variable` becomes the
+  notebook input "Output Path" and feeds `export_mesh`'s file input.
+- Whether Boolean blocks and `implicit_to_mesh` build with their default Blend Type / Blend
+  Radius / Min. feature size / Sharpen / Simplify when a script sets none of them.
+- Whether a unit vector (`torus` Axis) is accepted without units (the script retries with mm).
 - Whether a property of a built block (`Mass Properties.Volume`) can feed an empty
   variable created with `add_variable(name)` and then be the notebook Output.
 - Whether `export_as_recipe(path, True)` writes a recipe we can diff in git.

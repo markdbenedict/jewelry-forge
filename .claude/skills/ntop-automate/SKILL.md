@@ -31,11 +31,17 @@ JSON rules, resolves identifiers, checks build states and runs the mesh gate.
   `NotebookHelper`: `add(label, *identifier_candidates, mask=, must=)`, `set`, `wire`,
   `to_list`, `real_var`, `wrap_var`, `property_var`, `declare_inputs`, `set_output`,
   `assert_ok`, `states`, `paused()`.
-- Identifiers are exact strings such as `cylinder<point,point,real>`; nTop says they may
-  change between releases, so the helper looks them up with `list_available_blocks(mask)`
-  and input names with `list_block_inputs(id)`, and the result records what it used. When a
-  candidate misses, read the `near misses` list in the error and add the real one to the
-  script; never fix it in the GUI.
+- Identifiers are snake_case plus the input type list, sometimes a version:
+  `boolean_subtract<blend_enum,real_field,implicit,list<implicit>>`, `offset_implicit<implicit,real_field>`,
+  `mass_properties_from_body<implicit,real_field,real>`, `implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]`,
+  `export_mesh<file_path,mesh,unit_length_enum>`. nTop says they may change between
+  releases, so scripts give `must` alternatives (`[["boolean_subtract", "implicit"], …]`);
+  the helper matches case-insensitively with spaces as underscores, prefers a name match,
+  then the unversioned definition, then the newest version, and records what it used. When
+  a lookup misses, run `api build discover` (dumps all identifiers and the input names of
+  the families we use) and put the real one in the script; never fix it in the GUI.
+- Typed variables are blocks: `core.var<real>`, `core.var<text>`, `core.var<file_path>` …
+  (input `Input`); `add_variable(name)` gives a `core.var_any<any>` with input `x`.
 - Bad values fail at build time, not at call time: `block_state(id)["buildState"]` must be
   `e_OK`; `e_FAILED` carries `error`. `states()` checks every block the script made.
 - Variables: `add_real_variable(name, value, "mm")` (the id is the name) are the notebook

@@ -24,7 +24,11 @@ def test_identifier_lookup_exact_then_mask():
     h = NotebookHelper(FakeNotebook())
     assert h.identifier("cylinder<point,point,real>") == "cylinder<point,point,real>"
     assert h.identifier("nope", mask="torus", must=["torus"]) == "torus<point,vector,real,real>"
-    assert h.identifier(mask="subtract", must=["boolean subtract"]).startswith("boolean subtract")
+    # spaces match underscores; the name match beats slice_stack_boolean_subtract; unversioned beats [5.44.0]
+    assert h.identifier(mask="subtract", must=["boolean subtract"]) == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>"
+    assert h.identifier(must=[["mass_properties", "implicit"]]) == "mass_properties_from_body<implicit,real_field,real>"
+    assert h.identifier(must=[["implicit_to_mesh", "bool,bool"]]) == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
+    assert h.identifier(mask="export", must=[["export_mesh", "file_path"]]) == "export_mesh<file_path,mesh,unit_length_enum>"
     with pytest.raises(ConsoleError, match="no block identifier"):
         h.identifier("lathe<real>", mask="lathe", must=["lathe"])
 
@@ -32,21 +36,21 @@ def test_identifier_lookup_exact_then_mask():
 def test_identifier_alternatives_skip_scalar_decoys():
     h = NotebookHelper(FakeNotebook())
     # "subtract<real,real>" is shorter; requiring "implicit" keeps it out
-    assert h.identifier(mask="subtract", must=[["boolean subtract", "implicit"], ["subtract", "implicit"]]).startswith("boolean subtract<implicit")
-    assert h.identifier(mask="offset", must=[["offset body", "implicit"], ["offset", "implicit body"]]) == "offset body<implicit body,real>"
+    assert h.identifier(mask="subtract", must=[["boolean subtract", "implicit"], ["subtract", "implicit"]]).startswith("boolean_subtract<")
+    assert h.identifier(mask="offset", must=[["offset_implicit"], ["offset", "implicit"]]) == "offset_implicit<implicit,real_field>"
     with pytest.raises(ConsoleError) as e:
         h.identifier(mask="subtract", must=["boolean subtract", "mesh"])
     msg = str(e.value)
-    assert "nearest" in msg and "boolean subtract<implicit body" in msg and "subtract<real,real>" in msg
+    assert "nearest" in msg and "boolean_subtract<blend_enum" in msg and "subtract<real,real>" in msg
 
 
 def test_identifier_falls_back_to_masked_queries():
     """list_available_blocks() returning a partial list must not hide blocks that a masked query finds."""
-    nb = FakeNotebook(unmasked_limit=3)                 # only sphere, point, cylinder come back unmasked
+    nb = FakeNotebook(unmasked_limit=3)                 # only sphere, point, vector come back unmasked
     h = NotebookHelper(nb)
     assert len(h.available()) == 3
     ident = h.identifier(mask="subtract", must=[["boolean subtract", "implicit"]])
-    assert ident.startswith("boolean subtract") and ident in h.available()
+    assert ident.startswith("boolean_subtract<") and ident in h.available()
     assert h.identifier("torus<point,vector,real,real>") == "torus<point,vector,real,real>"   # exact, after a lookup
 
 
@@ -105,23 +109,36 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     # tail: mass properties -> Volume variable, mesh tolerance from the input, export file from Output Path
     assert nb.variables["Volume"]["wired"] == (res["blocks"]["Mass Properties"], "Volume")
     assert b[res["blocks"]["Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
-    assert b[res["blocks"]["Export Mesh"]]["wired"]["File"][0] == "Output Path"
+    # the final body feeds two blocks, so it goes through a variable (nTop's rule)
+    assert nb.variables["Band Body"]["wraps"] == prof
+    assert b[res["blocks"]["Mesh"]]["wired"]["Body"][0] == "Band Body" == b[res["blocks"]["Mass Properties"]]["wired"]["Body"][0]
+    assert b[res["blocks"]["Export Mesh"]]["wired"]["File Path"][0] == "Output Path"
+    assert nb.variables["Output Path"]["funcId"] == "core.var<file_path>" and nb.variables["Output Path"]["value"] == str(tmp_path / "t.stl")
     assert res["volume"] == pytest.approx(287.4)
     assert set(res["states"]) == set(res["blocks"]) and all(v == "e_OK" for v in res["states"].values())
-    assert res["identifiers"]["Band"].startswith("boolean subtract") and res["identifiers"]["Mesh"].startswith("mesh from implicit")
+    ids = res["identifiers"]
+    assert ids["Band"] == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>"
+    assert ids["Domed"] == "boolean_intersect<blend_enum,real_field,list<implicit>>"
+    assert ids["Shrunk"] == "offset_implicit<implicit,real_field>"
+    assert ids["Mass Properties"] == "mass_properties_from_body<implicit,real_field,real>"
+    assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
+    assert ids["Export Mesh"] == "export_mesh<file_path,mesh,unit_length_enum>"
+    assert ids["Output Path"] == "core.var<file_path>"
     # the catalog and the script agree on the input names
     from ntopjewel import catalog
     assert list(catalog.load("ring_band_profile").inputs) == mod.INPUT_ORDER
 
 
-def test_band_profile_text_variable_fallback(tmp_path):
-    """Without core.var the script wraps a Text block in a variable instead."""
+def test_band_profile_path_variable_fallback(tmp_path):
+    """Without core.var<file_path> the script uses core.var<text>; the export input still gets wired."""
     mod = load_recipe("band_profile")
-    avail = [i for i in FakeNotebook().available_ids if i != "core.var"]
+    avail = [i for i in FakeNotebook().available_ids if i != "core.var<file_path>"]
     nb = FakeNotebook(available=avail)
-    mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
-                   "test_output": str(tmp_path / "t.stl")})
-    assert nb.variables["Output Path"]["wraps"] is not None and "Output Path" in nb.inputs
+    res = mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
+                         "test_output": str(tmp_path / "t.stl")})
+    assert nb.variables["Output Path"]["funcId"] == "core.var<text>" and "Output Path" in nb.inputs
+    assert nb.blocks[res["blocks"]["Export Mesh"]]["wired"]["File Path"][0] == "Output Path"
+    assert any("core.var<file_path>" not in ln for ln in res["log"])
 
 
 def test_band_profile_raises_on_failed_block(tmp_path):
@@ -138,8 +155,8 @@ def test_discover_script_reports_identifiers_and_inputs():
     res = mod.build(nb, {})
     text = "\n".join(res["summary"])
     assert "PARTIAL" in text                                  # the fake hides most blocks from the unmasked call
-    assert "boolean subtract<implicit body" in text and "Primary Body:implicit body" in text
-    assert "Subtraction Bodies:list<implicit body>" in text
+    assert "boolean_subtract<blend_enum" in text and "Primary Body:implicit" in text
+    assert "Subtraction Bodies:list<implicit>" in text
     assert "add_real_variable" in text and "core.var" in text
     assert res["probed"]["torus<point,vector,real,real>"]["inputs"][0][0] == "Center"
     assert nb.saved == [] and nb.fresh == 1                   # scratch only, never saved
@@ -256,7 +273,7 @@ def test_cli_api_dry_run_then_collect(tmp_path, capsys):
     exec(driver.read_text(encoding="utf-8"), ns)
     assert cli.main(["api", "--out", str(tmp_path), "collect", "band_profile"]) == 0
     out = capsys.readouterr().out
-    assert "all e_OK" in out and "287.4" in out and "boolean subtract" in out
+    assert "all e_OK" in out and "287.4" in out and "boolean_subtract<" in out
 
 
 def test_cli_api_unknown_recipe(tmp_path):

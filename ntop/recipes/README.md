@@ -14,7 +14,7 @@ geometry; the script wins when the two disagree.
 | Recipe | Produces | Phase | Status |
 | --- | --- | --- | --- |
 | `band-primitive.md` | `ntop/notebooks/ring_band.ntop` (flat band, hello band) | 0 | built by Mark in the GUI 2026-10-25; gate passed |
-| `band_profile.py` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 | script tested offline against the fake notebook; first real run pending |
+| `band_profile.py` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 | identifiers from the 2026-10-26 discovery run; builds against the fake; real build in progress |
 | `band-profile.md` | same notebook, GUI route | 1 | superseded by `band_profile.py`; fallback only |
 | `discover.py` | nothing saved: digest of this nTop's block identifiers, input names and variable behaviour (`out/api/discover.result.json`) | — | run first on a new nTop build or when an identifier lookup fails |
 

@@ -9,31 +9,48 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 # identifier -> (display name, [(input name, type), ...], output type)
+# Taken from `api build discover` on nTop 6.3.3 (2026-10-26): snake_case identifiers with the type
+# list, sometimes a [version] suffix; typed variables are core.var<T>; decoys included on purpose.
+BOOL_SUB = [("Blend Type", "blend_enum"), ("Blend Radius", "real_field"), ("Primary Body", "implicit"),
+            ("Subtraction Bodies", "list<implicit>")]
+BOOL_N = [("Blend Type", "blend_enum"), ("Blend Radius", "real_field"), ("Bodies", "list<implicit>")]
+MESH_IN = [("Body", "implicit"), ("Tolerance", "real"), ("Min. feature size", "real"), ("Sharpen", "bool"), ("Simplify", "bool")]
 SIGNATURES = {
     "sphere<point,real>": ("Sphere", [("Center Point", "point"), ("Radius", "real")], "sphere"),
     "point<real,real,real>": ("Point", [("X", "real"), ("Y", "real"), ("Z", "real")], "point"),
+    "vector<real,real,real>": ("Vector", [("X", "real"), ("Y", "real"), ("Z", "real")], "vector"),
     "cylinder<point,point,real>": ("Cylinder", [("Point 1", "point"), ("Point 2", "point"), ("Radius", "real")], "cylinder"),
-    "cylinder from line segment<line,real>": ("Cylinder from Line Segment", [("Line", "line"), ("Radius", "real")], "cylinder"),
-    "torus<point,vector,real,real>": ("Torus", [("Center", "point"), ("Axis", "vector"), ("Radius", "real"), ("Torus radius", "real")], "torus"),
-    "boolean subtract<implicit body,list<implicit body>,blend,real>": (
-        "Boolean Subtract", [("Blend Type", "blend"), ("Blend Radius", "real"), ("Primary Body", "implicit body"),
-                             ("Subtraction Bodies", "list<implicit body>")], "implicit body"),
-    "boolean intersect<list<implicit body>,blend,real>": (
-        "Boolean Intersect", [("Blend Type", "blend"), ("Blend Radius", "real"), ("Bodies", "list<implicit body>")], "implicit body"),
-    "boolean union<list<implicit body>,blend,real>": (
-        "Boolean Union", [("Blend Type", "blend"), ("Blend Radius", "real"), ("Bodies", "list<implicit body>")], "implicit body"),
-    "offset body<implicit body,real>": ("Offset Body", [("Body", "implicit body"), ("Distance", "real")], "implicit body"),
-    "mass properties<implicit body,real,real>": ("Mass Properties", [("Body", "implicit body"), ("Density", "real"), ("Relative Error", "real")], "mass properties"),
-    "mesh from implicit body<implicit body,real,real,bool,bool>": (
-        "Mesh from Implicit Body", [("Body", "implicit body"), ("Tolerance", "real"), ("Min. feature size", "real"),
-                                    ("Sharpen", "bool"), ("Simplify", "bool")], "mesh"),
-    "export mesh<mesh,text,unit,format>": ("Export Mesh", [("Mesh", "mesh"), ("File", "text"), ("Units", "unit"), ("Format", "format")], "file"),
+    "cylinder_from_lineseg<line_segment,real>": ("Cylinder from Line Segment", [("Line", "line_segment"), ("Radius", "real")], "cylinder"),
+    "torus<point,vector,real,real>": ("Torus", [("Center", "point"), ("Axis", "vector"), ("Radius", "real"), ("Torus Radius", "real")], "torus"),
+    "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]": ("Boolean Subtract", BOOL_SUB, "implicit"),
+    "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[1.1.0]": ("Boolean Subtract", BOOL_SUB, "implicit"),
+    "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>": ("Boolean Subtract", BOOL_SUB, "implicit"),
+    "slice_stack_boolean_subtract<slice_stack,list<slice_stack>>": ("Slice Stack Boolean Subtract", [("Primary", "slice_stack"), ("Others", "list<slice_stack>")], "slice_stack"),
+    "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]": ("Boolean Intersect", BOOL_N, "implicit"),
+    "boolean_intersect<blend_enum,real_field,list<implicit>>": ("Boolean Intersect", BOOL_N, "implicit"),
+    "boolean_union<blend_enum,real_field,list<implicit>>": ("Boolean Union", BOOL_N, "implicit"),
+    "offset_implicit<implicit,real_field>": ("Offset Body", [("Body", "implicit"), ("Distance", "real_field")], "implicit"),
+    "thicken_implicit<implicit,real_field>": ("Thicken Body", [("Body", "implicit"), ("Thickness", "real_field")], "implicit"),
+    "mass_properties<mesh,real>[2.1.0]": ("Mass Properties", [("Mesh", "mesh"), ("Density", "real")], "body_mass_props"),
+    "mass_properties<implicit,real_field,real>[1.1.0]": ("Mass Properties", [("Body", "implicit"), ("Density", "real_field"), ("Relative Error", "real")], "body_mass_props"),
+    "mass_properties_from_body<implicit,real_field,real>": ("Mass Properties", [("Body", "implicit"), ("Density", "real_field"), ("Relative error", "real")], "body_mass_props"),
+    "implicit_to_mesh<implicit,real,real,bool,bool>[2.4.0]": ("Mesh from Implicit Body", MESH_IN, "mesh"),
+    "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]": ("Mesh from Implicit Body", MESH_IN, "mesh"),
+    "implicit_to_mesh<implicit,real,real,integer,implicit,bool>[2.5.0]": ("Mesh from Implicit Body", [("Body", "implicit"), ("Tolerance", "real"), ("Min. feature size", "real"), ("Iterations", "integer"), ("Keep", "implicit"), ("Simplify", "bool")], "mesh"),
+    "mesh_from_implicit_body_2<implicit,real>": ("Mesh from Implicit Body", [("Body", "implicit"), ("Tolerance", "real")], "mesh"),
+    "export_mesh<file_path,mesh,unit_length_enum>": ("Export Mesh", [("File Path", "file_path"), ("Mesh", "mesh"), ("Units", "unit_length_enum")], "file"),
+    "export_multi_region_mesh<file_path,mr_mesh,unit_length_enum>[5.51.0]": ("Export Multi-Region Mesh", [("File Path", "file_path"), ("Mesh", "mr_mesh"), ("Units", "unit_length_enum")], "file"),
     "subtract<real,real>": ("Subtract", [("A", "real"), ("B", "real")], "real"),          # scalar decoy
-    "offset<mesh,real>": ("Offset Mesh", [("Mesh", "mesh"), ("Distance", "real")], "mesh"),   # mesh decoy
-    "text<text>": ("Text", [("Text", "text")], "text"),
-    "core.var": ("Variable", [("Input", "any")], "any"),
+    "offset_voxel_grid<voxel_grid,real>[1.1.0]": ("Offset Voxel Grid", [("Grid", "voxel_grid"), ("Distance", "real")], "voxel_grid"),
+    "core.var<real>": ("Scalar Variable", [("Input", "real")], "real"),
+    "core.var<text>": ("Text Variable", [("Input", "text")], "text"),
+    "core.var<file_path>": ("File Path Variable", [("Input", "file_path")], "file_path"),
+    "core.var<implicit>": ("Implicit Body Variable", [("Input", "implicit")], "implicit"),
+    "core.var_any<any>": ("Variable", [("x", "any")], "any"),
 }
-PROPERTIES = {"mass properties": ["Mass", "Volume", "Center of Mass", "Surface Area"], "implicit body": ["Bounding Box"]}
+PROPERTIES = {"body_mass_props": ["Mass", "Volume", "Center of Mass", "Surface Area"], "implicit": ["Bounding Box"]}
+DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Export", "file_path": "File Path",
+                "text": "Text", "real": "Scalar"}
 
 
 class FakeNotebook:
@@ -65,7 +82,8 @@ class FakeNotebook:
         return [{"name": b["name"], "id": i, "funcId": b["funcId"]} for i, b in self.blocks.items()]
 
     def list_variables(self):
-        return [{"name": i, "id": i, "funcId": "core.var", "blockFuncId": v.get("wraps_func", "")} for i, v in self.variables.items()]
+        return [{"name": i, "id": i, "funcId": v.get("funcId", "core.var<...>"), "blockFuncId": v.get("wraps_func", "")}
+                for i, v in self.variables.items()]
 
     # ---- blocks -------------------------------------------------------------------
     def _new_id(self, base: str) -> str:
@@ -77,11 +95,11 @@ class FakeNotebook:
         if identifier not in self.available_ids:
             raise ValueError(f"'{identifier}' is not a block available to this notebook")
         name, inputs, out = SIGNATURES[identifier]
-        if identifier == "core.var":
-            bid = self._new_id("Variable")
-            self.variables[bid] = {"value": None, "units": "", "wraps": None, "typed": None}
+        if identifier.startswith("core.var<"):              # a typed variable block; its id is a display name
+            bid = self._new_id(DISPLAY_BASE.get(out, out.title()))
+            self.variables[bid] = {"value": None, "units": "", "wraps": None, "typed": out, "funcId": identifier}
             return {"name": name, "id": bid, "funcId": identifier}
-        bid = self._new_id(out.title().replace(" ", " ") if out != "implicit body" else "Implicit Body")
+        bid = self._new_id(DISPLAY_BASE.get(out, out.title()))
         self.blocks[bid] = {"funcId": identifier, "name": name, "inputs": {}, "lists": {}, "wired": {}, "out": out,
                             "defs": inputs}
         return {"name": name, "id": bid, "funcId": identifier}
@@ -93,7 +111,8 @@ class FakeNotebook:
             v = self.variables[block_id]
             if v.get("wraps") in self.blocks:
                 return self.blocks[v["wraps"]]
-            return {"funcId": "core.var", "name": block_id, "inputs": {}, "lists": {}, "wired": {}, "out": "any",
+            return {"funcId": v.get("funcId", "core.var"), "name": block_id, "inputs": {}, "lists": {}, "wired": {},
+                    "out": v.get("typed") or "any",
                     "defs": [("Input" if v.get("typed") else "x", v.get("typed") or "any")]}
         raise ValueError(f"no block with id '{block_id}'")
 
@@ -112,17 +131,23 @@ class FakeNotebook:
     def set_block_input(self, block_id: str, input_name: str, value, units: str = ""):
         if block_id in self.variables and self.variables[block_id].get("wraps") is None:
             v = self.variables[block_id]
-            if input_name != "Input":
-                raise ValueError(f"variable '{block_id}' has no parameter '{input_name}'")
+            expected = "Input" if v.get("typed") else "x"
+            if input_name != expected:
+                raise ValueError(f"variable '{block_id}' has no parameter '{input_name}'; it has ['{expected}']")
+            if v.get("typed") in ("text", "file_path") and not isinstance(value, str):
+                raise ValueError(f"'{block_id}' takes a {v['typed']}, not {type(value).__name__}")
+            if v.get("typed") == "real" and isinstance(value, str):
+                raise ValueError(f"'{block_id}' takes a real, not text")
             v["value"], v["units"] = value, units
-            v["typed"] = "text" if isinstance(value, str) else "real"
+            if not v.get("typed"):
+                v["typed"] = "text" if isinstance(value, str) else "real"
             return
         b = self._resolve(block_id)
         names = [n for n, _ in b["defs"]]
         if input_name not in names:
             raise ValueError(f"'{block_id}' has no parameter '{input_name}'; it has {names}")
         t = dict(b["defs"])[input_name]
-        if units and t not in ("real", "point", "vector"):
+        if units and t not in ("real", "real_field", "point", "vector"):
             raise ValueError(f"'{input_name}' carries no unit")
         b["inputs"][input_name] = (value, units)
 
@@ -139,10 +164,18 @@ class FakeNotebook:
         names = [n for n, _ in b["defs"]]
         if input_name not in names:
             raise ValueError(f"'{target_block_id}' has no parameter '{input_name}'; it has {names}")
+        src = self._resolve(source_block_id)
         if property_name:
-            src = self._resolve(source_block_id)
             if property_name not in PROPERTIES.get(src["out"], []):
                 raise ValueError(f"'{source_block_id}' offers no property '{property_name}'")
+        else:
+            want = dict(b["defs"])[input_name]
+            have = src["out"]
+            compatible = {("file_path", "file_path"), ("text", "file_path"), ("real", "real_field"), ("real", "real"),
+                          ("point", "point"), ("vector", "vector"), ("mesh", "mesh"), ("implicit", "implicit"),
+                          ("cylinder", "implicit"), ("torus", "implicit"), ("sphere", "implicit"), ("any", want)}
+            if (have, want) not in compatible and have != want:
+                raise ValueError(f"cannot connect a {have} to '{input_name}' ({want}) of '{target_block_id}'")
         b["wired"][input_name] = (source_block_id, property_name)
 
     def append_to_list(self, source_block_id: str, target_block_id: str, target_list_id: str):
@@ -175,8 +208,8 @@ class FakeNotebook:
     def add_real_variable(self, new_name: str, value, units: str = "", section_id: str = "", targetBlockId: str = "", placeBefore: bool = False):
         if new_name in self.variables or new_name in self.blocks:
             raise ValueError(f"'{new_name}' is already used")
-        self.variables[new_name] = {"value": float(value), "units": units, "wraps": None, "typed": "real"}
-        return {"name": new_name, "id": new_name, "funcId": "core.var"}
+        self.variables[new_name] = {"value": float(value), "units": units, "wraps": None, "typed": "real", "funcId": "core.var<real>"}
+        return {"name": "Scalar Variable", "id": new_name, "funcId": "core.var<real>"}
 
     def add_variable(self, new_name: str, block_id: str = ""):
         if new_name in self.variables or new_name in self.blocks:
@@ -184,8 +217,9 @@ class FakeNotebook:
         if block_id:
             self._resolve(block_id)
         self.variables[new_name] = {"value": None, "units": "", "wraps": block_id or None, "typed": None,
-                                    "wraps_func": self.blocks.get(block_id, {}).get("funcId", "")}
-        return {"name": new_name, "id": new_name, "funcId": "core.var" if block_id else "core.var_any"}
+                                    "wraps_func": self.blocks.get(block_id, {}).get("funcId", ""),
+                                    "funcId": "core.var<...>" if block_id else "core.var_any<any>"}
+        return {"name": new_name, "id": new_name, "funcId": self.variables[new_name]["funcId"]}
 
     def rename_variable(self, block_id: str, new_block_id: str):
         if block_id not in self.variables:
