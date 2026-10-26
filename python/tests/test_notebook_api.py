@@ -1,0 +1,231 @@
+import importlib.util
+import json
+from pathlib import Path
+
+import pytest
+
+from ntopjewel import notebook_api as napi
+from ntopjewel.notebook_api import Console, ConsoleError, NotebookHelper
+from .fake_notebook import FakeNotebook
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+def load_recipe(name: str):
+    path = REPO / "ntop" / "recipes" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# ------------------------------------------------------------------ helper behaviour
+def test_identifier_lookup_exact_then_mask():
+    h = NotebookHelper(FakeNotebook())
+    assert h.identifier("cylinder<point,point,real>") == "cylinder<point,point,real>"
+    assert h.identifier("nope", mask="torus", must=["torus"]) == "torus<point,vector,real,real>"
+    assert h.identifier(mask="subtract", must=["boolean subtract"]).startswith("boolean subtract")
+    with pytest.raises(ConsoleError, match="no block identifier"):
+        h.identifier("lathe<real>", mask="lathe", must=["lathe"])
+
+
+def test_input_name_matching_and_wiring():
+    nb = FakeNotebook()
+    h = NotebookHelper(nb)
+    cyl = h.add("Outer", "cylinder<point,point,real>")
+    r = h.real_var("Outer Radius", 9.5534, "mm")
+    assert h.input_name(cyl, "radius") == "Radius"            # case-insensitive
+    assert h.input_name(cyl, "Point 2") == "Point 2"
+    h.wire(r, cyl, ["Radius"])
+    assert nb.blocks[cyl]["wired"]["Radius"] == ("Outer Radius", "")
+    h.set(cyl, ["Point 1"], [0, 0, -10], "mm")
+    assert nb.blocks[cyl]["inputs"]["Point 1"] == ([0, 0, -10], "mm")
+    with pytest.raises(ConsoleError, match="no input like"):
+        h.set(cyl, ["Height"], 4, "mm")                        # the Cylinder has no Height (learned 2026-10-25)
+    sub = h.add("Band", mask="subtract", must=["boolean subtract"])
+    h.to_list(cyl, sub, ["Subtraction Bodies"])
+    assert nb.blocks[sub]["lists"]["Subtraction Bodies"] == [cyl]
+    with pytest.raises(ValueError):
+        nb.append_to_list(cyl, sub, "Primary Body")           # not a list input
+
+
+def test_assert_ok_reports_errors():
+    nb = FakeNotebook(fail_blocks={"Torus_0"})
+    h = NotebookHelper(nb)
+    t = h.add("T", mask="torus", must=["torus"])
+    with pytest.raises(ConsoleError, match="forced failure"):
+        h.assert_ok(t, wait_s=0)
+
+
+# ------------------------------------------------------------------ the band build script
+def test_band_profile_builds_on_fake_notebook(tmp_path):
+    mod = load_recipe("band_profile")
+    nb = FakeNotebook()
+    res = mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
+                         "test_output": str(tmp_path / "t.stl")})
+    # inputs declared in catalog order, output is the Volume variable
+    assert nb.inputs == mod.INPUT_ORDER
+    assert nb.output == "Volume"
+    assert nb.fresh == 1 and nb.saved == [str(tmp_path / "rb.ntop")] and nb.recipes == [str(tmp_path / "rb.json")]
+    # wiring: both cylinders fed by variables, band = outer minus bore, dome intersect, comfort subtract, two offsets
+    b = nb.blocks
+    outer, bore = res["blocks"]["Outer"], res["blocks"]["Bore"]
+    assert b[outer]["wired"]["Radius"][0] == "Outer Radius" and b[bore]["wired"]["Radius"][0] == "Bore Radius"
+    assert b[outer]["wired"]["Point 2"][0] == res["blocks"]["P Top"]
+    band = res["blocks"]["Band"]
+    assert b[band]["wired"]["Primary Body"][0] == outer and b[band]["lists"]["Subtraction Bodies"] == [bore]
+    domed = res["blocks"]["Domed"]
+    assert b[domed]["lists"]["Bodies"] == [band, res["blocks"]["Dome Torus"]]
+    shaped = res["blocks"]["Shaped"]
+    assert b[shaped]["lists"]["Subtraction Bodies"] == [res["blocks"]["Comfort Torus"]]
+    prof = res["blocks"]["Band Profile"]
+    assert b[prof]["wired"]["Distance"][0] == "Edge Round"
+    assert b[res["blocks"]["Shrunk"]]["wired"]["Distance"][0] == "Edge Round Inward"
+    # tail: mass properties -> Volume variable, mesh tolerance from the input, export file from Output Path
+    assert nb.variables["Volume"]["wired"] == (res["blocks"]["Mass Properties"], "Volume")
+    assert b[res["blocks"]["Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
+    assert b[res["blocks"]["Export Mesh"]]["wired"]["File"][0] == "Output Path"
+    assert res["volume"] == pytest.approx(287.4)
+    assert set(res["states"]) == set(res["blocks"]) and all(v == "e_OK" for v in res["states"].values())
+    assert res["identifiers"]["Band"].startswith("boolean subtract") and res["identifiers"]["Mesh"].startswith("mesh from implicit")
+    # the catalog and the script agree on the input names
+    from ntopjewel import catalog
+    assert list(catalog.load("ring_band_profile").inputs) == mod.INPUT_ORDER
+
+
+def test_band_profile_text_variable_fallback(tmp_path):
+    """Without core.var the script wraps a Text block in a variable instead."""
+    mod = load_recipe("band_profile")
+    avail = [i for i in FakeNotebook().available_ids if i != "core.var"]
+    nb = FakeNotebook(available=avail)
+    mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
+                   "test_output": str(tmp_path / "t.stl")})
+    assert nb.variables["Output Path"]["wraps"] is not None and "Output Path" in nb.inputs
+
+
+def test_band_profile_raises_on_failed_block(tmp_path):
+    mod = load_recipe("band_profile")
+    nb = FakeNotebook(fail_blocks={"Implicit Body_2"})     # the second subtract / shaped body
+    with pytest.raises(ConsoleError, match="failed to build"):
+        mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
+                       "test_output": str(tmp_path / "t.stl")})
+
+
+# ------------------------------------------------------------------ the SSH console wrapper
+def test_console_run_script_round_trip(tmp_path):
+    """The transport is faked: it 'runs' the driver with a fake notebook and prints the sentinel."""
+    script = REPO / "ntop" / "recipes" / "band_profile.py"
+
+    def transport(line: str, timeout: float) -> str:
+        assert line.startswith('exec(open(r"') and line.endswith('").read())')
+        driver = Path(line[len('exec(open(r"'):-len('").read())')])
+        ns = {"notebook": FakeNotebook()}
+        exec(driver.read_text(encoding="utf-8"), ns)         # same thing nTop's console does
+        return ">>> " + line + "\n" + napi.DONE + "\n"
+
+    c = Console(key=tmp_path / "nokey", transport=transport)
+    res = c.run_script(script, {"save_to": str(tmp_path / "x.ntop"), "recipe_to": str(tmp_path / "x.json"),
+                                "test_output": str(tmp_path / "x.stl")},
+                       work_dir=tmp_path / "api", python_path=REPO / "python")
+    assert res["status"] == "ok" and res["result"]["volume"] == pytest.approx(287.4)
+    assert (tmp_path / "api" / "band_profile.result.json").exists()
+
+
+def test_console_reports_script_failure(tmp_path):
+    bad = tmp_path / "bad.py"
+    bad.write_text("def build(notebook, params):\n    raise RuntimeError('boom')\n", encoding="utf-8")
+
+    def transport(line, timeout):
+        driver = Path(line[len('exec(open(r"'):-len('").read())')])
+        ns = {"notebook": FakeNotebook()}
+        exec(driver.read_text(encoding="utf-8"), ns)
+        return napi.FAIL + "\n"
+
+    c = Console(key=tmp_path / "nokey", transport=transport)
+    with pytest.raises(ConsoleError, match="boom"):
+        c.run_script(bad, {}, work_dir=tmp_path / "api")
+
+
+def test_console_missing_key_message(tmp_path):
+    c = Console(key=tmp_path / "missing")
+    with pytest.raises(ConsoleError, match="SSH key not found"):
+        c.check()
+
+
+FAKE_SSH = r'''
+"""Stands in for `ssh -tt ... localhost`: echoes the line like nTop's console, then answers."""
+import sys, time
+args = sys.argv[1:]
+mode = "hang" if "hang" in args[-1] else "ok"
+sys.stdout.write(">>> ")
+sys.stdout.flush()
+line = sys.stdin.readline()
+sys.stdout.write(line)                      # the console echoes what it received (sentinel split)
+sys.stdout.flush()
+if mode == "hang":
+    time.sleep(30)
+time.sleep(0.1)
+sys.stdout.write("[{'name': 'Section 1', 'id': 'section_0'}]\n")
+sys.stdout.write("__NTOPJEWEL_" + "DONE__" + "\n")
+sys.stdout.flush()
+sys.stdin.readline()                        # waits for the Ctrl-C the client sends
+'''
+
+
+@pytest.fixture
+def fake_ssh(tmp_path):
+    import os, stat, sys
+    script = tmp_path / "fake_ssh.py"
+    script.write_text(FAKE_SSH, encoding="utf-8")
+    if os.name == "nt":  # pragma: no cover
+        launcher = tmp_path / "ssh.cmd"
+        launcher.write_text(f'@"{sys.executable}" "{script}" %*\n')
+    else:
+        launcher = tmp_path / "ssh"
+        launcher.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n')
+        launcher.chmod(launcher.stat().st_mode | stat.S_IEXEC)
+    key = tmp_path / "id_ntopcli"
+    key.write_text("fake key", encoding="utf-8")
+    return launcher, key
+
+
+def test_ssh_transport_reads_past_the_echo(fake_ssh):
+    launcher, key = fake_ssh
+    out = Console(key=key, ssh=str(launcher), host="localhost").check(timeout=10)
+    assert "Section 1" in out and napi.DONE in out            # the echoed line did not end the read early
+    assert out.index("Section 1") > out.index('"DONE__"')
+
+
+def test_ssh_transport_times_out(fake_ssh):
+    launcher, key = fake_ssh
+    with pytest.raises(ConsoleError, match="timed out"):
+        Console(key=key, ssh=str(launcher), host="hang").check(timeout=1)
+
+
+# ------------------------------------------------------------------ the CLI, no SSH needed
+def test_cli_api_dry_run_then_collect(tmp_path, capsys):
+    """`api build --dry-run` writes the driver for pasting into the GUI console; `api collect` reads the result."""
+    from ntopjewel import cli
+    rc = cli.main(["api", "--out", str(tmp_path), "build", "band_profile", "--dry-run", "--scratch",
+                   "--param", f"test_output={tmp_path / 't.stl'}"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert 'exec(open(r"' in out and "band_profile.driver.py" in out and "ssh" in out
+    driver = tmp_path / "band_profile.driver.py"
+    params = json.loads((tmp_path / "band_profile.params.json").read_text(encoding="utf-8"))
+    assert params["save_to"] == str(tmp_path / "band_profile.ntop") and params["test_output"] == str(tmp_path / "t.stl")
+    # nothing to collect yet
+    assert cli.main(["api", "--out", str(tmp_path), "collect", "band_profile"]) == 2
+    capsys.readouterr()
+    # "paste" the driver into a console that has a (fake) notebook
+    ns = {"notebook": FakeNotebook()}
+    exec(driver.read_text(encoding="utf-8"), ns)
+    assert cli.main(["api", "--out", str(tmp_path), "collect", "band_profile"]) == 0
+    out = capsys.readouterr().out
+    assert "all e_OK" in out and "287.4" in out and "boolean subtract" in out
+
+
+def test_cli_api_unknown_recipe(tmp_path):
+    from ntopjewel import cli
+    with pytest.raises(SystemExit, match="no build script"):
+        cli.main(["api", "--out", str(tmp_path), "build", "no_such_thing", "--dry-run"])

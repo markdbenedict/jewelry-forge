@@ -24,12 +24,20 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 
 ## How work gets done
 
-- Custom blocks are authored by Mark in the nTop GUI from a written recipe in
-  `ntop/recipes/`. Claude cannot see the nTop canvas; Claude writes the recipe, then
-  drives and verifies the block through `ntopcl`. If a block needs a third GUI sitting,
-  split it into two simpler blocks.
-- **Never edit an `.ntop` file by hand or by script.** Change behaviour through inputs
-  (JSON) or through a recipe revision Mark applies in the GUI.
+- Notebooks and custom blocks are **authored through nTop's Notebook API** (Private Beta,
+  nTop 6.3+, package v0.14): a build script `ntop/recipes/<name>.py` with
+  `build(notebook, params)` runs inside nTop's Python Console. `python -m ntopjewel api build
+  <name>` sends it over SSH (localhost:2222, key `~/.ssh/id_ntopcli`), saves the `.ntop`,
+  exports the JSON recipe next to the script and reports every block's build state and the
+  identifiers it resolved. Claude cannot see the nTop canvas; the GUI is for Mark to review
+  the result and for the few things the API cannot do. The `*.md` recipes are the fallback
+  when a script cannot run (no beta permission, no console).
+- **Never edit an `.ntop` file by hand or by text/script.** The file is nTop's. Change it
+  through the API (`notebook.*` calls in a build script), through the GUI, or through
+  inputs (JSON) at run time.
+- Block identifiers (`cylinder<point,point,real>`) and input names are resolved at run time
+  (`list_available_blocks`, `list_block_inputs`) and recorded in the build result. A guess
+  that failed is fixed in the script's candidate list, never patched in the GUI.
 - Every nTop run goes through `ntopjewel` (`python -m ntopjewel ...`), never a bare
   `ntopcl` call: the runner enforces the JSON rules and runs the mesh gate.
 - **Run the mesh gate after every export** (`ntopjewel gate <file.stl> --expect ...`).
@@ -58,17 +66,39 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - **Mesh from Implicit Body `Tolerance` = 2 × voxel size**, triangle count ∝ 1/tolerance².
   Default 0.1 mm (50 µm voxels). 0.01 mm produced a 57 M-triangle, 2.7 GB band STL.
 
+## Notebook API rules (from nTop's doc, Oct 2026; not yet exercised on Mark's laptop)
+
+- The console is **View > Python Console** (Ctrl+`) inside nTop; it exists only with the
+  Private Beta (Early Access) licence permission. Everything is a method of `notebook`
+  (`add_block`, `set_block_input`, `connect_block_property`, `append_to_list`,
+  `add_real_variable`, `add_variable`, `move_block_to_input`, `set_block_as_output`,
+  `block_state`, `save_notebook_as`, `export_as_recipe`, `paused_updates()` …).
+- SSH: `ssh -tt -i ~\.ssh\id_ntopcli -p 2222 localhost` while the console panel is open.
+  Key-based only; `authorized_keys` written as ASCII (no BOM), owner-only. **One line per
+  send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the
+  session, never `exit()`**. `ntopjewel.notebook_api.Console` does all of this.
+- `add_block` returns `{name, id, funcId}`; use the returned id, never the display name.
+  A block output used twice goes through a variable. Variables are notebook inputs once
+  `move_block_to_input` is called; one `set_block_as_output`.
+- Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
+  (`e_FAILED` carries `error`); do not trust a call that returned without raising.
+- `new_notebook()` discards the open notebook; `save_notebook_as` / `export_as_recipe`
+  overwrite silently. Build scripts default to a fresh notebook and save into the repo.
+- Scripts run unsandboxed with Mark's privileges on a local-only endpoint; nothing of
+  Mark's work goes anywhere but his disk. Beta findings go in `ntop/ntop-beta-feedback.md`.
+
 ## Repo map
 
 | Path | What |
 | --- | --- |
 | `.claude/skills/` | Skills: `ntop-automate`, `jewelry-design-rules`, `ring-band` (more per phase) |
-| `ntop/recipes/` | GUI build recipes for custom blocks and runner notebooks |
+| `ntop/recipes/` | Build scripts (`<name>.py`, run through the Notebook API) + their exported `.recipe.json`; `*.md` are the GUI fallbacks |
 | `ntop/blocks/` | Custom-block notebooks (`.ntop`), the library; nTop's My Blocks folder points here |
 | `ntop/notebooks/` | Automate-ready runner notebooks, one per product family |
 | `ntop/packages/` | `manifest.json` + README per block, nTop community-package layout |
+| `ntop/ntop-beta-feedback.md` | What the Notebook API beta did and did not do for us, for nTop |
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, Notebook API client, CLI |
 | `python/tests/` | pytest; offline by default, nTop runs are marked `slow` |
 | `blender/` | `jewelry_kit.py`, `photo.py` and the organic projects (pear rose ring, monstera band) |
 | `out/` | Scratch output, git-ignored |
@@ -78,9 +108,16 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 ```powershell
 # one-time
 .\scripts\bootstrap.ps1          # venv, pip install -e python/, checks ntopcl, runs tests
+.\scripts\setup-ntop-console.ps1 # SSH key for nTop's Python Console (Notebook API) + Documents\nTopScripts
 # every day
 .\.venv\Scripts\Activate.ps1
 python -m ntopjewel doctor                      # finds ntopcl, nTop, Blender, printer folders
+# authoring (nTop open with View > Python Console open)
+python -m ntopjewel api check                                        # SSH to the console works?
+python -m ntopjewel api build band_profile                           # writes ntop\notebooks\ring_band_profile.ntop
+python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
+python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
+# running
 python -m ntopjewel templates ntop\notebooks\ring_band_profile.ntop --catalog ring_band_profile
 python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round
 python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
@@ -97,10 +134,14 @@ pytest python\tests -q -m slow                  # tests that run nTop
   run exceeds 32 GB. nTop cloud licence allows one named user on up to three devices.
 - `ntopcl.exe` default path: `C:\Program Files\nTopology\nTopology\ntopcl.exe`
   (override with the `NTOPCL` environment variable).
+- Notebook API on both laptops: SSH key `~\.ssh\id_ntopcli` (override `NTOP_SSH_KEY`), own
+  console scripts in `Documents\nTopScripts\` (create before starting nTop); driver files
+  the CLI writes live in `out\api\`.
 
 ## Skills to reach for
 
-- `ntop-automate` — anything that runs a notebook, builds input JSON or reads a log.
+- `ntop-automate` — anything that runs a notebook, builds input JSON, reads a log, or
+  authors a notebook through the Notebook API.
 - `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers.
 - `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1).
 - `blender-jewelry-render` (synced from claude.ai) — the silver product shot.

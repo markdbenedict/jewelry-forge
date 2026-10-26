@@ -6,9 +6,11 @@ description: Build ring bands with nTop through ntopjewel - size (US/UK/ISO/mm),
 # ring-band
 
 **Status.** Phase 0 notebook `ring_band.ntop` (flat band) passed its gate on 2026-10-25.
-Phase 1 notebook `ring_band_profile.ntop` (dome, comfort bore, rounded edges) is built from
-`ntop/recipes/band-profile.md`. If `python -m ntopjewel doctor` does not list the profile
-notebook yet, ask Mark to build it from the recipe; do not improvise a notebook.
+Phase 1 notebook `ring_band_profile.ntop` (dome, comfort bore, rounded edges) is authored
+by `python -m ntopjewel api build band_profile` (the script `ntop/recipes/band_profile.py`,
+through the Notebook API; `band-profile.md` is the GUI fallback). If `python -m ntopjewel
+doctor` does not list the profile notebook yet, build it that way first (nTop open, View >
+Python Console open); do not improvise a notebook.
 
 ## Make bands
 

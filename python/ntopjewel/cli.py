@@ -6,10 +6,15 @@
   band --size 6 ...           Phase 0 band: build, export, gate, report
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
+  api check                   prove the SSH link to nTop's Python Console (Notebook API)
+  api build RECIPE            author a notebook through the Notebook API (ntop/recipes/<RECIPE>.py)
+  api line "CODE"             send one Python line to the console (discovery, debugging)
+  api collect RECIPE          read the result of a driver you pasted into the GUI console by hand
 """
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -126,6 +131,94 @@ def cmd_gate(a: argparse.Namespace) -> int:
     return 0 if rep.passed else 1
 
 
+def _recipe_script(name: str) -> Path:
+    """`band_profile` -> ntop/recipes/band_profile.py; an existing path is used as is."""
+    p = Path(name)
+    if p.suffix == ".py" and p.exists():
+        return p.resolve()
+    script = config.repo_root() / "ntop" / "recipes" / f"{p.stem}.py"
+    if not script.exists():
+        have = sorted(x.stem for x in script.parent.glob("*.py"))
+        raise SystemExit(f"no build script {script}; recipes with a script: {have}")
+    return script
+
+
+def _console(a: argparse.Namespace):
+    from . import notebook_api
+    return notebook_api.Console(key=Path(a.key) if a.key else None, port=a.port)
+
+
+def _print_build_result(res: dict) -> None:
+    r = res.get("result") or {}
+    print(f"saved     : {r.get('saved')}")
+    print(f"recipe    : {r.get('recipe')}")
+    if "volume" in r:
+        print(f"volume    : {r.get('volume')}  ({r.get('expected_volume_hint', '')})")
+    if "test_output" in r:
+        print(f"test STL  : {r.get('test_output')}  ({'written' if r.get('test_output_exists') else 'NOT written'})")
+    bad = {k: v for k, v in (r.get("states") or {}).items() if not str(v).startswith("e_OK")}
+    print(f"states    : {len(r.get('states') or {})} blocks checked" + (f", not OK: {bad}" if bad else ", all e_OK"))
+    if r.get("identifiers"):
+        print("identifiers used:")
+        for k, v in r["identifiers"].items():
+            print(f"    {k:<16} {v}")
+    notes = [ln for ln in r.get("log", []) if "failed" in ln or "not set" in ln or "fall" in ln]
+    if notes:
+        print("notes     :\n    " + "\n    ".join(notes))
+
+
+def cmd_api(a: argparse.Namespace) -> int:
+    from . import notebook_api
+    work_dir = Path(a.out) if a.out else config.out_dir() / "api"
+    if a.api_cmd == "check":
+        try:
+            out = _console(a).check(timeout=a.timeout)
+        except notebook_api.ConsoleError as e:
+            print(f"console check failed: {e}")
+            return 2
+        print("connected; the console answered:")
+        print(out.strip()[-2000:])
+        return 0
+    if a.api_cmd == "line":
+        try:
+            out = _console(a).run_line(a.code, timeout=a.timeout)
+        except notebook_api.ConsoleError as e:
+            print(f"console failed: {e}")
+            return 2
+        print(out.strip()[-6000:])
+        return 0
+    script = _recipe_script(a.recipe)
+    if a.api_cmd == "collect":
+        result_path = work_dir / f"{script.stem}.result.json"
+        try:
+            res = notebook_api.collect_result(script, result_path)
+        except notebook_api.ConsoleError as e:
+            print(e)
+            return 2
+        _print_build_result(res)
+        return 0
+    # build
+    params = _parse_set(a.param)
+    if a.scratch:
+        params.setdefault("save_to", str(work_dir / f"{script.stem}.ntop"))
+        params.setdefault("recipe_to", str(work_dir / f"{script.stem}.recipe.json"))
+    python_path = config.repo_root() / "python"
+    if a.dry_run:
+        driver, result = notebook_api.prepare_script(script, params, work_dir=work_dir, python_path=python_path)
+        print(f"driver : {driver}\nresult : {result} (written by the driver)\nparams : {json.dumps(params)}")
+        print("\nPaste this one line into nTop's Python Console (View > Python Console), then run "
+              f"`python -m ntopjewel api collect {script.stem}`:\n\n    {notebook_api.exec_line(driver)}\n")
+        print("Or over SSH: " + " ".join(_console(a).command()))
+        return 0
+    try:
+        res = _console(a).run_script(script, params, work_dir=work_dir, python_path=python_path, timeout=a.timeout)
+    except notebook_api.ConsoleError as e:
+        print(f"api build failed: {e}")
+        return 2
+    _print_build_result(res)
+    return 0
+
+
 def cmd_sizes(_: argparse.Namespace) -> int:
     print(" US    inner Ø mm   ISO circ   UK≈")
     import string
@@ -191,6 +284,25 @@ def main(argv: list[str] | None = None) -> int:
     g.set_defaults(fn=cmd_gate)
 
     sub.add_parser("sizes").set_defaults(fn=cmd_sizes)
+
+    api = sub.add_parser("api", help="nTop Notebook API through the Python Console (SSH localhost:2222)")
+    api.add_argument("--key", help="SSH private key (default: NTOP_SSH_KEY or ~/.ssh/id_ntopcli)")
+    api.add_argument("--port", type=int, default=2222)
+    api.add_argument("--timeout", type=float, default=900, help="seconds to wait for nTop")
+    api.add_argument("--out", help="work dir for driver/params/result files (default out/api)")
+    api_sub = api.add_subparsers(dest="api_cmd", required=True)
+    api_sub.add_parser("check")
+    ln = api_sub.add_parser("line")
+    ln.add_argument("code", help='one Python line, e.g. "print(notebook.list_available_blocks(\'torus\'))"')
+    bd = api_sub.add_parser("build")
+    bd.add_argument("recipe", help="name under ntop/recipes (band_profile) or a path to a .py build script")
+    bd.add_argument("--param", action="append", default=[], metavar="KEY=VALUE",
+                    help="override a DEFAULTS entry of the script (save_to=..., fresh=false, wait_s=600)")
+    bd.add_argument("--scratch", action="store_true", help="save the notebook and recipe under out/api, not the repo")
+    bd.add_argument("--dry-run", action="store_true", help="write the driver and print the console line; do not connect")
+    co = api_sub.add_parser("collect")
+    co.add_argument("recipe")
+    api.set_defaults(fn=cmd_api)
 
     a = p.parse_args(argv)
     if a.cmd == "band":

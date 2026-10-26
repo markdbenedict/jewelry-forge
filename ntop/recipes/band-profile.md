@@ -1,5 +1,9 @@
 # Recipe: `ring_band_profile.ntop` — the profiled band (Phase 1, step 1)
 
+> **Superseded by `band_profile.py`** (Notebook API build script; run with
+> `python -m ntopjewel api build band_profile`). Keep this page for the geometry
+> explanation and as the GUI fallback if the Python Console is not available.
+
 **Goal.** Give the hello band real cross-sections: a domed outside, a barrel ("comfort fit")
 bore and rounded edges. One notebook covers flat, comfort-flat, court, D-shape and
 half-round; Python picks the numbers per profile and the notebook only intersects,

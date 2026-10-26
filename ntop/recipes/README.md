@@ -1,14 +1,35 @@
 # Recipes
 
-A recipe is the written build procedure for a custom block or a runner notebook: block
-list, wiring, exact input names, units, defaults and the checks that prove it works.
-Claude writes recipes; Mark builds them in the nTop GUI; Claude verifies the result
-through `ntopcl` and the mesh gate.
+A recipe is how a notebook or custom block gets built. Since the Notebook API (nTop 6.3+
+Private Beta) the primary form is a **build script**: `<name>.py` with
+`build(notebook, params) -> dict`, run inside nTop's Python Console by
+`python -m ntopjewel api build <name>`. It adds the blocks, wires them, declares the inputs
+and the Output, saves the `.ntop` into `ntop/notebooks/` (or `ntop/blocks/`) and exports
+`<name>.recipe.json` next to itself — that JSON is the reviewable record of what was built.
 
-| Recipe | Produces | Phase |
-| --- | --- | --- |
-| `band-primitive.md` | `ntop/notebooks/ring_band.ntop` (flat band, hello band) | 0 |
-| `band-profile.md` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 |
+The `*.md` files are the older GUI procedures. They stay as the fallback when a script
+cannot run (no beta permission, no console) and as the human-readable explanation of the
+geometry; the script wins when the two disagree.
 
-Rules: one block per recipe where possible; every notebook input named exactly as in
-`catalog/`; a block that needs a third GUI sitting is split into two simpler blocks.
+| Recipe | Produces | Phase | Status |
+| --- | --- | --- | --- |
+| `band-primitive.md` | `ntop/notebooks/ring_band.ntop` (flat band, hello band) | 0 | built by Mark in the GUI 2026-10-25; gate passed |
+| `band_profile.py` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 | script tested offline against the fake notebook; first real run pending |
+| `band-profile.md` | same notebook, GUI route | 1 | superseded by `band_profile.py`; fallback only |
+
+Rules:
+
+- The catalog entry (`catalog/<name>.yaml`) is written first; the script's `INPUT_ORDER`
+  equals its input names (tested).
+- Identifiers and input names are candidates, resolved at run time by `NotebookHelper`;
+  the result's `identifiers` map and the exported recipe show what was used. A miss is
+  fixed in the script, not in the GUI.
+- Every script runs against `python/tests/fake_notebook.py` in the offline tests before it
+  runs against nTop.
+- One block per recipe where possible; a block that needs more than two sittings is split.
+- Scripts import only the standard library and `ntopjewel.notebook_api` (which is
+  stdlib-only), because they execute inside nTop's own Python.
+
+Running by hand, if SSH is not set up yet: `python -m ntopjewel api build <name> --dry-run`
+prints the one `exec(open(r"...driver.py").read())` line to paste into View > Python
+Console; `python -m ntopjewel api collect <name>` then reads the result.
