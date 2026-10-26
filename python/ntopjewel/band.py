@@ -99,8 +99,11 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
     })
     run = ntopcl.run(nb, inputs, out_dir, tag=stem)
     if not stl.exists():
-        raise ntopcl.NtopclError(f"notebook reported success but {stl} was not written; "
-                                 "check the Export Mesh block's path input", run)
+        exported = any("export" in t.block.lower() for t in run.log.timings)
+        why = ("the Export Mesh block's file input is not wired to the Output Path chip" if exported else
+               "no Export block ran (none appears in the log): add an Export Mesh block with the mesh in its "
+               "Mesh input and the Output Path chip in its file input")
+        raise ntopcl.NtopclError(f"notebook reported success but {stl} was not written; {why}", run)
 
     vol_entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(vol_entry) if vol_entry else None

@@ -176,11 +176,27 @@ def parse_output(path: Path) -> dict[str, dict]:
     return {e.get("name", f"output_{i}"): e for i, e in enumerate(data)}
 
 
-def scalar_value(entry: dict) -> float | None:
+def scalar_value(entry: dict, to_mm: bool = True) -> float | None:
+    """Numeric value of a scalar ("real") output, converted from nTop's SI to mm / g.
+
+    nTop 6.3.3 writes (seen 2026-10-25):
+        {"name": "Volume", "type": "real", "components": [],
+         "value": {"isFinite": true, "units": {"length": 3}, "val": 2.9098e-07}}
+    i.e. the value in SI base units with the dimension exponents alongside. With `to_mm`
+    (default) lengths are scaled m -> mm and masses kg -> g per exponent, so a volume
+    comes back in mm³ and a mass in g.
+    """
     v = entry.get("value")
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, dict):
+        if "val" in v:
+            x = float(v["val"])
+            units = v.get("units") or {}
+            if to_mm and isinstance(units, dict):
+                x *= 1000.0 ** float(units.get("length", 0) or 0)
+                x *= 1000.0 ** float(units.get("mass", 0) or 0)
+            return x
         for key in ("value", "values", "scalar", "magnitude"):
             if key in v:
                 x = v[key]
@@ -190,6 +206,20 @@ def scalar_value(entry: dict) -> float | None:
     if isinstance(v, list) and v and isinstance(v[0], (int, float)):
         return float(v[0])
     return None
+
+
+def scalar_units(entry: dict) -> str:
+    """Human label for a scalar output's units after scalar_value() conversion (mm-based)."""
+    v = entry.get("value")
+    units = v.get("units") if isinstance(v, dict) else None
+    if not isinstance(units, dict) or not units:
+        return ""
+    parts = []
+    base = {"length": "mm", "mass": "g", "time": "s"}
+    for dim, exp in units.items():
+        name = base.get(dim, dim)
+        parts.append(name if exp == 1 else f"{name}^{exp}")
+    return "*".join(parts)
 
 
 # --------------------------------------------------------------------------- running
@@ -221,7 +251,7 @@ class RunResult:
             lines.append(f"  blocks: {len(self.log.timings)}, {self.log.total_block_ms} ms total; slowest: {top}")
         for name, entry in self.outputs.items():
             sv = scalar_value(entry)
-            shown = f"{sv:g}" if sv is not None else entry.get("type", "?")
+            shown = f"{sv:.6g} {scalar_units(entry)}".rstrip() if sv is not None else entry.get("type", "?")
             lines.append(f"  output {name}: {shown}")
         return "\n".join(lines)
 

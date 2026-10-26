@@ -112,3 +112,18 @@ def test_run_with_relative_out_dir(fake_ntopcl, band_notebook, tmp_path, monkeyp
               ntopcl.make_input("Output Path", "text", str(tmp_path / "rel" / "b.stl"))]
     res = ntopcl.run(band_notebook, inputs, Path("rel"), tag="r")
     assert res.ok and res.input_json.is_absolute() and res.output_json.exists()
+
+
+REAL_OUTPUT_JSON = [{"components": [], "name": "Volume", "type": "real",
+                     "value": {"isFinite": True, "units": {"length": 3}, "val": 2.909824127971713e-07}}]
+
+
+def test_scalar_value_real_ntop_shape(tmp_path):
+    """nTop 6.3.3 writes SI with dimension exponents; a volume comes back in mm³."""
+    p = tmp_path / "out.json"
+    p.write_text(json.dumps(REAL_OUTPUT_JSON))
+    outs = ntopcl.parse_output(p)
+    assert ntopcl.scalar_value(outs["Volume"]) == pytest.approx(290.98, abs=0.01)
+    assert ntopcl.scalar_units(outs["Volume"]) == "mm^3"
+    assert ntopcl.scalar_value({"value": {"val": 0.0025, "units": {"length": 1}}}) == pytest.approx(2.5)
+    assert ntopcl.scalar_value({"value": {"val": 0.0031, "units": {"mass": 1}}}) == pytest.approx(3.1)
