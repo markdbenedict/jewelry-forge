@@ -8,6 +8,7 @@ through `ntopcl` and the mesh gate.
 | Recipe | Produces | Phase |
 | --- | --- | --- |
 | `band-primitive.md` | `ntop/notebooks/ring_band.ntop` (flat band, hello band) | 0 |
+| `band-profile.md` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 |
 
 Rules: one block per recipe where possible; every notebook input named exactly as in
 `catalog/`; a block that needs a third GUI sitting is split into two simpler blocks.

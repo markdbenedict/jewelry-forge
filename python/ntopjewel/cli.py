@@ -95,16 +95,20 @@ def cmd_run(a: argparse.Namespace) -> int:
 
 def cmd_band(a: argparse.Namespace) -> int:
     spec = band.BandSpec(size=a.size, system=a.system, width_mm=a.width, thickness_mm=a.thickness,
+                         profile=a.profile, dome_mm=a.dome, comfort_mm=a.comfort, edge_round_mm=a.edge_round,
                          allowance_mm=a.allowance, mesh_tolerance_mm=a.tolerance)
     if a.dry_run:
-        print(f"{spec.label}: inner Ø {spec.inner_diameter_mm:.3f}  bore r {spec.bore_radius_mm:.3f}  "
-              f"outer r {spec.outer_radius_mm:.3f}  width {spec.width_mm}  tolerance {spec.mesh_tolerance_mm}")
         probs = spec.validate()
-        print("ok" if not probs else "problems: " + "; ".join(probs))
+        print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+        for w in spec.warnings():
+            print("  warning: " + w)
+        if not probs:
+            for k, v in spec.notebook_inputs("<output path>").items():
+                print(f"    {k}: {v}")
         return 1 if probs else 0
     try:
         res = band.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
-                         deliver=a.deliver, deliver_project=a.project)
+                         catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"band failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
@@ -158,7 +162,12 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--size", default="6")
     b.add_argument("--system", default="US", help="US | UK | ISO | MM")
     b.add_argument("--width", type=float, default=4.0)
-    b.add_argument("--thickness", type=float, default=1.3)
+    b.add_argument("--thickness", type=float, default=1.3, help="radial thickness at the mid-plane, mm")
+    b.add_argument("--profile", default="court", choices=sorted(band.PROFILES), help="cross-section preset")
+    b.add_argument("--dome", type=float, help="outer drop from mid-plane to edge, mm (overrides the preset)")
+    b.add_argument("--comfort", type=float, help="bore relief at the edges, mm (overrides the preset)")
+    b.add_argument("--edge-round", type=float, help="radius rounded onto every edge, mm (overrides the preset)")
+    b.add_argument("--catalog", default="ring_band_profile", help="catalog entry / notebook family")
     b.add_argument("--allowance", type=float, default=0.0, help="mm added to the inner diameter")
     b.add_argument("--tolerance", type=float, default=0.1, help="Mesh from Implicit Body tolerance (= 2 x voxel size), mm")
     b.add_argument("--out")

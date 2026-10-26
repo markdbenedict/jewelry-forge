@@ -1,0 +1,84 @@
+# Phase 1 band: flat band shaped by a dome torus (intersect), a comfort torus (subtract) and an
+# edge round (Offset Body -e then +e). Built from ntop/recipes/band-profile.md. All arithmetic is
+# done in Python (ntopjewel.band.BandSpec.notebook_inputs); the notebook only receives numbers.
+# Input names must match the notebook exactly (verify: python -m ntopjewel templates
+# ntop/notebooks/ring_band_profile.ntop --catalog ring_band_profile).
+notebook: ring_band_profile.ntop
+version: 0.2.0
+title: Profiled band (dome, comfort bore, rounded edges)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Mass Properties volume of the final band (density 1), cross-checked by the gate.
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be small or negative for shallow domes.
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Output Path:
+    type: text
+    doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop).

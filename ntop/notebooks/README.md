@@ -7,4 +7,5 @@ files through Export blocks fed by `file_path` inputs. Run them only through
 
 | Notebook | Catalog | Recipe |
 | --- | --- | --- |
-| `ring_band.ntop` | `catalog/ring_band.yaml` | `ntop/recipes/band-primitive.md` |
+| `ring_band.ntop` | `catalog/ring_band.yaml` | `ntop/recipes/band-primitive.md` (Phase 0 flat band, gate passed 2026-10-25) |
+| `ring_band_profile.ntop` | `catalog/ring_band_profile.yaml` | `ntop/recipes/band-profile.md` (Phase 1 profiles) |

@@ -50,7 +50,12 @@ if args == ["--version"]:
 if args and args[0] == "-t":
     nb = Path(args[1])
     inputs = []
-    if "band" in nb.name:
+    if "profile" in nb.name:
+        names = ["Outer Radius", "Bore Radius", "Z Top", "Z Bottom", "Dome Ring Radius", "Dome Tube Radius",
+                 "Comfort Ring Radius", "Comfort Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]
+        inputs = [{"name": n, "type": "real", "value": 0, "units": "mm"} for n in names]
+        inputs.append({"name": "Output Path", "type": "text", "value": ""})
+    elif "band" in nb.name:
         # nTop 6.3.3 spells these `real` and `text` in its own template (seen 2026-10-25)
         inputs = [{"name": "Outer Radius", "type": "real", "value": 0, "units": "mm"},
                   {"name": "Bore Radius", "type": "real", "value": 0, "units": "mm"},
@@ -84,13 +89,15 @@ if "fail" in nb.name:
 outputs = []
 if "band" in nb.name:
     import trimesh
-    R, r, W = float(values["Outer Radius"]), float(values["Bore Radius"]), float(values["Width"])
+    R, r = float(values["Outer Radius"]), float(values["Bore Radius"])
+    W = float(values["Width"]) if "Width" in values else float(values["Z Top"]) - float(values["Z Bottom"])
     mesh = trimesh.creation.annulus(r_min=r, r_max=R, height=W, sections=720)
     mesh.export(values["Output Path"])
-    vol = math.pi * (R * R - r * r) * W
+    vol_m3 = math.pi * (R * R - r * r) * W * 1e-9      # nTop reports SI with dimension exponents
     for name in ("Outer Cylinder", "Bore", "Band", "Mesh from Implicit Body", "Export Mesh", "Mass Properties"):
         log("I", f"{name} complete 1ms")
-    outputs = [{"name": "Volume", "type": "scalar", "components": [], "value": vol, "units": "mm^3"}]
+    outputs = [{"name": "Volume", "type": "real", "components": [],
+                "value": {"isFinite": True, "units": {"length": 3}, "val": vol_m3}}]
 else:
     for name in ("Sphere_0", "Implicit Body_5"):
         log("I", f"{name} complete 0ms")
@@ -122,5 +129,12 @@ def fake_ntopcl(tmp_path, monkeypatch) -> Path:
 @pytest.fixture
 def band_notebook(tmp_path) -> Path:
     nb = tmp_path / "ring_band.ntop"
+    nb.write_bytes(b"fake notebook")
+    return nb
+
+
+@pytest.fixture
+def profile_notebook(tmp_path) -> Path:
+    nb = tmp_path / "ring_band_profile.ntop"
     nb.write_bytes(b"fake notebook")
     return nb

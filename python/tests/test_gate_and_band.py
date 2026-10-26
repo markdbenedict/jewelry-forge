@@ -3,7 +3,7 @@ import math
 import pytest
 import trimesh
 
-from ntopjewel import band, gate, tables
+from ntopjewel import band, catalog, gate, tables
 
 
 def _band_mesh(r_in=8.255, r_out=9.555, width=4.0):
@@ -45,29 +45,70 @@ def test_gate_flags_thin_wall(tmp_path):
 
 
 def test_band_spec_math():
-    s = band.BandSpec(size=6, width_mm=4, thickness_mm=1.3)
+    s = band.BandSpec(size=6, width_mm=4, thickness_mm=1.3, profile="court")
     assert s.inner_diameter_mm == pytest.approx(16.5068)
     assert s.outer_radius_mm == pytest.approx(16.5068 / 2 + 1.3)
-    assert s.label == "US6"
+    assert s.label == "US6" and s.stem == "ring_band_court_US6"
     assert band.BandSpec(size="L", system="UK").label == "UKL"
     assert band.BandSpec(size=6, thickness_mm=0.8).validate()
+    # court on a 1.3 mm band: dome 0.325, comfort 0.286, edge 0.25
+    assert s.dome == pytest.approx(0.325) and s.comfort == pytest.approx(0.286)
+    assert s.edge_thickness_mm == pytest.approx(1.3 - 0.325 - 0.286)
+    rd, td = s.dome_torus
+    assert td == pytest.approx((4 + 0.325 ** 2) / (2 * 0.325))          # (W²/4 + d²) / 2d
+    assert rd == pytest.approx(s.outer_radius_mm - td)
+    rc, tc = s.comfort_torus
+    assert rc == pytest.approx(s.bore_radius_mm + tc)
+    ins = s.notebook_inputs("x")
+    assert ins["Z Top"] == 2.0 and ins["Z Bottom"] == -2.0 and ins["Edge Round Inward"] == -0.25
+    assert set(ins) == {"Outer Radius", "Bore Radius", "Z Top", "Z Bottom", "Dome Ring Radius", "Dome Tube Radius",
+                        "Comfort Ring Radius", "Comfort Tube Radius", "Edge Round", "Edge Round Inward",
+                        "Mesh Tolerance", "Output Path"}
+    assert s.validate() == []
 
 
-def test_band_end_to_end_with_fake_ntopcl(fake_ntopcl, band_notebook, tmp_path, monkeypatch):
+def test_profile_presets_and_limits():
+    for name in band.PROFILES:
+        assert band.BandSpec(size=6, profile=name).validate() == [], name
+    flat = band.BandSpec(size=6, profile="flat")
+    assert flat.dome == band.MIN_SAGITTA and flat.comfort == band.MIN_SAGITTA
+    rd, td = flat.dome_torus                      # torus centred on the outer surface, swallowing the section
+    assert rd == pytest.approx(flat.outer_radius_mm) and td > (1.3 ** 2 + 4) ** 0.5
+    rc, tc = flat.comfort_torus                   # torus inside the bore, clear of the band
+    assert rc + tc < flat.bore_radius_mm and rc > 0
+    assert flat.warnings() == []
+    thin = band.BandSpec(size=6, thickness_mm=1.0, profile="half-round")      # edge would be 0.4 mm
+    assert any("edge would be" in p for p in thin.validate())
+    assert band.BandSpec(size=6, profile="court", edge_round_mm=0.6).validate()  # round too big for the edge
+    with pytest.raises(ValueError, match="unknown profile"):
+        band.BandSpec(size=6, profile="octagonal").dome
+    wide = band.BandSpec(size=6, width_mm=8, thickness_mm=1.6, profile="court", dome_mm=0.3)
+    assert wide.warnings() and "ring radius" in wide.warnings()[0]              # shallow dome, wide band
+
+
+def test_profile_notebook_inputs_match_catalog():
+    cat = catalog.load("ring_band_profile")
+    inputs = cat.build_inputs(band.BandSpec(size=6).notebook_inputs("C:\\o\\b.stl"))
+    assert len(inputs) == 12 and all(e["name"] in cat.inputs for e in inputs)
+
+
+def test_band_end_to_end_with_fake_ntopcl(fake_ntopcl, profile_notebook, tmp_path, monkeypatch):
     monkeypatch.setenv("JEWELRY_OUT", str(tmp_path / "out"))
-    spec = band.BandSpec(size=6, width_mm=4.0, thickness_mm=1.3)
-    res = band.build(spec, tmp_path / "out" / "band", notebook=band_notebook)
+    spec = band.BandSpec(size=6, width_mm=4.0, thickness_mm=1.3, profile="court")
+    res = band.build(spec, tmp_path / "out" / "band", notebook=profile_notebook)
     assert res.ok, res.text()
-    assert res.stl.name == "ring_band_US6.stl" and res.stl.exists()
-    assert res.ntop_volume_mm3 == pytest.approx(res.analytic_volume_mm3)
+    assert res.stl.name == "ring_band_court_US6.stl" and res.stl.exists()
+    assert res.ntop_volume_mm3 == pytest.approx(
+        gate.band_volume_mm3(spec.inner_diameter_mm, 2 * spec.outer_radius_mm, 4.0), rel=1e-6)
     assert res.gate.inner_diameter_mm == pytest.approx(spec.inner_diameter_mm, abs=0.02)
-    assert (tmp_path / "out" / "band" / "ring_band_US6.report.json").exists()
-    assert "nTop volume" in res.text()
+    assert (tmp_path / "out" / "band" / "ring_band_court_US6.report.json").exists()
+    assert "mm^3" in res.run.summary()
     assert math.isclose(res.run.log.total_block_ms, 6)
 
 
-def test_band_delivery(fake_ntopcl, band_notebook, tmp_path, monkeypatch):
+def test_band_delivery(fake_ntopcl, profile_notebook, tmp_path, monkeypatch):
     monkeypatch.setenv("JEWELRY_DELIVER", str(tmp_path / "Jewelry"))
-    res = band.build(band.BandSpec(size=7), tmp_path / "o", notebook=band_notebook, deliver=True, deliver_project="Bands")
-    assert res.delivered == tmp_path / "Jewelry" / "Bands" / "ring_band_US7.stl"
+    res = band.build(band.BandSpec(size=7, profile="flat"), tmp_path / "o", notebook=profile_notebook,
+                     deliver=True, deliver_project="Bands")
+    assert res.delivered == tmp_path / "Jewelry" / "Bands" / "ring_band_flat_US7.stl"
     assert res.delivered.exists()

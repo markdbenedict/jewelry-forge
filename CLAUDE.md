@@ -9,8 +9,8 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 
 - **Units:** 1 unit = 1 mm everywhere (nTop notebooks, Blender scenes, Python, STL).
   Angles in degrees. Volumes in mm³, weights in grams.
-- **Ring axis:** in nTop notebooks the ring axis is **Z** (band lies flat on XY; the Phase 0
-  band spans z = 0 … Width, profile blocks from Phase 1 centre on the origin). In Blender scenes the ring axis is **Y** (ring stands upright on the
+- **Ring axis:** in nTop notebooks the ring axis is **Z**, band centred on the origin (z = ±W/2;
+  only the Phase 0 hello band spans z = 0 … W). In Blender scenes the ring axis is **Y** (ring stands upright on the
   floor); `blender/photo.py` assumes this. The mesh gate detects the axis from the mesh.
 - **Ring sizing:** US size → inner diameter `11.63 + 0.8128 × size` mm. Other systems
   convert through `ntopjewel.tables`. Sizes are never typed into a notebook; Python
@@ -81,9 +81,10 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 # every day
 .\.venv\Scripts\Activate.ps1
 python -m ntopjewel doctor                      # finds ntopcl, nTop, Blender, printer folders
-python -m ntopjewel templates ntop\notebooks\ring_band.ntop
-python -m ntopjewel band --size 6 --width 4 --thickness 1.3 --out out\band
-python -m ntopjewel gate out\band\ring_band_US6.stl --expect-inner 16.51 --expect-width 4
+python -m ntopjewel templates ntop\notebooks\ring_band_profile.ntop --catalog ring_band_profile
+python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round
+python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
+python -m ntopjewel gate out\band\ring_band_court_US6.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop
 ```
