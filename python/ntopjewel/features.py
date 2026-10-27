@@ -402,12 +402,13 @@ def preview(spec: RingSpec, out_dir: Path | None = None, *, console=None, recipe
     problems = spec.validate()
     if problems:
         raise ValueError("; ".join(problems))
-    out_dir = Path(out_dir) if out_dir else config.out_dir() / "api" / "preview"
+    # absolute: the script runs in nTop's Python, whose working directory is nTop's install folder
+    out_dir = (Path(out_dir) if out_dir else config.out_dir() / "api" / "preview").resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = spec.stem
-    stl = (out_dir / f"{stem}.stl").resolve()
-    engraving = (out_dir / f"{stem}.engraving.stl").resolve()
-    notebook = (out_dir / f"{stem}.ntop").resolve()
+    stl = out_dir / f"{stem}.stl"
+    engraving = out_dir / f"{stem}.engraving.stl"
+    notebook = out_dir / f"{stem}.ntop"
     info = spec.write_engraving(engraving)
     values = spec.notebook_inputs(str(stl), str(engraving))
     values.pop("Output Path")                       # the build script's test_output carries it

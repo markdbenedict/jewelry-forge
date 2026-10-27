@@ -193,6 +193,36 @@ def test_preview_builds_this_ring_in_the_console(tmp_path, monkeypatch):
     assert json.loads((res.notebook.parent / f"{spec.stem}.preview.json").read_text())["volume_mm3"] == pytest.approx(287.4)
 
 
+def test_preview_and_build_paths_are_absolute(tmp_path, monkeypatch):
+    """nTop's Python runs in nTop's install folder: a relative `--out` must never reach the
+    script (2026-10-27: `--out out\\ring --show` -> "Access is denied: 'out'")."""
+    from ntopjewel import nb_jewel
+    from ntopjewel.notebook_api import Console
+    monkeypatch.chdir(tmp_path)
+    sent = {}
+
+    def transport(line, timeout):
+        sent["line"] = line
+        raise ConsoleError("stop here")
+    spec = features.RingSpec(band.BandSpec(size=4.5, profile="court"), text="Makena")
+    with pytest.raises(ConsoleError, match="stop here"):
+        features.preview(spec, "rel/preview", console=Console(transport=transport))
+    work = (tmp_path / "rel" / "preview").resolve()
+    params = json.loads((work / "ring_features.params.json").read_text(encoding="utf-8"))
+    for key in ("save_to", "recipe_to", "test_output"):
+        assert Path(params[key]).is_absolute() and Path(params[key]).parent == work
+    assert Path(params["values"]["Engraving Path"]).is_absolute() and str(work) in sent["line"]
+    # and the build itself anchors a relative path at the repo, never at the cwd
+    monkeypatch.setattr(nb_jewel, "REPO_ROOT", tmp_path / "repo")
+    mod = load_recipe("ring_features")
+    nb = FakeNotebook()
+    res = mod.build(nb, {"save_to": "out/x/rf.ntop", "recipe_to": "out/x/rf.json", "test_output": "out/x/t.stl",
+                         "values": {"Engraving Path": "out/x/e.stl"}})
+    assert nb.saved == [str(tmp_path / "repo" / "out" / "x" / "rf.ntop")]
+    assert nb.variables["Engraving Path"]["value"] == str(tmp_path / "repo" / "out" / "x" / "e.stl")
+    assert sum("is relative" in ln for ln in res["log"]) == 4
+
+
 def test_cli_ring_show_reports_a_console_failure(tmp_path, monkeypatch, capsys):
     from ntopjewel import cli
     from ntopjewel.notebook_api import Console

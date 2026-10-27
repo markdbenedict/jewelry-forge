@@ -275,6 +275,23 @@ def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], int
     }
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]      # python/ntopjewel/nb_jewel.py -> the repo
+
+
+def absolute(path, h: NotebookHelper | None = None, what: str = "path") -> str:
+    """Paths handed to the script must be absolute: it runs in nTop's Python, whose working
+    directory is nTop's install folder (2026-10-27: `--out out\\ring` became
+    `C:\\Program Files\\nTopology\\...\\out`, "Access is denied"). A relative path is taken
+    as relative to the repo, which is what the caller meant."""
+    p = Path(str(path))
+    if p.is_absolute():
+        return str(p)
+    fixed = REPO_ROOT / p
+    if h is not None:
+        h.log.append(f"{what} {path!r} is relative; using {fixed} (nTop's cwd is its own folder)")
+    return str(fixed)
+
+
 def run_build(notebook, params: dict | None, defaults: dict, body_fn) -> dict:
     """Common `build()` shell: merge params, make folders, fresh notebook, pause, run `body_fn(h, p,
     values, out_var)` -> (integ, export), finish; on any error raise with the helper's diagnostics."""
@@ -282,7 +299,11 @@ def run_build(notebook, params: dict | None, defaults: dict, body_fn) -> dict:
     try:
         p = {**defaults, **(params or {})}
         values = {**defaults["values"], **(p.get("values") or {})}
-        test_output = str(p["test_output"])
+        for key in ("test_output", "save_to", "recipe_to"):
+            p[key] = absolute(p[key], h, key)
+        if "Engraving Path" in values:
+            values["Engraving Path"] = absolute(values["Engraving Path"], h, "Engraving Path")
+        test_output = p["test_output"]
         Path(test_output).parent.mkdir(parents=True, exist_ok=True)
         for key in ("save_to", "recipe_to"):
             Path(p[key]).parent.mkdir(parents=True, exist_ok=True)

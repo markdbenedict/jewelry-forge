@@ -245,7 +245,7 @@ def _print_build_result(res: dict) -> None:
 
 def cmd_api(a: argparse.Namespace) -> int:
     from . import notebook_api
-    work_dir = Path(a.out) if a.out else config.out_dir() / "api"
+    work_dir = (Path(a.out) if a.out else config.out_dir() / "api").resolve()   # nTop's Python has its own cwd
     if a.api_cmd == "check":
         try:
             out = _console(a).check(timeout=a.timeout)
