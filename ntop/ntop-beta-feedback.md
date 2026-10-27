@@ -60,12 +60,8 @@ Windows 11 laptops, Python per nTop's bundled console.
 
 - Whether a `core.var<real>` Output fed by the `volume` property lets `ntopcl -t` write the
   output template without a GUI build, and comes out of a run as a `real` in m³ (next run).
-- Which unit spellings `add_real_variable` / `set_block_input_units` accept beyond `mm`:
-  `kg/m^3` and `mm^3` were refused by `add_real_variable` on 2026-10-27 (the refusal text was
-  not captured; the next run logs it, asks `get_block_input_units` for the Density input's own
-  spelling, and tries `set_block_input_units` on the variable). A unitless variable wired into
-  Density does NOT pass the build: `'Density' requires units of mass/length^3, but received no
-  units.` - which also means Mass Properties DID build once the Output was a typed variable.
+- Whether `volume_integral<implicit,real_field,real>` fed a unitless 1 builds and gives the
+  volume in mm³ through nTopCL (replaces Mass Properties in the band; next run).
 
 ## Findings
 
@@ -115,6 +111,20 @@ Windows 11 laptops, Python per nTop's bundled console.
   constant should be settable like a real, with units. The two messages also contradict each
   other (one says it carries no unit, the other that it cannot be set yet).
 - Workaround: a `core.var<real>` with units wired into the input builds fine.
+
+### 2026-10-27 — a fresh notebook's unit table knows only `mm`; no way to add a unit
+- Call: `add_real_variable("Density", 1000.0, "kg/m3")` and `set_block_input_units(id, "Input",
+  "kg/m3")`, also `kg/m^3`, `kg/m³`, `g/cm^3`, `g/cm³`, `g/mm^3`, `g/mm³`, `g/cc`; meanwhile
+  `get_block_input_units("Mass properties_0", "Density")` → `'kg/m3'`.
+- Happened: every spelling, including nTop's own `kg/m3`: `"kg/m3" is not a unit this notebook
+  knows.` A unitless variable wired into Density then fails the build with `'Density' requires
+  units of mass/length^3, but received no units.`
+- Expected: units the GUI parses in any field (`kg/m3`) should be accepted by the API, or a
+  call to register a unit in the notebook, or `add_real_variable` could accept the unit as the
+  GUI does and add it to the table.
+- Workaround: avoid non-length units in API-built notebooks. For the volume, a
+  `volume_integral<implicit,real_field,real>` of the constant 1 (a unitless variable) instead
+  of Mass Properties + Density.
 
 ### 2026-10-27 — required inputs without defaults are invisible until nTopCL
 - Call: `add_block("mass_properties_from_body<implicit,real_field,real>")`, wire `Body`, leave

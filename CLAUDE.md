@@ -19,8 +19,10 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   ≥ 0.8 mm diameter, milgrain beads ≥ 0.5 mm, engraving ≥ 0.25 mm deep with ≥ 0.3 mm
   strokes, moving chain links ≥ 0.35 mm clearance. Floors live in `ntopjewel/tables.py`;
   change them there, not in notebooks or skills.
-- **One Output per notebook, and it is the volume** (Mass Properties, mm³). Files come out
-  of Export Mesh / Export 3MF blocks fed by `file_path` inputs.
+- **One Output per notebook, and it is the volume** in mm³ - a Volume Integral of the
+  constant 1 over the body (API-built notebooks; needs no density or unit), or Mass
+  Properties' volume (GUI-built Phase 0). Files come out of Export Mesh / Export 3MF blocks
+  fed by `file_path` inputs.
 
 ## How work gets done
 
@@ -106,14 +108,19 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - **A `real_field` input cannot be set at all** through `set_block_input` (`Density`, `Blend
   Radius`, `Distance`: 'has type "real_field", which cannot be set yet', with or without
   units). Feed it by **wiring a `core.var<real>`** into it (`add_real_variable` +
-  `connect_block_property`), as the band does for the offsets and for Density (1000 kg/m³).
-- **What only nTopCL tells you about an API-built notebook** (the GUI session never builds a
-  lazy block, so its input errors stay hidden): Mass Properties `Density` has no default
-  (`Input "Density" is incomplete`) - set it; a block added and never set (`Path_0`) fails the
-  run (`Input "Input" is incomplete`) - `h.remove()` it; an Output that is an untyped
-  variable gives `-t` "Output of function not built" - make the Output a `core.var<real>`
-  (`add_real_variable` + `connect_block_property` to its `Input`). The runner's `templates`
-  tolerates the missing output template; the first real run is the check.
+  `connect_block_property`), as the band does for the offsets.
+- **Units are a per-notebook table.** A fresh notebook knows `mm` (its length unit) and
+  nothing else: `add_real_variable(…, "kg/m3")` and `set_block_input_units` answer
+  `"kg/m3" is not a unit this notebook knows`, although `get_block_input_units` spells the
+  Density input exactly `kg/m3`. No API call registers a unit. So API-built notebooks avoid
+  non-length units: volume = `volume_integral` of a unitless 1, never Mass Properties.
+- **What only nTopCL tells you about an API-built notebook** (a lazy block with no typed
+  consumer never builds in the GUI session, so its input errors stay hidden): a required
+  input with no default (`Input "Density" is incomplete`); a block added and never set
+  (`Path_0`: `Input "Input" is incomplete`) - `h.remove()` it; an Output that is an untyped
+  variable (`-t`: "Output of function not built") - make the Output typed (a variable
+  wrapping the measurement block, or a `core.var<real>`). The runner's `templates` tolerates
+  a missing output template; the first real run is the check.
 - SSH: `ssh -tt -i ~\.ssh\id_ntopcli -p 2222 localhost` while the console panel is open.
   Key-based only; `authorized_keys` written as ASCII (no BOM), owner-only. **One line per
   send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the

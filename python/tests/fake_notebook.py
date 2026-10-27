@@ -40,6 +40,7 @@ SIGNATURES = {
     "mesh_from_implicit_body_2<implicit,real>": ("Mesh from Implicit Body", [("Body", "implicit"), ("Tolerance", "real")], "mesh"),
     "export_mesh<file_path,mesh,unit_length_enum>": ("Export Mesh", [("Path", "file_path"), ("Mesh", "mesh"), ("Units", "unit_length_enum")], "file"),
     "export_multi_region_mesh<file_path,mr_mesh,unit_length_enum>[5.51.0]": ("Export Multi-Region Mesh", [("File Path", "file_path"), ("Mesh", "mr_mesh"), ("Units", "unit_length_enum")], "file"),
+    "volume_integral<implicit,real_field,real>": ("Volume Integral", [("Body", "implicit"), ("Scalar Field", "real_field"), ("Relative Error", "real")], "real"),
     "subtract<real,real>": ("Subtract", [("A", "real"), ("B", "real")], "real"),          # scalar decoy
     "offset_voxel_grid<voxel_grid,real>[1.1.0]": ("Offset Voxel Grid", [("Grid", "voxel_grid"), ("Distance", "real")], "voxel_grid"),
     "core.var<real>": ("Scalar Variable", [("Input", "real")], "real"),
@@ -49,6 +50,7 @@ SIGNATURES = {
     "core.var_any<any>": ("Variable", [("x", "any")], "any"),
 }
 PROPERTIES = {"body_mass_props": ["center of gravity", "mass", "principal frame", "principal moments", "volume"], "implicit": ["Bounding Box"]}
+LAZY = {"body_mass_props"} | {"volume_integral<implicit,real_field,real>"}   # measurement blocks nothing displays
 # inputs with no default: nTopCL fails the run with 'Input "<name>" is incomplete' when they are neither set nor wired
 REQUIRED = {"mass_properties<implicit,real_field,real>[1.1.0]": ["Body", "Density"],
             "mass_properties_from_body<implicit,real_field,real>": ["Body", "Density"],
@@ -224,7 +226,9 @@ class FakeNotebook:
             return {"blockId": block_id, "buildState": "e_DIRTY", "pauseState": "e_PAUSED"}
         if block_id in self.fail_blocks:
             return {"blockId": block_id, "buildState": "e_FAILED", "pauseState": "e_UNPAUSED", "error": "forced failure"}
-        if b.get("out") == "body_mass_props" and block_id in self.blocks and block_id not in self.built:
+        lazy_id = block_id if block_id in self.blocks else self.variables.get(block_id, {}).get("wraps")
+        if lazy_id in self.blocks and (self.blocks[lazy_id]["out"] in LAZY or self.blocks[lazy_id]["funcId"] in LAZY) \
+                and lazy_id not in self.built:
             return {"blockId": block_id, "buildState": "e_DIRTY", "pauseState": "e_UNPAUSED"}
         return {"blockId": block_id, "buildState": "e_OK", "pauseState": "e_UNPAUSED"}
 
@@ -233,11 +237,21 @@ class FakeNotebook:
         self.built.add(block_id)
 
     def get_block_output_meta(self, block_id: str):
-        if block_id in self.variables and self.variables[block_id].get("wired"):
-            src, prop = self.variables[block_id]["wired"]
+        v = self.variables.get(block_id, {})
+        if v.get("wired"):
+            src, prop = v["wired"]
             if self.lazy_mass == "pull":
                 self.built.add(src)
             if prop == "volume" and src in self.built:
+                return {"type": "real", "value": 287.4, "units": "mm^3"}
+        if v.get("wraps") in self.blocks and self.blocks[v["wraps"]]["funcId"].startswith("volume_integral"):
+            src = v["wraps"]
+            if self.lazy_mass == "pull":
+                self.built.add(src)
+            if src in self.built:
+                b = self.blocks[src]
+                if "Scalar Field" not in b["wired"] or "Body" not in b["wired"]:
+                    return {"type": "real", "value": None}
                 return {"type": "real", "value": 287.4, "units": "mm^3"}
         return {"type": "real", "value": None}
 

@@ -135,7 +135,8 @@ raises `NtopclError` (with the parsed `RunResult` attached) on failure.
 | `api`: timed out | a slow build or a dialog in the GUI | look at the nTop window; raise `--timeout`; `--param wait_s=600` |
 | `api`: `<block>: e_DIRTY` after the whole wait | nothing consumes that block, so nTop never builds it | wire it into the Output (or a consumer) before waiting; verify its value with nTopCL |
 | `api`: `type "file_path" ... cannot be set yet` | API limit (6.3.3) | use a `core.var<text>` variable for the path |
-| `[E] <block>: Input "Density" is incomplete` (nTopCL) | required input with no default, invisible in the lazy GUI build | set it in the script (`_set_density`) |
+| `[E] <block>: Input "Density" is incomplete` (nTopCL) | required input with no default, invisible in the lazy GUI build | feed it by a wired variable - or avoid the block: the band measures volume with `volume_integral` of 1 |
+| `"kg/m3" is not a unit this notebook knows` | a fresh notebook's unit table holds only `mm`; the API cannot add units | design the notebook so only length units appear (volume integral of a unitless 1, not Mass Properties) |
 | `[E] Path_0: Input "Input" is incomplete` (nTopCL) | a block the script added and could not set was left in the notebook | `h.remove(id)` on the failure path |
 | `-t`: `Output of function not built` | the Output is an untyped variable never built in the GUI | Output = `core.var<real>` fed by the property; `templates` tolerates it, the run checks it |
 | `[W] ... version 1.0.0 is now deprecated` (nTopCL) | an unversioned identifier was used | take the highest `[x.y.z]` (the helper does since 2026-10-27) |

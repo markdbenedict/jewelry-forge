@@ -381,6 +381,16 @@ class NotebookHelper:
                     return n
         raise ConsoleError(f"block {block_id} has no input like {candidates}; it has {names}")
 
+    def input_of_type(self, block_id: str, type_substring: str) -> str:
+        """The first input whose type contains `type_substring` ("implicit", "real_field"):
+        robust where input names are unknown (a fresh block from the discovery dump)."""
+        ins = self.inputs(block_id)
+        for i in ins:
+            if type_substring in str(i.get("type", "")):
+                return i["name"]
+        raise ConsoleError(f"block {block_id} has no input of type ~{type_substring!r}; it has "
+                           f"{[(i.get('name'), i.get('type')) for i in ins]}")
+
     def set(self, block_id: str, input_candidates: str | Iterable[str], value: Any, units: str = "") -> str:
         cands = [input_candidates] if isinstance(input_candidates, str) else list(input_candidates)
         name = self.input_name(block_id, *cands)

@@ -5,8 +5,12 @@ What it builds (see band-profile.md for the geometry and ntopjewel.band for the 
     inputs (12 real/text variables, in catalog order)
     Outer / Bore cylinders  ->  Boolean Subtract (Band)  ->  Boolean Intersect with Dome Torus
     and Comfort Torus (Shaped)  ->  Offset Body (−e) -> Offset Body (+e) = Band Profile
-    -> Mass Properties (Volume -> variable "Volume" = the notebook Output)
+    -> Volume Integral of the constant 1 over the body (variable "Volume" = the notebook Output)
     -> Mesh from Implicit Body -> Export Mesh (file = Output Path)
+
+Why a volume integral and not Mass Properties: Mass Properties needs a Density in kg/m3, and a
+fresh notebook's unit table knows only mm ("kg/m3" is not a unit this notebook knows, 2026-10-27);
+∫ 1 dV needs no unit anywhere.
 
 How to run it
   * From Claude Code on the laptop (nTop open, View > Python Console open):
@@ -55,11 +59,7 @@ TORUS = "torus<point,vector,real,real>"
 SUBTRACT = [["boolean_subtract", "implicit,list<implicit>"], ["boolean_subtract", "implicit"], ["subtract", "implicit"]]
 INTERSECT = [["boolean_intersect", "list<implicit>"], ["boolean_intersect", "implicit"], ["intersect", "implicit"]]
 OFFSET = [["offset_implicit"], ["offset", "implicit"]]
-MASS = [["mass_properties", "implicit"], ["mass_properties", "body"]]   # highest version wins: mass_properties<…>[1.1.0], not the deprecated …_from_body
-# Density has no default (nTopCL: 'Input "Density" is incomplete') and must carry mass/length^3 units
-# ("requires units of mass/length^3, but received no units"); nTop's unit spelling for the API is
-# undocumented, so several are tried and every refusal is logged.
-DENSITY_UNITS = ("kg/m^3", "kg/m³", "g/cm^3", "g/cm³", "g/mm^3", "g/mm³", "kg/m3", "g/cc")
+VOLUME_INTEGRAL = [["volume_integral", "implicit", "real_field"], ["volume_integral"]]   # ∫ field dV over a body
 MESH = [["implicit_to_mesh", "bool,bool"], ["implicit_to_mesh"], ["mesh_from_implicit_body"], ["mesh", "implicit"]]
 EXPORT = [["export_mesh", "file_path"], ["export_mesh"]]
 PATH_VARS = ("core.var<file_path>", "core.var<text>")      # the Output Path input; Export Mesh wants a file_path
@@ -71,7 +71,6 @@ DEFAULTS = {
     "recipe_to": str(REPO / "ntop" / "recipes" / "ring_band_profile.recipe.json"),
     "pause": True,            # batch the edits with paused_updates()
     "fresh": True,            # start from new_notebook()
-    "density": 1000.0,        # kg/m^3 (water); Mass Properties has no default and nTopCL refuses an unset Density
     "wait_s": 120,
 }
 
@@ -112,38 +111,6 @@ def _set_axis(h: NotebookHelper, block_id: str) -> None:
     except Exception as e:
         h.log.append(f"Axis without units refused ({e}); retrying with mm")
         h.set(block_id, ["Axis"], [0.0, 0.0, 1.0], "mm")
-
-
-def _set_density(h: NotebookHelper, mass_id: str, kg_per_m3: float) -> None:
-    """Density is required (no default) and is a `real_field`, which `set_block_input` cannot set
-    at all (6.3.3: 'has type "real_field", which cannot be set yet'); a real VARIABLE wired into
-    it works (the offsets' Distance is fed the same way). So: a `core.var<real>` named Density,
-    in the first density unit nTop accepts, connected to the block."""
-    per_unit = {"kg/m^3": kg_per_m3, "kg/m³": kg_per_m3, "kg/m3": kg_per_m3,
-                "g/cm^3": kg_per_m3 / 1000.0, "g/cm³": kg_per_m3 / 1000.0, "g/cc": kg_per_m3 / 1000.0,
-                "g/mm^3": kg_per_m3 / 1e6, "g/mm³": kg_per_m3 / 1e6}
-    # ask nTop how it spells units: the Density input's own, and a known length input's
-    hinted = h.units_of(mass_id, "Density")
-    h.units_of(h.blocks["Outer"], "Radius")
-    order = ([hinted] if hinted and hinted not in per_unit else []) + list(DENSITY_UNITS)
-    if hinted and hinted not in per_unit:
-        per_unit[hinted] = kg_per_m3            # unknown spelling: assume SI (kg/m^3); nTopCL's mass would show otherwise
-    errors = []
-    for u in order:
-        try:
-            var_id = h.real_var("Density", per_unit[u], u)
-        except Exception as e:
-            errors.append(f"variable in {u}: {e}")
-            continue
-        try:
-            h.wire(var_id, mass_id, ["Density"])
-            h.log.append(f"Density = {per_unit[u]} {u or '(no units)'} as a variable")
-            return
-        except Exception as e:
-            errors.append(f"wire {u or 'no units'}: {e}")
-            h.remove(var_id)
-            h.blocks.pop("Density", None)
-    raise ConsoleError("could not feed Mass Properties Density: " + "; ".join(errors))
 
 
 def build(notebook, params: dict | None = None) -> dict:
@@ -226,9 +193,10 @@ def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
         body = h.wrap_var("Band Body", profile)   # used twice below: nTop wants a variable for that
 
         # ---- measure, mesh, export ------------------------------------------------------
-        mass = h.add("Mass Properties", mask="mass", must=MASS)
-        h.wire(body, mass, ["Body"])
-        _set_density(h, mass, float(p["density"]))
+        integ = h.add("Volume Integral", mask="volume_integral", must=VOLUME_INTEGRAL)
+        h.wire(body, integ, h.input_of_type(integ, "implicit"))
+        one = h.real_var("One", 1.0, "")           # dimensionless integrand: ∫ 1 dV = volume, no units needed
+        h.wire(one, integ, h.input_of_type(integ, "real_field"))
 
         mesh = h.add("Mesh", mask="mesh", must=MESH)
         h.wire(body, mesh, ["Body"])
@@ -238,38 +206,31 @@ def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
         h.wire(mesh, export, ["Mesh"])
         h.wire(out_var, export, ["File Path", "File", "Path", "Filename", "Output"])
 
-    # ---- the Volume variable is the notebook Output, and the only consumer of Mass Properties --
+    # ---- the Volume variable is the notebook Output, and the only consumer of the integral ----
     # nTop builds lazily: a block nothing displays or consumes stays e_DIRTY (seen 2026-10-26, a
     # 300 s wait for nothing). So wire the Output first, wait for the geometry chain, and treat a
-    # Mass Properties that still never builds in the GUI session as a warning: nTopCL evaluates
-    # the Output at run time, which is what the notebook is for.
-    h.log.append("notebook methods: " + ", ".join(n for n in dir(notebook) if not n.startswith("_")))
-    props = h.properties(mass)                   # names, whatever shape nTop returns them in
-    h.log.append(f"Mass Properties offers {props}")
-    vol_prop = next((n for n in props if n.lower() == "volume"), None) or next((n for n in props if "volume" in n.lower()), None)
-    if not vol_prop:
-        if props:
-            raise ConsoleError(f"Mass Properties has no Volume property; it offers {props}")
-        vol_prop = "Volume"                       # nothing listed: use the GUI's name and let the build tell us
-        h.log.append("no properties listed; trying the GUI name 'Volume'")
-    vol_var = h.property_var("Volume", mass, vol_prop)
+    # measurement that still never builds in the GUI session as a warning: nTopCL evaluates the
+    # Output at run time, which is what the notebook is for.
+    vol_var = h.wrap_var("Volume", integ)        # a typed variable (real, mm³): what nTopCL -t and the Output need
 
     # ---- declare the notebook inputs and the output -----------------------------------
     h.declare_inputs(h.blocks[name] for name in INPUT_ORDER)
     h.set_output(vol_var)
 
-    # ---- wait for the geometry chain and the export; then coax Mass Properties ---------
+    # ---- wait for the geometry chain and the export; then coax the measurement block ---
     h.assert_ok(export, p["wait_s"])             # Export Mesh is the end of the geometry chain
     volume = h.pull_value(vol_var)               # asking for the value may trigger the lazy build
-    mass_state = h.state(mass, min(p["wait_s"], 30))
-    if mass_state.get("buildState") != "e_OK":
-        h.nudge_build(mass)                      # whatever build/visibility call this API has
-        mass_state = h.state(mass, min(p["wait_s"], 30))
+    meas_state = h.state(vol_var, min(p["wait_s"], 30))
+    if meas_state.get("buildState") != "e_OK":
+        h.nudge_build(integ)                     # whatever build/visibility call this API has
+        meas_state = h.state(vol_var, min(p["wait_s"], 30))
         volume = h.pull_value(vol_var)
     warnings = []
-    if mass_state.get("buildState") != "e_OK":
-        warnings.append(f"Mass Properties stayed {mass_state.get('buildState')} in the GUI session (lazy block, "
-                        f"nothing displays it); the Output is still wired - verify the volume with nTopCL")
+    if meas_state.get("buildState") == "e_FAILED":
+        raise ConsoleError(f"the volume did not build: {meas_state.get('error', '')}")
+    if meas_state.get("buildState") != "e_OK":
+        warnings.append(f"Volume stayed {meas_state.get('buildState')} in the GUI session (lazy block, nothing "
+                        f"displays it); the Output is wired - nTopCL computes it at run time")
 
     # ---- verify every block, save, export the recipe ----------------------------------
     states = h.states(min(10, p["wait_s"]))
@@ -288,7 +249,7 @@ def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
         "test_output": test_output,
         "test_output_exists": Path(test_output).exists(),
         "volume": volume,
-        "expected_volume_hint": "a little under 290.95 mm³ for the court test values",
+        "expected_volume_hint": "about 244 mm³ for the court test values (BandSpec.design_volume_mm3)",
         "warnings": warnings,
         "blocks": h.blocks,
         "identifiers": h.identifiers,

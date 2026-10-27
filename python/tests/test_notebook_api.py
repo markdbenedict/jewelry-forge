@@ -111,17 +111,21 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     prof = res["blocks"]["Band Profile"]
     assert b[prof]["wired"]["Distance"][0] == "Edge Round"
     assert b[res["blocks"]["Shrunk"]]["wired"]["Distance"][0] == "Edge Round Inward"
-    # tail: mass properties -> Volume variable, mesh tolerance from the input, export file from Output Path
-    assert nb.variables["Volume"]["wired"] == (res["blocks"]["Mass Properties"], "volume")   # nTop names it in lower case
+    # tail: Volume = ∫ 1 dV over the body (no density, no units), the Output wraps that block
+    integ = res["blocks"]["Volume Integral"]
+    assert b[integ]["wired"]["Body"][0] == "Band Body" and b[integ]["wired"]["Scalar Field"][0] == "One"
+    assert nb.variables["One"] ["value"] == 1.0 and nb.variables["One"]["units"] == ""
+    assert nb.variables["Volume"]["wraps"] == integ
+    assert "Mass Properties" not in res["blocks"] and "Density" not in nb.variables
     assert b[res["blocks"]["Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
     # the final body feeds two blocks, so it goes through a variable (nTop's rule)
     assert nb.variables["Band Body"]["wraps"] == prof
-    assert b[res["blocks"]["Mesh"]]["wired"]["Body"][0] == "Band Body" == b[res["blocks"]["Mass Properties"]]["wired"]["Body"][0]
+    assert b[res["blocks"]["Mesh"]]["wired"]["Body"][0] == "Band Body" == b[integ]["wired"]["Body"][0]
     assert b[res["blocks"]["Export Mesh"]]["wired"]["Path"][0] == "Output Path"
     # file_path variables cannot be given a value through the API (2026-10-26), so the path is a text variable
     assert nb.variables["Output Path"]["funcId"] == "core.var<text>" and nb.variables["Output Path"]["value"] == str(tmp_path / "t.stl")
     assert any("cannot be set yet" in ln for ln in res["log"])
-    assert res["warnings"] == [] and nb.variables["Volume"]["wired"][0] in nb.built
+    assert res["warnings"] == [] and nb.variables["Volume"]["wraps"] in nb.built
     assert res["volume"] == pytest.approx(287.4)
     assert set(res["states"]) == set(res["blocks"])
     assert all(v == ("input" if k in mod.INPUT_ORDER else "e_OK") for k, v in res["states"].items())
@@ -129,20 +133,11 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert ids["Band"] == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]"
     assert ids["Shaped"] == "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]"
     assert ids["Shrunk"] == "offset_implicit<implicit,real_field>"
-    assert ids["Mass Properties"] == "mass_properties<implicit,real_field,real>[1.1.0]"
-    # what nTopCL complained about on 2026-10-27: an unset leftover Path_0 and an unset Density
+    assert ids["Volume Integral"] == "volume_integral<implicit,real_field,real>"
+    # what nTopCL complained about on 2026-10-27: an unset leftover Path_0 (and, before, an unset Density)
     assert nb.lint() == []
     assert "Path_0" not in nb.variables and any("removed Path_0" in ln for ln in res["log"])
-    # Density is a real_field: it cannot be set, only fed by a variable (a core.var<real> in kg/m^3)
-    assert b[res["blocks"]["Mass Properties"]]["wired"]["Density"] == ("Density", "")
-    assert nb.variables["Density"]["value"] == 1000.0 and nb.variables["Density"]["units"] == "kg/m^3"
-    assert "Density" not in nb.inputs                                                  # a body variable, not a notebook input
-    # add_real_variable refuses non-length units; the units go on afterwards with set_block_input_units
-    assert any("units set afterwards" in ln and "Density" in ln for ln in res["log"])
-    assert nb.variables["Volume"]["units"] == "mm^3"
-    assert any("units of Mass properties_0.Density: 'kg/m^3'" in ln for ln in res["log"])
-    # the Output is a typed real variable (nTopCL -t needs the type before anything is built)
-    assert nb.variables["Volume"]["funcId"] == "core.var<real>"
+    assert "One" not in nb.inputs                                                      # body variables, not notebook inputs
     assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
     assert ids["Export Mesh"] == "export_mesh<file_path,mesh,unit_length_enum>"
     assert ids["Output Path"] == "core.var<text>"
@@ -163,15 +158,15 @@ def test_band_profile_path_variable_needs_a_text_variable(tmp_path):
 
 
 def test_band_profile_tolerates_lazy_mass_properties(tmp_path):
-    """Mass Properties that never builds in the GUI session is a warning, not a failure: the notebook is
-    still saved with Volume as its Output (nTopCL evaluates it). With a build method, the helper uses it."""
+    """A measurement block that never builds in the GUI session is a warning, not a failure: the notebook
+    is still saved with Volume as its Output (nTopCL evaluates it). With a build method, the helper uses it."""
     mod = load_recipe("band_profile")
     nb = FakeNotebook(lazy_mass="never")
     res = mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
                          "test_output": str(tmp_path / "t.stl"), "wait_s": 1})
     assert res["warnings"] and "lazy" in res["warnings"][0] and res["volume"] is None
     assert nb.saved == [str(tmp_path / "rb.ntop")] and nb.output == "Volume"
-    assert res["states"]["Mass Properties"] == "e_DIRTY" and res["states"]["Export Mesh"] == "e_OK"
+    assert res["states"]["Volume Integral"] == "e_DIRTY" and res["states"]["Export Mesh"] == "e_OK"
     assert any("no build/visibility method" in ln for ln in res["log"])
     nb = FakeNotebook(lazy_mass="method")
     res = mod.build(nb, {"save_to": str(tmp_path / "rb2.ntop"), "recipe_to": str(tmp_path / "rb2.json"),
