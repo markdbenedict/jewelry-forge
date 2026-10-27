@@ -97,7 +97,8 @@ def _path_variable(h: NotebookHelper, name: str, value: str) -> str:
             h.log.append(f"var {name} = {value!r} via {ident} (id {var_id})")
             return var_id
         except Exception as e:
-            h.log.append(f"{ident} route failed for {name}: {e}")
+            h.log.append(f"fallback: {ident} cannot hold {name} through this API (expected on 6.3.3), trying the next "
+                         f"variable type - nTop said: {e}")
             errors.append(f"{ident}: {e}")
             if info:                              # an unset block left behind fails the nTopCL run
                 h.remove(info["id"])
