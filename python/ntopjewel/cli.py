@@ -172,9 +172,13 @@ def _print_build_result(res: dict) -> None:
         print("identifiers used:")
         for k, v in r["identifiers"].items():
             print(f"    {k:<16} {v}")
-    notes = [ln for ln in r.get("log", []) if "failed" in ln or "not set" in ln or "fall" in ln]
-    if notes:
-        print("notes     :\n    " + "\n    ".join(notes))
+    log = r.get("log", [])
+    fallbacks = [ln for ln in log if ln.startswith("fallback:")]
+    problems = [ln for ln in log if not ln.startswith("fallback:") and any(k in ln for k in ("failed", "refused", "not set"))]
+    if fallbacks:
+        print("handled fallbacks (no action needed):\n    " + "\n    ".join(fallbacks))
+    if problems:
+        print("problems  :\n    " + "\n    ".join(problems))
 
 
 def cmd_api(a: argparse.Namespace) -> int:
