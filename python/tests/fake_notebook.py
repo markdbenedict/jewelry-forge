@@ -16,7 +16,14 @@ BOOL_SUB = [("Blend Type", "blend_enum"), ("Blend Radius", "real_field"), ("Prim
 BOOL_N = [("Blend Type", "blend_enum"), ("Blend Radius", "real_field"), ("Bodies", "list<implicit>")]
 MESH_IN = [("Body", "implicit"), ("Tolerance", "real"), ("Min. feature size", "real"), ("Sharpen", "bool"), ("Simplify", "bool")]
 SIGNATURES = {
-    "sphere<point,real>": ("Sphere", [("Center Point", "point"), ("Radius", "real")], "sphere"),
+    "sphere<point,real>": ("Sphere", [("Center", "point"), ("Radius", "real")], "sphere"),
+    "axis<point,vector>": ("Axis", [("Origin", "point"), ("Direction", "vector")], "axis"),
+    "polar_array_implicit<implicit,real,integer,axis>": ("Polar Array Body", [("Body", "implicit"), ("Angular spacing", "real"), ("Count", "integer"), ("Axis", "axis")], "implicit"),
+    "import_mesh<file_path,unit_length_enum>[1.1.0]": ("Import Mesh", [("Path", "file_path"), ("Units", "unit_length_enum")], "mesh"),
+    "import_mesh<file_path,unit_length_enum>": ("Import Mesh", [("Path", "file_path"), ("Units", "unit_length_enum")], "mesh"),
+    "implicit_from_mesh<mesh>": ("Implicit from Mesh", [("Mesh", "mesh")], "implicit"),
+    "remap_cylindrical_implicit<implicit,real>": ("Remap Cylindrical Body", [("Body", "implicit"), ("Y mapping length", "real")], "implicit"),
+    "core.var<integer>": ("Integer Variable", [("Input", "integer")], "integer"),
     "point<real,real,real>": ("Point", [("X", "real"), ("Y", "real"), ("Z", "real")], "point"),
     "vector<real,real,real>": ("Vector", [("X", "real"), ("Y", "real"), ("Z", "real")], "vector"),
     "cylinder<point,point,real>": ("Cylinder", [("Point 1", "point"), ("Point 2", "point"), ("Radius", "real")], "cylinder"),
@@ -29,6 +36,7 @@ SIGNATURES = {
     "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]": ("Boolean Intersect", BOOL_N, "implicit"),
     "boolean_intersect<blend_enum,real_field,list<implicit>>": ("Boolean Intersect", BOOL_N, "implicit"),
     "boolean_union<blend_enum,real_field,list<implicit>>": ("Boolean Union", BOOL_N, "implicit"),
+    "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]": ("Boolean Union", BOOL_N, "implicit"),
     "offset_implicit<implicit,real_field>": ("Offset Body", [("Body", "implicit"), ("Distance", "real_field")], "implicit"),
     "thicken_implicit<implicit,real_field>": ("Thicken Body", [("Body", "implicit"), ("Thickness", "real_field")], "implicit"),
     "mass_properties<mesh,real>[2.1.0]": ("Mass Properties", [("Mesh", "mesh"), ("Density", "real")], "body_mass_props"),
@@ -56,10 +64,10 @@ REQUIRED = {"mass_properties<implicit,real_field,real>[1.1.0]": ["Body", "Densit
             "mass_properties_from_body<implicit,real_field,real>": ["Body", "Density"],
             "mass_properties<mesh,real>[2.1.0]": ["Mesh", "Density"]}
 DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Mesh File Data", "file_path": "Path",
-                "text": "Text", "real": "Scalar"}
+                "text": "Text", "real": "Scalar", "integer": "Integer", "axis": "Axis", "mesh": "Mesh"}
 # unit spellings: add_real_variable only took length units in our runs ("kg/m^3" and "mm^3" were refused,
 # 2026-10-27); set_block_input_units is the documented way to put other units on a variable's Input.
-VARIABLE_UNITS = {"", "mm", "cm", "m", "in"}
+VARIABLE_UNITS = {"", "mm", "cm", "m", "in", "deg"}
 INPUT_UNITS = VARIABLE_UNITS | {"kg/m^3", "g/cm^3", "g/mm^3", "mm^3", "cm^3", "m^3", "mm^2", "deg"}
 DENSITY_UNITS = {"kg/m^3", "g/cm^3", "g/mm^3"}
 TYPICAL_UNITS = {("Radius", "real"): "mm", ("Density", "real_field"): "kg/m^3", ("Distance", "real_field"): "mm",
@@ -159,6 +167,8 @@ class FakeNotebook:
                 raise ValueError(FILE_PATH_REFUSAL.format(bid=block_id))
             if v.get("typed") in ("text", "file_path") and not isinstance(value, str):
                 raise ValueError(f"'{block_id}' takes a {v['typed']}, not {type(value).__name__}")
+            if v.get("typed") == "integer" and not isinstance(value, int):
+                raise ValueError(f"'{block_id}' takes an integer, not {type(value).__name__}")
             if v.get("typed") == "real" and isinstance(value, str):
                 raise ValueError(f"'{block_id}' takes a real, not text")
             v["value"], v["units"] = value, units
@@ -202,7 +212,8 @@ class FakeNotebook:
             have = src["out"]
             compatible = {("file_path", "file_path"), ("text", "file_path"), ("real", "real_field"), ("real", "real"),
                           ("point", "point"), ("vector", "vector"), ("mesh", "mesh"), ("implicit", "implicit"),
-                          ("cylinder", "implicit"), ("torus", "implicit"), ("sphere", "implicit"), ("any", want)}
+                          ("cylinder", "implicit"), ("torus", "implicit"), ("sphere", "implicit"), ("axis", "axis"),
+                          ("integer", "integer"), ("any", want)}
             if (have, want) not in compatible and have != want:
                 raise ValueError(f"cannot connect a {have} to '{input_name}' ({want}) of '{target_block_id}'")
         b["wired"][input_name] = (source_block_id, property_name)

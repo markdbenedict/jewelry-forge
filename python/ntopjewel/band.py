@@ -134,13 +134,12 @@ class BandSpec:
         in_comfort = (r - rc) ** 2 + z ** 2 <= tc ** 2
         return in_band & in_dome & in_comfort
 
-    def design_volume_mm3(self, step: float = 0.005) -> float:
-        """Volume the notebook should produce, from the design alone: the section (band ∩ both
-        tori) opened by the edge round - offsetting a body of revolution in 3D is the 2D offset
-        of its meridian section - then Pappus: V = 2π ∫∫ r dA. Agrees with nTop to < 1 %."""
+    def opened_section(self, step: float = 0.005, pad: float = 0.0):
+        """(r, z, mask) of the finished meridian section: band ∩ both tori, opened by the edge
+        round (offsetting a body of revolution in 3D is the 2D offset of its section)."""
         import numpy as np
         from scipy import ndimage
-        pad = self.edge_round + 0.2
+        pad = pad + self.edge_round + 0.2
         r = np.arange(self.bore_radius_mm - pad, self.outer_radius_mm + pad, step)
         z = np.arange(-self.width_mm / 2 - pad, self.width_mm / 2 + pad, step)
         R, Z = np.meshgrid(r, z)
@@ -150,7 +149,36 @@ class BandSpec:
             px = self.edge_round / step + 0.5
             eroded = ndimage.distance_transform_edt(mask) >= px
             mask = ndimage.distance_transform_edt(~eroded) <= px
+        return r, z, mask
+
+    def design_volume_mm3(self, step: float = 0.005) -> float:
+        """Volume the notebook should produce, from the design alone: Pappus over the opened
+        section, V = 2π ∫∫ r dA. Agrees with nTop to < 1 %."""
+        import numpy as np
+        r, z, mask = self.opened_section(step)
+        R, _ = np.meshgrid(r, z)
         return float(2 * math.pi * (R[mask] * step * step).sum())
+
+    def thickness_at(self, z_mm: float) -> float:
+        """Radial thickness of the designed section (before edge rounding) at height z."""
+        import numpy as np
+        r = np.linspace(self.bore_radius_mm - 0.5, self.outer_radius_mm + 0.5, 4001)
+        row = self.section_mask(r, float(z_mm))
+        return float(r[row].max() - r[row].min()) if row.any() else 0.0
+
+    def outer_radius_at(self, z_mm: float) -> float:
+        """Radius of the outer (dome) surface at height z (a flat outside: the outer radius)."""
+        if self.dome <= MIN_SAGITTA:
+            return self.outer_radius_mm
+        rd, td = self.dome_torus
+        return rd + math.sqrt(max(td ** 2 - z_mm ** 2, 0.0))
+
+    def bore_radius_at(self, z_mm: float) -> float:
+        """Radius of the bore (comfort) surface at height z (no relief: the bore radius)."""
+        if self.comfort <= MIN_SAGITTA:
+            return self.bore_radius_mm
+        rc, tc = self.comfort_torus
+        return rc - math.sqrt(max(tc ** 2 - z_mm ** 2, 0.0))
 
     @property
     def label(self) -> str:

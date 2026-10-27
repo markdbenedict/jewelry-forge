@@ -140,14 +140,14 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 
 | Path | What |
 | --- | --- |
-| `.claude/skills/` | Skills: `ntop-automate`, `jewelry-design-rules`, `ring-band` (more per phase) |
+| `.claude/skills/` | Skills: `ntop-automate`, `jewelry-design-rules`, `ring-band`, `ring-features` (more per phase) |
 | `ntop/recipes/` | Build scripts (`<name>.py`, run through the Notebook API) + their exported `.recipe.json`; `*.md` are the GUI fallbacks |
 | `ntop/blocks/` | Custom-block notebooks (`.ntop`), the library; nTop's My Blocks folder points here |
 | `ntop/notebooks/` | Automate-ready runner notebooks, one per product family |
 | `ntop/packages/` | `manifest.json` + README per block, nTop community-package layout |
 | `ntop/ntop-beta-feedback.md` | What the Notebook API beta did and did not do for us, for nTop |
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, Notebook API client, CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, Notebook API client + `nb_jewel` build helpers, band/features specs, engraving meshes, CLI |
 | `python/tests/` | pytest; offline by default, nTop runs are marked `slow` |
 | `blender/` | `jewelry_kit.py`, `photo.py` and the organic projects (pear rose ring, monstera band) |
 | `out/` | Scratch output, git-ignored |
@@ -164,12 +164,14 @@ python -m ntopjewel doctor                      # finds ntopcl, nTop, Blender, p
 # authoring (nTop open with View > Python Console open)
 python -m ntopjewel api check                                        # SSH to the console works?
 python -m ntopjewel api build band_profile                           # writes ntop\notebooks\ring_band_profile.ntop
+python -m ntopjewel api build ring_features --scratch                # Phase 1 step 2 notebook (prepare() writes the test engraving STL)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
 python -m ntopjewel templates ntop\notebooks\ring_band_profile.ntop --catalog ring_band_profile
 python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round
 python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
+python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring
 python -m ntopjewel gate out\band\ring_band_court_US6.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop
@@ -193,4 +195,5 @@ pytest python\tests -q -m slow                  # tests that run nTop
   authors a notebook through the Notebook API.
 - `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers.
 - `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1).
+- `ring-features` — milgrain, channel groove and wrapped engraving on a band (`ring` command).
 - `blender-jewelry-render` (synced from claude.ai) — the silver product shot.

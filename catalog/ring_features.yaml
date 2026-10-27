@@ -1,0 +1,147 @@
+# Phase 1 step 2: the profiled band plus milgrain beads, a channel groove and a wrapped
+# engraving. Built by ntop/recipes/ring_features.py through the Notebook API. All arithmetic
+# is done in Python (ntopjewel.features.RingSpec.notebook_inputs); the notebook only receives
+# numbers, and a feature is switched off by its numbers (bead inside the band, groove torus far
+# outside, a speck of an engraving mesh far away) - one notebook, no conditionals.
+# Verify names: python -m ntopjewel templates ntop/notebooks/ring_features.ntop --catalog ring_features
+notebook: ring_features.ntop
+version: 0.1.0
+title: Band with milgrain, groove and engraving
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the final ring body, cross-checked by the gate.
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius).
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Bead Radius:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Milgrain bead radius (>= 0.25 mm when on; 0.05 mm, inside the band, when off).
+  Bead Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 26.0
+    doc: Radial position of the bead centres (on the edge corner when on; mid-wall when off).
+  Bead Z:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 7.5
+    doc: Axial position of the +Z bead row's centres (0 when off).
+  Bead Z Minus:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: 0.0
+    doc: -Bead Z, the -Z row (the API cannot negate a variable, so Python passes both).
+  Bead Spacing:
+    type: scalar
+    units: deg
+    min: 0.5
+    max: 360.0
+    doc: Angle between neighbouring beads = 360 / Bead Count.
+  Bead Count:
+    type: integer
+    min: 1
+    max: 720
+    doc: Beads per row (1 when off).
+  Groove Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 60.0
+    doc: Centre-line radius of the groove torus = outer radius + tube radius - depth (outer radius + 10 when off).
+  Groove Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.05
+    max: 3.0
+    doc: Half the groove width.
+  Groove Z:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: 7.5
+    doc: Axial position of the groove centre.
+  Engraving Path:
+    type: text
+    doc: Absolute path of the engraving STL (ntopjewel.engrave writes it; a far-away speck when there is no text).
+  Engraving Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 400.0
+    doc: Remap Cylindrical Body's Y mapping length = 2π x the surface radius the text sits on.
+  Output Path:
+    type: text
+    doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop).

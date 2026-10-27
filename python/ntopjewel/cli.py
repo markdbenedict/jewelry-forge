@@ -4,6 +4,7 @@
   templates NOTEBOOK          ntopcl -t -> input/output templates; diff against the catalog
   run CATALOG --set K=V ...   run any catalogued notebook with explicit inputs
   band --size 6 ...           Phase 0 band: build, export, gate, report
+  ring --size 6 --milgrain --groove 0.25 --engrave "M+K"   Phase 1 band with features: build, export, gate
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -18,7 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, gate, ntopcl, tables
+from . import __version__, band, catalog, config, features, gate, ntopcl, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -126,6 +127,39 @@ def cmd_band(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
+def _band_spec(a: argparse.Namespace) -> band.BandSpec:
+    return band.BandSpec(size=a.size, system=a.system, width_mm=a.width, thickness_mm=a.thickness,
+                         profile=a.profile, dome_mm=a.dome, comfort_mm=a.comfort, edge_round_mm=a.edge_round,
+                         allowance_mm=a.allowance, mesh_tolerance_mm=a.tolerance)
+
+
+def cmd_ring(a: argparse.Namespace) -> int:
+    spec = features.RingSpec(_band_spec(a), milgrain=a.milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
+                             groove_depth_mm=a.groove or 0.0, groove_width_mm=a.groove_width, groove_z_mm=a.groove_z,
+                             text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
+                             engrave_depth_mm=a.engrave_depth)
+    if a.dry_run:
+        probs = spec.validate()
+        print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+        for w in spec.band.warnings():
+            print("  warning: " + w)
+        if not probs:
+            print(f"  design volume {spec.design_volume_mm3():.2f} mm³; gate expects {spec.gate_expectations()}")
+            for k, v in spec.notebook_inputs("<output path>", "<engraving path>").items():
+                print(f"    {k}: {v}")
+        return 1 if probs else 0
+    try:
+        res = features.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                             catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project)
+    except (ntopcl.NtopclError, ValueError) as e:
+        print(f"ring failed: {e}")
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        return 2
+    print(res.text())
+    return 0 if res.ok else 1
+
+
 def cmd_gate(a: argparse.Namespace) -> int:
     rep = gate.check(Path(a.file), expect_inner=a.expect_inner, expect_outer=a.expect_outer,
                      expect_width=a.expect_width, expect_volume=a.expect_volume, tol_mm=a.tol,
@@ -144,6 +178,20 @@ def _recipe_script(name: str) -> Path:
         have = sorted(x.stem for x in script.parent.glob("*.py"))
         raise SystemExit(f"no build script {script}; recipes with a script: {have}")
     return script
+
+
+def _prepare_params(script: Path, params: dict, work_dir: Path) -> dict:
+    """A build script may define prepare(params, work_dir) -> params for laptop-side work the
+    script cannot do inside nTop (writing an STL the notebook imports, say)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(script.stem, script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    prep = getattr(mod, "prepare", None)
+    if callable(prep):
+        params = prep(dict(params), Path(work_dir))
+        print(f"prepared : {script.stem}.prepare() ran")
+    return params
 
 
 def _console(a: argparse.Namespace):
@@ -217,6 +265,7 @@ def cmd_api(a: argparse.Namespace) -> int:
         params.setdefault("save_to", str(work_dir / f"{script.stem}.ntop"))
         params.setdefault("recipe_to", str(work_dir / f"{script.stem}.recipe.json"))
     python_path = config.repo_root() / "python"
+    params = _prepare_params(script, params, work_dir)
     if a.dry_run:
         driver, result = notebook_api.prepare_script(script, params, work_dir=work_dir, python_path=python_path)
         print(f"driver : {driver}\nresult : {result} (written by the driver)\nparams : {json.dumps(params)}")
@@ -285,6 +334,30 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--dry-run", action="store_true")
     b.set_defaults(fn=cmd_band)
 
+    rg = sub.add_parser("ring", help="profiled band with milgrain, groove and engraving (ring_features.ntop)")
+    for flag, kw in (("--size", dict(default="6")), ("--system", dict(default="US")), ("--width", dict(type=float, default=4.0)),
+                     ("--thickness", dict(type=float, default=1.3)), ("--profile", dict(default="court", choices=sorted(band.PROFILES))),
+                     ("--dome", dict(type=float)), ("--comfort", dict(type=float)), ("--edge-round", dict(type=float)),
+                     ("--allowance", dict(type=float, default=0.0)), ("--tolerance", dict(type=float, default=0.1))):
+        rg.add_argument(flag, **kw)
+    rg.add_argument("--milgrain", action="store_true", help="a row of beads along each edge")
+    rg.add_argument("--bead-radius", type=float, default=0.3, help="mm (floor 0.25)")
+    rg.add_argument("--bead-pitch", type=float, default=features.BEAD_PITCH, help="centre spacing in bead radii")
+    rg.add_argument("--groove", type=float, help="channel groove depth, mm (omit for none)")
+    rg.add_argument("--groove-width", type=float, default=0.6)
+    rg.add_argument("--groove-z", type=float, default=0.0, help="groove centre along the axis, mm")
+    rg.add_argument("--engrave", help="text to engrave")
+    rg.add_argument("--engrave-side", default="inside", choices=["inside", "outside"])
+    rg.add_argument("--engrave-height", type=float, help="text height, mm (default: fits the band)")
+    rg.add_argument("--engrave-depth", type=float, default=0.3, help="mm (floor 0.25)")
+    rg.add_argument("--catalog", default="ring_features")
+    rg.add_argument("--out")
+    rg.add_argument("--notebook")
+    rg.add_argument("--deliver", action="store_true")
+    rg.add_argument("--project", default="Rings")
+    rg.add_argument("--dry-run", action="store_true")
+    rg.set_defaults(fn=cmd_ring)
+
     g = sub.add_parser("gate")
     g.add_argument("file")
     g.add_argument("--expect-inner", type=float)
@@ -320,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
     api.set_defaults(fn=cmd_api)
 
     a = p.parse_args(argv)
-    if a.cmd == "band":
+    if a.cmd in ("band", "ring"):
         try:
             a.size = float(a.size)
         except ValueError:

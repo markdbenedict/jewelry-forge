@@ -50,10 +50,19 @@ if args == ["--version"]:
 if args and args[0] == "-t":
     nb = Path(args[1])
     inputs = []
-    if "profile" in nb.name:
+    if "profile" in nb.name or "features" in nb.name:
         names = ["Outer Radius", "Bore Radius", "Z Top", "Z Bottom", "Dome Ring Radius", "Dome Tube Radius",
                  "Comfort Ring Radius", "Comfort Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]
         inputs = [{"name": n, "type": "real", "value": 0, "units": "mm"} for n in names]
+        if "features" in nb.name:
+            inputs += [{"name": n, "type": "real", "value": 0, "units": "mm"} for n in
+                       ("Bead Radius", "Bead Ring Radius", "Bead Z", "Bead Z Minus")]
+            inputs.append({"name": "Bead Spacing", "type": "real", "value": 0, "units": "deg"})
+            inputs.append({"name": "Bead Count", "type": "integer", "value": 1})
+            inputs += [{"name": n, "type": "real", "value": 0, "units": "mm"} for n in
+                       ("Groove Ring Radius", "Groove Tube Radius", "Groove Z")]
+            inputs.append({"name": "Engraving Path", "type": "text", "value": ""})
+            inputs.append({"name": "Engraving Wrap Length", "type": "real", "value": 0, "units": "mm"})
         inputs.append({"name": "Output Path", "type": "text", "value": ""})
     elif "band" in nb.name:
         # nTop 6.3.3 spells these `real` and `text` in its own template (seen 2026-10-25)
@@ -91,13 +100,21 @@ if in_json is not None:
 if "fail" in nb.name:
     log("E", "Boolean Subtract_0: input Bodies is not connected"); log("I", "nTop exited with errors."); log("I", "Logout successful"); sys.exit(0)
 outputs = []
-if "band" in nb.name:
+if "band" in nb.name or "features" in nb.name:
     import trimesh
     R, r = float(values["Outer Radius"]), float(values["Bore Radius"])
     W = float(values["Width"]) if "Width" in values else float(values["Z Top"]) - float(values["Z Bottom"])
     mesh = trimesh.creation.annulus(r_min=r, r_max=R, height=W, sections=720)
-    mesh.export(values["Output Path"])
     vol_m3 = math.pi * (R * R - r * r) * W * 1e-9      # nTop reports SI with dimension exponents
+    if "features" in nb.name:
+        if not Path(values["Engraving Path"]).exists():
+            log("E", "Engraving Mesh: file not found"); log("I", "nTop exited with errors."); log("I", "Logout successful"); sys.exit(0)
+        if int(values["Bead Count"]) > 1:                 # beads that protrude widen the ring, as the real ones do
+            rho, zb = float(values["Bead Radius"]), float(values["Bead Z"])
+            ring = trimesh.creation.annulus(r_min=r, r_max=max(R, float(values["Bead Ring Radius"]) + rho), height=2 * (zb + rho), sections=720)
+            mesh = trimesh.util.concatenate([ring])
+            vol_m3 = mesh.volume * 1e-9
+    mesh.export(values["Output Path"])
     for name in ("Outer Cylinder", "Bore", "Band", "Mesh from Implicit Body", "Export Mesh", "Mass Properties"):
         log("I", f"{name} complete 1ms")
     outputs = [{"name": "Volume", "type": "real", "components": [],
@@ -140,5 +157,12 @@ def band_notebook(tmp_path) -> Path:
 @pytest.fixture
 def profile_notebook(tmp_path) -> Path:
     nb = tmp_path / "ring_band_profile.ntop"
+    nb.write_bytes(b"fake notebook")
+    return nb
+
+
+@pytest.fixture
+def features_notebook(tmp_path) -> Path:
+    nb = tmp_path / "ring_features.ntop"
     nb.write_bytes(b"fake notebook")
     return nb

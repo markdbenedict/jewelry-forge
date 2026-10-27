@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ntopjewel"
-version = "0.1.0"
+version = "0.2.0"
 description = "Drive nTop (nTopCL) to build parametric jewelry, and gate every export before it is called done."
 requires-python = ">=3.10"
 dependencies = [
@@ -15,6 +15,9 @@ dependencies = [
     "scipy>=1.11",
     "embreex>=2.17",   # fast ray casting for the wall-thickness check (4000 rays on 1M triangles < 1 s)
     "networkx>=3.0",   # trimesh uses it to split a mesh into shells
+    "matplotlib>=3.8", # glyph outlines for engraving text (TextPath + DejaVu fonts)
+    "shapely>=2.0",    # text polygons -> solids
+    "mapbox-earcut>=1.0",  # trimesh's triangulation engine for extrude_polygon
 ]
 
 [project.optional-dependencies]
