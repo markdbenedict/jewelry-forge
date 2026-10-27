@@ -641,6 +641,30 @@ class NotebookHelper:
                         + ", ".join(n for n in dir(self.nb) if not n.startswith("_"))[:1500])
         return None
 
+    def display_only(self, labels: Iterable[str]) -> dict:
+        """Show only the blocks with these labels in nTop's viewport and hide the rest of this
+        helper's blocks (inputs are left alone). Visibility is cosmetic - a hidden block still
+        builds for whatever consumes it. Returns {label: True | False | "<why not>"}; a block
+        that cannot be toggled (a variable, say) is logged, never fatal."""
+        fn = getattr(self.nb, "set_block_visibility", None)
+        if not callable(fn):
+            self.log.append("display: this API has no set_block_visibility; the viewport is left as nTop made it")
+            return {}
+        want = set(labels)
+        out: dict[str, Any] = {}
+        for label, bid in self.blocks.items():
+            if bid in self.moved_inputs:
+                continue
+            try:
+                fn(bid, label in want)
+                out[label] = label in want
+            except Exception as e:
+                out[label] = f"{e}"
+                self.log.append(f"display: {label} ({bid}) cannot be toggled: {e}")
+        self.log.append(f"display: showing {sorted(k for k, v in out.items() if v is True)}, "
+                        f"hid {sum(1 for v in out.values() if v is False)} blocks")
+        return out
+
     @contextmanager
     def paused(self, enabled: bool = True):
         if enabled and hasattr(self.nb, "paused_updates"):

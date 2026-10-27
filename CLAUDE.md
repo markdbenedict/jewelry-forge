@@ -41,7 +41,10 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   (`list_available_blocks`, `list_block_inputs`) and recorded in the build result. A guess
   that failed is fixed in the script's candidate list, never patched in the GUI.
 - Every nTop run goes through `ntopjewel` (`python -m ntopjewel ...`), never a bare
-  `ntopcl` call: the runner enforces the JSON rules and runs the mesh gate.
+  `ntopcl` call: the runner enforces the JSON rules and runs the mesh gate. A run is headless
+  and leaves only files (STL, log, report); **no notebook ever holds a particular ring**. To
+  look at one in nTop, `ring ... --show` rebuilds the notebook with that ring's values in the
+  open session (saved under `out\api\preview\`), or import the STL.
 - **Run the mesh gate after every export** (`ntopjewel gate <file.stl> --expect ...`).
   Nothing is reported as finished until the gate passes. The wall check casts rays only
   along radial/axial directions (letter walls and bead seams measure ribs and slivers, not
@@ -178,6 +181,7 @@ python -m ntopjewel templates ntop\notebooks\ring_band_profile.ntop --catalog ri
 python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round
 python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring
+python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
 python -m ntopjewel gate out\band\ring_band_court_US6.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop

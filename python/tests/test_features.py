@@ -129,6 +129,83 @@ def test_ring_features_builds_on_fake_notebook(tmp_path):
     assert b[res["blocks"]["Volume Integral"]]["wired"]["Body"][0] == "Ring Body" == b[res["blocks"]["Mesh"]]["wired"]["Body"][0]
 
 
+def test_preview_build_shows_only_the_finished_ring(tmp_path):
+    """`show` hides every geometry block but the finished ring; variables cannot be toggled and
+    that is logged, not fatal."""
+    mod = load_recipe("ring_features")
+    nb = FakeNotebook()
+    res = mod.build(nb, {"save_to": str(tmp_path / "rf.ntop"), "recipe_to": str(tmp_path / "rf.json"),
+                         "test_output": str(tmp_path / "t.stl"), "values": {"Engraving Path": str(tmp_path / "e.stl")},
+                         "show": features.PREVIEW_SHOW})
+    disp = res["display"]
+    assert disp["Engraved"] is True and nb.get_block_visibility(res["blocks"]["Engraved"]) is True
+    hidden = [k for k, v in disp.items() if v is False]
+    assert {"Outer", "Bore", "Dome Torus", "Milgrain", "Groove Torus", "Engraving Wrapped", "Mesh"} <= set(hidden)
+    assert all(nb.get_block_visibility(res["blocks"][k]) is False for k in hidden)
+    assert "variable" in disp["Ring Body"] and "Volume" not in hidden           # variables: refused, logged
+    assert not any("display" in ln and "refused" in ln for ln in res["log"])
+    assert any(ln.startswith("display: showing") for ln in res["log"])
+    assert all(name not in disp for name in mod.INPUT_ORDER)                      # inputs are never touched
+
+
+def test_preview_builds_this_ring_in_the_console(tmp_path, monkeypatch):
+    """`ring --show`: the build script runs in the console with THIS ring's values (not the test
+    values), saves a preview notebook, and the mesh the session exported is gated."""
+    import sys
+    import trimesh
+    from ntopjewel.notebook_api import Console
+    monkeypatch.setattr(features.config, "out_dir", lambda: tmp_path / "out")
+    fake = FakeNotebook()
+
+    def transport(line, timeout):
+        keep = {k: v for k, v in sys.modules.items() if k == "ntopjewel" or k.startswith("ntopjewel.")}
+        try:
+            exec(line, {"notebook": fake})              # the exec(open(driver).read()) line, in-process
+        finally:                                        # the driver purges our modules; put them back
+            for k in [k for k in sys.modules if k == "ntopjewel" or k.startswith("ntopjewel.")]:
+                del sys.modules[k]
+            sys.modules.update(keep)
+        # the GUI session's Export Mesh: a ring sized from the variables the script set
+        v = fake.variables
+        rho, zb = v["Bead Radius"]["value"], v["Bead Z"]["value"]
+        m = trimesh.creation.annulus(r_min=v["Bore Radius"]["value"],
+                                     r_max=max(v["Outer Radius"]["value"], v["Bead Ring Radius"]["value"] + rho),
+                                     height=2 * (zb + rho), sections=720)
+        m.export(v["Output Path"]["value"])
+        return "__NTOPJEWEL_" + "DONE__\n"
+
+    spec = features.RingSpec(band.BandSpec(size=4.5, profile="court"), milgrain=True, groove_depth_mm=0.25, text="Makena")
+    res = features.preview(spec, console=Console(transport=transport))
+    assert fake.saved == [str(res.notebook)] and res.notebook.name == f"{spec.stem}.ntop"
+    assert res.notebook.parent == (tmp_path / "out" / "api" / "preview").resolve()
+    want = spec.notebook_inputs(str(res.stl), str(res.notebook.parent / f"{spec.stem}.engraving.stl"))
+    assert fake.variables["Bore Radius"]["value"] == pytest.approx(want["Bore Radius"])        # size 4.5, not the test US6
+    assert fake.variables["Bead Count"]["value"] == want["Bead Count"]
+    assert fake.variables["Engraving Path"]["value"].endswith(f"{spec.stem}.engraving.stl")
+    assert Path(fake.variables["Engraving Path"]["value"]).exists()
+    assert fake.variables["Engraving Wrap Length"]["value"] == pytest.approx(want["Engraving Wrap Length"])
+    assert fake.get_block_visibility(res.build["blocks"]["Engraved"]) and not fake.get_block_visibility(res.build["blocks"]["Outer"])
+    assert res.gate is not None and res.stl.exists()
+    ok = {c.name: c.ok for c in res.gate.checks}
+    assert ok["inner diameter"] and ok["width"] and ok["watertight"]
+    assert not ok["engraving"]                                   # the fake export has no pocket
+    assert any("Makena" in n for n in res.notes) and "built in nTop" in res.text()
+    assert json.loads((res.notebook.parent / f"{spec.stem}.preview.json").read_text())["volume_mm3"] == pytest.approx(287.4)
+
+
+def test_cli_ring_show_reports_a_console_failure(tmp_path, monkeypatch, capsys):
+    from ntopjewel import cli
+    from ntopjewel.notebook_api import Console
+    monkeypatch.setattr(features.config, "out_dir", lambda: tmp_path / "out")
+
+    def refuse(self, line, timeout):
+        raise ConsoleError("ssh: connection refused on localhost:2222")
+    monkeypatch.setattr(Console, "_ssh_transport", refuse)
+    rc = cli.main(["ring", "--size", "4.5", "--engrave", "Makena", "--show"])
+    out = capsys.readouterr().out
+    assert rc == 2 and "preview failed" in out and "connection refused" in out
+
+
 def test_ring_features_prepare_writes_the_test_engraving(tmp_path):
     mod = load_recipe("ring_features")
     params = mod.prepare({"values": {"Engraving Path": str(tmp_path / "e.stl")}}, tmp_path)

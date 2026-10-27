@@ -167,7 +167,8 @@ def test_band_profile_tolerates_lazy_mass_properties(tmp_path):
     assert res["warnings"] and "lazy" in res["warnings"][0] and res["volume"] is None
     assert nb.saved == [str(tmp_path / "rb.ntop")] and nb.output == "Volume"
     assert res["states"]["Volume Integral"] == "e_DIRTY" and res["states"]["Export Mesh"] == "e_OK"
-    assert any("no build/visibility method" in ln for ln in res["log"])
+    # 6.3.3 has set_block_visibility, which accepts the call and builds nothing (verified): still a warning
+    assert any("nudged" in ln and "set_block_visibility" in ln for ln in res["log"])
     nb = FakeNotebook(lazy_mass="method")
     res = mod.build(nb, {"save_to": str(tmp_path / "rb2.ntop"), "recipe_to": str(tmp_path / "rb2.json"),
                          "test_output": str(tmp_path / "t2.stl"), "wait_s": 1})

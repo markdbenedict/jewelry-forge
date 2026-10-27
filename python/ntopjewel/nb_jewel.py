@@ -252,6 +252,7 @@ def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], int
     failed = {k: v for k, v in states.items() if v.startswith(("e_FAILED", "e_UNBUILDABLE"))}
     if failed:
         raise ConsoleError("blocks failed to build: " + json.dumps(failed, indent=2))
+    display = h.display_only(p["show"]) if p.get("show") else None     # a preview shows the finished body only
     notebook.save_notebook_as(p["save_to"])
     try:
         notebook.export_as_recipe(p["recipe_to"], True)
@@ -269,6 +270,7 @@ def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], int
         "blocks": h.blocks,
         "identifiers": h.identifiers,
         "states": states,
+        "display": display,
         "log": h.log,
     }
 

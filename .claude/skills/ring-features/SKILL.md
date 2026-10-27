@@ -5,10 +5,11 @@ description: Add milgrain beads, a channel groove and a wrapped engraving (insid
 
 # ring-features
 
-**Status.** 2026-10-27: API build clean (55 blocks `e_OK`); first nTopCL run clean (4 s,
-38 blocks), volume 246.6 mm³ vs design 246.1 with milgrain + groove + "Makena" inside; the
-only gate FAIL was the thickness rays grazing beads, fixed by sampling between the bead rows.
-Until the notebook is in `ntop/notebooks/`, run with `--notebook out\api\ring_features.ntop`.
+**Status.** 2026-10-27: API build clean (55 blocks `e_OK`); nTopCL runs clean (4 s, 38
+blocks); **gate PASS** on the engraved + beaded + grooved court ring at US6 and US4.5 (volume
+within 0.2 % of design, engraving pocket found) once the thickness rays were confined to the
+band between the bead rows and to radial/axial directions. Until the notebook is in
+`ntop/notebooks/`, run with `--notebook out\api\ring_features.ntop`.
 
 ## Make rings
 
@@ -18,12 +19,24 @@ python -m ntopjewel ring --size 6 --profile court --groove 0.25 --groove-width 0
 python -m ntopjewel ring --size 6 --profile court --engrave "M+K 2026" --engrave-side inside --engrave-depth 0.3
 python -m ntopjewel ring --size 7 --profile d-shape --milgrain --groove 0.2 --engrave "forever" --deliver --project "Rings"
 python -m ntopjewel ring --size 6 --milgrain --groove 0.25 --engrave "M+K 2026" --dry-run     # numbers, no nTop
+python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # look at it in nTop
 ```
 
 Band options are the same as `band` (`--profile`, `--width`, `--thickness`, `--dome`, `--comfort`,
 `--edge-round`, `--allowance`, `--tolerance`, `--system`). Output: `out\ring\ring_<profile>_<features>_<label>.stl`
 plus `<stem>.engraving.stl`, `<stem>.report.json`, the nTopCL log; `--deliver` copies a passing
 STL to `OneDrive\Documents\Jewelry\Rings`.
+
+**Seeing a ring in nTop.** A `ring` run is headless: nTopCL reads the notebook, takes the
+inputs from JSON and writes the STL; no notebook ever holds a particular ring. `--show`
+builds the notebook again, through the Notebook API in nTop's open session (nTop open, View >
+Python Console open), with *this* ring's 23 values instead of the test values: nTop's canvas
+fills with the blocks, the viewport is left showing the finished ring only (`display_only`
+hides the rest), the notebook is saved as `out\api\preview\<stem>.ntop` with its mesh and
+`<stem>.preview.json`, and the mesh the session exported is gated. It replaces whatever
+notebook nTop has open (unsaved GUI changes are lost) and runs no nTopCL. The repo's
+`ring_features.ntop` is untouched. The STL from a normal run opens in Windows 3D Viewer or
+through an Import Mesh block, which is quicker when only the mesh matters.
 
 ## How the features work (ntopjewel.features.RingSpec)
 

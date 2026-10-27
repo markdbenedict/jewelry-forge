@@ -5,6 +5,7 @@
   run CATALOG --set K=V ...   run any catalogued notebook with explicit inputs
   band --size 6 ...           Phase 0 band: build, export, gate, report
   ring --size 6 --milgrain --groove 0.25 --engrave "M+K"   Phase 1 band with features: build, export, gate
+  ring ... --show             the same ring built in nTop's open session, to look at it in the GUI
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -148,6 +149,18 @@ def cmd_ring(a: argparse.Namespace) -> int:
             for k, v in spec.notebook_inputs("<output path>", "<engraving path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
+    if a.show:
+        from . import notebook_api
+        print(f"building  : {spec.stem} in nTop's open session (the canvas fills as blocks are added; "
+              f"the viewport then shows the finished ring only)", flush=True)
+        console = notebook_api.Console(progress=lambda msg: print(f"  ... {msg}", file=sys.stderr, flush=True))
+        try:
+            res = features.preview(spec, Path(a.out) if a.out else None, console=console, timeout=a.timeout)
+        except (notebook_api.ConsoleError, ValueError, RuntimeError) as e:
+            print(f"preview failed: {e}")
+            return 2
+        print(res.text())
+        return 0 if res.ok else 1
     try:
         res = features.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                              catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project)
@@ -359,6 +372,10 @@ def main(argv: list[str] | None = None) -> int:
     rg.add_argument("--deliver", action="store_true")
     rg.add_argument("--project", default="Rings")
     rg.add_argument("--dry-run", action="store_true")
+    rg.add_argument("--show", action="store_true",
+                    help="build THIS ring in nTop's open session (Notebook API) to look at it in the GUI; "
+                         "saves out/api/preview/<stem>.ntop, gates the exported mesh, runs no nTopCL")
+    rg.add_argument("--timeout", type=float, default=900, help="--show: seconds to wait for nTop")
     rg.set_defaults(fn=cmd_ring)
 
     g = sub.add_parser("gate")

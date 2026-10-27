@@ -291,6 +291,30 @@ class RingResult:
         return "\n".join(lines)
 
 
+def check_mesh(spec: RingSpec, stl: Path, ntop_vol: float | None, info: dict) -> tuple[gate.GateReport, list[str]]:
+    """The mesh gate with this ring's expectations, the engraving-pocket check and the
+    design-volume cross-check; shared by the nTopCL run and the GUI preview."""
+    rep = gate.check(stl, expect_volume=ntop_vol, **spec.gate_expectations())
+    notes = []
+    if spec.has_engraving:
+        pocket = spec.engraving_pocket(gate.load_mesh(stl))
+        rep.checks.append(gate.Check("engraving", pocket["found"],
+                                     f"{pocket['pocket_vertices']} mesh vertices in the {pocket['side']} pocket"
+                                     + (f"; {pocket['stray_vertices']} stray" if pocket["stray_vertices"] else "")
+                                     + ("" if pocket["found"] else " - the text did not cut (wrong side, units or wrap length?)")))
+        notes.append(f"engraving {spec.text!r} on the {spec.engrave_side}: {info['arc_length_mm']:.1f} mm long, "
+                     f"thinnest stroke {info['stroke_mm']:.2f} mm, cut volume ~{info['cut_volume_mm3']:.1f} mm³")
+    if ntop_vol is None:
+        notes.append("nTop volume not reported; volume not cross-checked.")
+    else:
+        design = spec.design_volume_mm3()
+        dev = (ntop_vol - design) / design * 100
+        tol = 3.0 if (spec.milgrain or spec.has_engraving) else 2.0
+        verdict = "matches the design" if abs(dev) <= tol else "DIFFERS from the design - check the notebook"
+        notes.append(f"nTop volume {ntop_vol:.2f} mm³ vs design {design:.2f} mm³ ({dev:+.2f} %): {verdict}")
+    return rep, notes
+
+
 def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
           catalog_name: str = "ring_features", deliver: bool = False, deliver_project: str = "Rings") -> RingResult:
     problems = spec.validate()
@@ -312,26 +336,9 @@ def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None 
 
     vol_entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(vol_entry) if vol_entry else None
-    exp = spec.gate_expectations()
-    rep = gate.check(stl, expect_volume=ntop_vol, **exp)
+    rep, notes = check_mesh(spec, stl, ntop_vol, info)
     result = RingResult(spec, stl, run, rep, ntop_vol)
-    result.notes += spec.band.warnings()
-    if spec.has_engraving:
-        pocket = spec.engraving_pocket(gate.load_mesh(stl))
-        rep.checks.append(gate.Check("engraving", pocket["found"],
-                                     f"{pocket['pocket_vertices']} mesh vertices in the {pocket['side']} pocket"
-                                     + (f"; {pocket['stray_vertices']} stray" if pocket["stray_vertices"] else "")
-                                     + ("" if pocket["found"] else " - the text did not cut (wrong side, units or wrap length?)")))
-        result.notes.append(f"engraving {spec.text!r} on the {spec.engrave_side}: {info['arc_length_mm']:.1f} mm long, "
-                            f"thinnest stroke {info['stroke_mm']:.2f} mm, cut volume ~{info['cut_volume_mm3']:.1f} mm³")
-    if ntop_vol is None:
-        result.notes.append("nTop volume output not found in out.json; volume not cross-checked.")
-    else:
-        design = spec.design_volume_mm3()
-        dev = (ntop_vol - design) / design * 100
-        tol = 3.0 if (spec.milgrain or spec.has_engraving) else 2.0
-        verdict = "matches the design" if abs(dev) <= tol else "DIFFERS from the design - check the notebook"
-        result.notes.append(f"nTop volume {ntop_vol:.2f} mm³ vs design {design:.2f} mm³ ({dev:+.2f} %): {verdict}")
+    result.notes += spec.band.warnings() + notes
 
     if deliver and result.ok:
         dest = config.deliver_dir() / deliver_project
@@ -343,5 +350,85 @@ def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None 
         "engraving": info, "inputs": spec.notebook_inputs(str(stl), str(engraving)), "stl": str(stl), "ok": result.ok,
         "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "ntopcl_seconds": run.seconds,
         "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
+    }, indent=2, default=str), encoding="utf-8")
+    return result
+
+
+# ---- look at one ring in nTop's GUI ------------------------------------------------------------
+PREVIEW_SHOW = ["Ring Body", "Engraved"]     # the finished ring; every other block is hidden in the viewport
+PREVIEW_RECIPE = "ring_features"
+
+
+@dataclass
+class PreviewResult:
+    spec: RingSpec
+    notebook: Path
+    stl: Path
+    build: dict                       # the build script's result (blocks, states, volume, log)
+    gate: gate.GateReport | None      # on the mesh the GUI session exported, when it did
+    notes: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return self.gate is not None and self.gate.passed
+
+    def text(self) -> str:
+        lines = [self.spec.describe(),
+                 f"  built in nTop's open session and saved as {self.notebook}",
+                 f"  volume {self.build.get('volume')} mm³ (nTop, GUI session)"]
+        if self.gate is not None:
+            lines.append(self.gate.text())
+        else:
+            lines.append(f"  the session did not export {self.stl}; nothing to gate (see the build log)")
+        for w in self.build.get("warnings") or []:
+            lines.append(f"  warning: {w}")
+        lines += [f"  note: {n}" for n in self.notes]
+        return "\n".join(lines)
+
+
+def preview(spec: RingSpec, out_dir: Path | None = None, *, console=None, recipe: Path | None = None,
+            timeout: float = 900) -> PreviewResult:
+    """Build a notebook with THIS ring's numbers in nTop's open session, through the Notebook
+    API, so the ring can be looked at (and poked at) in the GUI: `ring ... --show`.
+
+    nTopCL never changes a notebook - a `ring` run leaves only an STL behind - so to see a
+    particular ring in nTop the notebook has to be built with that ring's values. This runs the
+    same build script as `api build ring_features`, with the values `notebook_inputs` works
+    out instead of the test values, saves `out/api/preview/<stem>.ntop`, hides everything but
+    the finished ring in the viewport, and gates the mesh the session exported. The repo's
+    `ring_features.ntop` is untouched; nTop's open notebook is replaced (unsaved GUI changes
+    to it are lost)."""
+    from . import notebook_api
+    problems = spec.validate()
+    if problems:
+        raise ValueError("; ".join(problems))
+    out_dir = Path(out_dir) if out_dir else config.out_dir() / "api" / "preview"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = spec.stem
+    stl = (out_dir / f"{stem}.stl").resolve()
+    engraving = (out_dir / f"{stem}.engraving.stl").resolve()
+    notebook = (out_dir / f"{stem}.ntop").resolve()
+    info = spec.write_engraving(engraving)
+    values = spec.notebook_inputs(str(stl), str(engraving))
+    values.pop("Output Path")                       # the build script's test_output carries it
+    if stl.exists():
+        stl.unlink()                                # so an old export cannot pass for this build's
+    params = {"values": values, "test_output": str(stl), "save_to": str(notebook),
+              "recipe_to": str(out_dir / f"{stem}.recipe.json"), "show": list(PREVIEW_SHOW)}
+    script = Path(recipe) if recipe else config.repo_root() / "ntop" / "recipes" / f"{PREVIEW_RECIPE}.py"
+    console = console or notebook_api.Console()
+    res = console.run_script(script, params, work_dir=out_dir, python_path=config.repo_root() / "python", timeout=timeout)
+    r = res.get("result") or {}
+    result = PreviewResult(spec, Path(r.get("saved") or notebook), stl, r, None)
+    result.notes += spec.band.warnings()
+    vol = r.get("volume")
+    ntop_vol = float(vol) if isinstance(vol, (int, float)) else None
+    if stl.exists():
+        result.gate, notes = check_mesh(spec, stl, ntop_vol, info)
+        result.notes += notes
+    (out_dir / f"{stem}.preview.json").write_text(json.dumps({
+        "inputs": spec.notebook_inputs(str(stl), str(engraving)), "notebook": str(result.notebook), "stl": str(stl),
+        "engraving": info, "volume_mm3": ntop_vol, "gate": result.gate.to_dict() if result.gate else None,
+        "display": r.get("display"), "notes": result.notes,
     }, indent=2, default=str), encoding="utf-8")
     return result

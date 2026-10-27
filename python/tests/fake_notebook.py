@@ -332,6 +332,19 @@ class FakeNotebook:
             raise ValueError(f"'{block_id}' has no parameter '{input_name}'")
         return TYPICAL_UNITS.get((input_name, t), "")
 
+    # ---- viewport ----------------------------------------------------------------------
+    def set_block_visibility(self, block_id: str, visible: bool):
+        """nTop 6.3.3 has set_block_visibility/get_block_visibility; a variable has no eye
+        icon, so toggling one is refused here (the real behaviour is unverified: the helper
+        must tolerate a refusal either way)."""
+        if block_id in self.variables:
+            raise ValueError(f"'{block_id}' is a variable; only blocks can be displayed")
+        b = self._resolve(block_id)
+        b["visible"] = bool(visible)
+
+    def get_block_visibility(self, block_id: str) -> bool:
+        return bool(self._resolve(block_id).get("visible", True))
+
     def delete_variable(self, block_id: str):
         if block_id not in self.variables:
             raise ValueError(f"'{block_id}' is not a variable")
