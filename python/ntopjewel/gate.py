@@ -105,8 +105,13 @@ def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None) -> tuple[str, f
 
 
 def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.5,
-                   seed: int = 7) -> dict:
-    """Ray-cast thickness: from points on the surface, shoot inward and measure to the exit."""
+                   seed: int = 7, zone: tuple[int, float] | None = None) -> dict:
+    """Ray-cast thickness: from points on the surface, shoot inward and measure to the exit.
+
+    `zone` = (axis index, abs max): sample only surface points with |coord[axis]| <= abs max.
+    Decorative bumps (milgrain beads) are solid on solid: a ray grazing a bead measures a short
+    chord through the sphere, not a wall, so a featured ring keeps its bead rows out of the
+    sample and measures the band itself."""
     if samples <= 0:
         return {}
     fast = ray_backend(mesh) == "embree"
@@ -119,7 +124,16 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
             samples = cap
         note = "embreex not installed: pure-python ray backend, sample reduced"
     rng = np.random.default_rng(seed)
-    pts, fidx = trimesh.sample.sample_surface(mesh, samples, seed=rng)
+    if zone is None:
+        pts, fidx = trimesh.sample.sample_surface(mesh, samples, seed=rng)
+    else:
+        ax, lim = zone
+        pts, fidx = trimesh.sample.sample_surface(mesh, samples * 4, seed=rng)
+        keep = np.abs(pts[:, ax]) <= lim
+        pts, fidx = pts[keep][:samples], fidx[keep][:samples]
+        samples = len(pts)
+        if samples == 0:
+            return {}
     normals = mesh.face_normals[fidx]
     eps = 1e-4
     origins = pts - normals * eps
@@ -151,6 +165,8 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
     }
     if note:
         out["note"] = note
+    if zone is not None:
+        out["zone"] = f"|{'xyz'[zone[0]]}| <= {zone[1]:.3f} mm"
     return out
 
 
@@ -163,7 +179,7 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
           tol_mm: float = 0.05, tol_volume_pct: float = 2.0, shells: int = 1,
           wall_floor: float = tables.FLOORS["wall_marginal"], wall_samples: int = 4000,
           axis: str | None = None, metals=tables.DEFAULT_WEIGHT_METALS,
-          write_report: bool = True) -> GateReport:
+          write_report: bool = True, wall_abs_axis_max: float | None = None) -> GateReport:
     path = Path(path)
     mesh = load_mesh(path)
     rep = GateReport(path=str(path), triangles=int(len(mesh.faces)), vertices=int(len(mesh.vertices)))
@@ -180,7 +196,8 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     rep.extents_mm = [float(x) for x in mesh.bounding_box.extents]
 
     rep.axis, rep.inner_diameter_mm, rep.outer_diameter_mm, rep.width_mm = ring_metrics(mesh, axis)
-    rep.thickness = wall_thickness(mesh, wall_samples, wall_floor) if rep.watertight else {}
+    zone = ("xyz".index(rep.axis), wall_abs_axis_max) if (wall_abs_axis_max is not None and rep.axis in "xyz") else None
+    rep.thickness = wall_thickness(mesh, wall_samples, wall_floor, zone=zone) if rep.watertight else {}
     rep.weights_g = tables.weights_g(rep.volume_mm3, metals)
 
     c = rep.checks
@@ -195,7 +212,8 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     if rep.thickness:
         t = rep.thickness
         c.append(Check("wall thickness", t["p01"] >= wall_floor,
-                       f"p1 {t['p01']:.3f} mm vs floor {wall_floor:.2f} mm", hard=wall_floor > 0))
+                       f"p1 {t['p01']:.3f} mm vs floor {wall_floor:.2f} mm" + (f" ({t['zone']})" if t.get("zone") else ""),
+                       hard=wall_floor > 0))
     else:
         c.append(Check("wall thickness", False, "not measured", hard=False))
     if expect_inner is not None:

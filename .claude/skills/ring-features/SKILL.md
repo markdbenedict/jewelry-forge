@@ -5,9 +5,10 @@ description: Add milgrain beads, a channel groove and a wrapped engraving (insid
 
 # ring-features
 
-**Status.** First real `api build ring_features` 2026-10-27 16:00: 55 blocks `e_OK`, volume
-250.3 mm³ in the session (design 249). nTopCL run and gate next; until the notebook is in
-`ntop/notebooks/`, run with `--notebook out\api\ring_features.ntop`.
+**Status.** 2026-10-27: API build clean (55 blocks `e_OK`); first nTopCL run clean (4 s,
+38 blocks), volume 246.6 mm³ vs design 246.1 with milgrain + groove + "Makena" inside; the
+only gate FAIL was the thickness rays grazing beads, fixed by sampling between the bead rows.
+Until the notebook is in `ntop/notebooks/`, run with `--notebook out\api\ring_features.ntop`.
 
 ## Make rings
 
@@ -44,6 +45,10 @@ STL to `OneDrive\Documents\Jewelry\Rings`.
   deep at the text's top and bottom and a little deeper mid-height on a curved face.
 - The report's last note compares nTop's volume with the design volume (band + exposed bead
   volume − groove − text area x depth); ±3 % with features, ±2 % plain.
+- Gate with features: the wall-thickness rays sample only |z| ≤ bead z − bead radius − 0.05
+  (beads are solid bumps; a ray grazing one measures a chord, which failed the first run at
+  p1 0.448 mm); the outer Ø expectation takes the groove into account; an `engraving` check
+  counts mesh vertices in the pocket on the right side and at the right angle (≥ 200 = found).
 
 ## Inputs (catalog/ring_features.yaml, 23)
 

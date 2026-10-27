@@ -167,11 +167,53 @@ class RingSpec:
         beads = self.bead_geometry()
         width = b.width_mm
         outer = 2 * b.outer_radius_mm
+        if self.has_groove:
+            # the groove removes the outer surface over |z - groove z| < tube: the widest point left
+            g = self.groove_geometry()
+            zs = [z / 100 for z in range(-int(b.width_mm * 50), int(b.width_mm * 50) + 1)]
+            outer = 2 * max(b.outer_radius_at(z) for z in zs if abs(z - g["z"]) >= g["tube"] and abs(z) <= b.width_mm / 2)
+        exp = {"expect_inner": b.inner_diameter_mm, "wall_floor": min(WALL_FLOOR, 0.8 * b.edge_thickness_mm)}
         if self.milgrain:
             width = max(width, 2 * (beads["z"] + beads["radius"]))
             outer = max(outer, 2 * (beads["ring_radius"] + beads["radius"]))
-        floor = min(WALL_FLOOR, 0.8 * b.edge_thickness_mm)
-        return {"expect_inner": b.inner_diameter_mm, "expect_outer": outer, "expect_width": width, "wall_floor": floor}
+            # beads are solid bumps on a solid band: a ray grazing one measures a chord, not a wall.
+            # Measure the band between the bead rows.
+            exp["wall_abs_axis_max"] = beads["z"] - beads["radius"] - 0.05
+        exp.update({"expect_outer": outer, "expect_width": width})
+        return exp
+
+    def engraving_pocket(self, mesh) -> dict:
+        """Is the text cut where the design put it? Counts mesh vertices lying 0.08..depth+0.08 mm
+        below the engraved surface, within the text's height and angular span (centred on +X)."""
+        import numpy as np
+        if not self.has_engraving:
+            return {"checked": False}
+        g = self.engrave_geometry()
+        v = mesh.vertices
+        axis = 2
+        z = v[:, axis]
+        r = np.hypot(v[:, 0], v[:, 1])
+        theta = np.arctan2(v[:, 1], v[:, 0])
+        arc = float(self.engraving_info.get("arc_length_mm") or 0.0)
+        half_angle = arc / 2 / g["wrap_radius"] + 0.1
+        in_span = (np.abs(z) <= g["height"] / 2 + 0.1) & (np.abs(theta) <= half_angle)
+
+        def depth(sel):
+            """How far below the engraved surface each selected vertex lies (positive = into the metal)."""
+            if not sel.any():
+                return np.array([])
+            surf = np.array([self.band.bore_radius_at(float(zz)) if g["side"] == "inside" else self.band.outer_radius_at(float(zz))
+                             for zz in z[sel]])
+            return (r[sel] - surf) if g["side"] == "inside" else (surf - r[sel])
+
+        lo, hi = 0.08, self.engrave_depth_mm + 0.08
+        d1 = depth(in_span)
+        hits = int(((d1 > lo) & (d1 < hi)).sum()) if d1.size else 0
+        # the same band of radii elsewhere round the ring must be empty: the pocket is local to the text
+        d2 = depth((np.abs(z) <= g["height"] / 2) & (np.abs(theta) > half_angle + 0.4))
+        stray = int(((d2 > lo) & (d2 < hi)).sum()) if d2.size else 0
+        return {"checked": True, "pocket_vertices": hits, "stray_vertices": stray, "side": g["side"],
+                "found": hits >= 200}
 
     def design_volume_mm3(self, step: float = 0.005) -> float:
         """Band design volume + the beads' protruding parts - the groove - the engraving cut."""
@@ -275,8 +317,13 @@ def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None 
     result = RingResult(spec, stl, run, rep, ntop_vol)
     result.notes += spec.band.warnings()
     if spec.has_engraving:
-        result.notes.append(f"engraving {spec.text!r}: {info['arc_length_mm']:.1f} mm long, thinnest stroke "
-                            f"{info['stroke_mm']:.2f} mm, cut volume ~{info['cut_volume_mm3']:.1f} mm³")
+        pocket = spec.engraving_pocket(gate.load_mesh(stl))
+        rep.checks.append(gate.Check("engraving", pocket["found"],
+                                     f"{pocket['pocket_vertices']} mesh vertices in the {pocket['side']} pocket"
+                                     + (f"; {pocket['stray_vertices']} stray" if pocket["stray_vertices"] else "")
+                                     + ("" if pocket["found"] else " - the text did not cut (wrong side, units or wrap length?)")))
+        result.notes.append(f"engraving {spec.text!r} on the {spec.engrave_side}: {info['arc_length_mm']:.1f} mm long, "
+                            f"thinnest stroke {info['stroke_mm']:.2f} mm, cut volume ~{info['cut_volume_mm3']:.1f} mm³")
     if ntop_vol is None:
         result.notes.append("nTop volume output not found in out.json; volume not cross-checked.")
     else:

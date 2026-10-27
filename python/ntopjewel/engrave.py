@@ -105,6 +105,7 @@ def text_mesh(text: str, height_mm: float, depth_mm: float, radius_mm: float, si
     m.vertices = np.column_stack([x, y, w_up])
     if side == "inside":
         m.invert()                                          # the mirror flipped the winding
+    m.merge_vertices()                                      # letters share no vertices, but nTop warned about near-duplicates
     m.fix_normals()
     return m
 
