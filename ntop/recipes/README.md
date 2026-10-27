@@ -14,7 +14,7 @@ geometry; the script wins when the two disagree.
 | Recipe | Produces | Phase | Status |
 | --- | --- | --- | --- |
 | `band-primitive.md` | `ntop/notebooks/ring_band.ntop` (flat band, hello band) | 0 | built by Mark in the GUI 2026-10-25; gate passed |
-| `band_profile.py` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 | real identifiers; geometry = band ∩ dome torus ∩ comfort torus (the first real build subtracted the comfort torus and left a 0 mm shell - fixed); built through the API 2026-10-27 (`out/api`), nTopCL verification next |
+| `band_profile.py` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 | **verified 2026-10-27**: built through the API (16 blocks e_OK), nTopCL run clean, gate PASS (US6 court: inner Ø 16.507, volume 245.6 mm³ = design +0.7 %) |
 | `band-profile.md` | same notebook, GUI route | 1 | superseded by `band_profile.py`; fallback only |
 | `discover.py` | nothing saved: digest of this nTop's block identifiers, input names and variable behaviour (`out/api/discover.result.json`) | — | run first on a new nTop build or when an identifier lookup fails |
 

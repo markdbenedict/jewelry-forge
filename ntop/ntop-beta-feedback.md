@@ -56,12 +56,17 @@ Windows 11 laptops, Python per nTop's bundled console.
   save_notebook, save_notebook_as, set_block_as_output, set_block_comment, set_block_input,
   set_block_input_units, set_block_visibility, update_floating_comment, updates_paused.
 
+- Fourth build (2026-10-27 07:00, `status: ok`, then nTopCL clean): `volume_integral<implicit,
+  real_field,real>` fed the body and a unitless `core.var<real>` = 1 builds in the session
+  (245.60 mm³) once it is wrapped in a variable that is the notebook Output - a typed consumer
+  makes a lazy block build; `ntopcl -t` then writes the output template; the run reports
+  `Volume` as a `real` in m³ and the mesh gate passes (mesh volume within 0.14 % of nTop).
+  Blocks `[5.44.0]` / `implicit_to_mesh[2.5.0]` run without deprecation warnings.
+
 ## Open questions
 
-- Whether a `core.var<real>` Output fed by the `volume` property lets `ntopcl -t` write the
-  output template without a GUI build, and comes out of a run as a `real` in m³ (next run).
-- Whether `volume_integral<implicit,real_field,real>` fed a unitless 1 builds and gives the
-  volume in mm³ through nTopCL (replaces Mass Properties in the band; next run).
+- None blocking. Nice to have: a documented way to register a unit in a notebook, and a
+  `required`/`has_default` flag per input in `list_block_inputs`.
 
 ## Findings
 

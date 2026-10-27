@@ -97,11 +97,12 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - `set_block_input` cannot set a `file_path` parameter (6.3.3: "only real, vector, point,
   bool, integer and text"); a file input is a **`core.var<text>`** connected to the Export
   block's `Path`, which builds and which nTopCL types `text`.
-- **Blocks build lazily.** A block nothing displays or consumes (Mass Properties with no
-  downstream) stays `e_DIRTY` forever and `block_state` cannot tell that from "queued". The
-  API has no build/evaluate call and `set_block_visibility` does not force one. Wire the
-  Output (Volume variable) before waiting, wait on the export block instead, and treat a
-  still-dirty Mass Properties as "verify with nTopCL", never as a failure.
+- **Blocks build lazily.** A block nothing displays or consumes stays `e_DIRTY` forever and
+  `block_state` cannot tell that from "queued"; the API has no build/evaluate call and
+  `set_block_visibility` does not force one. What does make a measurement block build: a
+  **typed consumer** - wrap it in a variable (`add_variable(name, block_id)`) and make that
+  the Output (verified 2026-10-27: the volume integral built and returned 245.6 mm³ in the
+  session). Still wait on the export block, and report a dirty measurement as a warning.
 - Property names are lower case (`volume`, `mass`, `center of gravity`); match them
   case-insensitively. After `move_block_to_input(id)` the variable no longer answers
   `block_state` (its wires stay); the helper reports such ids as `input`.
