@@ -137,8 +137,12 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert b[res["blocks"]["Mass Properties"]]["wired"]["Density"] == ("Density", "")
     assert nb.variables["Density"]["value"] == 1000.0 and nb.variables["Density"]["units"] == "kg/m^3"
     assert "Density" not in nb.inputs                                                  # a body variable, not a notebook input
+    # add_real_variable refuses non-length units; the units go on afterwards with set_block_input_units
+    assert any("units set afterwards" in ln and "Density" in ln for ln in res["log"])
+    assert nb.variables["Volume"]["units"] == "mm^3"
+    assert any("units of Mass properties_0.Density: 'kg/m^3'" in ln for ln in res["log"])
     # the Output is a typed real variable (nTopCL -t needs the type before anything is built)
-    assert nb.variables["Volume"]["funcId"] == "core.var<real>" and nb.variables["Volume"]["units"] == "mm^3"
+    assert nb.variables["Volume"]["funcId"] == "core.var<real>"
     assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
     assert ids["Export Mesh"] == "export_mesh<file_path,mesh,unit_length_enum>"
     assert ids["Output Path"] == "core.var<text>"

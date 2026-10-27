@@ -407,10 +407,50 @@ class NotebookHelper:
 
     # ---- variables, inputs, output ---------------------------------------------------
     def real_var(self, name: str, value: float, units: str = "mm") -> str:
-        info = self.nb.add_real_variable(name, value, units) if units else self.nb.add_real_variable(name, value)
-        self.blocks[name] = info["id"]
-        self.log.append(f"var {name} = {value} {units}")
-        return info["id"]
+        """A `core.var<real>`. With units: `add_real_variable(name, value, units)`, else the
+        unitless variable plus `set_block_input_units(id, "Input", units)`. Raises (listing
+        both refusals) rather than silently making a unitless variable - a unitless value on
+        a dimensioned input fails the build ("requires units of mass/length^3", 2026-10-27)."""
+        if not units:
+            info = self.nb.add_real_variable(name, value)
+            self.blocks[name] = info["id"]
+            self.log.append(f"var {name} = {value} (no units)")
+            return info["id"]
+        attempts = []
+        try:
+            info = self.nb.add_real_variable(name, value, units)
+            self.blocks[name] = info["id"]
+            self.log.append(f"var {name} = {value} {units}")
+            return info["id"]
+        except Exception as e:
+            attempts.append(f"add_real_variable(..., {units!r}): {e}")
+        set_units = getattr(self.nb, "set_block_input_units", None)
+        if callable(set_units):
+            info = None
+            try:
+                info = self.nb.add_real_variable(name, value)
+                set_units(info["id"], "Input", units)
+                self.blocks[name] = info["id"]
+                self.log.append(f"var {name} = {value} {units} (units set afterwards with set_block_input_units)")
+                return info["id"]
+            except Exception as e:
+                attempts.append(f"set_block_input_units(..., 'Input', {units!r}): {e}")
+                if info:
+                    self.remove(info["id"])
+        raise ConsoleError(f"could not make a real variable {name!r} in {units!r}: " + "; ".join(attempts))
+
+    def units_of(self, block_id: str, input_name: str) -> str:
+        """What nTop says an input's units are (`get_block_input_units`), '' if it will not say."""
+        fn = getattr(self.nb, "get_block_input_units", None)
+        if not callable(fn):
+            return ""
+        try:
+            u = fn(block_id, input_name)
+            self.log.append(f"units of {block_id}.{input_name}: {u!r}")
+            return u if isinstance(u, str) else str(u)
+        except Exception as e:
+            self.log.append(f"get_block_input_units({block_id}, {input_name}) failed: {e}")
+            return ""
 
     def wrap_var(self, name: str, block_id: str) -> str:
         info = self.nb.add_variable(name, block_id)
@@ -418,7 +458,9 @@ class NotebookHelper:
         self.log.append(f"var {name} wraps {block_id}")
         return info["id"]
 
-    def property_var(self, name: str, source_id: str, prop: str, units: Iterable[str] = ("mm^3", "m^3", "")) -> str:
+    VOLUME_UNITS = ("mm^3", "mm³", "mm3", "m^3", "m³", "cm^3", "")
+
+    def property_var(self, name: str, source_id: str, prop: str, units: Iterable[str] = VOLUME_UNITS) -> str:
         """A variable fed by a property of `source_id` (e.g. Mass Properties -> volume).
 
         A TYPED real variable first (`core.var<real>`, like the chip the GUI makes when a
@@ -429,11 +471,12 @@ class NotebookHelper:
         for u in units:
             tmp = f"{name} tmp"
             try:
-                info = self.nb.add_real_variable(tmp, 0.0, u) if u else self.nb.add_real_variable(tmp, 0.0)
+                var_id = self.real_var(tmp, 0.0, u)
             except Exception as e:
                 errors.append(f"real variable ({u or 'no units'}): {e}")
+                self.log.append(f"{name}: {u or 'no units'} refused: {e}")
                 continue
-            var_id = info["id"]
+            self.blocks.pop(tmp, None)
             try:
                 self.nb.connect_block_property(source_id, prop, var_id, "Input")
             except Exception as e:

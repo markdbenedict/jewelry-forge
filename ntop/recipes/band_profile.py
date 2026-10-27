@@ -56,7 +56,10 @@ SUBTRACT = [["boolean_subtract", "implicit,list<implicit>"], ["boolean_subtract"
 INTERSECT = [["boolean_intersect", "list<implicit>"], ["boolean_intersect", "implicit"], ["intersect", "implicit"]]
 OFFSET = [["offset_implicit"], ["offset", "implicit"]]
 MASS = [["mass_properties", "implicit"], ["mass_properties", "body"]]   # highest version wins: mass_properties<…>[1.1.0], not the deprecated …_from_body
-DENSITY_UNITS = ("kg/m^3", "g/cm^3", "g/mm^3")      # Density has no default (nTopCL: 'Input "Density" is incomplete'); fed by a variable
+# Density has no default (nTopCL: 'Input "Density" is incomplete') and must carry mass/length^3 units
+# ("requires units of mass/length^3, but received no units"); nTop's unit spelling for the API is
+# undocumented, so several are tried and every refusal is logged.
+DENSITY_UNITS = ("kg/m^3", "kg/m³", "g/cm^3", "g/cm³", "g/mm^3", "g/mm³", "kg/m3", "g/cc")
 MESH = [["implicit_to_mesh", "bool,bool"], ["implicit_to_mesh"], ["mesh_from_implicit_body"], ["mesh", "implicit"]]
 EXPORT = [["export_mesh", "file_path"], ["export_mesh"]]
 PATH_VARS = ("core.var<file_path>", "core.var<text>")      # the Output Path input; Export Mesh wants a file_path
@@ -116,13 +119,21 @@ def _set_density(h: NotebookHelper, mass_id: str, kg_per_m3: float) -> None:
     at all (6.3.3: 'has type "real_field", which cannot be set yet'); a real VARIABLE wired into
     it works (the offsets' Distance is fed the same way). So: a `core.var<real>` named Density,
     in the first density unit nTop accepts, connected to the block."""
-    per_unit = {"kg/m^3": kg_per_m3, "g/cm^3": kg_per_m3 / 1000.0, "g/mm^3": kg_per_m3 / 1e6, "": kg_per_m3}
+    per_unit = {"kg/m^3": kg_per_m3, "kg/m³": kg_per_m3, "kg/m3": kg_per_m3,
+                "g/cm^3": kg_per_m3 / 1000.0, "g/cm³": kg_per_m3 / 1000.0, "g/cc": kg_per_m3 / 1000.0,
+                "g/mm^3": kg_per_m3 / 1e6, "g/mm³": kg_per_m3 / 1e6}
+    # ask nTop how it spells units: the Density input's own, and a known length input's
+    hinted = h.units_of(mass_id, "Density")
+    h.units_of(h.blocks["Outer"], "Radius")
+    order = ([hinted] if hinted and hinted not in per_unit else []) + list(DENSITY_UNITS)
+    if hinted and hinted not in per_unit:
+        per_unit[hinted] = kg_per_m3            # unknown spelling: assume SI (kg/m^3); nTopCL's mass would show otherwise
     errors = []
-    for u in (*DENSITY_UNITS, ""):
+    for u in order:
         try:
             var_id = h.real_var("Density", per_unit[u], u)
         except Exception as e:
-            errors.append(f"variable in {u or 'no units'}: {e}")
+            errors.append(f"variable in {u}: {e}")
             continue
         try:
             h.wire(var_id, mass_id, ["Density"])

@@ -55,6 +55,13 @@ REQUIRED = {"mass_properties<implicit,real_field,real>[1.1.0]": ["Body", "Densit
             "mass_properties<mesh,real>[2.1.0]": ["Mesh", "Density"]}
 DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Mesh File Data", "file_path": "Path",
                 "text": "Text", "real": "Scalar"}
+# unit spellings: add_real_variable only took length units in our runs ("kg/m^3" and "mm^3" were refused,
+# 2026-10-27); set_block_input_units is the documented way to put other units on a variable's Input.
+VARIABLE_UNITS = {"", "mm", "cm", "m", "in"}
+INPUT_UNITS = VARIABLE_UNITS | {"kg/m^3", "g/cm^3", "g/mm^3", "mm^3", "cm^3", "m^3", "mm^2", "deg"}
+DENSITY_UNITS = {"kg/m^3", "g/cm^3", "g/mm^3"}
+TYPICAL_UNITS = {("Radius", "real"): "mm", ("Density", "real_field"): "kg/m^3", ("Distance", "real_field"): "mm",
+                 ("Tolerance", "real"): "mm"}
 FILE_PATH_REFUSAL = ('Parameter "Input" of block "{bid}" has type "file_path", which cannot be set yet; only "real", "vector", '
                      '"point", "bool", "integer" and "text" parameters can.')
 
@@ -238,6 +245,8 @@ class FakeNotebook:
     def add_real_variable(self, new_name: str, value, units: str = "", section_id: str = "", targetBlockId: str = "", placeBefore: bool = False):
         if new_name in self.variables or new_name in self.blocks:
             raise ValueError(f"'{new_name}' is already used")
+        if units not in VARIABLE_UNITS:
+            raise ValueError(f'Unknown unit "{units}" for a scalar variable.')
         self.variables[new_name] = {"value": float(value), "units": units, "wraps": None, "typed": "real", "funcId": "core.var<real>"}
         return {"name": "Scalar Variable", "id": new_name, "funcId": "core.var<real>"}
 
@@ -275,6 +284,29 @@ class FakeNotebook:
         self.output = block_id
         return {"name": block_id, "id": block_id, "funcId": "core.var"}
 
+    def set_block_input_units(self, block_id: str, input_name: str, units: str):
+        if units not in INPUT_UNITS:
+            raise ValueError(f'Unknown unit "{units}".')
+        if block_id in self.variables and self.variables[block_id].get("wraps") is None:
+            if input_name != "Input":
+                raise ValueError(f"variable '{block_id}' has no parameter '{input_name}'")
+            self.variables[block_id]["units"] = units
+            return
+        b = self._resolve(block_id)
+        if input_name not in dict(b["defs"]):
+            raise ValueError(f"'{block_id}' has no parameter '{input_name}'")
+        val = b["inputs"].get(input_name, (None, ""))[0]
+        b["inputs"][input_name] = (val, units)
+
+    def get_block_input_units(self, block_id: str, input_name: str) -> str:
+        if block_id in self.variables and self.variables[block_id].get("wraps") is None:
+            return self.variables[block_id].get("units", "")
+        b = self._resolve(block_id)
+        t = dict(b["defs"]).get(input_name)
+        if t is None:
+            raise ValueError(f"'{block_id}' has no parameter '{input_name}'")
+        return TYPICAL_UNITS.get((input_name, t), "")
+
     def delete_variable(self, block_id: str):
         if block_id not in self.variables:
             raise ValueError(f"'{block_id}' is not a variable")
@@ -298,6 +330,11 @@ class FakeNotebook:
             for name in REQUIRED.get(b["funcId"], []):
                 if name not in b["inputs"] and name not in b["wired"] and name not in b["lists"]:
                     problems.append(f'{bid}: Input "{name}" is incomplete')
+            if "Density" in b["wired"]:
+                src = self.variables.get(b["wired"]["Density"][0], {})
+                if src.get("units", "") not in DENSITY_UNITS:
+                    problems.append(f"{bid}: 'Density' requires units of mass/length^3, but received "
+                                    f"{src.get('units') or 'no units'}.")
         return problems
 
     # ---- files --------------------------------------------------------------------

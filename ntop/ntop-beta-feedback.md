@@ -60,9 +60,12 @@ Windows 11 laptops, Python per nTop's bundled console.
 
 - Whether a `core.var<real>` Output fed by the `volume` property lets `ntopcl -t` write the
   output template without a GUI build, and comes out of a run as a `real` in m³ (next run).
-- Whether `add_real_variable(name, 1000, "kg/m^3")` accepts a density unit string (the script
-  falls back to g/cm^3, g/mm^3, then no units) and whether a unitless variable wired into
-  Density passes the build.
+- Which unit spellings `add_real_variable` / `set_block_input_units` accept beyond `mm`:
+  `kg/m^3` and `mm^3` were refused by `add_real_variable` on 2026-10-27 (the refusal text was
+  not captured; the next run logs it, asks `get_block_input_units` for the Density input's own
+  spelling, and tries `set_block_input_units` on the variable). A unitless variable wired into
+  Density does NOT pass the build: `'Density' requires units of mass/length^3, but received no
+  units.` - which also means Mass Properties DID build once the Output was a typed variable.
 
 ## Findings
 
