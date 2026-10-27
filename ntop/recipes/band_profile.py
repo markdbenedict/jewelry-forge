@@ -112,10 +112,16 @@ def _set_axis(h: NotebookHelper, block_id: str) -> None:
 
 
 def _set_density(h: NotebookHelper, mass_id: str, kg_per_m3: float) -> None:
-    """Density is required (no default). nTop's unit spelling for it is not documented for the
-    API, so the usual spellings are tried; the value is converted to match."""
-    per_unit = {"kg/m^3": kg_per_m3, "g/cm^3": kg_per_m3 / 1000.0, "g/mm^3": kg_per_m3 / 1e6}
+    """Density is required (no default) and is a `real_field`: nTop's API refuses units on it
+    ('has type "real_field", which carries no unit', 2026-10-27), so the constant goes in bare,
+    in nTop's base units (kg/m³). Unit spellings are kept as a fallback for other API versions."""
     errors = []
+    try:
+        h.set(mass_id, ["Density"], kg_per_m3)
+        return
+    except Exception as e:
+        errors.append(f"unitless: {e}")
+    per_unit = {"kg/m^3": kg_per_m3, "g/cm^3": kg_per_m3 / 1000.0, "g/mm^3": kg_per_m3 / 1e6}
     for u in DENSITY_UNITS:
         try:
             h.set(mass_id, ["Density"], per_unit[u], u)

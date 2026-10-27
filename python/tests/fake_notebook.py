@@ -161,7 +161,10 @@ class FakeNotebook:
         if input_name not in names:
             raise ValueError(f"'{block_id}' has no parameter '{input_name}'; it has {names}")
         t = dict(b["defs"])[input_name]
-        if units and t not in ("real", "real_field", "point", "vector"):
+        if units and t == "real_field":           # nTop 6.3.3, verbatim
+            raise ValueError(f'Parameter "{input_name}" of block "{block_id}" has type "real_field", which carries no '
+                             f'unit, so its value cannot be given in {units}.')
+        if units and t not in ("real", "point", "vector"):
             raise ValueError(f"'{input_name}' carries no unit")
         b["inputs"][input_name] = (value, units)
 

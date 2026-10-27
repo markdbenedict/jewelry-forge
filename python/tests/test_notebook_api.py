@@ -133,7 +133,7 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     # what nTopCL complained about on 2026-10-27: an unset leftover Path_0 and an unset Density
     assert nb.lint() == []
     assert "Path_0" not in nb.variables and any("removed Path_0" in ln for ln in res["log"])
-    assert b[res["blocks"]["Mass Properties"]]["inputs"]["Density"] == (1000.0, "kg/m^3")
+    assert b[res["blocks"]["Mass Properties"]]["inputs"]["Density"] == (1000.0, "")     # real_field: no units allowed
     # the Output is a typed real variable (nTopCL -t needs the type before anything is built)
     assert nb.variables["Volume"]["funcId"] == "core.var<real>" and nb.variables["Volume"]["units"] == "mm^3"
     assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"

@@ -60,7 +60,8 @@ Windows 11 laptops, Python per nTop's bundled console.
 
 - Whether a `core.var<real>` Output fed by the `volume` property lets `ntopcl -t` write the
   output template without a GUI build, and comes out of a run as a `real` in m³ (next run).
-- Which unit spelling `set_block_input` accepts for a density (`kg/m^3` is tried first).
+- In which unit nTop reads a bare number set on a `real_field` (`Density` = 1000 → kg/m³, i.e.
+  SI base units?) - a Mass output would show it; the band only needs the volume.
 
 ## Findings
 
@@ -100,6 +101,14 @@ Windows 11 laptops, Python per nTop's bundled console.
   original version and that scripts must pick the newest `[x.y.z]` (or offer a "current"
   alias / a `list_available_blocks(current_only=True)`); `add_block` could warn like nTopCL.
 - Workaround: sort candidates by version, treating an unversioned identifier as 1.0.0.
+
+### 2026-10-27 — a `real_field` parameter cannot be given units
+- Call: `set_block_input("Mass properties_0", "Density", 1000.0, "kg/m^3")` (and `g/cm^3`, `g/mm^3`).
+- Happened: `Parameter "Density" of block "Mass properties_0" has type "real_field", which
+  carries no unit, so its value cannot be given in kg/m^3.`
+- Expected: a density is a dimensioned quantity in the GUI; the API could accept units on a
+  constant real_field, or the doc could state the base unit a bare number is read in.
+- Workaround: set the bare number; wire a `core.var<real>` when units matter.
 
 ### 2026-10-27 — required inputs without defaults are invisible until nTopCL
 - Call: `add_block("mass_properties_from_body<implicit,real_field,real>")`, wire `Body`, leave
