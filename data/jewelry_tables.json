@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "title": "jewelry-forge engineering tables - the one source for Python (ntopjewel.tables) and Blender (blender/jewelry_kit.py)",
+  "units": {
+    "density_g_cm3": "grams per cubic centimetre (specific gravity)",
+    "linear_shrink_pct": "percent linear, model -> cast",
+    "mm": "millimetres"
+  },
+  "status_values": {
+    "default": "a published or bench-practice figure, not yet checked on our print + cast route",
+    "calibrated": "measured on our route; the entry's `calibrated` block says when, on what and against what",
+    "uncalibrated": "a placeholder that must be measured before it is trusted (zero or a range)"
+  },
+  "metals": {
+    "resin":       {"name": "castable resin (print)",  "density_g_cm3": 1.15,  "linear_shrink_pct": 0.0, "min_wall_mm": 0.5, "status": "default", "source": "typical castable-resin datasheet density"},
+    "sterling":    {"name": "sterling silver 925",     "density_g_cm3": 10.36, "linear_shrink_pct": 1.7, "min_wall_mm": 0.6, "status": "default", "source": "jewelers' specific-gravity tables; alloys vary by supplier"},
+    "fine_silver": {"name": "fine silver 999",         "density_g_cm3": 10.49, "linear_shrink_pct": 1.7, "min_wall_mm": 0.6, "status": "default", "source": "jewelers' specific-gravity tables"},
+    "10k_yellow":  {"name": "10k yellow gold",         "density_g_cm3": 11.6,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
+    "14k_yellow":  {"name": "14k yellow gold",         "density_g_cm3": 13.1,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; 13.0-13.4 depending on alloy"},
+    "14k_white":   {"name": "14k white gold",          "density_g_cm3": 12.6,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
+    "18k_yellow":  {"name": "18k yellow gold",         "density_g_cm3": 15.6,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; 15.5-15.9 depending on alloy"},
+    "18k_white":   {"name": "18k white gold",          "density_g_cm3": 14.9,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
+    "platinum":    {"name": "platinum 950",            "density_g_cm3": 20.7,  "linear_shrink_pct": 1.0, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables"},
+    "palladium":   {"name": "palladium 950",           "density_g_cm3": 12.0,  "linear_shrink_pct": 1.2, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables"},
+    "bronze":      {"name": "jewelers bronze",         "density_g_cm3": 8.8,   "linear_shrink_pct": 1.5, "min_wall_mm": 0.7, "status": "default", "source": "jewelers' specific-gravity tables"},
+    "brass":       {"name": "brass",                   "density_g_cm3": 8.5,   "linear_shrink_pct": 1.5, "min_wall_mm": 0.7, "status": "default", "source": "cast yellow brass 8.4-8.7; 8.5 chosen 2026-10-27 to end the 8.4 (Blender) vs 8.5 (Python) split"}
+  },
+  "default_weight_metals": ["sterling", "14k_yellow", "18k_yellow", "platinum"],
+  "weight": {
+    "sprue_allowance_fraction": {"value": 0.20, "status": "default", "source": "jewelers cite 15-25 % extra metal for sprue and button"}
+  },
+  "floors": {
+    "wall_marginal":       {"mm": 0.50, "status": "default", "source": "Formlabs 'Jewelry 3D printing: basic design parameters': 0.5 mm walls cast but may distort"},
+    "wall_good":           {"mm": 0.75, "status": "default", "source": "Formlabs: 0.75 mm worked well in cast sterling/gold"},
+    "prong_tip_dia":       {"mm": 0.80, "status": "default", "source": "bench practice"},
+    "bead_dia":            {"mm": 0.50, "status": "default", "source": "bench practice (milgrain / bead-set beads)"},
+    "engrave_depth":       {"mm": 0.25, "status": "default", "source": "bench practice; shallower polishes away"},
+    "engrave_stroke":      {"mm": 0.30, "status": "default", "source": "bench practice; thinner does not fill in casting"},
+    "link_clearance":      {"mm": 0.35, "status": "default", "source": "printed-assembled chain links; resin printer guidance"},
+    "band_min_thickness":  {"mm": 1.0,  "status": "default", "source": "a thinner band distorts in finishing"},
+    "band_min_width":      {"mm": 1.5,  "status": "default", "source": "bench practice"}
+  },
+  "casting": {
+    "ring_sprue_dia_mm":          {"value": [2.5, 3.5], "status": "default", "source": "casting handbooks"},
+    "main_sprue_dia_mm":          {"value": [6.0, 10.0], "status": "default", "source": "casting handbooks"},
+    "feed_angle_deg":             {"value": [45.0, 60.0], "status": "default", "source": "casting handbooks"},
+    "part_spacing_mm":            {"value": 6.0, "status": "default", "source": "casting handbooks"},
+    "flask_wall_clearance_mm":    {"value": 6.0, "status": "default", "source": "casting handbooks"},
+    "investment_above_top_mm":    {"value": 12.0, "status": "default", "source": "casting handbooks"},
+    "neck_blend_mm":              {"value": [0.5, 1.0], "status": "default", "source": "casting handbooks"},
+    "cast_ring_size_offset":      {"value": 0.0, "status": "uncalibrated", "source": "measure on the first cast: cast size - model size"}
+  },
+  "calibration_log": [],
+  "notes": [
+    "Change a number here, never in a notebook, a skill or a script; add a dated calibration_log entry and set the entry's status.",
+    "Python reads this file through ntopjewel.tables; Blender's jewelry_kit.py reads it when it can find the repo (JEWELRY_FORGE_ROOT, its own path, or a 'jewelry_tables.json' text block) and otherwise uses an embedded copy that python/tests/test_blender_scripts.py keeps identical to this file."
+  ]
+}

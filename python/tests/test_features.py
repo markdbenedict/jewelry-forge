@@ -54,7 +54,7 @@ def test_ring_spec_numbers_and_switches():
     g = plain.bead_geometry()
     assert g["count"] == 1 and g["radius"] < 0.1 and b.bore_radius_mm < g["ring_radius"] < b.outer_radius_mm and g["z"] == 0
     assert plain.groove_geometry()["ring_radius"] > b.outer_radius_mm + 9
-    assert plain.stem == "ring_court_plain_US6" and plain.validate() == []
+    assert plain.stem.startswith("ring_court_plain_US6_w4_t1.3_") and len(plain.spec_id) == 8 and plain.validate() == []
     assert plain.design_volume_mm3() == pytest.approx(b.design_volume_mm3(), rel=1e-6)
 
     s = features.RingSpec(b, milgrain=True, groove_depth_mm=0.25, text="M+K 2026")
@@ -69,7 +69,7 @@ def test_ring_spec_numbers_and_switches():
     assert exp["expect_width"] == pytest.approx(2 * (g["z"] + g["radius"]))
     assert exp["expect_outer"] == pytest.approx(2 * b.outer_radius_at(0.3), abs=1e-3)       # the groove takes the widest point
     assert exp["expect_inner"] == pytest.approx(b.inner_diameter_mm)
-    assert s.validate() == [] and s.stem == "ring_court_milgrain_groove_engraved_US6"
+    assert s.validate() == [] and s.stem.startswith("ring_court_milgrain_groove_engraved_US6_w4_t1.3_")
     v = s.design_volume_mm3()
     assert b.design_volume_mm3() - 10 < v < b.design_volume_mm3() + 15     # beads add ~11, groove and text remove ~9
     ins = s.notebook_inputs("X.stl", "E.stl")
@@ -287,31 +287,26 @@ def test_wall_thickness_ignores_engraving_ribs():
     assert raw["min"] < 0.4                                 # the ribs were visible to the raw check
 
 
-def test_engraving_pocket_detection():
+def test_engraving_pocket_detection(tmp_path):
+    """The pocket check is an area measurement on the real surface: found where the text was
+    cut, not found on a plain bore, and a cut at the wrong angle counts as stray."""
     import numpy as np
+    import trimesh
+    from .fake_ntopcl import remap_cylindrical
     b = band.BandSpec(size=6, profile="court")
     s = features.RingSpec(b, text="Makena", engrave_side="inside")
-    s.engraving_info = {"arc_length_mm": 10.9}
-    g = s.engrave_geometry()
-    rng = np.random.default_rng(1)
-
-    def points(n, depth, theta_lo, theta_hi):
-        th = rng.uniform(theta_lo, theta_hi, n)
-        z = rng.uniform(-g["height"] / 2, g["height"] / 2, n)
-        r = np.array([b.bore_radius_at(zz) for zz in z]) + depth
-        return np.column_stack([r * np.cos(th), r * np.sin(th), z])
-
-    class M:
-        def __init__(self, v):
-            self.vertices = v
-    half = 10.9 / 2 / b.bore_radius_mm
-    surface = points(2000, 0.0, -math.pi, math.pi)
-    pocket = points(400, 0.2, -half, half)
-    assert s.engraving_pocket(M(np.vstack([surface, pocket])))["found"]
-    assert not s.engraving_pocket(M(surface))["found"]
-    stray = points(400, 0.2, 2.0, 2.8)                      # a pocket at the wrong angle counts as stray, not found
-    res = s.engraving_pocket(M(np.vstack([surface, stray])))
-    assert not res["found"] and res["stray_vertices"] > 300
+    info = s.write_engraving(tmp_path / "e.stl")
+    text = trimesh.load(str(tmp_path / "e.stl"), force="mesh")
+    wrapped = remap_cylindrical(text, info["wrap_length_mm"])
+    plain = trimesh.creation.annulus(r_min=b.bore_radius_mm, r_max=b.outer_radius_mm, height=4.0, sections=360)
+    cut = trimesh.boolean.difference([plain, wrapped], engine="manifold")
+    found = s.engraving_pocket(cut)
+    assert found["found"] and found["pocket_area_mm2"] >= 0.8 * found["text_area_mm2"] and found["stray_area_mm2"] < 0.1
+    assert not s.engraving_pocket(plain)["found"]
+    turned = wrapped.copy()
+    turned.apply_transform(trimesh.transformations.rotation_matrix(2.4, [0, 0, 1]))
+    res = s.engraving_pocket(trimesh.boolean.difference([plain, turned], engine="manifold"))
+    assert not res["found"] and res["stray_area_mm2"] > 0.5 * res["text_area_mm2"] and res["pocket_area_mm2"] < 0.5
 
 
 def test_gate_expectations_with_groove_and_beads():
@@ -324,21 +319,49 @@ def test_gate_expectations_with_groove_and_beads():
 
 # ------------------------------------------------------------------ end to end with the fake ntopcl
 def test_ring_end_to_end_with_fake_ntopcl(fake_ntopcl, features_notebook, tmp_path, monkeypatch):
+    """The simulated nTop builds the designed ring - section, beads, groove and the engraving
+    cut from the STL Python wrote - so the gate faces what nTop would export: every hard check
+    passes (design volume within 3 %, the pocket really there) and the part is delivered with
+    its evidence."""
     monkeypatch.setenv("JEWELRY_DELIVER", str(tmp_path / "deliver"))
-    spec = features.RingSpec(band.BandSpec(size=6, profile="flat"), milgrain=True, groove_depth_mm=0.2)
+    spec = features.RingSpec(band.BandSpec(size=4.5, profile="court"), milgrain=True, groove_depth_mm=0.25, text="Makena")
     res = features.build(spec, tmp_path / "out" / "ring", notebook=features_notebook, deliver=True)
-    assert res.run.ok and res.stl.exists() and (tmp_path / "out" / "ring" / f"{spec.stem}.engraving.stl").exists()
-    rep = json.loads((tmp_path / "out" / "ring" / f"{spec.stem}.report.json").read_text(encoding="utf-8"))
-    assert rep["inputs"]["Bead Count"] == spec.bead_geometry()["count"] and rep["engraving"]["text"] is None
-    # the fake ntopcl widens the ring by the beads, as nTop will: the gate expects exactly that width
-    assert any(c["name"] == "width" and c["ok"] for c in rep["gate"]["checks"])
-    assert res.ok and res.delivered and res.delivered.exists()
-    # with text: the fake ntopcl does not cut, and the gate's engraving check says so
-    spec2 = features.RingSpec(band.BandSpec(size=6, profile="flat"), text="M+K")
-    res2 = features.build(spec2, tmp_path / "out" / "ring2", notebook=features_notebook)
-    eng = [c for c in res2.gate.checks if c.name == "engraving"]
-    assert eng and not eng[0].ok and "did not cut" in eng[0].detail and not res2.ok
-    assert any("engraving 'M+K' on the inside" in n for n in res2.notes)
+    assert res.status == "passed" and res.ok, res.text()
+    assert res.stl.exists() and res.stl.parent == res.run_dir and (res.run_dir / f"{spec.stem}.engraving.stl").exists()
+    checks = {c.name: c for c in res.gate.checks}
+    assert checks["design volume"].ok and checks["engraving"].ok and checks["wall thickness"].ok and checks["width"].ok
+    assert res.ntop_volume_mm3 == pytest.approx(spec.design_volume_mm3(), rel=0.01)
+    rep = json.loads((res.run_dir / f"{spec.stem}.report.json").read_text(encoding="utf-8"))
+    assert rep["inputs"]["Bead Count"] == spec.bead_geometry()["count"] and rep["engraving"]["text"] == "Makena"
+    assert rep["design"]["engraving"]["text"] == "Makena" and rep["status"] == "passed"
+    folder = tmp_path / "deliver" / "Rings" / spec.stem
+    assert res.delivered == folder / f"{spec.stem}.stl" and (folder / f"{spec.stem}.engraving.stl").exists()
+    assert json.loads((folder / "manifest.json").read_text(encoding="utf-8"))["spec_id"] == spec.spec_id
+
+
+def test_ring_without_the_cut_is_rejected(fake_ntopcl, features_notebook, tmp_path, monkeypatch):
+    """Same ring, but the engraving the notebook is given is the no-op speck (what a wrong
+    wrap length or side amounts to): the pocket check fails and nothing passes."""
+    spec = features.RingSpec(band.BandSpec(size=6, profile="flat"), text="M+K")
+    speck = tmp_path / "speck.stl"
+    engrave.dummy_mesh(spec.band.bore_radius_mm).export(speck)
+    monkeypatch.setattr(features.RingSpec, "write_engraving",
+                        lambda self, path: (__import__("shutil").copy(speck, path), self.engraving_info)[1] or
+                        dict(engrave.write_engraving(tmp_path / "info.stl", "M+K", 2.0, 0.3, spec.band.bore_radius_mm, "inside")))
+    res = features.build(spec, tmp_path / "out" / "ring2", notebook=features_notebook)
+    eng = [c for c in res.gate.checks if c.name == "engraving"][0]
+    assert not eng.ok and "did not cut" in eng.detail and res.status == "failed" and not res.ok
+
+
+def test_ring_variants_never_share_a_name():
+    b = band.BandSpec(size=6, profile="court")
+    rings = [features.RingSpec(b), features.RingSpec(b, milgrain=True), features.RingSpec(b, groove_depth_mm=0.2),
+             features.RingSpec(b, groove_depth_mm=0.25), features.RingSpec(b, text="Makena"), features.RingSpec(b, text="Mark"),
+             features.RingSpec(b, text="Makena", engrave_side="outside"), features.RingSpec(b, text="Makena", engrave_depth_mm=0.35)]
+    stems = [r.stem for r in rings]
+    assert len(set(stems)) == len(stems)
+    assert features.RingSpec(b, text="Makena").stem == rings[4].stem
+    assert stems[4].startswith("ring_court_engraved_US6_w4_t1.3_") and stems[1].startswith("ring_court_milgrain_US6_")
 
 
 def test_cli_ring_dry_run(capsys):

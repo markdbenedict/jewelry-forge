@@ -22,11 +22,11 @@ from __future__ import annotations
 
 import json
 import math
-import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import catalog, config, gate, ntopcl, tables
+from . import catalog, config, gate, ntopcl, runs, tables
 
 # dome / comfort as a fraction of thickness unless given as "abs"; edge round absolute (mm)
 PROFILES: dict[str, dict] = {
@@ -184,9 +184,23 @@ class BandSpec:
     def label(self) -> str:
         return tables.size_label(self.size, self.system)
 
+    def design(self) -> dict:
+        """Every number that defines this band (what `spec_id` hashes): the notebook inputs
+        without the output path, plus the profile name."""
+        d = self.notebook_inputs("")
+        d.pop("Output Path")
+        d["profile"] = self.profile
+        return d
+
+    @property
+    def spec_id(self) -> str:
+        return runs.spec_id(self.design())
+
     @property
     def stem(self) -> str:
-        return f"ring_band_{self.profile}_{self.label}"
+        """File stem: family, profile, size, width, thickness and the spec id, so two bands
+        that differ in any number never share a name (ring_band_court_US6_w4_t1.3_3f2a9c1e)."""
+        return f"ring_band_{self.profile}_{self.label}_w{self.width_mm:g}_t{self.thickness_mm:g}_{self.spec_id}"
 
     def notebook_inputs(self, output_path: str) -> dict:
         """Values for every input of ring_band_profile.ntop (names must match the catalog)."""
@@ -255,22 +269,41 @@ class BandResult:
     run: ntopcl.RunResult
     gate: gate.GateReport
     ntop_volume_mm3: float | None
+    run_dir: Path | None = None
+    run_id: str = ""
     delivered: Path | None = None
     notes: list[str] = field(default_factory=list)
 
     @property
+    def status(self) -> str:
+        """PASSED / FAILED / INCOMPLETE: the nTop run and every hard gate check."""
+        return runs.status_of(self.run.ok, self.gate)
+
+    @property
     def ok(self) -> bool:
-        return self.run.ok and self.gate.passed
+        return self.status == gate.PASSED
 
     def text(self) -> str:
         s = self.spec
         head = (f"Band {s.label} {s.profile}: inner Ø {s.inner_diameter_mm:.3f} mm, width {s.width_mm} mm, "
                 f"thickness {s.thickness_mm} mm (edge {s.edge_thickness_mm:.2f}) -> {self.stl.name}")
-        lines = [head, self.run.summary(), self.gate.text()]
+        lines = [head, self.run.summary(), self.gate.text(), f"  status: {self.status.upper()}  run {self.run_dir}"]
         if self.delivered:
             lines.append(f"  delivered to {self.delivered}")
         lines += [f"  note: {n}" for n in self.notes]
         return "\n".join(lines)
+
+
+def design_volume_check(design_mm3: float, ntop_mm3: float | None, tol_pct: float) -> gate.Check:
+    """nTop's volume against the independent design arithmetic: a hard check (a notebook that
+    builds the wrong section passes every dimension check and fails only here) and INCOMPLETE
+    when nTop reported no volume."""
+    if ntop_mm3 is None:
+        return gate.incomplete("design volume", "nTop reported no volume; the notebook cannot be checked against the design")
+    dev = (ntop_mm3 - design_mm3) / design_mm3 * 100
+    return gate.Check("design volume", abs(dev) <= tol_pct,
+                      f"nTop {ntop_mm3:.2f} vs design {design_mm3:.2f} mm³ ({dev:+.2f} %, tolerance ±{tol_pct:g} %)"
+                      + ("" if abs(dev) <= tol_pct else " - the notebook does not build the designed section"))
 
 
 def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
@@ -282,18 +315,21 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
     out_dir = Path(out_dir) if out_dir else config.out_dir() / "band"
-    out_dir.mkdir(parents=True, exist_ok=True)
     stem = spec.stem
-    stl = (out_dir / f"{stem}.stl").resolve()
+    run_dir, run_id = runs.fresh_run_dir(out_dir, stem)      # nothing from an earlier run can be mistaken for this one
+    stl = run_dir / f"{stem}.stl"
 
     inputs = cat.build_inputs(spec.notebook_inputs(str(stl)))
-    run = ntopcl.run(nb, inputs, out_dir, tag=stem)
-    if not stl.exists():
+    started = time.time()
+    run = ntopcl.run(nb, inputs, run_dir, tag=stem)
+    try:
+        runs.require_fresh(stl, started, "the exported mesh")
+    except FileNotFoundError as e:
         exported = any("export" in t.block.lower() for t in run.log.timings)
         why = ("the Export Mesh block's file input is not wired to the Output Path chip" if exported else
                "no Export block ran (none appears in the log): add an Export Mesh block with the mesh in its "
                "Mesh input and the Output Path chip in its file input")
-        raise ntopcl.NtopclError(f"notebook reported success but {stl} was not written; {why}", run)
+        raise ntopcl.NtopclError(f"notebook reported success but {e}; {why}", run) from e
 
     vol_entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(vol_entry) if vol_entry else None
@@ -303,24 +339,20 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
     floor = min(floor, 0.8 * spec.edge_thickness_mm)
     rep = gate.check(stl, expect_inner=spec.inner_diameter_mm, expect_outer=2 * spec.outer_radius_mm,
                      expect_width=spec.width_mm, expect_volume=ntop_vol, wall_floor=floor)
-    result = BandResult(spec, stl, run, rep, ntop_vol)
+    rep.checks.append(design_volume_check(spec.design_volume_mm3(), ntop_vol, 2.0))
+    result = BandResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     result.notes += spec.warnings()
-    if ntop_vol is None:
-        result.notes.append("nTop volume output not found in out.json; volume not cross-checked.")
-    else:
-        design = spec.design_volume_mm3()
-        dev = (ntop_vol - design) / design * 100
-        verdict = "matches the design" if abs(dev) <= 2.0 else "DIFFERS from the design - check the notebook"
-        result.notes.append(f"nTop volume {ntop_vol:.2f} mm³ vs design {design:.2f} mm³ ({dev:+.2f} %): {verdict}")
 
+    report = {
+        "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
+        "spec": spec.__dict__, "design": spec.design(), "inputs": spec.notebook_inputs(str(stl)), "stl": str(stl),
+        "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(), "gate": rep.to_dict(),
+        "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
+        "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()),
+    }
+    (run_dir / f"{stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     if deliver and result.ok:
-        dest = config.deliver_dir() / deliver_project
-        dest.mkdir(parents=True, exist_ok=True)
-        result.delivered = Path(shutil.copy2(stl, dest / stl.name))
-
-    (out_dir / f"{stem}.report.json").write_text(json.dumps({
-        "spec": spec.__dict__, "inputs": spec.notebook_inputs(str(stl)), "stl": str(stl), "ok": result.ok,
-        "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "ntopcl_seconds": run.seconds,
-        "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
-    }, indent=2), encoding="utf-8")
+        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report)
+    elif deliver:
+        result.notes.append(f"not delivered: status {result.status}")
     return result

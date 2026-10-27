@@ -1,15 +1,20 @@
 """Jewelry reference tables: ring sizes, metals, print/cast floors, casting defaults.
 
-Every number here is either a geometric identity (ring sizes) or a *default to calibrate*
-(walls, shrinkage). Calibrated values are changed here, with a dated note, never in a
-notebook or a skill.
+Ring sizes are geometric identities and live here. Every engineering number (densities,
+shrinkage, wall floors, casting defaults, the sprue allowance) comes from ONE data file,
+`data/jewelry_tables.json`, which Blender's `jewelry_kit.py` reads too, so the two sides can
+never disagree again (2026-10-27: brass was 8.4 in Blender and 8.5 here). Each entry there
+carries a `status` (default / calibrated / uncalibrated) and its source; a calibrated value is
+changed in the JSON with a dated `calibration_log` entry, never in a notebook or a skill.
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 import string
 from dataclasses import dataclass
+from pathlib import Path
 
 # --------------------------------------------------------------------------- ring sizes
 US_SIZE_INTERCEPT_MM = 11.63     # inner diameter of US size 0
@@ -77,6 +82,25 @@ def size_label(size: float | str, system: str = "US") -> str:
     return f"ID{float(size):g}"
 
 
+# --------------------------------------------------------------------------- the data file
+TABLES_PATH = Path(__file__).resolve().parents[2] / "data" / "jewelry_tables.json"
+
+
+def load_tables(path: Path | None = None) -> dict:
+    """The shared engineering tables (see the module docstring). Raises if the file is missing:
+    there is deliberately no second copy on the Python side."""
+    p = Path(path) if path else TABLES_PATH
+    if not p.exists():
+        raise FileNotFoundError(f"engineering tables not found: {p} (the repo's data/jewelry_tables.json)")
+    data = json.loads(p.read_text(encoding="utf-8"))
+    if data.get("schema") != 1:
+        raise ValueError(f"{p}: unknown tables schema {data.get('schema')!r}")
+    return data
+
+
+TABLES = load_tables()
+
+
 # --------------------------------------------------------------------------- metals
 @dataclass(frozen=True)
 class Metal:
@@ -85,23 +109,17 @@ class Metal:
     density_g_cm3: float      # approximate; alloys vary by supplier
     linear_shrink_pct: float  # casting shrink default, model -> cast (to calibrate)
     min_wall_mm: float        # practical floor for a cast wall in this metal
+    status: str = "default"   # default | calibrated | uncalibrated (data/jewelry_tables.json)
+    source: str = ""
 
 
 METALS: dict[str, Metal] = {
-    "resin":       Metal("resin", "castable resin (print)", 1.15, 0.0, 0.5),
-    "sterling":    Metal("sterling", "sterling silver 925", 10.36, 1.7, 0.6),
-    "fine_silver": Metal("fine_silver", "fine silver 999", 10.49, 1.7, 0.6),
-    "10k_yellow":  Metal("10k_yellow", "10k yellow gold", 11.6, 1.4, 0.5),
-    "14k_yellow":  Metal("14k_yellow", "14k yellow gold", 13.1, 1.4, 0.5),
-    "14k_white":   Metal("14k_white", "14k white gold", 12.6, 1.4, 0.5),
-    "18k_yellow":  Metal("18k_yellow", "18k yellow gold", 15.6, 1.4, 0.5),
-    "18k_white":   Metal("18k_white", "18k white gold", 14.9, 1.4, 0.5),
-    "platinum":    Metal("platinum", "platinum 950", 20.7, 1.0, 0.5),
-    "palladium":   Metal("palladium", "palladium 950", 12.0, 1.2, 0.5),
-    "bronze":      Metal("bronze", "jewelers bronze", 8.8, 1.5, 0.7),
-    "brass":       Metal("brass", "brass", 8.5, 1.5, 0.7),
+    key: Metal(key, m["name"], float(m["density_g_cm3"]), float(m["linear_shrink_pct"]), float(m["min_wall_mm"]),
+               m.get("status", "default"), m.get("source", ""))
+    for key, m in TABLES["metals"].items()
 }
-DEFAULT_WEIGHT_METALS = ("sterling", "14k_yellow", "18k_yellow", "platinum")
+DEFAULT_WEIGHT_METALS = tuple(TABLES["default_weight_metals"])
+SPRUE_ALLOWANCE = float(TABLES["weight"]["sprue_allowance_fraction"]["value"])   # extra metal for sprue + button
 
 
 def weight_g(volume_mm3: float, metal: str | Metal) -> float:
@@ -114,31 +132,26 @@ def weights_g(volume_mm3: float, metals=DEFAULT_WEIGHT_METALS) -> dict[str, floa
 
 
 # --------------------------------------------------------------------------- floors
-# Printing and casting floors (mm). Source: Formlabs jewelry guidance used for the pear
-# ring, plus bench practice. Replace with measured values; keep the dated note.
-FLOORS = {
-    "wall_marginal": 0.50,   # prints, may not fill in casting
-    "wall_good": 0.75,       # safe wall for cast sterling/gold
-    "prong_tip_dia": 0.80,
-    "bead_dia": 0.50,        # milgrain / bead-set beads
-    "engrave_depth": 0.25,
-    "engrave_stroke": 0.30,
-    "link_clearance": 0.35,  # moving chain links printed assembled
-    "band_min_thickness": 1.0,
-    "band_min_width": 1.5,
-}
+# Printing and casting floors (mm): wall_marginal (prints, may not fill in casting), wall_good
+# (safe for cast sterling/gold), prong_tip_dia, bead_dia, engrave_depth, engrave_stroke,
+# link_clearance (chain links printed assembled), band_min_thickness, band_min_width.
+FLOORS: dict[str, float] = {k: float(v["mm"]) for k, v in TABLES["floors"].items()}
+FLOOR_INFO: dict[str, dict] = {k: {"status": v.get("status", "default"), "source": v.get("source", "")}
+                               for k, v in TABLES["floors"].items()}
 
-# Casting defaults (to calibrate on the first two casts; see the development plan).
-CASTING = {
-    "ring_sprue_dia_mm": (2.5, 3.5),
-    "main_sprue_dia_mm": (6.0, 10.0),
-    "feed_angle_deg": (45.0, 60.0),
-    "part_spacing_mm": 6.0,
-    "flask_wall_clearance_mm": 6.0,
-    "investment_above_top_mm": 12.0,
-    "neck_blend_mm": (0.5, 1.0),
-    "cast_ring_size_offset": 0.0,   # measured: cast size - model size (fill in after cast #1)
-}
+# Casting defaults (to calibrate on the first two casts; see docs/plan.md). A range is a tuple.
+CASTING: dict = {k: (tuple(v["value"]) if isinstance(v["value"], list) else v["value"])
+                 for k, v in TABLES["casting"].items()}
+CASTING_INFO: dict[str, dict] = {k: {"status": v.get("status", "default"), "source": v.get("source", "")}
+                                 for k, v in TABLES["casting"].items()}
+
+
+def uncalibrated() -> list[str]:
+    """Entries still marked `uncalibrated` or `default` - what the first casts must measure."""
+    out = [f"metal {k}: {m.status}" for k, m in METALS.items() if m.status != "calibrated"]
+    out += [f"floor {k}: {v['status']}" for k, v in FLOOR_INFO.items() if v["status"] != "calibrated"]
+    out += [f"casting {k}: {v['status']}" for k, v in CASTING_INFO.items() if v["status"] != "calibrated"]
+    return out
 
 
 # --------------------------------------------------------------------------- geometry

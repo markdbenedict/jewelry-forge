@@ -28,7 +28,7 @@ if (-not (Test-Path ".venv")) {
     & cmd /c "$py -m venv .venv"
 }
 & ".\.venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
-& ".\.venv\Scripts\python.exe" -m pip install -e ".\python[dev]" --quiet
+& ".\.venv\Scripts\python.exe" -m pip install -e ".\python[dev]" -c ".\python\constraints.txt" --quiet   # the pinned, known-working set
 
 Write-Host ""
 Write-Host "== ntopjewel doctor =="

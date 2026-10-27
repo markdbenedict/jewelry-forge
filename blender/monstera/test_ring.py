@@ -1,7 +1,19 @@
+r"""Build one monstera ring per US size given after `--`, run jewelry_kit.check_model on each, save
+them all to <out>\test.blend and render four views of the first (m_34, m_side, m_close, m_top.png).
+
+    blender -b -P blender\monstera\test_ring.py -- 5 6 7
+
+<out> is %JEWELRY_OUT%\blender\monstera when JEWELRY_OUT is set, else <repo>\out\blender\monstera;
+test_photo.py and compare_top.py open the test.blend saved here.
+"""
 import bpy, sys, math, time
+from pathlib import Path
 from mathutils import Vector
 bpy.ops.wm.read_factory_settings(use_empty=True)
-sys.path.insert(0, '/home/claude/jewelry'); sys.path.insert(0, '/home/claude/monstera')
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # blender/, for forge_paths
+import forge_paths
+forge_paths.add_to_sys_path("monstera")
+OUT = forge_paths.out_dir("blender", "monstera")
 import jewelry_kit as jk, monstera_ring as mr
 jk.setup_mm_workspace()
 scene = bpy.context.scene
@@ -14,7 +26,7 @@ for i, s in enumerate(sizes):
     text, d = jk.check_model(r, make_map=False)
     print(f"{r.name}: {time.time()-t:.1f}s leaves={mr.ring_plan(s)['n']} tris={sum(len(p.vertices)-2 for p in r.data.polygons):,}")
     print("  " + "\n  ".join(text.split("\n")[1:6]))
-bpy.ops.wm.save_as_mainfile(filepath='/home/claude/monstera/out/test.blend')
+bpy.ops.wm.save_as_mainfile(filepath=str(OUT / "test.blend"))
 w = bpy.data.worlds.new("W"); scene.world = w
 w.node_tree.nodes['Background'].inputs['Color'].default_value = (0.03, 0.035, 0.045, 1)
 for nm, e, d_, ang in (("key", 4.0, (0.45, 0.55, -0.6), 3), ("rim", 2.0, (-0.6, -0.3, -0.4), 8), ("fill", 0.9, (-0.3, 0.8, 0.2), 20)):
@@ -27,7 +39,7 @@ r.resolution_x, r.resolution_y = 1100, 800
 def shot(loc, look, lens, path):
     cam.location = Vector(loc); cam.data.lens = lens
     cam.rotation_euler = (Vector(look) - cam.location).to_track_quat('-Z', 'Y').to_euler()
-    r.filepath = '/home/claude/monstera/out/' + path; bpy.ops.render.render(write_still=True)
+    r.filepath = str(OUT / path); bpy.ops.render.render(write_still=True)
 R = rings[0]
 shot((34, -40, 30), (0, 0, 0), 70, 'm_34.png')
 shot((0.01, -60, 0.01), (0, 0, 0), 60, 'm_side.png')

@@ -5,27 +5,88 @@
 - check_model(): print/cast readiness report (watertight, size, volume, metal weight)
   plus a colour-coded wall-thickness map placed beside the model.
 
-Design thresholds follow Formlabs' "Jewelry 3D Printing: Basic Design Parameters":
-0.5 mm walls cast but distort slightly; 0.75 mm worked well. Metal specific gravities are
-typical values from jewelers (alloy-dependent), so weights are estimates.
+Wall floors, metal densities and the sprue allowance come from the repo's data/jewelry_tables.json
+(the same file ntopjewel.tables reads, so Python and Blender never disagree): Formlabs' "Jewelry
+3D Printing: Basic Design Parameters" for the walls (0.5 mm casts but distorts slightly, 0.75 mm
+worked well), jewelers' specific-gravity tables for the metals (alloy-dependent, so weights are
+estimates). load_tables() finds the file; without the repo an embedded copy stands in.
 """
 import bpy
 import bmesh
 import math
+import json
+import os
+from pathlib import Path
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
-WALL_MIN_MM = 0.5      # below this: unlikely to cast cleanly
-WALL_GOOD_MM = 0.75    # at or above this: comfortable
-METALS = {             # specific gravity, g/cm^3
-    "Sterling silver": 10.4,
-    "14K yellow gold": 13.07,
-    "14K white gold": 12.6,
-    "18K yellow gold": 15.58,
-    "Bronze": 8.8,
-    "Brass": 8.4,
+_FALLBACK_TABLES = {   # verbatim copy of data/jewelry_tables.json: metals, floors, weight (the test keeps them equal)
+    "metals": {
+        "resin":       {"name": "castable resin (print)", "density_g_cm3": 1.15, "linear_shrink_pct": 0.0, "min_wall_mm": 0.5, "status": "default", "source": "typical castable-resin datasheet density"},
+        "sterling":    {"name": "sterling silver 925", "density_g_cm3": 10.36, "linear_shrink_pct": 1.7, "min_wall_mm": 0.6, "status": "default", "source": "jewelers' specific-gravity tables; alloys vary by supplier"},
+        "fine_silver": {"name": "fine silver 999", "density_g_cm3": 10.49, "linear_shrink_pct": 1.7, "min_wall_mm": 0.6, "status": "default", "source": "jewelers' specific-gravity tables"},
+        "10k_yellow":  {"name": "10k yellow gold", "density_g_cm3": 11.6, "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
+        "14k_yellow":  {"name": "14k yellow gold", "density_g_cm3": 13.1, "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; 13.0-13.4 depending on alloy"},
+        "14k_white":   {"name": "14k white gold", "density_g_cm3": 12.6, "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
+        "18k_yellow":  {"name": "18k yellow gold", "density_g_cm3": 15.6, "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; 15.5-15.9 depending on alloy"},
+        "18k_white":   {"name": "18k white gold", "density_g_cm3": 14.9, "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
+        "platinum":    {"name": "platinum 950", "density_g_cm3": 20.7, "linear_shrink_pct": 1.0, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables"},
+        "palladium":   {"name": "palladium 950", "density_g_cm3": 12.0, "linear_shrink_pct": 1.2, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables"},
+        "bronze":      {"name": "jewelers bronze", "density_g_cm3": 8.8, "linear_shrink_pct": 1.5, "min_wall_mm": 0.7, "status": "default", "source": "jewelers' specific-gravity tables"},
+        "brass":       {"name": "brass", "density_g_cm3": 8.5, "linear_shrink_pct": 1.5, "min_wall_mm": 0.7, "status": "default", "source": "cast yellow brass 8.4-8.7; 8.5 chosen 2026-10-27 to end the 8.4 (Blender) vs 8.5 (Python) split"},
+    },
+    "weight": {
+        "sprue_allowance_fraction": {"value": 0.2, "status": "default", "source": "jewelers cite 15-25 % extra metal for sprue and button"},
+    },
+    "floors": {
+        "wall_marginal":      {"mm": 0.5, "status": "default", "source": "Formlabs 'Jewelry 3D printing: basic design parameters': 0.5 mm walls cast but may distort"},
+        "wall_good":          {"mm": 0.75, "status": "default", "source": "Formlabs: 0.75 mm worked well in cast sterling/gold"},
+        "prong_tip_dia":      {"mm": 0.8, "status": "default", "source": "bench practice"},
+        "bead_dia":           {"mm": 0.5, "status": "default", "source": "bench practice (milgrain / bead-set beads)"},
+        "engrave_depth":      {"mm": 0.25, "status": "default", "source": "bench practice; shallower polishes away"},
+        "engrave_stroke":     {"mm": 0.3, "status": "default", "source": "bench practice; thinner does not fill in casting"},
+        "link_clearance":     {"mm": 0.35, "status": "default", "source": "printed-assembled chain links; resin printer guidance"},
+        "band_min_thickness": {"mm": 1.0, "status": "default", "source": "a thinner band distorts in finishing"},
+        "band_min_width":     {"mm": 1.5, "status": "default", "source": "bench practice"},
+    },
 }
-SPRUE_ALLOWANCE = 0.20  # extra metal for sprue and button (jewelers cite 15-25%)
+
+
+def load_tables():
+    """The engineering tables and where they came from, as (dict, source). Looked for in order:
+    $JEWELRY_FORGE_ROOT/data/jewelry_tables.json, the checkout this file sits in, a Blender text
+    block named jewelry_tables.json (a copy pasted into the .blend), then _FALLBACK_TABLES."""
+    name = "jewelry_tables.json"
+    paths = []
+    root = os.environ.get("JEWELRY_FORGE_ROOT")
+    if root:
+        paths.append(Path(root) / "data" / name)
+    try:
+        paths.append(Path(__file__).resolve().parents[1] / "data" / name)
+    except (NameError, IndexError):        # exec'd from a text block: no __file__, or a bare "/Text"
+        pass
+    for p in paths:
+        if p.is_file():
+            return json.loads(p.read_text(encoding="utf-8")), str(p)
+    try:
+        text = bpy.data.texts.get(name)
+    except AttributeError:                 # no bpy.data here (restricted context, or a stub)
+        text = None
+    if text is not None:
+        return json.loads(text.as_string()), f"Blender text block {name}"
+    return _FALLBACK_TABLES, "embedded copy in jewelry_kit.py"
+
+
+TABLES, TABLES_SOURCE = load_tables()
+WALL_MIN_MM = float(TABLES["floors"]["wall_marginal"]["mm"])    # below this: unlikely to cast cleanly
+WALL_GOOD_MM = float(TABLES["floors"]["wall_good"]["mm"])       # at or above this: comfortable
+_METAL_LABELS = {      # table key -> the name the report prints
+    "sterling": "Sterling silver", "14k_yellow": "14K yellow gold", "14k_white": "14K white gold",
+    "18k_yellow": "18K yellow gold", "bronze": "Bronze", "brass": "Brass",
+}
+METALS = {label: float(TABLES["metals"][key]["density_g_cm3"])  # specific gravity, g/cm^3
+          for key, label in _METAL_LABELS.items()}
+SPRUE_ALLOWANCE = float(TABLES["weight"]["sprue_allowance_fraction"]["value"])   # extra metal for sprue and button
 RING_GROUP = "Ring (parametric)"
 
 

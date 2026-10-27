@@ -145,7 +145,8 @@ def cmd_ring(a: argparse.Namespace) -> int:
         for w in spec.band.warnings():
             print("  warning: " + w)
         if not probs:
-            print(f"  design volume {spec.design_volume_mm3():.2f} mm³; gate expects {spec.gate_expectations()}")
+            exp = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in spec.gate_expectations().items() if not callable(v)}
+            print(f"  design volume {spec.design_volume_mm3():.2f} mm³; gate expects {exp}")
             for k, v in spec.notebook_inputs("<output path>", "<engraving path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0

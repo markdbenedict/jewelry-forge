@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import json
 import math
-import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import catalog, config, engrave, gate, ntopcl, tables
-from .band import BandSpec, MIN_EDGE_THICKNESS
+from . import catalog, config, engrave, gate, ntopcl, runs, tables
+from .band import BandSpec, MIN_EDGE_THICKNESS, design_volume_check
 
 BEAD_CORNER_INSET = 0.15     # bead centre sits this many radii inside the edge corner (both ways): ~55 % of the bead shows
 BEAD_PITCH = 2.2             # centre-to-centre spacing in bead radii
@@ -54,7 +54,7 @@ class RingSpec:
         return self.band.label
 
     @property
-    def stem(self) -> str:
+    def features_tag(self) -> str:
         tags = []
         if self.milgrain:
             tags.append("milgrain")
@@ -62,7 +62,32 @@ class RingSpec:
             tags.append("groove")
         if self.has_engraving:
             tags.append("engraved")
-        return f"ring_{self.band.profile}_{'_'.join(tags) or 'plain'}_{self.label}"
+        return "_".join(tags) or "plain"
+
+    def design(self) -> dict:
+        """Every number that defines this ring (what `spec_id` hashes): the band's design, the
+        feature inputs without the two paths, and the engraving itself (text, side, height,
+        depth, font), which the notebook sees only as a mesh."""
+        d = self.notebook_inputs("", "")
+        d.pop("Output Path")
+        d.pop("Engraving Path")
+        d["profile"] = self.band.profile
+        if self.has_engraving:
+            g = self.engrave_geometry()
+            d["engraving"] = {"text": self.text, "side": self.engrave_side, "height_mm": round(g["height"], 4),
+                              "depth_mm": self.engrave_depth_mm, "font": self.font or engrave.DEFAULT_FONT}
+        return d
+
+    @property
+    def spec_id(self) -> str:
+        return runs.spec_id(self.design())
+
+    @property
+    def stem(self) -> str:
+        """ring_<profile>_<features>_<size>_w<width>_t<thickness>_<spec id>: distinct for every
+        design (a different text or groove depth changes the spec id)."""
+        b = self.band
+        return f"ring_{b.profile}_{self.features_tag}_{self.label}_w{b.width_mm:g}_t{b.thickness_mm:g}_{self.spec_id}"
 
     def bead_geometry(self) -> dict:
         b = self.band
@@ -179,41 +204,86 @@ class RingSpec:
             # beads are solid bumps on a solid band: a ray grazing one measures a chord, not a wall.
             # Measure the band between the bead rows.
             exp["wall_abs_axis_max"] = beads["z"] - beads["radius"] - 0.05
+        if self.has_engraving:
+            exp["wall_ray_filter"] = self.wall_ray_filter()      # no rib-measuring axial rays inside the text
         exp.update({"expect_outer": outer, "expect_width": width})
         return exp
 
-    def engraving_pocket(self, mesh) -> dict:
-        """Is the text cut where the design put it? Counts mesh vertices lying 0.08..depth+0.08 mm
-        below the engraved surface, within the text's height and angular span (centred on +X)."""
+    def _text_span(self):
+        """(half height + margin, half angle + margin) of the engraving, centred on +X / z = 0."""
+        g = self.engrave_geometry()
+        arc = float(self.engraving_info.get("arc_length_mm") or 0.0)
+        if not arc:
+            shape = engrave.text_polygons(self.text, g["height"], self.font)
+            arc = float(shape.bounds[2] - shape.bounds[0])
+        return g["height"] / 2 + 0.1, arc / 2 / g["wrap_radius"] + 0.1
+
+    def _depth_below_surface(self, points, side: str):
+        """How far below the engraved surface each point lies (positive = into the metal)."""
         import numpy as np
+        z = points[:, 2]
+        r = np.hypot(points[:, 0], points[:, 1])
+        if side == "inside":
+            return r - np.array([self.band.bore_radius_at(float(zz)) for zz in z])
+        return np.array([self.band.outer_radius_at(float(zz)) for zz in z]) - r
+
+    def wall_ray_filter(self):
+        """For the thickness check: inside the text span keep only radial rays. An axial ray
+        off a letter's top or bottom wall crosses the rib to the next stroke (0.1-0.4 mm of
+        relief on solid metal) and would be read as a thin wall; the radial rays from the
+        pocket floor still measure the wall left under the engraving, which is the real
+        question there."""
+        import numpy as np
+        if not self.has_engraving:
+            return None
+        half_h, half_a = self._text_span()
+
+        def keep(points, normals):
+            z = points[:, 2]
+            theta = np.arctan2(points[:, 1], points[:, 0])
+            in_span = (np.abs(z) <= half_h) & (np.abs(theta) <= half_a)
+            radial = points.copy()
+            radial[:, 2] = 0.0
+            radial /= np.maximum(np.linalg.norm(radial, axis=1), 1e-9)[:, None]
+            is_radial = np.abs(np.einsum("ij,ij->i", normals, radial)) >= 0.5
+            return ~in_span | is_radial
+        return keep
+
+    def engraving_pocket(self, mesh, samples: int = 40000) -> dict:
+        """Is the text cut where the design put it? Samples the surface and measures the area
+        lying 0.08..depth+0.08 mm below the engraved surface within the text's height and
+        angular span (centred on +X): the pocket's floor and walls. Found when that area is at
+        least half the text's own area (the floor alone would be the text area). The same
+        band of radii elsewhere round the ring must be empty. Area, not vertex count, so a
+        coarse exact mesh and nTop's dense marching-cubes mesh are judged alike."""
+        import numpy as np
+        import trimesh
         if not self.has_engraving:
             return {"checked": False}
         g = self.engrave_geometry()
-        v = mesh.vertices
-        axis = 2
-        z = v[:, axis]
-        r = np.hypot(v[:, 0], v[:, 1])
-        theta = np.arctan2(v[:, 1], v[:, 0])
-        arc = float(self.engraving_info.get("arc_length_mm") or 0.0)
-        half_angle = arc / 2 / g["wrap_radius"] + 0.1
-        in_span = (np.abs(z) <= g["height"] / 2 + 0.1) & (np.abs(theta) <= half_angle)
-
-        def depth(sel):
-            """How far below the engraved surface each selected vertex lies (positive = into the metal)."""
-            if not sel.any():
-                return np.array([])
-            surf = np.array([self.band.bore_radius_at(float(zz)) if g["side"] == "inside" else self.band.outer_radius_at(float(zz))
-                             for zz in z[sel]])
-            return (r[sel] - surf) if g["side"] == "inside" else (surf - r[sel])
-
+        half_h, half_a = self._text_span()
+        pts, _ = trimesh.sample.sample_surface(mesh, samples, seed=np.random.default_rng(3))
+        per_point = float(mesh.area) / samples
+        z = pts[:, 2]
+        theta = np.arctan2(pts[:, 1], pts[:, 0])
         lo, hi = 0.08, self.engrave_depth_mm + 0.08
-        d1 = depth(in_span)
-        hits = int(((d1 > lo) & (d1 < hi)).sum()) if d1.size else 0
-        # the same band of radii elsewhere round the ring must be empty: the pocket is local to the text
-        d2 = depth((np.abs(z) <= g["height"] / 2) & (np.abs(theta) > half_angle + 0.4))
-        stray = int(((d2 > lo) & (d2 < hi)).sum()) if d2.size else 0
-        return {"checked": True, "pocket_vertices": hits, "stray_vertices": stray, "side": g["side"],
-                "found": hits >= 200}
+        in_span = (np.abs(z) <= half_h) & (np.abs(theta) <= half_a)
+        elsewhere = (np.abs(z) <= half_h - 0.1) & (np.abs(theta) > half_a + 0.4)
+        d1 = self._depth_below_surface(pts[in_span], g["side"]) if in_span.any() else np.array([])
+        d2 = self._depth_below_surface(pts[elsewhere], g["side"]) if elsewhere.any() else np.array([])
+        pocket_area = float(((d1 > lo) & (d1 < hi)).sum()) * per_point
+        stray_area = float(((d2 > lo) & (d2 < hi)).sum()) * per_point
+        text_area = float(self.engraving_info.get("cut_volume_mm3") or 0.0) / self.engrave_depth_mm
+        if not text_area:
+            text_area = float(engrave.text_polygons(self.text, g["height"], self.font).area)
+        v = mesh.vertices
+        vz, vr, vt = v[:, 2], np.hypot(v[:, 0], v[:, 1]), np.arctan2(v[:, 1], v[:, 0])
+        vsel = (np.abs(vz) <= half_h) & (np.abs(vt) <= half_a)
+        vd = self._depth_below_surface(v[vsel], g["side"]) if vsel.any() else np.array([])
+        return {"checked": True, "side": g["side"], "text_area_mm2": round(text_area, 3),
+                "pocket_area_mm2": round(pocket_area, 3), "stray_area_mm2": round(stray_area, 3),
+                "pocket_vertices": int(((vd > lo) & (vd < hi)).sum()) if vd.size else 0,
+                "found": pocket_area >= 0.5 * text_area and stray_area <= 0.2 * text_area}
 
     def design_volume_mm3(self, step: float = 0.005) -> float:
         """Band design volume + the beads' protruding parts - the groove - the engraving cut."""
@@ -276,15 +346,23 @@ class RingResult:
     run: ntopcl.RunResult
     gate: gate.GateReport
     ntop_volume_mm3: float | None
+    run_dir: Path | None = None
+    run_id: str = ""
     delivered: Path | None = None
     notes: list[str] = field(default_factory=list)
 
     @property
+    def status(self) -> str:
+        """PASSED / FAILED / INCOMPLETE: the nTop run and every hard gate check."""
+        return runs.status_of(self.run.ok, self.gate)
+
+    @property
     def ok(self) -> bool:
-        return self.run.ok and self.gate.passed
+        return self.status == gate.PASSED
 
     def text(self) -> str:
-        lines = [self.spec.describe(), self.run.summary(), self.gate.text()]
+        lines = [self.spec.describe(), self.run.summary(), self.gate.text(),
+                 f"  status: {self.status.upper()}  run {self.run_dir}"]
         if self.delivered:
             lines.append(f"  delivered to {self.delivered}")
         lines += [f"  note: {n}" for n in self.notes]
@@ -292,26 +370,23 @@ class RingResult:
 
 
 def check_mesh(spec: RingSpec, stl: Path, ntop_vol: float | None, info: dict) -> tuple[gate.GateReport, list[str]]:
-    """The mesh gate with this ring's expectations, the engraving-pocket check and the
-    design-volume cross-check; shared by the nTopCL run and the GUI preview."""
+    """The mesh gate with this ring's expectations plus the two checks only the builder can
+    add: `engraving` (the pocket is really there) and `design volume` (nTop against the
+    independent design arithmetic; INCOMPLETE when nTop reported no volume). Shared by the
+    nTopCL run and the GUI preview."""
     rep = gate.check(stl, expect_volume=ntop_vol, **spec.gate_expectations())
     notes = []
     if spec.has_engraving:
         pocket = spec.engraving_pocket(gate.load_mesh(stl))
         rep.checks.append(gate.Check("engraving", pocket["found"],
-                                     f"{pocket['pocket_vertices']} mesh vertices in the {pocket['side']} pocket"
-                                     + (f"; {pocket['stray_vertices']} stray" if pocket["stray_vertices"] else "")
+                                     f"{pocket['pocket_area_mm2']:.1f} mm² of pocket on the {pocket['side']} for "
+                                     f"{pocket['text_area_mm2']:.1f} mm² of text ({pocket['pocket_vertices']} vertices)"
+                                     + (f"; {pocket['stray_area_mm2']:.1f} mm² stray" if pocket["stray_area_mm2"] > 0.05 else "")
                                      + ("" if pocket["found"] else " - the text did not cut (wrong side, units or wrap length?)")))
         notes.append(f"engraving {spec.text!r} on the {spec.engrave_side}: {info['arc_length_mm']:.1f} mm long, "
                      f"thinnest stroke {info['stroke_mm']:.2f} mm, cut volume ~{info['cut_volume_mm3']:.1f} mm³")
-    if ntop_vol is None:
-        notes.append("nTop volume not reported; volume not cross-checked.")
-    else:
-        design = spec.design_volume_mm3()
-        dev = (ntop_vol - design) / design * 100
-        tol = 3.0 if (spec.milgrain or spec.has_engraving) else 2.0
-        verdict = "matches the design" if abs(dev) <= tol else "DIFFERS from the design - check the notebook"
-        notes.append(f"nTop volume {ntop_vol:.2f} mm³ vs design {design:.2f} mm³ ({dev:+.2f} %): {verdict}")
+    tol = 3.0 if (spec.milgrain or spec.has_engraving) else 2.0
+    rep.checks.append(design_volume_check(spec.design_volume_mm3(), ntop_vol, tol))
     return rep, notes
 
 
@@ -323,34 +398,39 @@ def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None 
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
     out_dir = Path(out_dir) if out_dir else config.out_dir() / "ring"
-    out_dir.mkdir(parents=True, exist_ok=True)
     stem = spec.stem
-    stl = (out_dir / f"{stem}.stl").resolve()
-    engraving = (out_dir / f"{stem}.engraving.stl").resolve()
+    run_dir, run_id = runs.fresh_run_dir(out_dir, stem)      # nothing from an earlier run can be mistaken for this one
+    stl = run_dir / f"{stem}.stl"
+    engraving = run_dir / f"{stem}.engraving.stl"
     info = spec.write_engraving(engraving)
 
     inputs = cat.build_inputs(spec.notebook_inputs(str(stl), str(engraving)))
-    run = ntopcl.run(nb, inputs, out_dir, tag=stem)
-    if not stl.exists():
-        raise ntopcl.NtopclError(f"notebook reported success but {stl} was not written", run)
+    started = time.time()
+    run = ntopcl.run(nb, inputs, run_dir, tag=stem)
+    try:
+        runs.require_fresh(stl, started, "the exported mesh")
+    except FileNotFoundError as e:
+        raise ntopcl.NtopclError(f"notebook reported success but {e}", run) from e
 
     vol_entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(vol_entry) if vol_entry else None
     rep, notes = check_mesh(spec, stl, ntop_vol, info)
-    result = RingResult(spec, stl, run, rep, ntop_vol)
+    result = RingResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     result.notes += spec.band.warnings() + notes
 
-    if deliver and result.ok:
-        dest = config.deliver_dir() / deliver_project
-        dest.mkdir(parents=True, exist_ok=True)
-        result.delivered = Path(shutil.copy2(stl, dest / stl.name))
-
-    (out_dir / f"{stem}.report.json").write_text(json.dumps({
+    report = {
+        "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
         "band": spec.band.__dict__, "features": {k: v for k, v in spec.__dict__.items() if k not in ("band", "engraving_info")},
-        "engraving": info, "inputs": spec.notebook_inputs(str(stl), str(engraving)), "stl": str(stl), "ok": result.ok,
-        "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "ntopcl_seconds": run.seconds,
-        "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
-    }, indent=2, default=str), encoding="utf-8")
+        "design": spec.design(), "engraving": info, "inputs": spec.notebook_inputs(str(stl), str(engraving)), "stl": str(stl),
+        "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(), "gate": rep.to_dict(),
+        "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
+        "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()),
+    }
+    (run_dir / f"{stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    if deliver and result.ok:
+        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report, extra_files=[engraving])
+    elif deliver:
+        result.notes.append(f"not delivered: status {result.status}")
     return result
 
 

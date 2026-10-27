@@ -2,8 +2,9 @@
 
 Parametric jewelry for resin printing and investment casting. nTop builds the geometry
 headlessly (nTopCL), a Python package drives it and checks every export, Blender keeps the
-organic sculpting and the silver product shot. Owner: Mark. Plan of record:
-"nTop Jewelry Skills — Development Plan" (claude.ai doc).
+organic sculpting and the silver product shot. Owner: Mark. Plan of record: `docs/plan.md`
+(phases, gates, what exists, limitations, the next milestone, the real-check list); the
+claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative companion.
 
 ## Conventions that must never drift
 
@@ -17,8 +18,12 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   computes radii and passes millimetres.
 - **Minimum walls (resin print + casting):** 0.5 mm marginal, 0.75 mm good. Prong tips
   ≥ 0.8 mm diameter, milgrain beads ≥ 0.5 mm, engraving ≥ 0.25 mm deep with ≥ 0.3 mm
-  strokes, moving chain links ≥ 0.35 mm clearance. Floors live in `ntopjewel/tables.py`;
-  change them there, not in notebooks or skills.
+  strokes, moving chain links ≥ 0.35 mm clearance. **Every engineering number - floors, metal
+  densities, shrink, casting defaults, the sprue allowance - lives in
+  `data/jewelry_tables.json`**, read by `ntopjewel.tables` and by `blender/jewelry_kit.py`
+  (which carries an embedded copy a test keeps identical). Each entry says whether it is a
+  `default` or `calibrated` (with a dated `calibration_log` entry); change numbers there,
+  never in notebooks, skills or scripts.
 - **One Output per notebook, and it is the volume** in mm³ - a Volume Integral of the
   constant 1 over the body (API-built notebooks; needs no density or unit), or Mass
   Properties' volume (GUI-built Phase 0). Files come out of Export Mesh / Export 3MF blocks
@@ -46,11 +51,25 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   look at one in nTop, `ring ... --show` rebuilds the notebook with that ring's values in the
   open session (saved under `out\api\preview\`), or import the STL.
 - **Run the mesh gate after every export** (`ntopjewel gate <file.stl> --expect ...`).
-  Nothing is reported as finished until the gate passes. The wall check casts rays only
-  along radial/axial directions (letter walls and bead seams measure ribs and slivers, not
-  walls) and, for beaded rings, only between the bead rows.
-- Deliverables (STL/3MF for printing) are copied to Mark's `OneDrive\Documents\Jewelry\<project>`
-  folder, one file per size/variant; `out/` is scratch and git-ignored.
+  Every check has a status - PASSED, FAILED or **INCOMPLETE** (it could not be measured: no
+  rays came back, nTop reported no volume) - and a part's status is PASSED only when the
+  nTop run succeeded and every hard check PASSED; INCOMPLETE is not a pass. The mandatory
+  checks for a band or ring: watertight, winding, one shell, wall thickness, inner/outer Ø,
+  width, volume (mesh vs nTop), **design volume (nTop vs the independent arithmetic in
+  Python - the only check that catches a notebook building the wrong section)** and, when
+  engraved, the pocket. The wall check casts rays only along radial/axial directions (letter
+  walls and bead seams measure ribs and slivers, not walls), only between the bead rows, and
+  not axially inside an engraving's span. Nothing is reported as finished until the status
+  is PASSED.
+- **Every variant and run has a distinct identity.** A stem is
+  `ring_band_<profile>_<size>_w<width>_t<thickness>_<spec id>` (rings: `ring_<profile>_<features>_…`),
+  the spec id being a hash of every number that defines the design, so two designs never share
+  a file. Every run writes into a fresh `out\<family>\<stem>\<run id>\` directory and the
+  export must have been written by that run (`runs.require_fresh`). The report JSON records
+  the inputs, the notebook's sha256 and recipe, and the tool versions.
+- Deliverables go to Mark's `OneDrive\Documents\Jewelry\<project>\<stem>\` only when the status
+  is PASSED (`--deliver`; `runs.deliver` refuses anything else): the STL with the input JSON,
+  the gate and build reports and `manifest.json`. `out/` is scratch and git-ignored.
 
 ## nTopCL rules (verified 2026-10-25 on nTop 6.3.3, cloud licence, Mark's laptop)
 
@@ -156,16 +175,20 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 | `ntop/packages/` | `manifest.json` + README per block, nTop community-package layout |
 | `ntop/ntop-beta-feedback.md` | What the Notebook API beta did and did not do for us, for nTop |
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, Notebook API client + `nb_jewel` build helpers, band/features specs, engraving meshes, CLI |
-| `python/tests/` | pytest; offline by default, nTop runs are marked `slow` |
-| `blender/` | `jewelry_kit.py`, `photo.py` and the organic projects (pear rose ring, monstera band) |
-| `out/` | Scratch output, git-ignored |
+| `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
+| `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers, band/features specs, engraving meshes, CLI |
+| `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
+| `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
+| `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
+| `blender/` | `jewelry_kit.py`, `photo.py`, `forge_paths.py` (repo-relative paths, `JEWELRY_OUT`), the organic projects (pear rose ring; monstera band with its pure `leaf_design.py`) |
+| `out/` | Scratch output, git-ignored: `out\<family>\<stem>\<run id>\` per run, `out\api\` for API builds, `out\blender\` for the Blender scripts |
 
 ## Commands
 
 ```powershell
 # one-time
-.\scripts\bootstrap.ps1          # venv, pip install -e python/, checks ntopcl, runs tests
+.\scripts\bootstrap.ps1          # venv, pip install -e python/ -c python/constraints.txt (pinned set), checks ntopcl, runs tests
 .\scripts\setup-ntop-console.ps1 # SSH key for nTop's Python Console (Notebook API) + Documents\nTopScripts
 # every day
 .\.venv\Scripts\Activate.ps1
@@ -178,11 +201,11 @@ python -m ntopjewel api build band_profile --dry-run                 # driver to
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
 python -m ntopjewel templates ntop\notebooks\ring_band_profile.ntop --catalog ring_band_profile
-python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round
+python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round; files land in out\band\<stem>\<run id>\
 python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
-python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring
+python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring   # --deliver copies a PASSED part + evidence to the Jewelry folder
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
-python -m ntopjewel gate out\band\ring_band_court_US6.stl --expect-inner 16.51 --expect-width 4
+python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop
 ```

@@ -23,9 +23,13 @@ python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --e
 ```
 
 Band options are the same as `band` (`--profile`, `--width`, `--thickness`, `--dome`, `--comfort`,
-`--edge-round`, `--allowance`, `--tolerance`, `--system`). Output: `out\ring\ring_<profile>_<features>_<label>.stl`
-plus `<stem>.engraving.stl`, `<stem>.report.json`, the nTopCL log; `--deliver` copies a passing
-STL to `OneDrive\Documents\Jewelry\Rings`.
+`--edge-round`, `--allowance`, `--tolerance`, `--system`). Output: a fresh run directory
+`out\ring\<stem>\<run id>\` with `<stem>.stl`, `<stem>.engraving.stl`, the input JSON, the
+nTopCL log, `<stem>.gate.json` and `<stem>.report.json`, where the stem is
+`ring_<profile>_<features>_<label>_w<width>_t<thickness>_<spec id>` (the spec id hashes every
+input and the engraving text/side/depth, so no two designs share a file). `--deliver` copies
+a **PASSED** part with that evidence and a `manifest.json` to
+`OneDrive\Documents\Jewelry\Rings\<stem>\`; FAILED or INCOMPLETE parts are never delivered.
 
 **Seeing a ring in nTop.** A `ring` run is headless: nTopCL reads the notebook, takes the
 inputs from JSON and writes the STL; no notebook ever holds a particular ring. `--show`
@@ -56,15 +60,21 @@ through an Import Mesh block, which is quicker when only the mesh matters.
   inside. Checks: depth ≥ 0.25, thinnest stroke ≥ 0.3 mm at the chosen height, ≥ 0.5 mm wall
   left at the text's edge, text shorter than 90 % of the circumference. The cut is `depth`
   deep at the text's top and bottom and a little deeper mid-height on a curved face.
-- The report's last note compares nTop's volume with the design volume (band + exposed bead
-  volume − groove − text area x depth); ±3 % with features, ±2 % plain.
+- `design volume` is a hard gate check: nTop's volume against the design volume (band +
+  exposed bead volume − groove − text area x depth), ±3 % with features, ±2 % plain;
+  INCOMPLETE when nTop reports no volume. The simulated nTop in the tests builds this exact
+  geometry (section, beads, groove, cut text) and passes it; told to build a flat annulus
+  instead, it fails here and only here (+17 %).
 - Gate with features: the wall-thickness rays sample only |z| ≤ bead z − bead radius − 0.05
   (beads are solid bumps; a ray grazing one measures a chord, which failed the first run at
   p1 0.448 mm) and only along radial or axial directions (a ray off a letter's side wall runs
   through the 0.3 mm rib between strokes - a ridge on solid metal, not a wall - and read p1
-  0.28 mm on the second run); the outer Ø expectation takes the groove into account; an
-  `engraving` check counts mesh vertices in the pocket on the right side and at the right
-  angle (≥ 200 = found; 12,953 on the first engraved ring).
+  0.28 mm on the second run) and, inside the text's span, only radially (a letter's top or
+  bottom wall measures the rib to the next stroke); the outer Ø expectation takes the groove
+  into account; the `engraving` check samples the surface and measures the area 0.08..depth+0.08 mm
+  below the engraved face within the text's height and angle: found when it is at least half
+  the text's own area (floor + walls come to ~2.5 x on a real ring), and the same band of
+  radii elsewhere must be empty.
 
 ## Inputs (catalog/ring_features.yaml, 23)
 
@@ -86,5 +96,6 @@ note catch a wrong unit).
 
 ## Report back
 
-The gate text, the engraving note (length, thinnest stroke) and the design-volume note, plus
-where the STL went. A FAIL is a FAIL; never deliver one.
+The gate text with its `status:` line (PASSED / FAILED / INCOMPLETE), the engraving note
+(length, thinnest stroke) and where the run directory and any delivery are. A FAIL is a
+FAIL and INCOMPLETE is not a pass; neither is delivered.

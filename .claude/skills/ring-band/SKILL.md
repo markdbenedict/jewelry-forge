@@ -6,11 +6,12 @@ description: Build ring bands with nTop through ntopjewel - size (US/UK/ISO/mm),
 # ring-band
 
 **Status.** Phase 0 notebook `ring_band.ntop` (flat band) passed its gate on 2026-10-25.
-Phase 1 notebook `ring_band_profile.ntop` (dome, comfort bore, rounded edges) is authored
+Phase 1 notebook `ring_band_profile.ntop` (dome, comfort bore, rounded edges) was authored
 by `python -m ntopjewel api build band_profile` (the script `ntop/recipes/band_profile.py`,
-through the Notebook API; `band-profile.md` is the GUI fallback). If `python -m ntopjewel
-doctor` does not list the profile notebook yet, build it that way first (nTop open, View >
-Python Console open); do not improvise a notebook.
+through the Notebook API; `band-profile.md` is the GUI fallback) and all five profiles
+passed the gate on 2026-10-27; it is committed in `ntop/notebooks/`. If `python -m ntopjewel
+doctor` does not list it, build it that way first (nTop open, View > Python Console open);
+do not improvise a notebook.
 
 ## Make bands
 
@@ -45,22 +46,37 @@ dome on a wide band can give a dome torus with ring radius <= 0, which nTop may 
 ## What Python decides vs the notebook
 
 Python: inner diameter from `tables.inner_diameter_mm(size, system)` + allowance, radii,
-z = ±W/2, both torus radii, edge offsets, file name `ring_band_<profile>_<label>.stl`,
-gate expectations (inner/outer Ø and width ± 0.05 mm, volume ± 2 % vs nTop, wall floor =
-min(0.5 mm, 0.8 x designed edge thickness)). Notebook: one intersect (band, dome torus, comfort torus), two offsets,
-Mass Properties, mesh, export. Inputs are listed in `catalog/ring_band_profile.yaml`.
+z = ±W/2, both torus radii, edge offsets, the stem
+`ring_band_<profile>_<label>_w<width>_t<thickness>_<spec id>` (the spec id hashes every
+input, so a different dome, edge round, allowance or tolerance is a different file), the
+design volume (Pappus over the opened section), gate expectations (inner/outer Ø and width
+± 0.05 mm, volume ± 2 % vs nTop, **design volume ± 2 % vs nTop**, wall floor = min(0.5 mm,
+0.8 x designed edge thickness)). Notebook: one intersect (band, dome torus, comfort torus),
+two offsets, Volume Integral, mesh, export. Inputs are listed in `catalog/ring_band_profile.yaml`.
+
+## Where the files go
+
+Every run gets a fresh directory `out\band\<stem>\<run id>\` holding the STL, the input JSON,
+the nTopCL log, `<stem>.gate.json` and `<stem>.report.json` (inputs, notebook sha256, versions,
+status). Nothing is overwritten and an export left by an earlier run cannot pass for this
+one. `--deliver` copies a **PASSED** part with all of that and a `manifest.json` to
+`OneDrive\Documents\Jewelry\<project>\<stem>\`; a FAILED or INCOMPLETE part is never delivered
+(the note says `not delivered: status ...`).
 
 ## Report back
 
-Paste the gate text (PASS/FAIL, inner Ø, outer Ø, width, wall, volume, weights, each
-check) and where the STL went. A FAIL is reported as a FAIL with the failing check named;
-never deliver a failing file. Mesh density: 0.1 mm tolerance is the default; 0.05 mm
-quadruples the triangles and is only for final files with fine detail.
+Paste the gate text (PASS / FAIL / INCOMPLETE, inner Ø, outer Ø, width, wall, volume,
+weights, each check), the `status:` line and where the files went. INCOMPLETE means a
+mandatory measurement could not be made (no volume from nTop, no thickness rays) - it is
+not a pass. A FAIL is reported as a FAIL with the failing check named; a failing `design
+volume` means the notebook built the wrong section, however good the dimensions look. Mesh
+density: 0.1 mm tolerance is the default; 0.05 mm quadruples the triangles and is only for
+final files with fine detail.
 
 ## Floors and defaults
 
-Width 4 mm, thickness 1.3 mm. Thickness floor 1.0 mm, width floor 1.5 mm (`tables.FLOORS`).
-Wide bands (> 6 mm) get +¼ size; see `jewelry-design-rules`.
+Width 4 mm, thickness 1.3 mm. Thickness floor 1.0 mm, width floor 1.5 mm (`tables.FLOORS`,
+from `data/jewelry_tables.json`). Wide bands (> 6 mm) get +¼ size; see `jewelry-design-rules`.
 
 ## Next in this family
 

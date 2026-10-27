@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ntopjewel"
-version = "0.2.0"
+version = "0.3.0"
 description = "Drive nTop (nTopCL) to build parametric jewelry, and gate every export before it is called done."
 requires-python = ">=3.10"
 dependencies = [
@@ -21,7 +21,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    "manifold3d>=3.0",   # boolean engine for the simulated nTop in the tests (tests/fake_ntopcl.py)
+]
 
 [project.scripts]
 ntopjewel = "ntopjewel.cli:main"

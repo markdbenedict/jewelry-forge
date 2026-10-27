@@ -1,6 +1,18 @@
-import bpy, math
+r"""Top view of the size-6 ring in test_ring.py's test.blend, lit like test_ring's own renders, to
+compare the leaf layout between builds.
+
+    blender -b -P blender\monstera\compare_top.py
+
+Opens <out>\test.blend and writes <out>\m_top6.png; <out> is %JEWELRY_OUT%\blender\monstera when
+JEWELRY_OUT is set, else <repo>\out\blender\monstera.
+"""
+import bpy, math, sys
+from pathlib import Path
 from mathutils import Vector
-bpy.ops.wm.open_mainfile(filepath='/home/claude/monstera/out/test.blend')
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # blender/, for forge_paths
+import forge_paths
+OUT = forge_paths.out_dir("blender", "monstera")
+bpy.ops.wm.open_mainfile(filepath=str(OUT / "test.blend"))
 scene = bpy.context.scene
 for o in list(scene.objects):
     if o.type in ('LIGHT', 'CAMERA'): bpy.data.objects.remove(o)
@@ -15,5 +27,5 @@ r = scene.render; r.engine = 'CYCLES'; scene.cycles.samples = 48; scene.cycles.u
 r.resolution_x, r.resolution_y = 1100, 800
 ring = bpy.data.objects["Monstera ring US 6"]
 cam.location = Vector((34.01, -0.01, 72)); cam.rotation_euler = (Vector((34, 0, 10)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
-r.filepath = '/home/claude/monstera/out/m_top6.png'; bpy.ops.render.render(write_still=True)
+r.filepath = str(OUT / "m_top6.png"); bpy.ops.render.render(write_still=True)
 print("ok")

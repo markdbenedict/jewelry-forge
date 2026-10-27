@@ -16,7 +16,7 @@ geometry; the script wins when the two disagree.
 | `band-primitive.md` | `ntop/notebooks/ring_band.ntop` (flat band, hello band) | 0 | built by Mark in the GUI 2026-10-25; gate passed |
 | `band_profile.py` | `ntop/notebooks/ring_band_profile.ntop` (dome, comfort bore, rounded edges) | 1 | **verified 2026-10-27**: built through the API (16 blocks e_OK), nTopCL run clean, gate PASS (US6 court: inner Ø 16.507, volume 245.6 mm³ = design +0.7 %) |
 | `band-profile.md` | same notebook, GUI route | 1 | superseded by `band_profile.py`; fallback only |
-| `ring_features.py` | `ntop/notebooks/ring_features.ntop` (band + milgrain + groove + wrapped engraving; 23 inputs) | 1 | API build clean and first nTopCL run clean 2026-10-27 (volume 246.6 vs design 246.1 mm³ with all three features); gate re-run pending after the bead-aware thickness fix |
+| `ring_features.py` | `ntop/notebooks/ring_features.ntop` (band + milgrain + groove + wrapped engraving; 23 inputs) | 1 | **verified 2026-10-27**: API build clean (55 blocks e_OK), nTopCL runs clean, gate PASS at US6 and US4.5 with all three features (volume within 0.2 % of design, pocket found); `ring --show` previews any ring in the GUI. Notebook still to be saved into `ntop/notebooks/` and committed |
 | `discover.py` | nothing saved: digest of this nTop's block identifiers, input names and variable behaviour (`out/api/discover.result.json`) | — | run first on a new nTop build or when an identifier lookup fails |
 
 Rules:

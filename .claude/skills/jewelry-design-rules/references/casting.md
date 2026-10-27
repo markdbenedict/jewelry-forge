@@ -11,7 +11,7 @@ Two workflows, both to be supported:
    flask fit with ≥ 6 mm to the wall and ≥ 12 mm investment above) and a check against
    the printer's build volume as well as the flask.
 
-Per-metal defaults live in `python/ntopjewel/tables.py` (`METALS`, `CASTING`). The first
+Per-metal defaults live in `data/jewelry_tables.json` (read as `tables.METALS`, `tables.CASTING`; each entry carries its status and source). The first
 two casts are experiments: measure finished ring size vs. model, weight vs. the report,
 and note where metal failed to fill; update the tables with a dated note.
 

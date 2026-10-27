@@ -6,8 +6,9 @@ description: Design rules and reference numbers for rings, settings, pendants, b
 # Jewelry design rules (jewelry-forge)
 
 Numbers are starting defaults from the Formlabs jewelry guidance used for the pear ring
-and from bench practice; measured values replace them in `python/ntopjewel/tables.py`
-with a dated note. Quote the table, not memory.
+and from bench practice; measured values replace them in `data/jewelry_tables.json` (one file for Python and
+Blender; each entry is marked `default` or `calibrated`, with a dated `calibration_log`
+entry). Quote the table, not memory.
 
 ## Ring sizing
 

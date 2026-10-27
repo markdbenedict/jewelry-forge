@@ -1,10 +1,25 @@
-import sys, math, types, numpy as np
-src = open('monstera_ring.py').read()
-head = src[:src.index("# ----------------------------------------------------------------------------- 3-D construction")]
-head = head.replace("import bpy, bmesh, math, sys", "import math, sys").replace("from mathutils import Vector", "")
-m = types.ModuleType("mr"); exec(head, m.__dict__)
+r"""Twelve random monstera leaves on one sheet - outline, slits, holes, veins and the yaw line - so
+the leaf design can be judged without Blender. Plain Python: numpy, shapely, matplotlib.
+
+    python blender\monstera\gallery.py [--out folder]
+
+Writes gallery.png into --out, else %JEWELRY_OUT%\blender\monstera when JEWELRY_OUT is set, else
+<repo>\out\blender\monstera, and prints the smallest web (cut to cut, or hole to leaf edge) across
+the twelve leaves; the cuts must keep at least LEAF["min_web"] (0.40 mm) between them to cast.
+"""
+import argparse, math, sys
+from pathlib import Path
+import numpy as np
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # blender/, for forge_paths
+import forge_paths
+forge_paths.add_to_sys_path("monstera")
+import leaf_design as m
 from shapely.geometry import Polygon, LineString
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+ap.add_argument("--out", type=Path, default=None, help="output folder (default: <JEWELRY_OUT or repo/out>/blender/monstera)")
+out = ap.parse_args().out or forge_paths.out_dir("blender", "monstera")
+out.mkdir(parents=True, exist_ok=True)
 rng = np.random.default_rng(11 * 1000 + 20)
 fig, axes = plt.subplots(3, 4, figsize=(16, 10))
 worst = 9
@@ -35,5 +50,6 @@ for ax, k in zip(axes.ravel(), range(12)):
     ax.set_aspect("equal"); ax.set_xlim(-0.5, 11.3); ax.set_ylim(-4.4, 4.4); ax.grid(alpha=0.2)
     ax.set_title(f"L {p['length']:.1f}  W {p['width']:.1f}  slits {len(p['slits'][1])}/{len(p['slits'][-1])}  "
                  f"holes {len(p['holes'][1])}/{len(p['holes'][-1])}  yaw {math.degrees(p['yaw']):+.0f}°", fontsize=9)
-plt.tight_layout(); plt.savefig('/home/claude/monstera/gallery.png', dpi=100)
+plt.tight_layout(); plt.savefig(out / "gallery.png", dpi=100)
 print("worst web across 12 leaves: %.3f mm" % worst)
+print(f"wrote {out / 'gallery.png'}")

@@ -1,0 +1,33 @@
+name: offline tests
+
+# The offline suite on every push and pull request: no nTop, no Blender, no licence. It runs
+# the simulated nTop (python/tests/fake_ntopcl.py), the mesh gate, the Notebook API client
+# against the fake notebook, and the Blender modules against stubbed bpy. What it cannot
+# establish (a real nTopCL run, a real GUI build, a render) is listed in docs/plan.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: python/constraints.txt
+      - name: install (pinned set)
+        run: python -m pip install -e "./python[dev]" -c python/constraints.txt
+      - name: doctor
+        run: python -m ntopjewel doctor
+      - name: offline suite
+        run: python -m pytest python/tests -q

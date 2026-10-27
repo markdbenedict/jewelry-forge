@@ -4,8 +4,14 @@ Checks (same for every product, from CLAUDE.md):
   * watertight, consistent winding, expected number of shells
   * ring metrics: axis, inner and outer diameter, width, against expectations (±0.05 mm)
   * wall thickness by ray casting from sampled surface points, against the material floor
-  * volume: against nTop's Mass Properties figure (±2 %) and an analytic figure when given
+  * volume: against nTop's figure (±2 %); the product builders add "design volume" (nTop
+    against the independent design arithmetic) and, for engraved rings, "engraving"
   * weights per alloy from the volume
+
+Every check has a status: PASSED, FAILED or INCOMPLETE (it could not be measured - no rays
+came back, nTop reported no volume). A report is `passed` only when every hard check PASSED;
+an INCOMPLETE hard check makes the report INCOMPLETE, which is not a pass and never delivers
+(2026-10-27 review: "unmeasured wall thickness was advisory and allowed an overall pass").
 
 Ported from `blender/jewelry_kit.py: check_model` so it runs without Blender (trimesh).
 """
@@ -22,6 +28,7 @@ import trimesh
 from . import tables
 
 AXES = ("x", "y", "z")
+PASSED, FAILED, INCOMPLETE = "passed", "failed", "incomplete"
 
 
 @dataclass
@@ -30,6 +37,21 @@ class Check:
     ok: bool
     detail: str
     hard: bool = True
+    status: str = ""          # PASSED / FAILED / INCOMPLETE; derived from `ok` when not given
+
+    def __post_init__(self):
+        self.ok = bool(self.ok)                  # a numpy bool would not serialise
+        if self.status == INCOMPLETE:
+            self.ok = False
+        elif self.status not in (PASSED, FAILED):
+            self.status = PASSED if self.ok else FAILED
+        else:
+            self.ok = self.status == PASSED
+
+
+def incomplete(name: str, detail: str, hard: bool = True) -> Check:
+    """A mandatory measurement that could not be made."""
+    return Check(name, False, detail, hard, INCOMPLETE)
 
 
 @dataclass
@@ -53,17 +75,37 @@ class GateReport:
     checks: list[Check] = field(default_factory=list)
 
     @property
+    def status(self) -> str:
+        """FAILED if any hard check failed, else INCOMPLETE if any hard check could not be
+        measured, else PASSED. Advisory (hard=False) checks never change it."""
+        hard = [c for c in self.checks if c.hard]
+        if any(c.status == FAILED for c in hard):
+            return FAILED
+        if any(c.status == INCOMPLETE for c in hard):
+            return INCOMPLETE
+        return PASSED
+
+    @property
     def passed(self) -> bool:
-        return all(c.ok for c in self.checks if c.hard)
+        return self.status == PASSED
+
+    @property
+    def incomplete(self) -> bool:
+        return self.status == INCOMPLETE
+
+    def failures(self) -> list[Check]:
+        return [c for c in self.checks if c.hard and c.status != PASSED]
 
     def to_dict(self) -> dict:
         d = asdict(self)
+        d["status"] = self.status
         d["passed"] = self.passed
         return d
 
     def text(self) -> str:
         p = Path(self.path)
-        lines = [f"{'PASS' if self.passed else 'FAIL'}  {p.name}",
+        word = {PASSED: "PASS", FAILED: "FAIL", INCOMPLETE: "INCOMPLETE"}[self.status]
+        lines = [f"{word}  {p.name}",
                  f"  {self.triangles:,} tris, {self.vertices:,} verts, shells {self.shells}, "
                  f"watertight {self.watertight}, winding ok {self.winding_consistent}"
                  + (", normals were flipped" if self.normals_flipped else ""),
@@ -81,7 +123,12 @@ class GateReport:
         if self.weights_g:
             lines.append("  weight: " + ", ".join(f"{k} {v:.2f} g" for k, v in self.weights_g.items()))
         for c in self.checks:
-            mark = "ok " if c.ok else ("FAIL" if c.hard else "warn")
+            if c.status == PASSED:
+                mark = "ok  "
+            elif not c.hard:
+                mark = "warn"
+            else:
+                mark = "FAIL" if c.status == FAILED else "INC "
             lines.append(f"  [{mark}] {c.name}: {c.detail}")
         return "\n".join(lines)
 
@@ -106,7 +153,7 @@ def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None) -> tuple[str, f
 
 def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.5,
                    seed: int = 7, zone: tuple[int, float] | None = None, axis: int | None = None,
-                   min_alignment: float = 0.5) -> dict:
+                   min_alignment: float = 0.5, ray_filter=None) -> dict:
     """Ray-cast thickness: from points on the surface, shoot inward and measure to the exit.
 
     `zone` = (axis index, abs max): sample only surface points with |coord[axis]| <= abs max.
@@ -119,7 +166,11 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
     wall is measured in: the band wall, a pocket or groove floor, the faces. A ray leaving a
     letter's side wall runs sideways through the rib between two strokes - a 0.3 mm ridge on
     a solid band, not a wall - and a ray off a union seam exits through a sliver facet; both
-    read as "thin" without this filter (seen 2026-10-27: p1 0.28 mm on a sound ring)."""
+    read as "thin" without this filter (seen 2026-10-27: p1 0.28 mm on a sound ring).
+
+    `ray_filter(points, normals) -> bool array`: the product's own exclusions, applied last
+    (an engraved ring drops the axial rays inside its text span: a letter's top wall measures
+    the rib to the next stroke, not a wall - seen on the simulated ring, p1 0.25 mm)."""
     if samples <= 0:
         return {}
     fast = ray_backend(mesh) == "embree"
@@ -132,7 +183,8 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
             samples = cap
         note = "embreex not installed: pure-python ray backend, sample reduced"
     rng = np.random.default_rng(seed)
-    pts, fidx = trimesh.sample.sample_surface(mesh, samples * 4 if (zone is not None or axis is not None) else samples, seed=rng)
+    oversample = 4 if (zone is not None or axis is not None or ray_filter is not None) else 1
+    pts, fidx = trimesh.sample.sample_surface(mesh, samples * oversample, seed=rng)
     normals = mesh.face_normals[fidx]
     excluded = {}
     keep = np.ones(len(pts), dtype=bool)
@@ -153,6 +205,10 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
         aligned = (rad >= min_alignment) | (axial >= min_alignment)
         excluded["tangential"] = int((~aligned & keep).sum())
         keep &= aligned
+    if ray_filter is not None:
+        wanted = np.asarray(ray_filter(pts, normals), dtype=bool)
+        excluded["product_filter"] = int((~wanted & keep).sum())
+        keep &= wanted
     pts, fidx, normals = pts[keep][:samples], fidx[keep][:samples], normals[keep][:samples]
     samples = len(pts)
     if samples == 0:
@@ -203,7 +259,7 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
           tol_mm: float = 0.05, tol_volume_pct: float = 2.0, shells: int = 1,
           wall_floor: float = tables.FLOORS["wall_marginal"], wall_samples: int = 4000,
           axis: str | None = None, metals=tables.DEFAULT_WEIGHT_METALS,
-          write_report: bool = True, wall_abs_axis_max: float | None = None) -> GateReport:
+          write_report: bool = True, wall_abs_axis_max: float | None = None, wall_ray_filter=None) -> GateReport:
     path = Path(path)
     mesh = load_mesh(path)
     rep = GateReport(path=str(path), triangles=int(len(mesh.faces)), vertices=int(len(mesh.vertices)))
@@ -222,7 +278,8 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     rep.axis, rep.inner_diameter_mm, rep.outer_diameter_mm, rep.width_mm = ring_metrics(mesh, axis)
     ax = "xyz".index(rep.axis) if rep.axis in "xyz" else None
     zone = (ax, wall_abs_axis_max) if (wall_abs_axis_max is not None and ax is not None) else None
-    rep.thickness = wall_thickness(mesh, wall_samples, wall_floor, zone=zone, axis=ax) if rep.watertight else {}
+    rep.thickness = (wall_thickness(mesh, wall_samples, wall_floor, zone=zone, axis=ax, ray_filter=wall_ray_filter)
+                     if rep.watertight else {})
     rep.weights_g = tables.weights_g(rep.volume_mm3, metals)
 
     c = rep.checks
@@ -240,7 +297,9 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
                        f"p1 {t['p01']:.3f} mm vs floor {wall_floor:.2f} mm" + (f" ({t['zone']})" if t.get("zone") else ""),
                        hard=wall_floor > 0))
     else:
-        c.append(Check("wall thickness", False, "not measured", hard=False))
+        why = ("mesh not closed" if not rep.watertight else
+               "no rays requested" if wall_samples <= 0 else "no ray returned a distance")
+        c.append(incomplete("wall thickness", f"not measured ({why})", hard=wall_floor > 0))
     if expect_inner is not None:
         d = rep.inner_diameter_mm - expect_inner
         c.append(Check("inner diameter", abs(d) <= tol_mm, f"{rep.inner_diameter_mm:.3f} vs {expect_inner:.3f} mm (Δ {d:+.3f})"))
