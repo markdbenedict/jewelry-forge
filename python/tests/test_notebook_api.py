@@ -24,9 +24,12 @@ def test_identifier_lookup_exact_then_mask():
     h = NotebookHelper(FakeNotebook())
     assert h.identifier("cylinder<point,point,real>") == "cylinder<point,point,real>"
     assert h.identifier("nope", mask="torus", must=["torus"]) == "torus<point,vector,real,real>"
-    # spaces match underscores; the name match beats slice_stack_boolean_subtract; unversioned beats [5.44.0]
-    assert h.identifier(mask="subtract", must=["boolean subtract"]) == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>"
-    assert h.identifier(must=[["mass_properties", "implicit"]]) == "mass_properties_from_body<implicit,real_field,real>"
+    # spaces match underscores; the name match beats slice_stack_boolean_subtract; the highest version wins
+    # (an unversioned identifier is the 1.0.0 definition, which nTopCL reports as deprecated)
+    assert h.identifier(mask="subtract", must=["boolean subtract"]) == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]"
+    assert h.identifier(must=[["mass_properties", "implicit"]]) == "mass_properties<implicit,real_field,real>[1.1.0]"
+    assert napi.identifier_version("offset_implicit<implicit,real_field>") == (1, 0, 0)
+    assert napi.identifier_version("implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]") == (2, 5, 0)
     assert h.identifier(must=[["implicit_to_mesh", "bool,bool"]]) == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
     assert h.identifier(mask="export", must=[["export_mesh", "file_path"]]) == "export_mesh<file_path,mesh,unit_length_enum>"
     with pytest.raises(ConsoleError, match="no block identifier"):
@@ -36,7 +39,7 @@ def test_identifier_lookup_exact_then_mask():
 def test_identifier_alternatives_skip_scalar_decoys():
     h = NotebookHelper(FakeNotebook())
     # "subtract<real,real>" is shorter; requiring "implicit" keeps it out
-    assert h.identifier(mask="subtract", must=[["boolean subtract", "implicit"], ["subtract", "implicit"]]).startswith("boolean_subtract<")
+    assert h.identifier(mask="subtract", must=[["boolean subtract", "implicit"], ["subtract", "implicit"]]).endswith("[5.44.0]")
     assert h.identifier(mask="offset", must=[["offset_implicit"], ["offset", "implicit"]]) == "offset_implicit<implicit,real_field>"
     with pytest.raises(ConsoleError) as e:
         h.identifier(mask="subtract", must=["boolean subtract", "mesh"])
@@ -123,10 +126,16 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert set(res["states"]) == set(res["blocks"])
     assert all(v == ("input" if k in mod.INPUT_ORDER else "e_OK") for k, v in res["states"].items())
     ids = res["identifiers"]
-    assert ids["Band"] == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>"
-    assert ids["Shaped"] == "boolean_intersect<blend_enum,real_field,list<implicit>>"
+    assert ids["Band"] == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]"
+    assert ids["Shaped"] == "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]"
     assert ids["Shrunk"] == "offset_implicit<implicit,real_field>"
-    assert ids["Mass Properties"] == "mass_properties_from_body<implicit,real_field,real>"
+    assert ids["Mass Properties"] == "mass_properties<implicit,real_field,real>[1.1.0]"
+    # what nTopCL complained about on 2026-10-27: an unset leftover Path_0 and an unset Density
+    assert nb.lint() == []
+    assert "Path_0" not in nb.variables and any("removed Path_0" in ln for ln in res["log"])
+    assert b[res["blocks"]["Mass Properties"]]["inputs"]["Density"] == (1000.0, "kg/m^3")
+    # the Output is a typed real variable (nTopCL -t needs the type before anything is built)
+    assert nb.variables["Volume"]["funcId"] == "core.var<real>" and nb.variables["Volume"]["units"] == "mm^3"
     assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
     assert ids["Export Mesh"] == "export_mesh<file_path,mesh,unit_length_enum>"
     assert ids["Output Path"] == "core.var<text>"

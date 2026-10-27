@@ -58,8 +58,9 @@ Windows 11 laptops, Python per nTop's bundled console.
 
 ## Open questions
 
-- Whether the Output (an untyped variable fed by the `volume` property) comes out of nTopCL
-  as a `real` in m³, as the GUI-built Phase 0 notebook's did (next: `templates` + a real run).
+- Whether a `core.var<real>` Output fed by the `volume` property lets `ntopcl -t` write the
+  output template without a GUI build, and comes out of a run as a `real` in m³ (next run).
+- Which unit spelling `set_block_input` accepts for a density (`kg/m^3` is tried first).
 
 ## Findings
 
@@ -85,6 +86,40 @@ Windows 11 laptops, Python per nTop's bundled console.
   on the Output variable (value `None`).
 - Workaround: wire the block's property into the Output variable first, then poll; treat a
   remaining `e_DIRTY` as "verify with nTopCL".
+
+### 2026-10-27 — an unversioned identifier is the deprecated 1.0.0 definition
+- Call: `add_block("boolean_subtract<blend_enum,real_field,implicit,list<implicit>>")` (the
+  identifier without a `[version]`), likewise `boolean_intersect<…>` and
+  `mass_properties_from_body<…>`.
+- Happened: the notebook builds, but nTopCL warns `Boolean Subtract version 1.0.0 is now
+  deprecated due to incorrect gradients in certain cases when the Subtraction Bodies list
+  input contained a single body`, `Version 1.0.0 of Boolean Intersect is deprecated …`,
+  `Version 1.0.0 of Mass Properties from Body is deprecated due to an issue that caused
+  unstable output …`. The current blocks are `…[5.44.0]` and `mass_properties<…>[1.1.0]`.
+- Expected: the doc's identifier convention should say that the bare identifier is the
+  original version and that scripts must pick the newest `[x.y.z]` (or offer a "current"
+  alias / a `list_available_blocks(current_only=True)`); `add_block` could warn like nTopCL.
+- Workaround: sort candidates by version, treating an unversioned identifier as 1.0.0.
+
+### 2026-10-27 — required inputs without defaults are invisible until nTopCL
+- Call: `add_block("mass_properties_from_body<implicit,real_field,real>")`, wire `Body`, leave
+  `Density` alone; the block stays `e_DIRTY` in the GUI (lazy), the notebook saves fine.
+- Happened: `ntopcl` fails: `Mass properties_0: Input "Density" is incomplete`, then
+  `Fatal error: Volume: Output block is unbuilt`. Same for a `core.var<file_path>` left unset:
+  `Path_0: Input "Input" is incomplete`.
+- Expected: `list_block_inputs` could flag inputs that have no default (`required: true`), or
+  `block_state` could report `e_INCOMPLETE` without a build.
+- Workaround: set every input nTopCL has ever flagged; delete blocks the script could not set.
+
+### 2026-10-27 — `ntopcl -t` cannot template an Output that was never built
+- Call: Output = `add_variable("Volume")` fed by `connect_block_property(mass, "volume", …)`;
+  saved without a GUI build; `ntopcl -t notebook.ntop`.
+- Happened: `[E]: Error generating output template : Output of function not built`; the input
+  template is still written.
+- Expected: the template to come from the Output's declared type, or the doc to say the
+  notebook must be built once before `-t`.
+- Workaround: a typed `core.var<real>` Output; the runner treats the missing output template
+  as a note and checks the type on the first run.
 
 Template:
 

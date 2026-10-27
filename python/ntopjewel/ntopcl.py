@@ -335,8 +335,16 @@ def templates(notebook: Path, out_dir: Path, exe: Path | None = None) -> tuple[P
     proc = subprocess.run([str(exe), "-t", str(notebook)], capture_output=True, text=True,
                           cwd=str(out_dir), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     i, o = out_dir / "input_template.json", out_dir / "output_template.json"
-    if proc.returncode != 0 or not i.exists():
-        raise NtopclError(f"template generation failed: {proc.stdout}\n{proc.stderr}")
+    text = f"{proc.stdout}\n{proc.stderr}"
+    if not i.exists():
+        raise NtopclError(f"template generation failed: {text}")
+    if "Output of function not built" in text and not o.exists():
+        # The Output exists but was never built in the GUI session (an API-authored notebook):
+        # nTopCL cannot type it for the template, yet still builds and reports it at run time.
+        o.write_text(json.dumps({"note": "nTopCL: Output of function not built; the output type is known after "
+                                         "the first run (out.json)", "outputs": []}, indent=2), encoding="utf-8")
+    elif proc.returncode != 0 or not o.exists():
+        raise NtopclError(f"template generation failed: {text}")
     return i, o
 
 

@@ -75,6 +75,9 @@ def cmd_templates(a: argparse.Namespace) -> int:
         return 2
     print(f"wrote {i}\n      {o}")
     print(i.read_text(encoding="utf-8"))
+    if '"note"' in o.read_text(encoding="utf-8")[:200]:
+        print("note: the Output was never built in the GUI session, so nTopCL could not write the output "
+              "template; it still builds the Output at run time - the first real run checks it.")
     if a.catalog:
         probs = catalog.compare_with_template(catalog.load(a.catalog), i)
         print("catalog matches the notebook" if not probs else "catalog drift:\n  " + "\n  ".join(probs))

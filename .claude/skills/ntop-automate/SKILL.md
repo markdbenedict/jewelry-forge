@@ -37,7 +37,8 @@ JSON rules, resolves identifiers, checks build states and runs the mesh gate.
   `export_mesh<file_path,mesh,unit_length_enum>`. nTop says they may change between
   releases, so scripts give `must` alternatives (`[["boolean_subtract", "implicit"], …]`);
   the helper matches case-insensitively with spaces as underscores, prefers a name match,
-  then the unversioned definition, then the newest version, and records what it used. When
+  then the HIGHEST version (an unversioned identifier is 1.0.0, usually deprecated: nTopCL
+  warns about it), and records what it used. When
   a lookup misses, run `api build discover` (dumps all identifiers and the input names of
   the families we use) and put the real one in the script; never fix it in the GUI.
 - Typed variables are blocks: `core.var<real>`, `core.var<text>`, `core.var<file_path>` …
@@ -134,6 +135,10 @@ raises `NtopclError` (with the parsed `RunResult` attached) on failure.
 | `api`: timed out | a slow build or a dialog in the GUI | look at the nTop window; raise `--timeout`; `--param wait_s=600` |
 | `api`: `<block>: e_DIRTY` after the whole wait | nothing consumes that block, so nTop never builds it | wire it into the Output (or a consumer) before waiting; verify its value with nTopCL |
 | `api`: `type "file_path" ... cannot be set yet` | API limit (6.3.3) | use a `core.var<text>` variable for the path |
+| `[E] <block>: Input "Density" is incomplete` (nTopCL) | required input with no default, invisible in the lazy GUI build | set it in the script (`_set_density`) |
+| `[E] Path_0: Input "Input" is incomplete` (nTopCL) | a block the script added and could not set was left in the notebook | `h.remove(id)` on the failure path |
+| `-t`: `Output of function not built` | the Output is an untyped variable never built in the GUI | Output = `core.var<real>` fed by the property; `templates` tolerates it, the run checks it |
+| `[W] ... version 1.0.0 is now deprecated` (nTopCL) | an unversioned identifier was used | take the highest `[x.y.z]` (the helper does since 2026-10-27) |
 
 ## Reading nTop documentation
 

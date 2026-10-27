@@ -55,7 +55,8 @@ TORUS = "torus<point,vector,real,real>"
 SUBTRACT = [["boolean_subtract", "implicit,list<implicit>"], ["boolean_subtract", "implicit"], ["subtract", "implicit"]]
 INTERSECT = [["boolean_intersect", "list<implicit>"], ["boolean_intersect", "implicit"], ["intersect", "implicit"]]
 OFFSET = [["offset_implicit"], ["offset", "implicit"]]
-MASS = [["mass_properties_from_body", "implicit"], ["mass_properties", "implicit"], ["mass_properties", "body"]]
+MASS = [["mass_properties", "implicit"], ["mass_properties", "body"]]   # highest version wins: mass_properties<…>[1.1.0], not the deprecated …_from_body
+DENSITY_UNITS = ("kg/m^3", "g/cm^3", "g/mm^3")                            # Density has no default (nTopCL: 'Input "Density" is incomplete')
 MESH = [["implicit_to_mesh", "bool,bool"], ["implicit_to_mesh"], ["mesh_from_implicit_body"], ["mesh", "implicit"]]
 EXPORT = [["export_mesh", "file_path"], ["export_mesh"]]
 PATH_VARS = ("core.var<file_path>", "core.var<text>")      # the Output Path input; Export Mesh wants a file_path
@@ -67,7 +68,7 @@ DEFAULTS = {
     "recipe_to": str(REPO / "ntop" / "recipes" / "ring_band_profile.recipe.json"),
     "pause": True,            # batch the edits with paused_updates()
     "fresh": True,            # start from new_notebook()
-    "density": None,          # e.g. (1000.0, "kg/m^3"); Volume does not need it
+    "density": 1000.0,        # kg/m^3 (water); Mass Properties has no default and nTopCL refuses an unset Density
     "wait_s": 120,
 }
 
@@ -84,6 +85,7 @@ def _path_variable(h: NotebookHelper, name: str, value: str) -> str:
         if ident not in avail:
             errors.append(f"{ident}: not available")
             continue
+        info = None
         try:
             info = nb.add_block(ident)
             nb.set_block_input(info["id"], "Input", value)
@@ -95,6 +97,8 @@ def _path_variable(h: NotebookHelper, name: str, value: str) -> str:
         except Exception as e:
             h.log.append(f"{ident} route failed for {name}: {e}")
             errors.append(f"{ident}: {e}")
+            if info:                              # an unset block left behind fails the nTopCL run
+                h.remove(info["id"])
     raise ConsoleError(f"no variable type could hold the {name} input: " + "; ".join(errors))
 
 
@@ -105,6 +109,20 @@ def _set_axis(h: NotebookHelper, block_id: str) -> None:
     except Exception as e:
         h.log.append(f"Axis without units refused ({e}); retrying with mm")
         h.set(block_id, ["Axis"], [0.0, 0.0, 1.0], "mm")
+
+
+def _set_density(h: NotebookHelper, mass_id: str, kg_per_m3: float) -> None:
+    """Density is required (no default). nTop's unit spelling for it is not documented for the
+    API, so the usual spellings are tried; the value is converted to match."""
+    per_unit = {"kg/m^3": kg_per_m3, "g/cm^3": kg_per_m3 / 1000.0, "g/mm^3": kg_per_m3 / 1e6}
+    errors = []
+    for u in DENSITY_UNITS:
+        try:
+            h.set(mass_id, ["Density"], per_unit[u], u)
+            return
+        except Exception as e:
+            errors.append(f"{u}: {e}")
+    raise ConsoleError("could not set Mass Properties Density: " + "; ".join(errors))
 
 
 def build(notebook, params: dict | None = None) -> dict:
@@ -189,12 +207,7 @@ def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
         # ---- measure, mesh, export ------------------------------------------------------
         mass = h.add("Mass Properties", mask="mass", must=MASS)
         h.wire(body, mass, ["Body"])
-        if p.get("density"):                    # Volume needs no density; set one only when asked
-            dens, dens_units = p["density"]
-            try:
-                h.set(mass, ["Density"], float(dens), dens_units)
-            except Exception as e:
-                h.log.append(f"density not set ({e})")
+        _set_density(h, mass, float(p["density"]))
 
         mesh = h.add("Mesh", mask="mesh", must=MESH)
         h.wire(body, mesh, ["Body"])

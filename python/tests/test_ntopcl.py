@@ -127,3 +127,17 @@ def test_scalar_value_real_ntop_shape(tmp_path):
     assert ntopcl.scalar_units(outs["Volume"]) == "mm^3"
     assert ntopcl.scalar_value({"value": {"val": 0.0025, "units": {"length": 1}}}) == pytest.approx(2.5)
     assert ntopcl.scalar_value({"value": {"val": 0.0031, "units": {"mass": 1}}}) == pytest.approx(3.1)
+
+
+def test_templates_tolerate_an_unbuilt_output(fake_ntopcl, tmp_path, capsys):
+    """nTopCL -t cannot type an Output that was never built in the GUI; the input template is still
+    usable and the run itself builds the Output, so this is a note, not a failure."""
+    from ntopjewel import cli, ntopcl
+    nb = tmp_path / "ring_band_profile_unbuilt.ntop"
+    nb.write_bytes(b"fake notebook")
+    i, o = ntopcl.templates(nb, tmp_path / "t")
+    assert i.exists() and o.exists() and "not built" in o.read_text(encoding="utf-8")
+    assert len(json.loads(i.read_text(encoding="utf-8"))["inputs"]) == 12
+    rc = cli.main(["templates", str(nb), "--out", str(tmp_path / "t2"), "--catalog", "ring_band_profile"])
+    out = capsys.readouterr().out
+    assert rc == 0 and "catalog matches the notebook" in out and "never built in the GUI session" in out

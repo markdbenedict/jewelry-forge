@@ -63,6 +63,10 @@ if args and args[0] == "-t":
                   {"name": "Mesh Tolerance", "type": "real", "value": 0, "units": "mm"},
                   {"name": "Output Path", "type": "text", "value": ""}]
     Path("input_template.json").write_text(json.dumps({"title": nb.stem, "description": "", "inputs": inputs}, indent=4))
+    if "unbuilt" in nb.name:
+        # an API-authored notebook whose Output was never built in the GUI (seen 2026-10-27)
+        print(time.strftime("%H:%M:%S") + " [E]: Error generating output template : Output of function not built")
+        sys.exit(1)
     Path("output_template.json").write_text(json.dumps([{"name": "Volume", "type": "scalar", "components": [], "value": 0}], indent=4))
     sys.exit(0)
 

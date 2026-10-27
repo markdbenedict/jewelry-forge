@@ -49,6 +49,10 @@ SIGNATURES = {
     "core.var_any<any>": ("Variable", [("x", "any")], "any"),
 }
 PROPERTIES = {"body_mass_props": ["center of gravity", "mass", "principal frame", "principal moments", "volume"], "implicit": ["Bounding Box"]}
+# inputs with no default: nTopCL fails the run with 'Input "<name>" is incomplete' when they are neither set nor wired
+REQUIRED = {"mass_properties<implicit,real_field,real>[1.1.0]": ["Body", "Density"],
+            "mass_properties_from_body<implicit,real_field,real>": ["Body", "Density"],
+            "mass_properties<mesh,real>[2.1.0]": ["Mesh", "Density"]}
 DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Mesh File Data", "file_path": "Path",
                 "text": "Text", "real": "Scalar"}
 FILE_PATH_REFUSAL = ('Parameter "Input" of block "{bid}" has type "file_path", which cannot be set yet; only "real", "vector", '
@@ -264,6 +268,31 @@ class FakeNotebook:
             raise ValueError("an input cannot be the output")
         self.output = block_id
         return {"name": block_id, "id": block_id, "funcId": "core.var"}
+
+    def delete_variable(self, block_id: str):
+        if block_id not in self.variables:
+            raise ValueError(f"'{block_id}' is not a variable")
+        del self.variables[block_id]
+
+    def delete_block(self, block_id: str):
+        if block_id in self.blocks:
+            del self.blocks[block_id]
+        elif block_id in self.variables:
+            del self.variables[block_id]
+        else:
+            raise ValueError(f"no block with id '{block_id}'")
+
+    def lint(self) -> list[str]:
+        """What nTopCL would complain about: unset variables and required inputs left incomplete."""
+        problems = []
+        for vid, v in self.variables.items():
+            if v.get("wraps") is None and v.get("value") is None and not v.get("wired"):
+                problems.append(f'{vid}: Input "Input" is incomplete')
+        for bid, b in self.blocks.items():
+            for name in REQUIRED.get(b["funcId"], []):
+                if name not in b["inputs"] and name not in b["wired"] and name not in b["lists"]:
+                    problems.append(f'{bid}: Input "{name}" is incomplete')
+        return problems
 
     # ---- files --------------------------------------------------------------------
     def new_notebook(self):

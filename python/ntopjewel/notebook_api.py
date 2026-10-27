@@ -234,17 +234,23 @@ def _norm(s: str) -> str:
     return s.lower().replace(" ", "_")
 
 
+def identifier_version(ident: str) -> tuple[int, int, int]:
+    """`[x.y.z]` suffix as a tuple; an unversioned identifier is version 1.0.0 - the original,
+    often deprecated definition (nTopCL 6.3.3: "Boolean Subtract version 1.0.0 is now
+    deprecated" for the unversioned `boolean_subtract<…>`; the current block is `[5.44.0]`)."""
+    m = VERSION_RE.search(ident)
+    return tuple(int(x) for x in m.groups()) if m else (1, 0, 0)
+
+
 def _rank(ident: str, terms: Iterable[str] = (), prefer_shortest: bool = True) -> tuple:
     """Sort key: the identifier whose *name* (before `<`) matches a search term earliest wins
-    (`boolean_subtract<…>` over `slice_stack_boolean_subtract<…>`), then an unversioned
-    identifier (nTop's current definition), then the newest `[x.y.z]` version, then the
-    shortest, then alphabetical."""
-    m = VERSION_RE.search(ident)
-    ver = tuple(-int(x) for x in m.groups()) if m else ()
+    (`boolean_subtract<…>` over `slice_stack_boolean_subtract<…>`), then the HIGHEST version
+    (unversioned counts as 1.0.0), then the shortest, then alphabetical."""
+    ver = tuple(-v for v in identifier_version(ident))
     base = VERSION_RE.sub("", ident)
     name = _norm(base.split("<")[0])
     pos = min([name.find(_norm(t)) for t in terms if name.find(_norm(t)) >= 0] or [10 ** 6])
-    return (pos, 1 if m else 0, ver, len(base) if prefer_shortest else 0, ident)
+    return (pos, ver, len(base) if prefer_shortest else 0, ident)
 
 
 class NotebookHelper:
@@ -412,11 +418,35 @@ class NotebookHelper:
         self.log.append(f"var {name} wraps {block_id}")
         return info["id"]
 
-    def property_var(self, name: str, source_id: str, prop: str, units: str = "mm^3") -> str:
-        """A variable fed by a property of `source_id` (e.g. Mass Properties -> Volume): first an
-        untyped variable (`add_variable`, input `x`), else a real variable (`core.var<real>`,
-        input `Input`) when the untyped one refuses the connection."""
+    def property_var(self, name: str, source_id: str, prop: str, units: Iterable[str] = ("mm^3", "m^3", "")) -> str:
+        """A variable fed by a property of `source_id` (e.g. Mass Properties -> volume).
+
+        A TYPED real variable first (`core.var<real>`, like the chip the GUI makes when a
+        property is dragged out): its type is known even before it builds, which nTopCL's
+        `-t` needs ("Output of function not built" with an untyped output, 2026-10-27). The
+        untyped `add_variable` + input `x` route is the fallback."""
         errors = []
+        for u in units:
+            tmp = f"{name} tmp"
+            try:
+                info = self.nb.add_real_variable(tmp, 0.0, u) if u else self.nb.add_real_variable(tmp, 0.0)
+            except Exception as e:
+                errors.append(f"real variable ({u or 'no units'}): {e}")
+                continue
+            var_id = info["id"]
+            try:
+                self.nb.connect_block_property(source_id, prop, var_id, "Input")
+            except Exception as e:
+                errors.append(f"connect to real variable ({u or 'no units'}): {e}")
+                self.remove(var_id)
+                continue
+            try:
+                var_id = self.nb.rename_variable(var_id, name)["id"]
+            except Exception as e:  # keep the temporary name rather than fail
+                self.log.append(f"rename of {var_id} failed: {e}")
+            self.blocks[name] = var_id
+            self.log.append(f"var {name} <- {source_id}.{prop} (real variable {var_id}, units {u or 'none'})")
+            return var_id
         try:
             info = self.nb.add_variable(name)
             var_id = info["id"]
@@ -427,21 +457,21 @@ class NotebookHelper:
             return var_id
         except Exception as e:
             errors.append(f"untyped variable: {e}")
-        real_name = name if name not in self.blocks else f"{name} value"
-        try:
-            info = self.nb.add_real_variable(real_name + " tmp", 0.0, units)
-            var_id = info["id"]
-            self.nb.connect_block_property(source_id, prop, var_id, "Input")
-            try:
-                var_id = self.nb.rename_variable(var_id, real_name)["id"]
-            except Exception as e:  # keep the temporary name rather than fail
-                self.log.append(f"rename of {var_id} failed: {e}")
-            self.blocks[name] = var_id
-            self.log.append(f"var {name} <- {source_id}.{prop} (real variable {var_id})")
-            return var_id
-        except Exception as e:
-            errors.append(f"real variable: {e}")
         raise ConsoleError(f"could not feed a variable from {source_id}.{prop}: " + "; ".join(errors))
+
+    def remove(self, block_id: str) -> bool:
+        """Delete a block or variable we added and cannot use (an unset one makes nTopCL fail
+        with `Input "Input" is incomplete`). Tries delete_variable, then delete_block."""
+        for name in ("delete_variable", "delete_block"):
+            fn = getattr(self.nb, name, None)
+            if callable(fn):
+                try:
+                    fn(block_id)
+                    self.log.append(f"removed {block_id} with {name}")
+                    return True
+                except Exception as e:
+                    self.log.append(f"{name}({block_id}) refused: {e}")
+        return False
 
     def diagnostics(self) -> dict:
         """What the helper knows, for an error report: identifiers, ids, log, best-effort states."""

@@ -81,7 +81,11 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   Radius, Torus Radius), `cylinder<point,point,real>`, `point<real,real,real>`,
   `remap_cylindrical_implicit<implicit,real>`, `twist<implicit,plane,real_field>`,
   `polar_array_implicit<implicit,real,integer,axis>`. 6.3.3 lists 2273; `api build discover`
-  dumps them with input names. Unversioned = current definition; else take the newest version.
+  dumps them with input names. **An unversioned identifier is version 1.0.0** - the original,
+  usually deprecated definition (nTopCL: "Boolean Subtract version 1.0.0 is now deprecated …
+  incorrect gradients when the Subtraction Bodies list contained a single body"); **take the
+  highest `[x.y.z]`**: `boolean_subtract<…>[5.44.0]`, `boolean_intersect<…>[5.44.0]`,
+  `mass_properties<implicit,real_field,real>[1.1.0]` (not `mass_properties_from_body`, 1.0.0).
 - **Typed variables are blocks `core.var<real|text|file_path|implicit|…>`** with one input
   `Input`; bare `core.var` does not exist. `add_real_variable(name, v, "mm")` makes a
   `core.var<real>` whose id is the name; `add_variable(name)` makes `core.var_any<any>` with
@@ -99,6 +103,13 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - Property names are lower case (`volume`, `mass`, `center of gravity`); match them
   case-insensitively. After `move_block_to_input(id)` the variable no longer answers
   `block_state` (its wires stay); the helper reports such ids as `input`.
+- **What only nTopCL tells you about an API-built notebook** (the GUI session never builds a
+  lazy block, so its input errors stay hidden): Mass Properties `Density` has no default
+  (`Input "Density" is incomplete`) - set it; a block added and never set (`Path_0`) fails the
+  run (`Input "Input" is incomplete`) - `h.remove()` it; an Output that is an untyped
+  variable gives `-t` "Output of function not built" - make the Output a `core.var<real>`
+  (`add_real_variable` + `connect_block_property` to its `Input`). The runner's `templates`
+  tolerates the missing output template; the first real run is the check.
 - SSH: `ssh -tt -i ~\.ssh\id_ntopcli -p 2222 localhost` while the console panel is open.
   Key-based only; `authorized_keys` written as ASCII (no BOM), owner-only. **One line per
   send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the

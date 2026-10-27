@@ -134,6 +134,24 @@ class BandSpec:
         in_comfort = (r - rc) ** 2 + z ** 2 <= tc ** 2
         return in_band & in_dome & in_comfort
 
+    def design_volume_mm3(self, step: float = 0.005) -> float:
+        """Volume the notebook should produce, from the design alone: the section (band ∩ both
+        tori) opened by the edge round - offsetting a body of revolution in 3D is the 2D offset
+        of its meridian section - then Pappus: V = 2π ∫∫ r dA. Agrees with nTop to < 1 %."""
+        import numpy as np
+        from scipy import ndimage
+        pad = self.edge_round + 0.2
+        r = np.arange(self.bore_radius_mm - pad, self.outer_radius_mm + pad, step)
+        z = np.arange(-self.width_mm / 2 - pad, self.width_mm / 2 + pad, step)
+        R, Z = np.meshgrid(r, z)
+        mask = self.section_mask(R, Z)
+        if self.edge_round > 0:
+            # pixel centres sit half a step inside the true edge: edt == 1 at the first inside pixel
+            px = self.edge_round / step + 0.5
+            eroded = ndimage.distance_transform_edt(mask) >= px
+            mask = ndimage.distance_transform_edt(~eroded) <= px
+        return float(2 * math.pi * (R[mask] * step * step).sum())
+
     @property
     def label(self) -> str:
         return tables.size_label(self.size, self.system)
@@ -261,6 +279,11 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
     result.notes += spec.warnings()
     if ntop_vol is None:
         result.notes.append("nTop volume output not found in out.json; volume not cross-checked.")
+    else:
+        design = spec.design_volume_mm3()
+        dev = (ntop_vol - design) / design * 100
+        verdict = "matches the design" if abs(dev) <= 2.0 else "DIFFERS from the design - check the notebook"
+        result.notes.append(f"nTop volume {ntop_vol:.2f} mm³ vs design {design:.2f} mm³ ({dev:+.2f} %): {verdict}")
 
     if deliver and result.ok:
         dest = config.deliver_dir() / deliver_project
