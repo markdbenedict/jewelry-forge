@@ -47,6 +47,8 @@ def build(notebook, params: dict | None = None) -> dict:
         masked[kw] = list(dict.fromkeys(got))
     merged = list(dict.fromkeys(all_ids + [i for v in masked.values() for i in v if not i.startswith("<error")]))
     by_kw = {kw: [i for i in merged if kw in i.lower()] for kw in p["keywords"]}
+    methods = [n for n in dir(notebook) if not n.startswith("_")]
+    summary.append("notebook methods: " + ", ".join(methods))
     summary.append(f"list_available_blocks(): {len(all_ids)} identifiers; merged with masked queries: {len(merged)}")
     extra = [i for i in merged if i not in all_ids]
     if extra:
@@ -118,8 +120,8 @@ def build(notebook, params: dict | None = None) -> dict:
         for label, d in variables.items():
             summary.append(f"  {label}: {d}")
 
-    return {"summary": summary, "count": len(all_ids), "merged_count": len(merged), "by_keyword": by_kw,
-            "masked": masked, "probed": probed, "variables": variables, "all": merged}
+    return {"summary": summary, "methods": methods, "count": len(all_ids), "merged_count": len(merged),
+            "by_keyword": by_kw, "masked": masked, "probed": probed, "variables": variables, "all": merged}
 
 
 class _NoPause:

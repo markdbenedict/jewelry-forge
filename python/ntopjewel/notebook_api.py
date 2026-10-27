@@ -491,6 +491,40 @@ class NotebookHelper:
         meta = self.nb.get_block_output_meta(block_id)
         return meta.get("value") if isinstance(meta, dict) else meta
 
+    def pull_value(self, block_id: str) -> Any:
+        """`output_value` that never raises: None when nTop has no value (yet)."""
+        try:
+            v = self.output_value(block_id)
+            self.log.append(f"value of {block_id}: {v!r}")
+            return v
+        except Exception as e:
+            self.log.append(f"get_block_output_meta({block_id}) failed: {e}")
+            return None
+
+    NUDGE_METHODS = ("build_block", "build", "rebuild_block", "rebuild", "update_block", "evaluate_block", "evaluate",
+                     "set_block_visibility", "set_block_visible", "show_block", "set_visibility")
+
+    def nudge_build(self, block_id: str) -> str | None:
+        """Ask nTop to build a lazy block with whichever of the documented-sounding methods exists
+        (tried in order, (id) then (id, True)); returns the method that accepted the call."""
+        for name in self.NUDGE_METHODS:
+            fn = getattr(self.nb, name, None)
+            if not callable(fn):
+                continue
+            for args in ((block_id,), (block_id, True), ()):
+                try:
+                    fn(*args)
+                    self.log.append(f"nudged {block_id} with {name}{args}")
+                    return name
+                except TypeError:
+                    continue
+                except Exception as e:
+                    self.log.append(f"{name}{args} refused: {e}")
+                    break
+        self.log.append(f"no build/visibility method accepted {block_id}; methods: "
+                        + ", ".join(n for n in dir(self.nb) if not n.startswith("_"))[:1500])
+        return None
+
     @contextmanager
     def paused(self, enabled: bool = True):
         if enabled and hasattr(self.nb, "paused_updates"):

@@ -29,23 +29,44 @@ Windows 11 laptops, Python per nTop's bundled console.
   imports a helper package sees stale code after the package changes unless it purges the
   module first. Expected: documented, or a "fresh interpreter per script" option.
 
-## Open questions to settle on the first real run
+- Second real build (2026-10-26 evening): all geometry blocks, `implicit_to_mesh[2.5.0]` and
+  `export_mesh` built `e_OK` with their defaults (Blend Type/Radius, Min. feature size, Sharpen,
+  Simplify untouched); a `torus` Axis vector is accepted without units; `rename_variable` works
+  on a `core.var<text>` added with `add_block`; a `core.var<text>` connects to `export_mesh`'s
+  `file_path` input (named `Path`); `add_variable(name, block_id)` wraps a block and both the
+  variable and the wrapped block report `e_OK`; `block_state` answers for variables.
 
-- Whether a `core.var<file_path>` variable renamed with `rename_variable` becomes the
-  notebook input "Output Path" and feeds `export_mesh`'s file input.
-- Whether Boolean blocks and `implicit_to_mesh` build with their default Blend Type / Blend
-  Radius / Min. feature size / Sharpen / Simplify when a script sets none of them.
-- Whether a unit vector (`torus` Axis) is accepted without units (the script retries with mm).
-- Whether a property of a built block (`Mass Properties.Volume`) can feed an empty
-  variable created with `add_variable(name)` and then be the notebook Output.
+## Open questions
+
+- Whether a property of a built block (`Mass Properties.Volume`) feeds an `add_variable`
+  variable and can be the notebook Output (next run).
 - Whether `export_as_recipe(path, True)` writes a recipe we can diff in git.
 - The shape of `list_block_properties()` answers (dicts with `name`? strings?) - the helper
   accepts either and logs what it saw.
-- Whether `block_state` answers for variables (the helper tolerates a refusal).
+- Whether the API has any call that builds a lazy block (see finding 2); the next run logs
+  `dir(notebook)`.
 
 ## Findings
 
-_(none yet — the first `api build band_profile` run fills this in)_
+### 2026-10-26 — `set_block_input` cannot set a `file_path` parameter
+- Call: `notebook.add_block("core.var<file_path>")` then `notebook.set_block_input(id, "Input", r"C:\...\x.stl")`
+- Happened: `Parameter "Input" of block "Path_0" has type "file_path", which cannot be set yet;
+  only "real", "vector", "point", "bool", "integer" and "text" parameters can.`
+- Expected: a file path is the natural input of every Export block; scripts that author
+  Automate notebooks need it.
+- Workaround: a `core.var<text>` holding the path connects to `export_mesh`'s `Path` input and
+  builds; nTopCL's template then types the input `text`, which it accepts.
+
+### 2026-10-26 — a block nothing consumes never builds (`e_DIRTY` for 300 s)
+- Call: `mass_properties_from_body` wired from the final body, nothing downstream; polled
+  `block_state(id)` for 300 s → `e_DIRTY` throughout, while the mesher and export (which
+  consume the same body) went `e_OK`.
+- Expected: either documented ("blocks build on demand; use X to force a build / the Output
+  is evaluated when ...") or a `build_block(id)` / `evaluate(id)` call. `block_state` reports
+  `e_DIRTY` the same way for "queued behind a long build" and "will never build", which makes a
+  script wait for nothing.
+- Workaround: wire the block's property into the Output variable first, then poll; treat a
+  remaining `e_DIRTY` as "verify with nTopCL".
 
 Template:
 

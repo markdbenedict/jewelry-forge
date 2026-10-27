@@ -114,8 +114,11 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     # the final body feeds two blocks, so it goes through a variable (nTop's rule)
     assert nb.variables["Band Body"]["wraps"] == prof
     assert b[res["blocks"]["Mesh"]]["wired"]["Body"][0] == "Band Body" == b[res["blocks"]["Mass Properties"]]["wired"]["Body"][0]
-    assert b[res["blocks"]["Export Mesh"]]["wired"]["File Path"][0] == "Output Path"
-    assert nb.variables["Output Path"]["funcId"] == "core.var<file_path>" and nb.variables["Output Path"]["value"] == str(tmp_path / "t.stl")
+    assert b[res["blocks"]["Export Mesh"]]["wired"]["Path"][0] == "Output Path"
+    # file_path variables cannot be given a value through the API (2026-10-26), so the path is a text variable
+    assert nb.variables["Output Path"]["funcId"] == "core.var<text>" and nb.variables["Output Path"]["value"] == str(tmp_path / "t.stl")
+    assert any("cannot be set yet" in ln for ln in res["log"])
+    assert res["warnings"] == [] and nb.variables["Volume"]["wired"][0] in nb.built
     assert res["volume"] == pytest.approx(287.4)
     assert set(res["states"]) == set(res["blocks"]) and all(v == "e_OK" for v in res["states"].values())
     ids = res["identifiers"]
@@ -125,22 +128,39 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert ids["Mass Properties"] == "mass_properties_from_body<implicit,real_field,real>"
     assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
     assert ids["Export Mesh"] == "export_mesh<file_path,mesh,unit_length_enum>"
-    assert ids["Output Path"] == "core.var<file_path>"
+    assert ids["Output Path"] == "core.var<text>"
     # the catalog and the script agree on the input names
     from ntopjewel import catalog
     assert list(catalog.load("ring_band_profile").inputs) == mod.INPUT_ORDER
 
 
-def test_band_profile_path_variable_fallback(tmp_path):
-    """Without core.var<file_path> the script uses core.var<text>; the export input still gets wired."""
+def test_band_profile_path_variable_needs_a_text_variable(tmp_path):
+    """Without core.var<text> (and file_path variables unsettable) the script stops with a clear reason."""
     mod = load_recipe("band_profile")
-    avail = [i for i in FakeNotebook().available_ids if i != "core.var<file_path>"]
+    avail = [i for i in FakeNotebook().available_ids if i != "core.var<text>"]
     nb = FakeNotebook(available=avail)
+    with pytest.raises(ConsoleError, match="no variable type could hold the Output Path input") as e:
+        mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
+                       "test_output": str(tmp_path / "t.stl")})
+    assert "cannot be set yet" in str(e.value) and "core.var<text>: not available" in str(e.value)
+
+
+def test_band_profile_tolerates_lazy_mass_properties(tmp_path):
+    """Mass Properties that never builds in the GUI session is a warning, not a failure: the notebook is
+    still saved with Volume as its Output (nTopCL evaluates it). With a build method, the helper uses it."""
+    mod = load_recipe("band_profile")
+    nb = FakeNotebook(lazy_mass="never")
     res = mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
-                         "test_output": str(tmp_path / "t.stl")})
-    assert nb.variables["Output Path"]["funcId"] == "core.var<text>" and "Output Path" in nb.inputs
-    assert nb.blocks[res["blocks"]["Export Mesh"]]["wired"]["File Path"][0] == "Output Path"
-    assert any("core.var<file_path>" not in ln for ln in res["log"])
+                         "test_output": str(tmp_path / "t.stl"), "wait_s": 1})
+    assert res["warnings"] and "lazy" in res["warnings"][0] and res["volume"] is None
+    assert nb.saved == [str(tmp_path / "rb.ntop")] and nb.output == "Volume"
+    assert res["states"]["Mass Properties"] == "e_DIRTY" and res["states"]["Export Mesh"] == "e_OK"
+    assert any("no build/visibility method" in ln for ln in res["log"])
+    nb = FakeNotebook(lazy_mass="method")
+    res = mod.build(nb, {"save_to": str(tmp_path / "rb2.ntop"), "recipe_to": str(tmp_path / "rb2.json"),
+                         "test_output": str(tmp_path / "t2.stl"), "wait_s": 1})
+    assert res["warnings"] == [] and res["volume"] == pytest.approx(287.4)
+    assert any("nudged" in ln and "build_block" in ln for ln in res["log"])
 
 
 def test_band_profile_raises_on_failed_block(tmp_path):

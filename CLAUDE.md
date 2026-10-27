@@ -88,6 +88,13 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   input `x`. `list_block_inputs` also lists the block's return value (`isReturnValue`).
 - nTop's Python persists between runs, so the driver purges `ntopjewel*` from `sys.modules`
   before each run; without that an edited helper is not what runs.
+- `set_block_input` cannot set a `file_path` parameter (6.3.3: "only real, vector, point,
+  bool, integer and text"); a file input is a **`core.var<text>`** connected to the Export
+  block's `Path`, which builds and which nTopCL types `text`.
+- **Blocks build lazily.** A block nothing displays or consumes (Mass Properties with no
+  downstream) stays `e_DIRTY` forever and `block_state` cannot tell that from "queued". Wire
+  the Output (Volume variable) before waiting, wait on the export block instead, and treat a
+  still-dirty Mass Properties as "verify with nTopCL", never as a failure.
 - SSH: `ssh -tt -i ~\.ssh\id_ntopcli -p 2222 localhost` while the console panel is open.
   Key-based only; `authorized_keys` written as ASCII (no BOM), owner-only. **One line per
   send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the

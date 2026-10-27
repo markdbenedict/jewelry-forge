@@ -68,17 +68,21 @@ DEFAULTS = {
     "pause": True,            # batch the edits with paused_updates()
     "fresh": True,            # start from new_notebook()
     "density": None,          # e.g. (1000.0, "kg/m^3"); Volume does not need it
-    "wait_s": 300,
+    "wait_s": 120,
 }
 
 
 def _path_variable(h: NotebookHelper, name: str, value: str) -> str:
-    """The file-path notebook input: a typed variable (core.var<file_path>, else core.var<text>)
-    renamed to `name`; last resort a text block wrapped in a variable."""
+    """The file-path notebook input: a typed variable renamed to `name`. nTop 6.3.3's API cannot
+    set a `file_path` parameter yet ("only real, vector, point, bool, integer and text"), so in
+    practice this is a `core.var<text>`, which Export Mesh accepts on its file_path input and
+    which nTopCL's template then spells `text` (as the Phase 0 notebook did)."""
     nb = h.nb
     avail = h.available()
+    errors = []
     for ident in PATH_VARS:
         if ident not in avail:
+            errors.append(f"{ident}: not available")
             continue
         try:
             info = nb.add_block(ident)
@@ -90,9 +94,8 @@ def _path_variable(h: NotebookHelper, name: str, value: str) -> str:
             return var_id
         except Exception as e:
             h.log.append(f"{ident} route failed for {name}: {e}")
-    tid = h.add(f"{name} text", "text<text>", mask="text", must=[["text<text>"], ["text"]])
-    h.set(tid, ["Text", "Value", "Input", "String"], value)
-    return h.wrap_var(name, tid)
+            errors.append(f"{ident}: {e}")
+    raise ConsoleError(f"no variable type could hold the {name} input: " + "; ".join(errors))
 
 
 def _set_axis(h: NotebookHelper, block_id: str) -> None:
@@ -201,8 +204,12 @@ def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
         h.wire(mesh, export, ["Mesh"])
         h.wire(out_var, export, ["File Path", "File", "Path", "Filename", "Output"])
 
-    # ---- let it build, then read the volume through a variable ------------------------
-    h.assert_ok(mass, p["wait_s"])
+    # ---- the Volume variable is the notebook Output, and the only consumer of Mass Properties --
+    # nTop builds lazily: a block nothing displays or consumes stays e_DIRTY (seen 2026-10-26, a
+    # 300 s wait for nothing). So wire the Output first, wait for the geometry chain, and treat a
+    # Mass Properties that still never builds in the GUI session as a warning: nTopCL evaluates
+    # the Output at run time, which is what the notebook is for.
+    h.log.append("notebook methods: " + ", ".join(n for n in dir(notebook) if not n.startswith("_")))
     props = h.properties(mass)                   # names, whatever shape nTop returns them in
     h.log.append(f"Mass Properties offers {props}")
     vol_prop = next((n for n in props if n.lower() == "volume"), None) or next((n for n in props if "volume" in n.lower()), None)
@@ -217,16 +224,24 @@ def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
     h.declare_inputs(h.blocks[name] for name in INPUT_ORDER)
     h.set_output(vol_var)
 
+    # ---- wait for the geometry chain and the export; then coax Mass Properties ---------
+    h.assert_ok(export, p["wait_s"])             # Export Mesh is the end of the geometry chain
+    volume = h.pull_value(vol_var)               # asking for the value may trigger the lazy build
+    mass_state = h.state(mass, min(p["wait_s"], 30))
+    if mass_state.get("buildState") != "e_OK":
+        h.nudge_build(mass)                      # whatever build/visibility call this API has
+        mass_state = h.state(mass, min(p["wait_s"], 30))
+        volume = h.pull_value(vol_var)
+    warnings = []
+    if mass_state.get("buildState") != "e_OK":
+        warnings.append(f"Mass Properties stayed {mass_state.get('buildState')} in the GUI session (lazy block, "
+                        f"nothing displays it); the Output is still wired - verify the volume with nTopCL")
+
     # ---- verify every block, save, export the recipe ----------------------------------
-    states = h.states(p["wait_s"])
-    failed = {k: v for k, v in states.items() if not v.startswith("e_OK") and not v.startswith("?")}
+    states = h.states(min(10, p["wait_s"]))
+    failed = {k: v for k, v in states.items() if v.startswith(("e_FAILED", "e_UNBUILDABLE"))}
     if failed:
         raise ConsoleError("blocks failed to build: " + json.dumps(failed, indent=2))
-    try:
-        volume = h.output_value(vol_var)
-    except Exception as e:                      # the notebook is still fine without this number
-        h.log.append(f"get_block_output_meta failed: {e}")
-        volume = None
     notebook.save_notebook_as(p["save_to"])
     try:
         notebook.export_as_recipe(p["recipe_to"], True)
@@ -240,6 +255,7 @@ def _build(notebook, params: dict | None, h: NotebookHelper) -> dict:
         "test_output_exists": Path(test_output).exists(),
         "volume": volume,
         "expected_volume_hint": "a little under 290.95 mm³ for the court test values",
+        "warnings": warnings,
         "blocks": h.blocks,
         "identifiers": h.identifiers,
         "states": states,

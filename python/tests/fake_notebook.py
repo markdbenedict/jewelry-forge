@@ -38,7 +38,7 @@ SIGNATURES = {
     "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]": ("Mesh from Implicit Body", MESH_IN, "mesh"),
     "implicit_to_mesh<implicit,real,real,integer,implicit,bool>[2.5.0]": ("Mesh from Implicit Body", [("Body", "implicit"), ("Tolerance", "real"), ("Min. feature size", "real"), ("Iterations", "integer"), ("Keep", "implicit"), ("Simplify", "bool")], "mesh"),
     "mesh_from_implicit_body_2<implicit,real>": ("Mesh from Implicit Body", [("Body", "implicit"), ("Tolerance", "real")], "mesh"),
-    "export_mesh<file_path,mesh,unit_length_enum>": ("Export Mesh", [("File Path", "file_path"), ("Mesh", "mesh"), ("Units", "unit_length_enum")], "file"),
+    "export_mesh<file_path,mesh,unit_length_enum>": ("Export Mesh", [("Path", "file_path"), ("Mesh", "mesh"), ("Units", "unit_length_enum")], "file"),
     "export_multi_region_mesh<file_path,mr_mesh,unit_length_enum>[5.51.0]": ("Export Multi-Region Mesh", [("File Path", "file_path"), ("Mesh", "mr_mesh"), ("Units", "unit_length_enum")], "file"),
     "subtract<real,real>": ("Subtract", [("A", "real"), ("B", "real")], "real"),          # scalar decoy
     "offset_voxel_grid<voxel_grid,real>[1.1.0]": ("Offset Voxel Grid", [("Grid", "voxel_grid"), ("Distance", "real")], "voxel_grid"),
@@ -49,14 +49,22 @@ SIGNATURES = {
     "core.var_any<any>": ("Variable", [("x", "any")], "any"),
 }
 PROPERTIES = {"body_mass_props": ["Mass", "Volume", "Center of Mass", "Surface Area"], "implicit": ["Bounding Box"]}
-DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Export", "file_path": "File Path",
+DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Mesh File Data", "file_path": "Path",
                 "text": "Text", "real": "Scalar"}
+FILE_PATH_REFUSAL = ('Parameter "Input" of block "{bid}" has type "file_path", which cannot be set yet; only "real", "vector", '
+                     '"point", "bool", "integer" and "text" parameters can.')
 
 
 class FakeNotebook:
-    def __init__(self, available=None, fail_blocks=(), unmasked_limit=None):
+    def __init__(self, available=None, fail_blocks=(), unmasked_limit=None, lazy_mass="pull"):
         self.available_ids = list(available or SIGNATURES)
         self.unmasked_limit = unmasked_limit      # simulate a partial list from list_available_blocks()
+        # nTop builds lazily: Mass Properties stays e_DIRTY until something consumes it. "pull": builds once
+        # a variable wired from it is asked for its value; "method": builds on build_block(id); "never": stays dirty.
+        self.lazy_mass = lazy_mass
+        self.built: set[str] = set()
+        if lazy_mass == "method":
+            self.build_block = self._build_block
         self.blocks: dict[str, dict] = {}       # id -> {funcId, name, inputs: {name: value}, lists: {name: [ids]}, wired: {input: (src, prop)}}
         self.variables: dict[str, dict] = {}    # id -> {value, units, wraps, wired}
         self.counter: dict[str, int] = {}
@@ -134,6 +142,8 @@ class FakeNotebook:
             expected = "Input" if v.get("typed") else "x"
             if input_name != expected:
                 raise ValueError(f"variable '{block_id}' has no parameter '{input_name}'; it has ['{expected}']")
+            if v.get("typed") == "file_path":
+                raise ValueError(FILE_PATH_REFUSAL.format(bid=block_id))
             if v.get("typed") in ("text", "file_path") and not isinstance(value, str):
                 raise ValueError(f"'{block_id}' takes a {v['typed']}, not {type(value).__name__}")
             if v.get("typed") == "real" and isinstance(value, str):
@@ -190,17 +200,25 @@ class FakeNotebook:
         self._resolve(block_id)["inputs"].pop(input_name, None)
 
     def block_state(self, block_id: str):
-        self._resolve(block_id)
+        b = self._resolve(block_id)
         if self.paused:
             return {"blockId": block_id, "buildState": "e_DIRTY", "pauseState": "e_PAUSED"}
         if block_id in self.fail_blocks:
             return {"blockId": block_id, "buildState": "e_FAILED", "pauseState": "e_UNPAUSED", "error": "forced failure"}
+        if b.get("out") == "body_mass_props" and block_id in self.blocks and block_id not in self.built:
+            return {"blockId": block_id, "buildState": "e_DIRTY", "pauseState": "e_UNPAUSED"}
         return {"blockId": block_id, "buildState": "e_OK", "pauseState": "e_UNPAUSED"}
+
+    def _build_block(self, block_id: str):
+        self._resolve(block_id)
+        self.built.add(block_id)
 
     def get_block_output_meta(self, block_id: str):
         if block_id in self.variables and self.variables[block_id].get("wired"):
             src, prop = self.variables[block_id]["wired"]
-            if prop == "Volume":
+            if self.lazy_mass == "pull":
+                self.built.add(src)
+            if prop == "Volume" and src in self.built:
                 return {"type": "real", "value": 287.4, "units": "mm^3"}
         return {"type": "real", "value": None}
 
@@ -248,7 +266,7 @@ class FakeNotebook:
     # ---- files --------------------------------------------------------------------
     def new_notebook(self):
         fresh = self.fresh
-        self.__init__(self.available_ids, self.fail_blocks, self.unmasked_limit)
+        self.__init__(self.available_ids, self.fail_blocks, self.unmasked_limit, self.lazy_mass)
         self.fresh = fresh + 1
 
     def save_notebook_as(self, notebook_path: str):

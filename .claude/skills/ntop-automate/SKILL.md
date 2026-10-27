@@ -41,7 +41,11 @@ JSON rules, resolves identifiers, checks build states and runs the mesh gate.
   a lookup misses, run `api build discover` (dumps all identifiers and the input names of
   the families we use) and put the real one in the script; never fix it in the GUI.
 - Typed variables are blocks: `core.var<real>`, `core.var<text>`, `core.var<file_path>` …
-  (input `Input`); `add_variable(name)` gives a `core.var_any<any>` with input `x`.
+  (input `Input`); `add_variable(name)` gives a `core.var_any<any>` with input `x`. A
+  `file_path` parameter cannot be set through the API (6.3.3), so file inputs are
+  `core.var<text>` variables connected to the Export block's `Path`.
+- Blocks build lazily: a block with no consumer stays `e_DIRTY` indefinitely. Wire the Output
+  first, wait on the export block, and report a still-dirty Mass Properties as a warning.
 - Bad values fail at build time, not at call time: `block_state(id)["buildState"]` must be
   `e_OK`; `e_FAILED` carries `error`. `states()` checks every block the script made.
 - Variables: `add_real_variable(name, value, "mm")` (the id is the name) are the notebook
@@ -128,6 +132,8 @@ raises `NtopclError` (with the parsed `RunResult` attached) on failure.
 | `api`: `block X has no input like (...); it has [...]` | input name differs | add the listed name to the candidates |
 | `api`: `blocks failed to build: {...}` | a value or wiring nTop rejects | read the `error` text; compare with the block's doc page; set units on reals/points |
 | `api`: timed out | a slow build or a dialog in the GUI | look at the nTop window; raise `--timeout`; `--param wait_s=600` |
+| `api`: `<block>: e_DIRTY` after the whole wait | nothing consumes that block, so nTop never builds it | wire it into the Output (or a consumer) before waiting; verify its value with nTopCL |
+| `api`: `type "file_path" ... cannot be set yet` | API limit (6.3.3) | use a `core.var<text>` variable for the path |
 
 ## Reading nTop documentation
 
