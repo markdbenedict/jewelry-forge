@@ -196,7 +196,8 @@ def _prepare_params(script: Path, params: dict, work_dir: Path) -> dict:
 
 def _console(a: argparse.Namespace):
     from . import notebook_api
-    return notebook_api.Console(key=Path(a.key) if a.key else None, port=a.port)
+    return notebook_api.Console(key=Path(a.key) if a.key else None, port=a.port,
+                                progress=lambda msg: print(f"  ... {msg}", file=sys.stderr, flush=True))
 
 
 def _print_build_result(res: dict) -> None:
@@ -273,6 +274,8 @@ def cmd_api(a: argparse.Namespace) -> int:
               f"`python -m ntopjewel api collect {script.stem}`:\n\n    {notebook_api.exec_line(driver)}\n")
         print("Or over SSH: " + " ".join(_console(a).command()))
         return 0
+    print(f"building  : {script.stem} in nTop's open session (a fresh notebook; the canvas fills as blocks are "
+          f"added, then it is saved to {params.get('save_to') or 'the recipe default'})", flush=True)
     try:
         res = _console(a).run_script(script, params, work_dir=work_dir, python_path=python_path, timeout=a.timeout)
     except notebook_api.ConsoleError as e:

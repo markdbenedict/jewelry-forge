@@ -245,7 +245,7 @@ FAKE_SSH = r'''
 """Stands in for `ssh -tt ... localhost`: echoes the line like nTop's console, then answers."""
 import sys, time
 args = sys.argv[1:]
-mode = "hang" if "hang" in args[-1] else "ok"
+mode = "hang" if "hang" in args[-1] else ("slow" if "slow" in args[-1] else "ok")
 sys.stdout.write(">>> ")
 sys.stdout.flush()
 line = sys.stdin.readline()
@@ -253,6 +253,8 @@ sys.stdout.write(line)                      # the console echoes what it receive
 sys.stdout.flush()
 if mode == "hang":
     time.sleep(30)
+if mode == "slow":                          # a build that takes a while before it answers
+    time.sleep(1.2)
 time.sleep(0.1)
 sys.stdout.write("[{'name': 'Section 1', 'id': 'section_0'}]\n")
 sys.stdout.write("__NTOPJEWEL_" + "DONE__" + "\n")
@@ -289,6 +291,31 @@ def test_ssh_transport_times_out(fake_ssh):
     launcher, key = fake_ssh
     with pytest.raises(ConsoleError, match="timed out"):
         Console(key=key, ssh=str(launcher), host="hang").check(timeout=1)
+
+
+def test_ssh_transport_reports_progress_while_waiting(fake_ssh, monkeypatch):
+    """A build is silent for a minute or more: the console says it is still waiting (and, after a
+    while, that a dialog in nTop would block it) instead of looking hung."""
+    launcher, key = fake_ssh
+    seen = []
+    monkeypatch.setattr(Console, "HEARTBEAT_S", 0.3)
+    c = Console(key=key, ssh=str(launcher), host="slow", progress=seen.append)
+    out = c.check(timeout=10)
+    assert napi.DONE in out
+    assert seen and all(m.startswith("waiting for nTop (") for m in seen)
+    assert not any("dialog" in m for m in seen)            # the hint only comes after 60 s
+    # the hint wording, without waiting a minute: a heartbeat that thinks it started 61 s ago
+    import threading, time
+    late = []
+    c.progress = late.append
+    monkeypatch.setattr(Console, "HEARTBEAT_S", 0.01)
+    stop = threading.Event()
+    t = threading.Thread(target=c._heartbeat, args=(stop, time.time() - 61), daemon=True)
+    t.start()
+    time.sleep(0.1)
+    stop.set()
+    t.join(1)
+    assert late and "dialog" in late[0]
 
 
 # ------------------------------------------------------------------ the CLI, no SSH needed

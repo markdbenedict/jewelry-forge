@@ -52,11 +52,22 @@ class Console:
     `transport` is injectable for tests: a callable (line, timeout) -> captured output text.
     """
 
+    HEARTBEAT_S = 30.0       # while a line runs, say so this often (a build is silent otherwise)
+
     def __init__(self, key: Path | None = None, port: int = DEFAULT_PORT, host: str = DEFAULT_HOST,
-                 ssh: str = "ssh", transport: Callable[[str, float], str] | None = None):
+                 ssh: str = "ssh", transport: Callable[[str, float], str] | None = None,
+                 progress: Callable[[str], None] | None = None):
         self.key = Path(key) if key else default_key()
         self.port, self.host, self.ssh = port, host, ssh
         self._transport = transport or self._ssh_transport
+        self.progress = progress            # called with a one-line status every HEARTBEAT_S while waiting
+
+    def _heartbeat(self, stop: threading.Event, started: float) -> None:
+        while not stop.wait(self.HEARTBEAT_S):
+            waited = time.time() - started
+            hint = (" - if nTop is showing a dialog (Save changes? / an error box), answer it: the console "
+                    "waits behind it" if waited >= 60 else "")
+            self.progress(f"waiting for nTop ({waited:.0f} s){hint}")
 
     # ---- transport -------------------------------------------------------------------
     def command(self) -> list[str]:
@@ -87,20 +98,27 @@ class Console:
         watchdog = threading.Timer(timeout, _kill)
         watchdog.daemon = True
         watchdog.start()
+        stop_beat = threading.Event()
+        if self.progress:
+            beat = threading.Thread(target=self._heartbeat, args=(stop_beat, time.time()), daemon=True)
+            beat.start()
         found = False
         try:
             proc.stdin.write(line.rstrip("\n") + "\n")
             proc.stdin.flush()
             while True:
                 chunk = proc.stdout.readline()
-                if chunk == "" and proc.poll() is not None:
-                    break
-                if chunk:
-                    out.append(chunk)
-                    if DONE in chunk or FAIL in chunk:   # the sent line never contains the sentinel itself
-                        found = True
+                if chunk == "":
+                    if proc.poll() is not None:
                         break
+                    time.sleep(0.1)                  # EOF before exit: do not spin
+                    continue
+                out.append(chunk)
+                if DONE in chunk or FAIL in chunk:   # the sent line never contains the sentinel itself
+                    found = True
+                    break
         finally:
+            stop_beat.set()
             watchdog.cancel()
             try:
                 proc.stdin.write("\x03")          # Ctrl-C ends the SSH console session (never exit())
