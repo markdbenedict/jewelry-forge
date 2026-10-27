@@ -154,9 +154,30 @@ def test_wall_thickness_zone_keeps_beads_out_of_the_sample():
             beads.append(s)
     m = trimesh.util.concatenate([ring, *beads])
     whole = gate.wall_thickness(m, 3000, 0.5)
-    banded = gate.wall_thickness(m, 3000, 0.5, zone=(2, 1.6))
+    banded = gate.wall_thickness(m, 3000, 0.5, zone=(2, 1.6), axis=2)
     assert whole["p01"] < 0.5 < banded["p01"]            # grazing bead chords fool the raw check; the zone does not
-    assert banded["zone"].startswith("|z| <= 1.6")
+    assert banded["zone"].startswith("|z| <= 1.6") and banded["excluded"]["outside_zone"] > 0
+
+
+def test_wall_thickness_ignores_engraving_ribs():
+    """Engraved strokes leave 0.3 mm ribs between pockets: a ray off a pocket's side wall runs
+    sideways through the rib and reads 0.3 mm. Those are not walls; the gate measures only
+    along radial and axial directions."""
+    import trimesh, numpy as np
+    from shapely.geometry import Point, box
+    from ntopjewel import gate
+    ring = Point(0, 0).buffer(9.55, quad_segs=180).difference(Point(0, 0).buffer(8.25, quad_segs=180))
+    for k in range(8):                                      # eight 0.3 mm notches 0.3 mm apart at the bore, near +X
+        a = k * 0.6 / 8.25
+        notch = box(8.25 - 0.1, -0.15, 8.25 + 0.3, 0.15)
+        from shapely import affinity
+        ring = ring.difference(affinity.rotate(notch, math.degrees(a), origin=(0, 0)))
+    m = trimesh.creation.extrude_polygon(ring, height=4.0)
+    m.apply_translation((0, 0, -2.0))
+    raw = gate.wall_thickness(m, 3000, 0.5, seed=3)
+    filtered = gate.wall_thickness(m, 3000, 0.5, seed=3, axis=2)
+    assert filtered["p01"] >= 0.9 and filtered["excluded"]["tangential"] > 0
+    assert raw["min"] < 0.4                                 # the ribs were visible to the raw check
 
 
 def test_engraving_pocket_detection():

@@ -43,7 +43,9 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - Every nTop run goes through `ntopjewel` (`python -m ntopjewel ...`), never a bare
   `ntopcl` call: the runner enforces the JSON rules and runs the mesh gate.
 - **Run the mesh gate after every export** (`ntopjewel gate <file.stl> --expect ...`).
-  Nothing is reported as finished until the gate passes.
+  Nothing is reported as finished until the gate passes. The wall check casts rays only
+  along radial/axial directions (letter walls and bead seams measure ribs and slivers, not
+  walls) and, for beaded rings, only between the bead rows.
 - Deliverables (STL/3MF for printing) are copied to Mark's `OneDrive\Documents\Jewelry\<project>`
   folder, one file per size/variant; `out/` is scratch and git-ignored.
 

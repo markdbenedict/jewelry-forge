@@ -105,13 +105,21 @@ def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None) -> tuple[str, f
 
 
 def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.5,
-                   seed: int = 7, zone: tuple[int, float] | None = None) -> dict:
+                   seed: int = 7, zone: tuple[int, float] | None = None, axis: int | None = None,
+                   min_alignment: float = 0.5) -> dict:
     """Ray-cast thickness: from points on the surface, shoot inward and measure to the exit.
 
     `zone` = (axis index, abs max): sample only surface points with |coord[axis]| <= abs max.
     Decorative bumps (milgrain beads) are solid on solid: a ray grazing a bead measures a short
     chord through the sphere, not a wall, so a featured ring keeps its bead rows out of the
-    sample and measures the band itself."""
+    sample and measures the band itself.
+
+    `axis` (the ring axis): keep only rays whose direction is within 60° of radial or of axial
+    (|n·r̂| >= min_alignment or |n·ẑ| >= min_alignment). On a ring those are the directions a
+    wall is measured in: the band wall, a pocket or groove floor, the faces. A ray leaving a
+    letter's side wall runs sideways through the rib between two strokes - a 0.3 mm ridge on
+    a solid band, not a wall - and a ray off a union seam exits through a sliver facet; both
+    read as "thin" without this filter (seen 2026-10-27: p1 0.28 mm on a sound ring)."""
     if samples <= 0:
         return {}
     fast = ray_backend(mesh) == "embree"
@@ -124,17 +132,31 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
             samples = cap
         note = "embreex not installed: pure-python ray backend, sample reduced"
     rng = np.random.default_rng(seed)
-    if zone is None:
-        pts, fidx = trimesh.sample.sample_surface(mesh, samples, seed=rng)
-    else:
-        ax, lim = zone
-        pts, fidx = trimesh.sample.sample_surface(mesh, samples * 4, seed=rng)
-        keep = np.abs(pts[:, ax]) <= lim
-        pts, fidx = pts[keep][:samples], fidx[keep][:samples]
-        samples = len(pts)
-        if samples == 0:
-            return {}
+    pts, fidx = trimesh.sample.sample_surface(mesh, samples * 4 if (zone is not None or axis is not None) else samples, seed=rng)
     normals = mesh.face_normals[fidx]
+    excluded = {}
+    keep = np.ones(len(pts), dtype=bool)
+    if zone is not None:
+        ax, lim = zone
+        inzone = np.abs(pts[:, ax]) <= lim
+        excluded["outside_zone"] = int((~inzone).sum())
+        keep &= inzone
+    if axis is not None:
+        centre = mesh.bounding_box.centroid
+        radial = pts - centre
+        radial[:, axis] = 0.0
+        norm = np.linalg.norm(radial, axis=1)
+        norm[norm == 0] = 1.0
+        radial /= norm[:, None]
+        axial = np.abs(normals[:, axis])
+        rad = np.abs(np.einsum("ij,ij->i", normals, radial))
+        aligned = (rad >= min_alignment) | (axial >= min_alignment)
+        excluded["tangential"] = int((~aligned & keep).sum())
+        keep &= aligned
+    pts, fidx, normals = pts[keep][:samples], fidx[keep][:samples], normals[keep][:samples]
+    samples = len(pts)
+    if samples == 0:
+        return {}
     eps = 1e-4
     origins = pts - normals * eps
     dirs = -normals
@@ -167,6 +189,8 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
         out["note"] = note
     if zone is not None:
         out["zone"] = f"|{'xyz'[zone[0]]}| <= {zone[1]:.3f} mm"
+    if excluded:
+        out["excluded"] = excluded
     return out
 
 
@@ -196,8 +220,9 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     rep.extents_mm = [float(x) for x in mesh.bounding_box.extents]
 
     rep.axis, rep.inner_diameter_mm, rep.outer_diameter_mm, rep.width_mm = ring_metrics(mesh, axis)
-    zone = ("xyz".index(rep.axis), wall_abs_axis_max) if (wall_abs_axis_max is not None and rep.axis in "xyz") else None
-    rep.thickness = wall_thickness(mesh, wall_samples, wall_floor, zone=zone) if rep.watertight else {}
+    ax = "xyz".index(rep.axis) if rep.axis in "xyz" else None
+    zone = (ax, wall_abs_axis_max) if (wall_abs_axis_max is not None and ax is not None) else None
+    rep.thickness = wall_thickness(mesh, wall_samples, wall_floor, zone=zone, axis=ax) if rep.watertight else {}
     rep.weights_g = tables.weights_g(rep.volume_mm3, metals)
 
     c = rep.checks

@@ -47,8 +47,11 @@ STL to `OneDrive\Documents\Jewelry\Rings`.
   volume − groove − text area x depth); ±3 % with features, ±2 % plain.
 - Gate with features: the wall-thickness rays sample only |z| ≤ bead z − bead radius − 0.05
   (beads are solid bumps; a ray grazing one measures a chord, which failed the first run at
-  p1 0.448 mm); the outer Ø expectation takes the groove into account; an `engraving` check
-  counts mesh vertices in the pocket on the right side and at the right angle (≥ 200 = found).
+  p1 0.448 mm) and only along radial or axial directions (a ray off a letter's side wall runs
+  through the 0.3 mm rib between strokes - a ridge on solid metal, not a wall - and read p1
+  0.28 mm on the second run); the outer Ø expectation takes the groove into account; an
+  `engraving` check counts mesh vertices in the pocket on the right side and at the right
+  angle (≥ 200 = found; 12,953 on the first engraved ring).
 
 ## Inputs (catalog/ring_features.yaml, 23)
 
