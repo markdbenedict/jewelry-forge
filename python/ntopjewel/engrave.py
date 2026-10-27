@@ -61,6 +61,19 @@ def stroke_width_mm(shape) -> float:
     return 2 * lo
 
 
+def require_triangulation() -> None:
+    """trimesh extrudes polygons only with a triangulation engine installed; say which one to
+    install instead of trimesh's generic 'No available triangulation engine!'."""
+    for mod in ("mapbox_earcut", "manifold3d", "triangle"):
+        try:
+            __import__(mod)
+            return
+        except ImportError:
+            continue
+    raise RuntimeError("engraving text needs a triangulation engine: run `python -m pip install -e \".\\python[dev]\"` "
+                       "(or `pip install mapbox-earcut`) in the venv, then retry")
+
+
 def text_mesh(text: str, height_mm: float, depth_mm: float, radius_mm: float, side: str = "outside",
               overshoot_mm: float = 0.6, font: dict | None = None):
     """A watertight trimesh of `text` ready for the notebook (see the module docstring).
@@ -73,6 +86,7 @@ def text_mesh(text: str, height_mm: float, depth_mm: float, radius_mm: float, si
     import trimesh
     if side not in ("outside", "inside"):
         raise ValueError("side must be 'outside' or 'inside'")
+    require_triangulation()
     shape = text_polygons(text, height_mm, font)
     geoms = list(shape.geoms) if hasattr(shape, "geoms") else [shape]
     span = depth_mm + overshoot_mm

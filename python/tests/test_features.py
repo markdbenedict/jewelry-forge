@@ -161,3 +161,16 @@ def test_cli_ring_dry_run(capsys):
     assert rc == 0 and "87 beads/row" in out and "Bead Count: 87" in out and "design volume" in out
     rc = cli.main(["ring", "--size", "6", "--groove", "0.9", "--dry-run"])
     assert rc == 1 and "problems" in capsys.readouterr().out
+
+
+def test_engraving_names_the_missing_triangulation_engine(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def no_engines(name, *a, **k):
+        if name in ("mapbox_earcut", "manifold3d", "triangle"):
+            raise ImportError(name)
+        return real_import(name, *a, **k)
+    monkeypatch.setattr(builtins, "__import__", no_engines)
+    with pytest.raises(RuntimeError, match="pip install"):
+        engrave.text_mesh("A", 1.5, 0.3, 9.5)

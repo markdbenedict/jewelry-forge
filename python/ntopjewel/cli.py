@@ -151,7 +151,7 @@ def cmd_ring(a: argparse.Namespace) -> int:
     try:
         res = features.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                              catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project)
-    except (ntopcl.NtopclError, ValueError) as e:
+    except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
         print(f"ring failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
