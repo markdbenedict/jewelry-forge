@@ -109,7 +109,7 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert b[prof]["wired"]["Distance"][0] == "Edge Round"
     assert b[res["blocks"]["Shrunk"]]["wired"]["Distance"][0] == "Edge Round Inward"
     # tail: mass properties -> Volume variable, mesh tolerance from the input, export file from Output Path
-    assert nb.variables["Volume"]["wired"] == (res["blocks"]["Mass Properties"], "Volume")
+    assert nb.variables["Volume"]["wired"] == (res["blocks"]["Mass Properties"], "volume")   # nTop names it in lower case
     assert b[res["blocks"]["Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
     # the final body feeds two blocks, so it goes through a variable (nTop's rule)
     assert nb.variables["Band Body"]["wraps"] == prof
@@ -120,7 +120,8 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert any("cannot be set yet" in ln for ln in res["log"])
     assert res["warnings"] == [] and nb.variables["Volume"]["wired"][0] in nb.built
     assert res["volume"] == pytest.approx(287.4)
-    assert set(res["states"]) == set(res["blocks"]) and all(v == "e_OK" for v in res["states"].values())
+    assert set(res["states"]) == set(res["blocks"])
+    assert all(v == ("input" if k in mod.INPUT_ORDER else "e_OK") for k, v in res["states"].items())
     ids = res["identifiers"]
     assert ids["Band"] == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>"
     assert ids["Shaped"] == "boolean_intersect<blend_enum,real_field,list<implicit>>"

@@ -258,6 +258,7 @@ class NotebookHelper:
         self.log: list[str] = []
         self.blocks: dict[str, str] = {}       # our label -> nTop id
         self.identifiers: dict[str, str] = {}  # our label -> identifier used
+        self.moved_inputs: list[str] = []      # ids moved to the Inputs section (block_state no longer finds them)
 
     # ---- identifiers ----------------------------------------------------------------
     def available(self) -> list[str]:
@@ -454,9 +455,18 @@ class NotebookHelper:
         return {"identifiers": self.identifiers, "blocks": self.blocks, "states": states, "log": self.log[-60:]}
 
     def declare_inputs(self, ids: Iterable[str]) -> None:
+        """Move variables to the notebook's Inputs section. After the move nTop no longer answers
+        block_state for the old id ("No block with the id ... exists in the notebook", seen
+        2026-10-26); the wires from it stay intact."""
         for i in ids:
-            self.nb.move_block_to_input(i)
-            self.log.append(f"input {i}")
+            info = self.nb.move_block_to_input(i)
+            new_id = info.get("id", i) if isinstance(info, dict) else i
+            self.moved_inputs.append(new_id)
+            if new_id != i:
+                for label, bid in self.blocks.items():
+                    if bid == i:
+                        self.blocks[label] = new_id
+            self.log.append(f"input {i}" + (f" -> {new_id}" if new_id != i else ""))
 
     def set_output(self, block_id: str) -> None:
         self.nb.set_block_as_output(block_id)
@@ -480,6 +490,9 @@ class NotebookHelper:
     def states(self, wait_s: float = 120) -> dict[str, str]:
         out = {}
         for label, bid in self.blocks.items():
+            if bid in self.moved_inputs:
+                out[label] = "input"                 # lives in the Inputs section now; not a body block
+                continue
             try:
                 st = self.state(bid, wait_s)
                 out[label] = st.get("buildState", "?") + (f": {st['error']}" if st.get("error") else "")
@@ -501,6 +514,8 @@ class NotebookHelper:
             self.log.append(f"get_block_output_meta({block_id}) failed: {e}")
             return None
 
+    # nTop 6.3.3's API (2026-10-26) has none of the build/evaluate names and only set_block_visibility,
+    # which did not make a lazy Mass Properties build; the probe stays for later API versions.
     NUDGE_METHODS = ("build_block", "build", "rebuild_block", "rebuild", "update_block", "evaluate_block", "evaluate",
                      "set_block_visibility", "set_block_visible", "show_block", "set_visibility")
 

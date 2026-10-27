@@ -48,7 +48,7 @@ SIGNATURES = {
     "core.var<implicit>": ("Implicit Body Variable", [("Input", "implicit")], "implicit"),
     "core.var_any<any>": ("Variable", [("x", "any")], "any"),
 }
-PROPERTIES = {"body_mass_props": ["Mass", "Volume", "Center of Mass", "Surface Area"], "implicit": ["Bounding Box"]}
+PROPERTIES = {"body_mass_props": ["center of gravity", "mass", "principal frame", "principal moments", "volume"], "implicit": ["Bounding Box"]}
 DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Mesh File Data", "file_path": "Path",
                 "text": "Text", "real": "Scalar"}
 FILE_PATH_REFUSAL = ('Parameter "Input" of block "{bid}" has type "file_path", which cannot be set yet; only "real", "vector", '
@@ -200,6 +200,8 @@ class FakeNotebook:
         self._resolve(block_id)["inputs"].pop(input_name, None)
 
     def block_state(self, block_id: str):
+        if block_id in self.inputs:                 # moved to the Inputs section: nTop no longer finds it here
+            raise ValueError(f'No block with the id "{block_id}" exists in the notebook.')
         b = self._resolve(block_id)
         if self.paused:
             return {"blockId": block_id, "buildState": "e_DIRTY", "pauseState": "e_PAUSED"}
@@ -218,7 +220,7 @@ class FakeNotebook:
             src, prop = self.variables[block_id]["wired"]
             if self.lazy_mass == "pull":
                 self.built.add(src)
-            if prop == "Volume" and src in self.built:
+            if prop == "volume" and src in self.built:
                 return {"type": "real", "value": 287.4, "units": "mm^3"}
         return {"type": "real", "value": None}
 

@@ -159,8 +159,12 @@ def _print_build_result(res: dict) -> None:
         print(f"volume    : {r.get('volume')}  ({r.get('expected_volume_hint', '')})")
     if "test_output" in r:
         print(f"test STL  : {r.get('test_output')}  ({'written' if r.get('test_output_exists') else 'NOT written'})")
-    bad = {k: v for k, v in (r.get("states") or {}).items() if not str(v).startswith("e_OK")}
-    print(f"states    : {len(r.get('states') or {})} blocks checked" + (f", not OK: {bad}" if bad else ", all e_OK"))
+    states = {k: v for k, v in (r.get("states") or {}).items() if v != "input"}
+    bad = {k: v for k, v in states.items() if not str(v).startswith("e_OK")}
+    print(f"states    : {len(states)} blocks checked" + (f", not OK: {bad}" if bad else ", all e_OK")
+          + f"; {sum(1 for v in (r.get('states') or {}).values() if v == 'input')} inputs declared")
+    for w in r.get("warnings") or []:
+        print(f"warning   : {w}")
     if r.get("identifiers"):
         print("identifiers used:")
         for k, v in r["identifiers"].items():

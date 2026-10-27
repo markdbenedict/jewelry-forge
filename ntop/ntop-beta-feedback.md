@@ -36,15 +36,30 @@ Windows 11 laptops, Python per nTop's bundled console.
   `file_path` input (named `Path`); `add_variable(name, block_id)` wraps a block and both the
   variable and the wrapped block report `e_OK`; `block_state` answers for variables.
 
+- Third build (2026-10-27 morning, `status: ok`): `add_variable("Volume")` +
+  `connect_block_property(mass, "volume", "Volume", "x")` + `set_block_as_output("Volume")`
+  all accepted; the notebook saved and `export_as_recipe(path, True)` wrote the recipe.
+  `list_block_properties` on `mass_properties_from_body` returns lower-case names:
+  `['center of gravity', 'mass', 'principal frame', 'principal moments', 'volume']`. After
+  `move_block_to_input(id)` the variable no longer answers `block_state(id)` ("No block with
+  the id ... exists in the notebook") although the wires from it stay intact. The notebook's
+  methods on 6.3.3 / v0.14: PauseMode, add_block, add_floating_comment, add_point_variable,
+  add_real_variable, add_section, add_variable, add_vector_variable, append_to_list,
+  block_state, clear_block_input, close_current_open_custom_block, collapse_section,
+  connect_block_property, current_open_custom_block, delete_block, delete_variable,
+  embed_custom_block, expand_section, export_as_recipe, get_block_comment, get_block_input,
+  get_block_input_meta, get_block_input_units, get_block_output_meta, get_block_visibility,
+  get_floating_comment, import_recipe, list_available_blocks, list_block_inputs,
+  list_block_properties, list_blocks, list_custom_blocks, list_sections, list_variables,
+  move_block, move_block_to_body, move_block_to_input, new_notebook, open_custom_block,
+  open_notebook, pause_updates, paused_updates, rename_variable, resume_updates,
+  save_notebook, save_notebook_as, set_block_as_output, set_block_comment, set_block_input,
+  set_block_input_units, set_block_visibility, update_floating_comment, updates_paused.
+
 ## Open questions
 
-- Whether a property of a built block (`Mass Properties.Volume`) feeds an `add_variable`
-  variable and can be the notebook Output (next run).
-- Whether `export_as_recipe(path, True)` writes a recipe we can diff in git.
-- The shape of `list_block_properties()` answers (dicts with `name`? strings?) - the helper
-  accepts either and logs what it saw.
-- Whether the API has any call that builds a lazy block (see finding 2); the next run logs
-  `dir(notebook)`.
+- Whether the Output (an untyped variable fed by the `volume` property) comes out of nTopCL
+  as a `real` in m³, as the GUI-built Phase 0 notebook's did (next: `templates` + a real run).
 
 ## Findings
 
@@ -64,7 +79,10 @@ Windows 11 laptops, Python per nTop's bundled console.
 - Expected: either documented ("blocks build on demand; use X to force a build / the Output
   is evaluated when ...") or a `build_block(id)` / `evaluate(id)` call. `block_state` reports
   `e_DIRTY` the same way for "queued behind a long build" and "will never build", which makes a
-  script wait for nothing.
+  script wait for nothing. The API has no build/evaluate method (see the method list above);
+  `set_block_visibility(id, True)` on the Mass Properties block did not make it build either,
+  and neither did making its property the notebook Output or calling `get_block_output_meta`
+  on the Output variable (value `None`).
 - Workaround: wire the block's property into the Output variable first, then poll; treat a
   remaining `e_DIRTY` as "verify with nTopCL".
 

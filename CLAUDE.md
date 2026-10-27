@@ -92,9 +92,13 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   bool, integer and text"); a file input is a **`core.var<text>`** connected to the Export
   block's `Path`, which builds and which nTopCL types `text`.
 - **Blocks build lazily.** A block nothing displays or consumes (Mass Properties with no
-  downstream) stays `e_DIRTY` forever and `block_state` cannot tell that from "queued". Wire
-  the Output (Volume variable) before waiting, wait on the export block instead, and treat a
+  downstream) stays `e_DIRTY` forever and `block_state` cannot tell that from "queued". The
+  API has no build/evaluate call and `set_block_visibility` does not force one. Wire the
+  Output (Volume variable) before waiting, wait on the export block instead, and treat a
   still-dirty Mass Properties as "verify with nTopCL", never as a failure.
+- Property names are lower case (`volume`, `mass`, `center of gravity`); match them
+  case-insensitively. After `move_block_to_input(id)` the variable no longer answers
+  `block_state` (its wires stay); the helper reports such ids as `input`.
 - SSH: `ssh -tt -i ~\.ssh\id_ntopcli -p 2222 localhost` while the console panel is open.
   Key-based only; `authorized_keys` written as ASCII (no BOM), owner-only. **One line per
   send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the
