@@ -112,17 +112,17 @@ def test_ring_features_builds_on_fake_notebook(tmp_path):
     assert ids["Bead Count"] == "core.var<integer>" and nb.variables["Bead Count"]["value"] == 87
     assert nb.variables["Bead Spacing"]["units"] == "deg"
     arr = res["blocks"]["Milgrain"]
-    assert b[arr]["wired"]["Count"][0] == "Bead Count" and b[arr]["wired"]["Angular spacing"][0] == "Bead Spacing"
+    assert b[arr]["wired"]["Count"][0] == "Bead Count" and b[arr]["wired"]["Angular Spacing"][0] == "Bead Spacing"
     assert b[arr]["wired"]["Axis"][0] == res["blocks"]["Z Axis"] and b[arr]["wired"]["Body"][0] == res["blocks"]["Bead Pair"]
     assert b[res["blocks"]["Bead Pair"]]["lists"]["Bodies"] == [res["blocks"]["Bead+"], res["blocks"]["Bead-"]]
-    assert b[res["blocks"]["Bead+"]]["wired"]["Center"][0] == res["blocks"]["Bead+ P"]
+    assert b[res["blocks"]["Bead+"]]["wired"]["Center Point"][0] == res["blocks"]["Bead+ P"]
     assert b[res["blocks"]["Bead+ P"]]["wired"]["X"][0] == "Bead Ring Radius" and b[res["blocks"]["Bead- P"]]["wired"]["Z"][0] == "Bead Z Minus"
     assert b[res["blocks"]["Beaded"]]["lists"]["Bodies"] == ["Band Body", arr]
     assert b[res["blocks"]["Grooved"]]["wired"]["Primary Body"][0] == res["blocks"]["Beaded"]
     assert b[res["blocks"]["Grooved"]]["lists"]["Subtraction Bodies"] == [res["blocks"]["Groove Torus"]]
     assert b[res["blocks"]["Groove Torus"]]["wired"]["Center"][0] == res["blocks"]["Groove P"]
     assert b[res["blocks"]["Engraving Mesh"]]["wired"]["Path"][0] == "Engraving Path"
-    assert b[res["blocks"]["Engraving Wrapped"]]["wired"]["Y mapping length"][0] == "Engraving Wrap Length"
+    assert b[res["blocks"]["Engraving Wrapped"]]["wired"]["Y Mapping Length"][0] == "Engraving Wrap Length"
     assert b[res["blocks"]["Engraved"]]["lists"]["Subtraction Bodies"] == [res["blocks"]["Engraving Wrapped"]]
     assert nb.variables["Ring Body"]["wraps"] == res["blocks"]["Engraved"]
     assert b[res["blocks"]["Volume Integral"]]["wired"]["Body"][0] == "Ring Body" == b[res["blocks"]["Mesh"]]["wired"]["Body"][0]

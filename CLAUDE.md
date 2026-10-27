@@ -81,8 +81,11 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
   `mass_properties_from_body<implicit,real_field,real>`, `implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]`,
   `export_mesh<file_path,mesh,unit_length_enum>`, `torus<point,vector,real,real>` (Center, Axis,
   Radius, Torus Radius), `cylinder<point,point,real>`, `point<real,real,real>`,
-  `remap_cylindrical_implicit<implicit,real>`, `twist<implicit,plane,real_field>`,
-  `polar_array_implicit<implicit,real,integer,axis>`. 6.3.3 lists 2273; `api build discover`
+  `remap_cylindrical_implicit<implicit,real>` (`Body`, `Y Mapping Length`), `twist<implicit,plane,real_field>`,
+  `polar_array_implicit<implicit,real,integer,axis>` (`Body`, `Angular Spacing`, `Count`, `Axis`),
+  `axis<point,vector>` (`Point`, `Vector`), `sphere<point,real>` (`Center Point`, `Radius`),
+  `import_mesh<file_path,unit_length_enum>[1.1.0]` (`Path`), `implicit_from_mesh<mesh>` (`Mesh`),
+  `core.var<integer>` for integer inputs. 6.3.3 lists 2273; `api build discover`
   dumps them with input names. **An unversioned identifier is version 1.0.0** - the original,
   usually deprecated definition (nTopCL: "Boolean Subtract version 1.0.0 is now deprecated …
   incorrect gradients when the Subtraction Bodies list contained a single body"); **take the
@@ -113,8 +116,9 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - **Units are a per-notebook table.** A fresh notebook knows `mm` (its length unit) and
   nothing else: `add_real_variable(…, "kg/m3")` and `set_block_input_units` answer
   `"kg/m3" is not a unit this notebook knows`, although `get_block_input_units` spells the
-  Density input exactly `kg/m3`. No API call registers a unit. So API-built notebooks avoid
-  non-length units: volume = `volume_integral` of a unitless 1, never Mass Properties.
+  Density input exactly `kg/m3`. No API call registers a unit. `deg` IS known (angles work).
+  So API-built notebooks use only mm and deg: volume = `volume_integral` of a unitless 1
+  (inputs `Body`, `Integrand`), never Mass Properties.
 - **What only nTopCL tells you about an API-built notebook** (a lazy block with no typed
   consumer never builds in the GUI session, so its input errors stay hidden): a required
   input with no default (`Input "Density" is incomplete`); a block added and never set

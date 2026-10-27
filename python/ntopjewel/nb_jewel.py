@@ -99,10 +99,8 @@ def integer_variable(h: NotebookHelper, name: str, value: int) -> str:
 
 
 def angle_variable(h: NotebookHelper, name: str, degrees: float) -> str:
-    """An angle in degrees. Which spelling a fresh notebook's unit table accepts is not known
-    (2026-10-27: it knew `mm` and refused `kg/m3`), so `deg`, `°` and `degree` are tried and
-    the refusals logged; the last resort is a unitless value in radians, which an angle input
-    may read as radians - the first real run tells."""
+    """An angle in degrees. A fresh notebook's unit table knows `deg` (verified 2026-10-27,
+    `add_real_variable("Bead Spacing", 4.1379, "deg")`); the other spellings stay as fallbacks."""
     import math
     errors = []
     for u in ("deg", "°", "degree", "degrees"):
@@ -145,13 +143,14 @@ def point_block(h: NotebookHelper, label: str, x_var: str | None = None, z_var: 
 
 
 def z_axis(h: NotebookHelper, label: str = "Z Axis") -> str:
-    """An Axis through the origin along +Z (for polar arrays)."""
+    """An Axis through the origin along +Z (for polar arrays): `axis<point,vector>`, inputs
+    `Point` and `Vector` (verified 2026-10-27)."""
     ax = h.add(label, mask="axis", must=AXIS)
     try:
-        h.set(ax, ["Origin", "Point", "Center", "Position"], [0.0, 0.0, 0.0], "mm")
+        h.set(ax, ["Point", "Origin", "Center", "Position"], [0.0, 0.0, 0.0], "mm")
     except Exception as e:
         h.log.append(f"axis origin not set ({e}); default kept")
-    set_axis(h, ax, name=h.input_name(ax, "Direction", "Vector", "Axis", "Normal"))
+    set_axis(h, ax, name=h.input_name(ax, "Vector", "Direction", "Axis", "Normal"))
     return ax
 
 

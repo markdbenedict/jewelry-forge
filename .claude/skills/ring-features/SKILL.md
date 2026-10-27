@@ -5,9 +5,9 @@ description: Add milgrain beads, a channel groove and a wrapped engraving (insid
 
 # ring-features
 
-**Status.** Written 2026-10-27 against the discovery dump (`api build discover`); the build
-script passes the fake-notebook tests; the first real `api build ring_features` and nTopCL run
-are pending. Until the notebook is in `ntop/notebooks/`, run with `--notebook out\api\ring_features.ntop`.
+**Status.** First real `api build ring_features` 2026-10-27 16:00: 55 blocks `e_OK`, volume
+250.3 mm³ in the session (design 249). nTopCL run and gate next; until the notebook is in
+`ntop/notebooks/`, run with `--notebook out\api\ring_features.ntop`.
 
 ## Make rings
 
@@ -57,11 +57,11 @@ because the API cannot negate a variable.
 `python -m ntopjewel api build ring_features --scratch` (nTop open, console open). Its
 `prepare()` writes the test engraving STL first (`--param text=HI` for real text). Then
 `templates out\api\ring_features.ntop --catalog ring_features`, then a `ring ... --notebook
-out\api\ring_features.ntop` run and its gate. Unknowns to watch on the first real build: the
-angle unit spelling a fresh notebook accepts for Bead Spacing (`deg` first; the script logs
-refusals), the Polar Array input names (`Angular spacing`, `Count`, `Axis` per the docs), the
-`Axis` block's input names, and Import Mesh's default length unit (the gate's volume and the
-engraving note catch a wrong unit).
+out\api\ring_features.ntop` run and its gate. Verified on the first real build: `deg` is a
+known unit, Polar Array takes `Angular Spacing` / `Count` / `Axis`, Axis takes `Point` /
+`Vector`, Volume Integral takes `Body` / `Integrand`, Remap takes `Y Mapping Length`. Still to
+confirm with nTopCL: Import Mesh's default length unit (the gate's volume and the engraving
+note catch a wrong unit).
 
 ## Report back
 

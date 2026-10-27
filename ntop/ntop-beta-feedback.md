@@ -63,6 +63,14 @@ Windows 11 laptops, Python per nTop's bundled console.
   `Volume` as a `real` in m³ and the mesh gate passes (mesh volume within 0.14 % of nTop).
   Blocks `[5.44.0]` / `implicit_to_mesh[2.5.0]` run without deprecation warnings.
 
+- Fifth build (2026-10-27 16:00, `ring_features`, `status: ok`, 55 blocks e_OK): `deg` is a
+  known unit in a fresh notebook (`add_real_variable(..., "deg")` accepted); `core.var<integer>`
+  + `set_block_input(id, "Input", 87)` makes an integer input; `polar_array_implicit`
+  (`Angular Spacing`, `Count`, `Axis`), `axis<point,vector>` (`Point`, `Vector`),
+  `sphere<point,real>` (`Center Point`), `import_mesh[1.1.0]` (`Path`, fed by a text variable),
+  `implicit_from_mesh<mesh>` (`Mesh`), `remap_cylindrical_implicit` (`Y Mapping Length`) and
+  `volume_integral` (`Body`, `Integrand`) all build on their defaults.
+
 ## Open questions
 
 - None blocking. Nice to have: a documented way to register a unit in a notebook, and a

@@ -113,7 +113,7 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert b[res["blocks"]["Shrunk"]]["wired"]["Distance"][0] == "Edge Round Inward"
     # tail: Volume = ∫ 1 dV over the body (no density, no units), the Output wraps that block
     integ = res["blocks"]["Volume Integral"]
-    assert b[integ]["wired"]["Body"][0] == "Band Body" and b[integ]["wired"]["Scalar Field"][0] == "One"
+    assert b[integ]["wired"]["Body"][0] == "Band Body" and b[integ]["wired"]["Integrand"][0] == "One"
     assert nb.variables["One"] ["value"] == 1.0 and nb.variables["One"]["units"] == ""
     assert nb.variables["Volume"]["wraps"] == integ
     assert "Mass Properties" not in res["blocks"] and "Density" not in nb.variables
