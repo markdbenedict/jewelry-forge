@@ -16,13 +16,13 @@ BOOL_SUB = [("Blend Type", "blend_enum"), ("Blend Radius", "real_field"), ("Prim
 BOOL_N = [("Blend Type", "blend_enum"), ("Blend Radius", "real_field"), ("Bodies", "list<implicit>")]
 MESH_IN = [("Body", "implicit"), ("Tolerance", "real"), ("Min. feature size", "real"), ("Sharpen", "bool"), ("Simplify", "bool")]
 SIGNATURES = {
-    "sphere<point,real>": ("Sphere", [("Center", "point"), ("Radius", "real")], "sphere"),
-    "axis<point,vector>": ("Axis", [("Origin", "point"), ("Direction", "vector")], "axis"),
-    "polar_array_implicit<implicit,real,integer,axis>": ("Polar Array Body", [("Body", "implicit"), ("Angular spacing", "real"), ("Count", "integer"), ("Axis", "axis")], "implicit"),
+    "sphere<point,real>": ("Sphere", [("Center Point", "point"), ("Radius", "real")], "sphere"),
+    "axis<point,vector>": ("Axis", [("Point", "point"), ("Vector", "vector")], "axis"),
+    "polar_array_implicit<implicit,real,integer,axis>": ("Polar Array Body", [("Body", "implicit"), ("Angular Spacing", "real"), ("Count", "integer"), ("Axis", "axis")], "implicit"),
     "import_mesh<file_path,unit_length_enum>[1.1.0]": ("Import Mesh", [("Path", "file_path"), ("Units", "unit_length_enum")], "mesh"),
     "import_mesh<file_path,unit_length_enum>": ("Import Mesh", [("Path", "file_path"), ("Units", "unit_length_enum")], "mesh"),
     "implicit_from_mesh<mesh>": ("Implicit from Mesh", [("Mesh", "mesh")], "implicit"),
-    "remap_cylindrical_implicit<implicit,real>": ("Remap Cylindrical Body", [("Body", "implicit"), ("Y mapping length", "real")], "implicit"),
+    "remap_cylindrical_implicit<implicit,real>": ("Remap Cylindrical Body", [("Body", "implicit"), ("Y Mapping Length", "real")], "implicit"),
     "core.var<integer>": ("Integer Variable", [("Input", "integer")], "integer"),
     "point<real,real,real>": ("Point", [("X", "real"), ("Y", "real"), ("Z", "real")], "point"),
     "vector<real,real,real>": ("Vector", [("X", "real"), ("Y", "real"), ("Z", "real")], "vector"),
@@ -48,7 +48,7 @@ SIGNATURES = {
     "mesh_from_implicit_body_2<implicit,real>": ("Mesh from Implicit Body", [("Body", "implicit"), ("Tolerance", "real")], "mesh"),
     "export_mesh<file_path,mesh,unit_length_enum>": ("Export Mesh", [("Path", "file_path"), ("Mesh", "mesh"), ("Units", "unit_length_enum")], "file"),
     "export_multi_region_mesh<file_path,mr_mesh,unit_length_enum>[5.51.0]": ("Export Multi-Region Mesh", [("File Path", "file_path"), ("Mesh", "mr_mesh"), ("Units", "unit_length_enum")], "file"),
-    "volume_integral<implicit,real_field,real>": ("Volume Integral", [("Body", "implicit"), ("Scalar Field", "real_field"), ("Relative Error", "real")], "real"),
+    "volume_integral<implicit,real_field,real>": ("Volume Integral", [("Body", "implicit"), ("Integrand", "real_field"), ("Relative Error", "real")], "real"),
     "subtract<real,real>": ("Subtract", [("A", "real"), ("B", "real")], "real"),          # scalar decoy
     "offset_voxel_grid<voxel_grid,real>[1.1.0]": ("Offset Voxel Grid", [("Grid", "voxel_grid"), ("Distance", "real")], "voxel_grid"),
     "core.var<real>": ("Scalar Variable", [("Input", "real")], "real"),
@@ -261,7 +261,7 @@ class FakeNotebook:
                 self.built.add(src)
             if src in self.built:
                 b = self.blocks[src]
-                if "Scalar Field" not in b["wired"] or "Body" not in b["wired"]:
+                if "Integrand" not in b["wired"] or "Body" not in b["wired"]:
                     return {"type": "real", "value": None}
                 return {"type": "real", "value": 287.4, "units": "mm^3"}
         return {"type": "real", "value": None}
