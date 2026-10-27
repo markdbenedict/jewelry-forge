@@ -56,7 +56,7 @@ SUBTRACT = [["boolean_subtract", "implicit,list<implicit>"], ["boolean_subtract"
 INTERSECT = [["boolean_intersect", "list<implicit>"], ["boolean_intersect", "implicit"], ["intersect", "implicit"]]
 OFFSET = [["offset_implicit"], ["offset", "implicit"]]
 MASS = [["mass_properties", "implicit"], ["mass_properties", "body"]]   # highest version wins: mass_properties<…>[1.1.0], not the deprecated …_from_body
-DENSITY_UNITS = ("kg/m^3", "g/cm^3", "g/mm^3")                            # Density has no default (nTopCL: 'Input "Density" is incomplete')
+DENSITY_UNITS = ("kg/m^3", "g/cm^3", "g/mm^3")      # Density has no default (nTopCL: 'Input "Density" is incomplete'); fed by a variable
 MESH = [["implicit_to_mesh", "bool,bool"], ["implicit_to_mesh"], ["mesh_from_implicit_body"], ["mesh", "implicit"]]
 EXPORT = [["export_mesh", "file_path"], ["export_mesh"]]
 PATH_VARS = ("core.var<file_path>", "core.var<text>")      # the Output Path input; Export Mesh wants a file_path
@@ -112,23 +112,27 @@ def _set_axis(h: NotebookHelper, block_id: str) -> None:
 
 
 def _set_density(h: NotebookHelper, mass_id: str, kg_per_m3: float) -> None:
-    """Density is required (no default) and is a `real_field`: nTop's API refuses units on it
-    ('has type "real_field", which carries no unit', 2026-10-27), so the constant goes in bare,
-    in nTop's base units (kg/m³). Unit spellings are kept as a fallback for other API versions."""
+    """Density is required (no default) and is a `real_field`, which `set_block_input` cannot set
+    at all (6.3.3: 'has type "real_field", which cannot be set yet'); a real VARIABLE wired into
+    it works (the offsets' Distance is fed the same way). So: a `core.var<real>` named Density,
+    in the first density unit nTop accepts, connected to the block."""
+    per_unit = {"kg/m^3": kg_per_m3, "g/cm^3": kg_per_m3 / 1000.0, "g/mm^3": kg_per_m3 / 1e6, "": kg_per_m3}
     errors = []
-    try:
-        h.set(mass_id, ["Density"], kg_per_m3)
-        return
-    except Exception as e:
-        errors.append(f"unitless: {e}")
-    per_unit = {"kg/m^3": kg_per_m3, "g/cm^3": kg_per_m3 / 1000.0, "g/mm^3": kg_per_m3 / 1e6}
-    for u in DENSITY_UNITS:
+    for u in (*DENSITY_UNITS, ""):
         try:
-            h.set(mass_id, ["Density"], per_unit[u], u)
+            var_id = h.real_var("Density", per_unit[u], u)
+        except Exception as e:
+            errors.append(f"variable in {u or 'no units'}: {e}")
+            continue
+        try:
+            h.wire(var_id, mass_id, ["Density"])
+            h.log.append(f"Density = {per_unit[u]} {u or '(no units)'} as a variable")
             return
         except Exception as e:
-            errors.append(f"{u}: {e}")
-    raise ConsoleError("could not set Mass Properties Density: " + "; ".join(errors))
+            errors.append(f"wire {u or 'no units'}: {e}")
+            h.remove(var_id)
+            h.blocks.pop("Density", None)
+    raise ConsoleError("could not feed Mass Properties Density: " + "; ".join(errors))
 
 
 def build(notebook, params: dict | None = None) -> dict:

@@ -60,8 +60,9 @@ Windows 11 laptops, Python per nTop's bundled console.
 
 - Whether a `core.var<real>` Output fed by the `volume` property lets `ntopcl -t` write the
   output template without a GUI build, and comes out of a run as a `real` in m³ (next run).
-- In which unit nTop reads a bare number set on a `real_field` (`Density` = 1000 → kg/m³, i.e.
-  SI base units?) - a Mass output would show it; the band only needs the volume.
+- Whether `add_real_variable(name, 1000, "kg/m^3")` accepts a density unit string (the script
+  falls back to g/cm^3, g/mm^3, then no units) and whether a unitless variable wired into
+  Density passes the build.
 
 ## Findings
 
@@ -102,13 +103,15 @@ Windows 11 laptops, Python per nTop's bundled console.
   alias / a `list_available_blocks(current_only=True)`); `add_block` could warn like nTopCL.
 - Workaround: sort candidates by version, treating an unversioned identifier as 1.0.0.
 
-### 2026-10-27 — a `real_field` parameter cannot be given units
-- Call: `set_block_input("Mass properties_0", "Density", 1000.0, "kg/m^3")` (and `g/cm^3`, `g/mm^3`).
-- Happened: `Parameter "Density" of block "Mass properties_0" has type "real_field", which
-  carries no unit, so its value cannot be given in kg/m^3.`
-- Expected: a density is a dimensioned quantity in the GUI; the API could accept units on a
-  constant real_field, or the doc could state the base unit a bare number is read in.
-- Workaround: set the bare number; wire a `core.var<real>` when units matter.
+### 2026-10-27 — a `real_field` parameter cannot be set by `set_block_input`
+- Call: `set_block_input("Mass properties_0", "Density", 1000.0)` and with `kg/m^3` / `g/cm^3` / `g/mm^3`.
+- Happened: without units `Parameter "Density" of block "Mass properties_0" has type
+  "real_field", which cannot be set yet; only "real", "vector", "point", "bool", "integer" and
+  "text" parameters can.`; with units `… carries no unit, so its value cannot be given in kg/m^3.`
+- Expected: real_field inputs are everywhere (Blend Radius, Offset Distance, Density); a
+  constant should be settable like a real, with units. The two messages also contradict each
+  other (one says it carries no unit, the other that it cannot be set yet).
+- Workaround: a `core.var<real>` with units wired into the input builds fine.
 
 ### 2026-10-27 — required inputs without defaults are invisible until nTopCL
 - Call: `add_block("mass_properties_from_body<implicit,real_field,real>")`, wire `Body`, leave

@@ -103,10 +103,10 @@ organic sculpting and the silver product shot. Owner: Mark. Plan of record:
 - Property names are lower case (`volume`, `mass`, `center of gravity`); match them
   case-insensitively. After `move_block_to_input(id)` the variable no longer answers
   `block_state` (its wires stay); the helper reports such ids as `input`.
-- A **`real_field` input takes no units** when set directly (`Density`, `Blend Radius`,
-  `Distance`): `set_block_input(id, "Density", 1000.0)` - with units nTop refuses
-  ('has type "real_field", which carries no unit'). To control one in millimetres, wire a
-  `core.var<real>` (which has units) into it, as the band does for the offsets.
+- **A `real_field` input cannot be set at all** through `set_block_input` (`Density`, `Blend
+  Radius`, `Distance`: 'has type "real_field", which cannot be set yet', with or without
+  units). Feed it by **wiring a `core.var<real>`** into it (`add_real_variable` +
+  `connect_block_property`), as the band does for the offsets and for Density (1000 kg/m³).
 - **What only nTopCL tells you about an API-built notebook** (the GUI session never builds a
   lazy block, so its input errors stay hidden): Mass Properties `Density` has no default
   (`Input "Density" is incomplete`) - set it; a block added and never set (`Path_0`) fails the
