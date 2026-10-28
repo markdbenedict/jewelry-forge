@@ -52,9 +52,10 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "head" in nb.name:
+    if "head" in nb.name or "solitaire" in nb.name:
         import yaml
-        cat = yaml.safe_load((HERE.parents[2] / "catalog" / "prong_head_harness.yaml").read_text())
+        name = "solitaire" if "solitaire" in nb.name else "prong_head_harness"
+        cat = yaml.safe_load((HERE.parents[2] / "catalog" / f"{name}.yaml").read_text())
         for name, e in cat["inputs"].items():
             t = {"scalar": "real", "integer": "integer", "text": "text"}[e["type"]]
             inputs.append({"name": name, "type": t, "value": 0 if t != "text" else "", **({"units": e["units"]} if "units" in e else {})})
@@ -91,41 +92,7 @@ def write_templates(nb: Path) -> None:
 
 
 # ----------------------------------------------------------------------------- geometry
-def section_polygon(v: dict, shape: str):
-    """The meridian section as a shapely polygon in (r, z), built the way the notebook builds
-    it: band ∩ dome torus ∩ comfort torus, then Offset -e / +e (an opening = buffer in 2-D)."""
-    from shapely.geometry import Point, box
-    ro, ri = float(v["Outer Radius"]), float(v["Bore Radius"])
-    if "Width" in v:                                            # the Phase 0 hello band: z = 0 .. W
-        zb, zt = 0.0, float(v["Width"])
-    else:
-        zt, zb = float(v["Z Top"]), float(v["Z Bottom"])
-    sec = box(ri, zb, ro, zt)
-    if shape == "annulus" or "Dome Ring Radius" not in v:
-        return sec
-    dome = Point(float(v["Dome Ring Radius"]), 0.0).buffer(float(v["Dome Tube Radius"]), quad_segs=128)
-    comfort = Point(float(v["Comfort Ring Radius"]), 0.0).buffer(float(v["Comfort Tube Radius"]), quad_segs=128)
-    sec = sec.intersection(dome).intersection(comfort)
-    e = float(v.get("Edge Round", 0.0))
-    if e > 0:
-        sec = sec.buffer(-e, quad_segs=16).buffer(e, quad_segs=16)
-    return sec
-
-
-def revolve_section(sec, sections: int = 180):
-    """Surface of revolution of the section about the ring axis, which is Z (nTop convention)."""
-    import numpy as np
-    import trimesh
-    xy = np.asarray(sec.exterior.coords, dtype=float)
-    if not np.isclose(xy[0], xy[-1]).all():
-        xy = np.vstack([xy, xy[:1]])                 # closed profile -> closed surface
-    # trimesh revolves a 2-D profile (x = radius, y = height) about its Y axis and returns the
-    # solid with that axis along 3-D Z; the profile must not touch the axis (a ring never does)
-    mesh = trimesh.creation.revolve(xy, sections=sections)
-    if mesh.volume < 0:
-        mesh.invert()
-    mesh.merge_vertices()
-    return mesh
+from ntopjewel.geom import band_mesh, offset_convex, revolve_section, section_polygon  # noqa: E402,F401
 
 
 def remap_cylindrical(mesh, wrap_length: float):
@@ -221,7 +188,21 @@ def main(argv: list[str]) -> int:
         time.sleep(sleep)
 
     outputs: list[dict] = []
-    if "head" in nb.name:
+    if "solitaire" in nb.name:
+        import trimesh
+        from ntopjewel import solitaire
+        if not Path(values["Seat Path"]).exists():
+            fail("Seat Mesh: file not found")
+        envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
+        mesh = solitaire.ring_mesh(values, envelope, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Band", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Ring", "Mesh", "Export Mesh"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "head" in nb.name:
         import trimesh
         from ntopjewel import heads
         if not Path(values["Seat Path"]).exists():

@@ -33,6 +33,8 @@ POLAR_ARRAY = [["polar_array_implicit", "axis"], ["polar_array", "implicit"]]
 IMPORT_MESH = [["import_mesh", "file_path"], ["import_mesh"]]
 IMPLICIT_FROM_MESH = [["implicit_from_mesh<mesh>"], ["implicit_from_mesh"], ["mesh_to_implicit"]]
 REMAP_CYLINDRICAL = [["remap_cylindrical_implicit"], ["remap_cylindrical", "implicit"]]
+ROTATION_TRANSFORM = [["rotation_transform<point,vector,real>"], ["rotation_transform"]]
+TRANSFORM_OBJECT = [["transform_object", "transformation"], ["transform_object"]]
 PATH_VARS = ("core.var<file_path>", "core.var<text>")      # file inputs: the text route is the one that works
 INTEGER_VARS = ("core.var<integer>", "core.var<int>")
 

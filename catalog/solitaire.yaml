@@ -1,0 +1,196 @@
+# The Phase 2 gate notebook (ntop/notebooks/solitaire.ntop): embeds stone_seat and prong_head.
+# Built by ntop/recipes/solitaire.py; run by `python -m ntopjewel solitaire ...`; every number from
+# ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
+notebook: solitaire.ntop
+version: 0.3.0
+title: 'Solitaire: prong head on a profiled band with cathedral shoulders'
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the ring; checked against the independent ring (solitaire.design_mesh).
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be
+      small or negative for shallow domes.
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Seat Path:
+    type: text
+    doc: Seat envelope STL (gems.seat_envelope) for the stone_seat block inside.
+  Clearance:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 0.5
+    doc: Stone-to-seat gap.
+  Prong Count:
+    type: integer
+    min: 3
+    max: 8
+    doc: Prongs round the stone.
+  Prong Spacing:
+    type: scalar
+    units: deg
+    min: 45.0
+    max: 120.0
+    doc: 360 / Prong Count.
+  Prong Radius:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 1.5
+    doc: Half the prong diameter.
+  Base X:
+    type: scalar
+    units: mm
+    min: -10
+    max: 10
+    doc: First prong's foot (axis end) below the culet.
+  Base Y:
+    type: scalar
+    units: mm
+    min: -10
+    max: 10
+  Base Z:
+    type: scalar
+    units: mm
+    min: -15
+    max: 0
+  Tip X:
+    type: scalar
+    units: mm
+    min: -15
+    max: 15
+    doc: First prong's tip centre above the girdle.
+  Tip Y:
+    type: scalar
+    units: mm
+    min: -15
+    max: 15
+  Tip Z:
+    type: scalar
+    units: mm
+    min: 0
+    max: 10
+  Upper Rail Z:
+    type: scalar
+    units: mm
+    min: -15
+    max: 0
+    doc: Upper basket rail, below the girdle.
+  Upper Rail Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 15
+    doc: Through the prong axes at that height.
+  Lower Rail Z:
+    type: scalar
+    units: mm
+    min: -15
+    max: 0
+    doc: Lower rail, through the prong feet.
+  Lower Rail Radius:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 15
+  Rail Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.25
+    max: 1.0
+    doc: Half the rail diameter.
+  Pivot X:
+    type: scalar
+    units: mm
+    min: 2.0
+    max: 20.0
+    doc: 'Head placement: a 90° turn about the line through (Pivot X, 0, Pivot Z)
+      parallel to +Y puts the girdle centre at (girdle radius, 0, 0).'
+  Pivot Z:
+    type: scalar
+    units: mm
+    min: -20.0
+    max: -2.0
+    doc: = -Pivot X.
+  Cathedral X:
+    type: scalar
+    units: mm
+    min: -10.0
+    max: 15.0
+    doc: Centre (x) of the shoulder circle.
+  Cathedral Radius:
+    type: scalar
+    units: mm
+    min: 2.0
+    max: 30.0
+    doc: 'Radius of the shoulder circle: through the band at ±shoulder angle and the
+      crown under the girdle.'
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the ring.

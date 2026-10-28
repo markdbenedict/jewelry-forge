@@ -60,9 +60,18 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
    implicit plus its seat cutter (the stone, a clearance offset and a straight drop-in path
    above the girdle) out; built by a script, embedded and measured by a harness notebook that
    nTopCL runs, so the block has a gate of its own.
-3. *(written 28 Oct, offline tests green; first real build pending)* `prong_head`: N prongs on an open two-rail basket, seat cut by `stone_seat` (drop-in above the girdle, a ledge under it), >= 0.8 mm of prong left above the girdle; gate: stone fits, ledges, drop-in clear, volume vs an independent trimesh/manifold head. Round stones (torus rails); fancy outlines need outline rails.
+3. *(done 28 Oct: built, embedded, PASSED under nTopCL)* `prong_head`: N prongs on an open two-rail basket, seat cut by `stone_seat` (drop-in above the girdle, a ledge under it), >= 0.8 mm of prong left above the girdle; gate: stone fits, ledges, drop-in clear, volume vs an independent trimesh/manifold head. Round stones (torus rails); fancy outlines need outline rails.
 4. `bezel`: wall 0.5-0.8 mm round the outline, lip, light windows.
-5. `ring_assembly`: band block + head block, blended, culet clearance to the finger.
+5. *(written 28 Oct, offline tests green; first real build pending)* `solitaire.ntop` (`ntop/recipes/solitaire.py`):
+   court band (any profile) + embedded `stone_seat` + embedded `prong_head`, the head turned a quarter
+   about +Y onto the band top (`rotation_transform` + `transform_object`), culet 0.6 mm above the bore,
+   rail feet 0.2 mm clear of it; cathedral shoulders = a cylinder along Y (a circle in XZ through the band
+   at ±45° and the crown 0.6 mm under the girdle) intersected with the comfort torus, so the shoulders
+   keep the band's width and inner comfort; the seat cutter is subtracted from the shank too. Gate
+   (`solitaire.check_solitaire`): closed, one shell, walls, bore Ø and bore closed, extents, stone fits /
+   ledges / drop-in in the head frame, volume vs nTop and vs the independent ring (`solitaire.design_mesh`).
+   Design volumes: US5 300.4, US6 314.2, US7 328.0 mm³. Unchecked until the real build: nTop's rotation
+   sign (a wrong sign puts the head under the band; extents and bore-closed catch it).
 6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed.
 
 ## Next acceptance milestone — the Phase 1 gate

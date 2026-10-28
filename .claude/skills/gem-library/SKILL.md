@@ -61,3 +61,20 @@ the girdle (1.2 mm for a 6.5 mm round). Gate: closed, one shell, **stone fits** 
 stone ≈ 0), **seat ledges** (N prongs reach under the girdle), **drop-in clear** (none inside
 the girdle line above it), volume vs an independent trimesh/manifold build of the same
 numbers. v1: round stones only.
+
+## The solitaire (`solitaire.ntop`, `ntopjewel.solitaire`)
+
+```powershell
+python -m ntopjewel api build solitaire                                # once: ntop\notebooks\solitaire.ntop (embeds stone_seat + prong_head)
+python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # court band, cathedral shoulders; out\solitaire
+python -m ntopjewel solitaire --size 6 --dry-run                       # placement and cathedral numbers
+python -m ntopjewel solitaire --size 6 --deliver --metal sterling      # PASSED -> Jewelry\Solitaires\<stem>\ + print-scaled STL
+```
+
+Band options are the `band` ones (`--width` is the band's; the stone's are `--stone-width`,
+`--stone-depth`). `--finger-clear` (default 0.6 mm, never under the wall floor) is the metal
+between the bore and the culet; `--shoulder` (default 45°) is where the cathedral leaves the band.
+The head is the `prong_head` block turned a quarter about +Y so its axis points out along +X;
+the seat cutter goes through the shank as well. Gate: closed, one shell, walls on the band
+(x < -2), bore Ø, bore closed at the top (the culet/feet do not break into it), extents, stone
+fits / ledges / drop-in measured in the head frame, volume vs nTop and vs the independent ring.

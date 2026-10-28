@@ -203,7 +203,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
 | `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads (`heads.py`), CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads (`heads.py`), the solitaire assembly (`solitaire.py`), shared independent geometry (`geom.py`), CLI |
 | `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
 | `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
 | `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
@@ -225,6 +225,7 @@ python -m ntopjewel api build band_profile                           # writes nt
 python -m ntopjewel api build ring_features --scratch                # Phase 1 step 2 notebook (prepare() writes the test engraving STL)
 python -m ntopjewel api build stone_seat                             # library block ntop\blocks\stone_seat.ntop + its harness ntop\notebooks\stone_seat_harness.ntop
 python -m ntopjewel api build prong_head                             # ntop\blocks\prong_head.ntop (seat cutter as an input) + ntop\notebooks\prong_head_harness.ntop (embeds stone_seat + prong_head)
+python -m ntopjewel api build solitaire                              # ntop\notebooks\solitaire.ntop: band + embedded seat and head, cathedral shoulders
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
@@ -236,6 +237,7 @@ python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --e
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
 python -m ntopjewel seat --shape round --length 6.5                   # the stone_seat block's cutter through its harness (nTopCL + gate; out\seat)
 python -m ntopjewel head --length 6.5 --prongs 6                      # the prong_head block through its harness: fit, ledges, drop-in, volume (out\head)
+python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # the Phase 2 ring: head on a court band, cathedral shoulders, gated (out\solitaire)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop
@@ -260,5 +262,5 @@ pytest python\tests -q -m slow                  # tests that run nTop
 - `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers.
 - `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1).
 - `ring-features` — milgrain, channel groove and wrapped engraving on a band (`ring` command).
-- `gem-library` — stone bodies for seats and cutters, carat weights (`gem` command).
+- `gem-library` — stone bodies, seats, prong heads and the solitaire (`gem`, `seat`, `head`, `solitaire`).
 - `blender-jewelry-render` (synced from claude.ai) — the silver product shot.
