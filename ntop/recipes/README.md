@@ -18,7 +18,8 @@ geometry; the script wins when the two disagree.
 | `band-profile.md` | same notebook, GUI route | 1 | superseded by `band_profile.py`; fallback only |
 | `ring_features.py` | `ntop/notebooks/ring_features.ntop` (band + milgrain + groove + wrapped engraving; 23 inputs) | 1 | **verified 2026-10-27**: API build clean (55 blocks e_OK), nTopCL runs clean, gate PASS at US6 and US4.5 with all three features (volume within 0.2 % of design, pocket found); `ring --show` previews any ring in the GUI. Notebook still to be saved into `ntop/notebooks/` and committed |
 | `custom_block_probe.py` | nothing kept: proves a saved notebook embeds as a custom block | 2 | verified 2026-10-28 |
-| `stone_seat.py` | `ntop/blocks/stone_seat.ntop` + `ntop/notebooks/stone_seat_harness.ntop` (seat cutter for any stone) | 2 | offline tests green; first real build pending |
+| `stone_seat.py` | `ntop/blocks/stone_seat.ntop` + `ntop/notebooks/stone_seat_harness.ntop` (seat cutter for any stone) | 2 | **verified 2026-10-28**: built, round and pear seats PASSED under nTopCL |
+| `prong_head.py` | `ntop/blocks/prong_head.ntop` (embeds stone_seat) + `ntop/notebooks/prong_head_harness.ntop` | 2 | offline tests green; first real build pending |
 | `discover.py` | nothing saved: digest of this nTop's block identifiers, input names and variable behaviour (`out/api/discover.result.json`) | — | run first on a new nTop build or when an identifier lookup fails |
 
 Rules:

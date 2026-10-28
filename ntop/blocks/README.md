@@ -13,5 +13,8 @@ or ring uses it.
 | Block | Inputs | Output | Script | Harness command |
 | --- | --- | --- | --- | --- |
 | `stone_seat.ntop` | Seat Path (text: the envelope STL from `gems.seat_envelope`), Clearance (mm) | Seat Cutter (implicit): stone + straight drop-in path, offset by the clearance | `ntop/recipes/stone_seat.py` | `python -m ntopjewel seat --shape round --length 6.5` |
+| `prong_head.ntop` | Seat Path, Clearance, Prong Count (int), Prong Spacing (deg), Prong Radius, Base X/Y/Z, Tip X/Y/Z, Upper/Lower Rail Z + Radius, Rail Tube Radius | Head (implicit): N prongs on two rails, seat cut by `stone_seat` (embedded) | `ntop/recipes/prong_head.py` | `python -m ntopjewel head --length 6.5 --prongs 6` |
+
+A block that embeds another (prong_head embeds stone_seat) is rebuilt after the inner one changes.
 
 Point nTop's **My Blocks** folder here to find these blocks in the GUI as well.

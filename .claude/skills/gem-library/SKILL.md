@@ -45,3 +45,19 @@ volume vs mesh, **design volume vs Steiner's exact offset volume** (V + S c + M 
 exact for convex bodies, and every stone here is convex), extents = stone + 2 x clearance.
 Defaults (`settings` in `data/jewelry_tables.json`): clearance 0.05 mm, drop 8 mm. Files in
 `out\seat\<stem>\<run id>\`.
+
+## Prong heads (the `prong_head` block, `ntopjewel.heads`)
+
+```powershell
+python -m ntopjewel head --length 6.5 --prongs 6                 # the solitaire head
+python -m ntopjewel head --length 6.5 --prongs 4 --dry-run       # numbers only
+```
+
+N straight prongs from feet below the culet to tips above the girdle, on two torus rails
+(open basket underneath), minus the `stone_seat` cutter: above the girdle the prongs stop at
+the girdle line + clearance (the stone drops in; the setter bends the tips), below it each
+prong keeps a 0.3 mm ledge the girdle sits on. Default prong diameter leaves >= 0.8 mm above
+the girdle (1.2 mm for a 6.5 mm round). Gate: closed, one shell, **stone fits** (head ∩
+stone ≈ 0), **seat ledges** (N prongs reach under the girdle), **drop-in clear** (none inside
+the girdle line above it), volume vs an independent trimesh/manifold build of the same
+numbers. v1: round stones only.

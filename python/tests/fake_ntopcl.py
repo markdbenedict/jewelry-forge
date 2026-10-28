@@ -52,7 +52,13 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "seat" in nb.name:
+    if "head" in nb.name:
+        import yaml
+        cat = yaml.safe_load((HERE.parents[2] / "catalog" / "prong_head_harness.yaml").read_text())
+        for name, e in cat["inputs"].items():
+            t = {"scalar": "real", "integer": "integer", "text": "text"}[e["type"]]
+            inputs.append({"name": name, "type": t, "value": 0 if t != "text" else "", **({"units": e["units"]} if "units" in e else {})})
+    elif "seat" in nb.name:
         inputs = [{"name": "Seat Path", "type": "text", "value": ""},
                   {"name": "Clearance", "type": "real", "value": 0, "units": "mm"},
                   {"name": "Mesh Tolerance", "type": "real", "value": 0, "units": "mm"},
@@ -215,7 +221,21 @@ def main(argv: list[str]) -> int:
         time.sleep(sleep)
 
     outputs: list[dict] = []
-    if "seat" in nb.name:
+    if "head" in nb.name:
+        import trimesh
+        from ntopjewel import heads
+        if not Path(values["Seat Path"]).exists():
+            fail("Seat Mesh: file not found")
+        envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
+        mesh = heads.head_mesh(values, envelope, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Prong Rod", "Prongs", "Basket", "Seat", "Seated", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "seat" in nb.name:
         import trimesh
         if not Path(values["Seat Path"]).exists():
             fail("Seat Mesh: file not found")

@@ -8,6 +8,7 @@
   ring ... --show             the same ring built in nTop's open session, to look at it in the GUI
   gem --shape pear --length 12.3 --width 8.9 --depth 4.6   a stone body STL (seat/cutter), carats
   seat --shape round --length 6.5        the stone_seat block's cutter for that stone (nTopCL + gate)
+  head --length 6.5 --prongs 6           the prong_head block for that stone (nTopCL + gate)
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -22,7 +23,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, gems, ntopcl, tables
+from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -225,6 +226,32 @@ def cmd_seat(a: argparse.Namespace) -> int:
         res = gems.build_seat(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"seat failed: {e}")
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        return 2
+    print(res.text())
+    return 0 if res.ok else 1
+
+
+def cmd_head(a: argparse.Namespace) -> int:
+    stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
+                           table_frac=a.table, girdle_mm=a.girdle, material=a.material)
+    spec = heads.HeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
+                          rail_dia_mm=a.rail_dia, angle_offset_deg=a.angle_offset, clearance_mm=a.clearance,
+                          mesh_tolerance_mm=a.tolerance)
+    probs = spec.validate()
+    if probs:
+        print("head: problems: " + "; ".join(probs))
+        return 1
+    if a.dry_run:
+        print(spec.describe())
+        for k, v in spec.notebook_inputs("<envelope path>", "<output path>").items():
+            print(f"    {k}: {v}")
+        return 0
+    try:
+        res = heads.build_head(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
+    except (ntopcl.NtopclError, ValueError) as e:
+        print(f"head failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
         return 2
@@ -453,6 +480,27 @@ def main(argv: list[str] | None = None) -> int:
     st.add_argument("--out")
     st.add_argument("--dry-run", action="store_true")
     st.set_defaults(fn=cmd_seat)
+
+    hd = sub.add_parser("head", help="the prong_head block for one stone, through its harness under nTopCL, gated")
+    hd.add_argument("--shape", default="round", choices=gems.SHAPES)
+    hd.add_argument("--length", type=float, required=True)
+    hd.add_argument("--width", type=float)
+    hd.add_argument("--depth", type=float)
+    hd.add_argument("--table", type=float)
+    hd.add_argument("--girdle", type=float)
+    hd.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    hd.add_argument("--prongs", type=int, default=6)
+    hd.add_argument("--prong-dia", type=float, help="mm (default: enough to leave 0.8 mm above the girdle)")
+    hd.add_argument("--ledge", type=float, default=0.30, help="how far each prong reaches under the girdle, mm")
+    hd.add_argument("--tip-above", type=float, help="prong tip centre above the girdle top, mm")
+    hd.add_argument("--rail-dia", type=float)
+    hd.add_argument("--angle-offset", type=float, help="first prong's angle, deg (default half a spacing)")
+    hd.add_argument("--clearance", type=float)
+    hd.add_argument("--tolerance", type=float, default=0.05)
+    hd.add_argument("--notebook")
+    hd.add_argument("--out")
+    hd.add_argument("--dry-run", action="store_true")
+    hd.set_defaults(fn=cmd_head)
 
     g = sub.add_parser("gate")
     g.add_argument("file")

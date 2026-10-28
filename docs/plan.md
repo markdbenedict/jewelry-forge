@@ -56,11 +56,11 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 ## Phase 2 order of work
 
 1. Stone bodies - done (Python meshes, `gem`).
-2. *(written 28 Oct, offline tests green; first real build pending)* The first library block, `ntop/blocks/stone_seat.ntop`: stone mesh path in, the stone
+2. *(done 28 Oct: built, round and pear seats PASSED under nTopCL)* The first library block, `ntop/blocks/stone_seat.ntop`: stone mesh path in, the stone
    implicit plus its seat cutter (the stone, a clearance offset and a straight drop-in path
    above the girdle) out; built by a script, embedded and measured by a harness notebook that
    nTopCL runs, so the block has a gate of its own.
-3. `prong_head`: N prongs (4/6) on a basket, tips >= 0.8 mm, seat cut by `stone_seat`.
+3. *(written 28 Oct, offline tests green; first real build pending)* `prong_head`: N prongs on an open two-rail basket, seat cut by `stone_seat` (drop-in above the girdle, a ledge under it), >= 0.8 mm of prong left above the girdle; gate: stone fits, ledges, drop-in clear, volume vs an independent trimesh/manifold head. Round stones (torus rails); fancy outlines need outline rails.
 4. `bezel`: wall 0.5-0.8 mm round the outline, lip, light windows.
 5. `ring_assembly`: band block + head block, blended, culet clearance to the finger.
 6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed.

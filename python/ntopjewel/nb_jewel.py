@@ -316,3 +316,47 @@ def run_build(notebook, params: dict | None, defaults: dict, body_fn) -> dict:
     except Exception as e:
         raise ConsoleError(f"{type(e).__name__}: {e}\n--- diagnostics ---\n"
                            f"{json.dumps(h.diagnostics(), indent=1, default=str)[:8000]}") from e
+
+
+# ---- typed input lists (block notebooks and their harnesses declare the same ones) ----------
+def add_typed_inputs(h: NotebookHelper, specs: list[tuple[str, str]], values: dict) -> dict[str, str]:
+    """Create one variable per (name, kind) with the value from `values`: kind `mm` (real in mm),
+    `deg` (angle), `int` (integer), `path` (a file path: text variable), `` (unitless real).
+    Returns {name: variable id}, in order."""
+    ids = {}
+    for name, kind in specs:
+        v = values[name]
+        if kind == "path":
+            ids[name] = path_variable(h, name, absolute(v, h, name))
+        elif kind == "int":
+            ids[name] = integer_variable(h, name, int(v))
+        elif kind == "deg":
+            ids[name] = angle_variable(h, name, float(v))
+        else:
+            ids[name] = h.real_var(name, float(v), kind)
+    return ids
+
+
+def point_from_vars(h: NotebookHelper, label: str, x_var: str, y_var: str, z_var: str) -> str:
+    """A Point block whose three components are wired from real variables."""
+    pid = h.add(label, POINT, mask="point", must=[["point<real,real,real"], ["point", "real,real,real"]])
+    h.wire(x_var, pid, ["X"])
+    h.wire(y_var, pid, ["Y"])
+    h.wire(z_var, pid, ["Z"])
+    return pid
+
+
+def harness(h: NotebookHelper, p: dict, values: dict, test_output: str, block_path: str,
+            specs: list[tuple[str, str]], label: str) -> tuple[str, str]:
+    """The harness body every library block gets: its inputs as notebook inputs, the block
+    embedded and fed them, the result measured, meshed and exported (Mesh Tolerance and Output
+    Path after the block's own inputs). Must run without paused updates (the embed)."""
+    ids = add_typed_inputs(h, specs + [("Mesh Tolerance", "mm")], values)
+    out_var = path_variable(h, "Output Path", test_output)
+    ident = h.embed_block(block_path)
+    inst = h.add(label, ident)
+    for name, _ in specs:
+        h.wire(ids[name], inst, [name])
+    body = h.wrap_var("Result", inst)
+    integ, _mesh, export = add_measure_mesh_export(h, body, out_var, ids["Mesh Tolerance"])
+    return integ, export

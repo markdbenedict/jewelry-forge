@@ -195,7 +195,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
 | `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers, band/features specs, engraving meshes, CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads (`heads.py`), CLI |
 | `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
 | `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
 | `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
@@ -216,6 +216,7 @@ python -m ntopjewel api check                                        # SSH to th
 python -m ntopjewel api build band_profile                           # writes ntop\notebooks\ring_band_profile.ntop
 python -m ntopjewel api build ring_features --scratch                # Phase 1 step 2 notebook (prepare() writes the test engraving STL)
 python -m ntopjewel api build stone_seat                             # library block ntop\blocks\stone_seat.ntop + its harness ntop\notebooks\stone_seat_harness.ntop
+python -m ntopjewel api build prong_head                             # ntop\blocks\prong_head.ntop (embeds stone_seat) + ntop\notebooks\prong_head_harness.ntop
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
@@ -226,6 +227,7 @@ python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --eng
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
 python -m ntopjewel seat --shape round --length 6.5                   # the stone_seat block's cutter through its harness (nTopCL + gate; out\seat)
+python -m ntopjewel head --length 6.5 --prongs 6                      # the prong_head block through its harness: fit, ledges, drop-in, volume (out\head)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop
