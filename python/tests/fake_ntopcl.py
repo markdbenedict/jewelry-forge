@@ -194,7 +194,8 @@ def main(argv: list[str]) -> int:
         if not Path(values["Seat Path"]).exists():
             fail("Seat Mesh: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
-        mesh = solitaire.ring_mesh(values, envelope, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        shape = os.environ.get("FAKE_NTOPCL_SHAPE", "design")
+        mesh = solitaire.ring_mesh(values, envelope, cut_seat=shape != "noseat", beads=shape != "nobeads")
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Band", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Ring", "Mesh", "Export Mesh"):

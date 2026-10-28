@@ -225,7 +225,7 @@ python -m ntopjewel api build band_profile                           # writes nt
 python -m ntopjewel api build ring_features --scratch                # Phase 1 step 2 notebook (prepare() writes the test engraving STL)
 python -m ntopjewel api build stone_seat                             # library block ntop\blocks\stone_seat.ntop + its harness ntop\notebooks\stone_seat_harness.ntop
 python -m ntopjewel api build prong_head                             # ntop\blocks\prong_head.ntop (seat cutter as an input) + ntop\notebooks\prong_head_harness.ntop (embeds stone_seat + prong_head)
-python -m ntopjewel api build solitaire                              # ntop\notebooks\solitaire.ntop: band + embedded seat and head, cathedral shoulders
+python -m ntopjewel api build solitaire                              # ntop\notebooks\solitaire.ntop: band + embedded seat and head, gothic arches + arch milgrain
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
@@ -237,7 +237,7 @@ python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --e
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
 python -m ntopjewel seat --shape round --length 6.5                   # the stone_seat block's cutter through its harness (nTopCL + gate; out\seat)
 python -m ntopjewel head --length 6.5 --prongs 6                      # the prong_head block through its harness: fit, ledges, drop-in, volume (out\head)
-python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # the Phase 2 ring: head on a court band, cathedral shoulders, gated (out\solitaire)
+python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # the Phase 2 ring: head on a court band, gothic arches with milgrain, gated (out\solitaire)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop

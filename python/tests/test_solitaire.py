@@ -9,18 +9,36 @@ def spec(size=6, **kw):
 
 
 def test_placement_numbers():
+    import math
     s = spec()
     assert s.validate() == []
     _, pav = s.head.stone.heights
     assert s.girdle_radius - s.head.stone.girdle / 2 - pav == pytest.approx(s.band.bore_radius_mm + 0.6)   # culet clearance
     lay = s.placed_head.layout()
     assert s.girdle_radius + lay["z_base"] - s.head.rail_rho == pytest.approx(s.band.bore_radius_mm + 0.2)  # rail clear of the bore
-    xc, r2 = s.cathedral()
-    import math
-    ro, phi = s.band.outer_radius_mm, math.radians(45)
-    assert math.hypot(ro * math.cos(phi) - xc, ro * math.sin(phi)) == pytest.approx(r2)                  # leaves the band at 45°
+    a, ro, phi = s.arch(), s.band.outer_radius_mm, math.radians(45)
+    # tangent at +45°: the band's outer point there lies on the arch circle and on the line from its centre through the origin
+    px, py = ro * math.cos(phi), ro * math.sin(phi)
+    assert math.hypot(px - a["cx"], py - a["cy"]) == pytest.approx(a["R"])
+    assert math.atan2(py - a["cy"], px - a["cx"]) == pytest.approx(phi)
+    assert math.hypot(a["crest"] - a["cx"], a["cy"]) == pytest.approx(a["R"])                          # through the crest
+    assert a["rise"] > 1.0 and a["inner_min"] < a["inner"] < a["inner_max"]
     assert spec(finger_clear_mm=0.3).validate()                                                          # under the wall floor
+    assert spec(shoulder_deg=25).validate()                                                              # no tangent arch
+    assert spec(bead_radius_mm=0.2).validate()                                                           # under the bead floor
     assert list(spec().notebook_inputs("E", "O")) == list(catalog.load("solitaire").inputs)
+
+
+def test_beads_run_from_the_tangent_point_and_stop_clear_of_the_head():
+    s = spec()
+    bd = s.beads()
+    assert bd["angles"][0] == pytest.approx(45.0) and len(bd["angles"]) >= 6
+    for x, y, z, _ in s.bead_centres():
+        import math
+        assert math.hypot(y, z) - bd["radius"] >= s._head_envelope(x) + 0.2 - 1e-9
+    off = spec(milgrain=False)
+    assert off.bead_centres() == [] and off.notebook_inputs("E")["Bead Radius"] == 0.05
+    assert off.stem != spec().stem
 
 
 @pytest.mark.parametrize("size", [5, 7])
@@ -42,6 +60,9 @@ def test_solitaire_end_to_end_and_an_unseated_ring_is_caught(fake_ntopcl, tmp_pa
     monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noseat")
     bad = solitaire.build(spec(6), tmp_path / "out", notebook=nb)
     assert bad.status == "failed" and {"stone fits", "drop-in clear"} <= {c.name for c in bad.gate.failures()}
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nobeads")                  # milgrain lost: ~1 % of volume, only the bead check sees it
+    bare = solitaire.build(spec(6), tmp_path / "out", notebook=nb)
+    assert bare.status == "failed" and [c.name for c in bare.gate.failures()] == ["arch milgrain"]
 
 
 def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
@@ -68,6 +89,11 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     b = res["blocks"]
     assert nb.blocks[b["Prong Head"]]["wired"]["Seat Cutter"][0] == "Seat Local"
     assert nb.blocks[b["Placed Head"]]["wired"]["Transformation"][0] == "Placement"
+    # the arches join the band before its edge-round offsets; the milgrain rows join after them
+    assert b["Shoulders"] in nb.blocks[b["Band + Extra"]]["lists"]["Bodies"]
+    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Band + Extra"]
+    assert {b["Milgrain+"], b["Milgrain-"]} <= set(nb.blocks[b["Shank"]]["lists"]["Bodies"])
+    assert nb.blocks[b["Milgrain+"]]["wired"]["Axis"][0] == b["Beads+ Axis"]
     assert nb.inputs == mod.INPUT_ORDER and nb.output == "Volume" and nb.lint() == [] and res["warnings"] == []
 
 
@@ -75,7 +101,7 @@ def test_cli_solitaire_dry_run(capsys):
     from ntopjewel import cli
     assert cli.main(["solitaire", "--size", "6", "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "Cathedral Radius" in out and "court" in out
+    assert "Arch Radius" in out and "milgrain: 8 beads" in out and "court" in out
     assert cli.main(["solitaire", "--size", "6", "--finger-clear", "0.2", "--dry-run"]) == 1
 
 

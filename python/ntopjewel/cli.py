@@ -9,7 +9,7 @@
   gem --shape pear --length 12.3 --width 8.9 --depth 4.6   a stone body STL (seat/cutter), carats
   seat --shape round --length 6.5        the stone_seat block's cutter for that stone (nTopCL + gate)
   head --length 6.5 --prongs 6           the prong_head block for that stone (nTopCL + gate)
-  solitaire --size 6 --length 6.5        prong head on a court band, cathedral shoulders (nTopCL + gate)
+  solitaire --size 6 --length 6.5        prong head on a court band, gothic cathedral arches with milgrain (nTopCL + gate)
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -264,7 +264,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.stone_width, depth_mm=a.stone_depth, material=a.material)
     head = heads.HeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, clearance_mm=a.clearance,
                           mesh_tolerance_mm=a.tolerance)
-    spec = solitaire.SolitaireSpec(_band_spec(a), head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder)
+    spec = solitaire.SolitaireSpec(_band_spec(a), head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder,
+                                   milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch)
     probs = spec.validate()
     if probs:
         print("solitaire: problems: " + "; ".join(probs))
@@ -547,6 +548,9 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--clearance", type=float)
     so.add_argument("--finger-clear", type=float, help="metal between the bore and the culet, mm (default 0.6)")
     so.add_argument("--shoulder", type=float, default=45.0, help="where the cathedral shoulders leave the band, degrees from the top")
+    so.add_argument("--no-milgrain", action="store_true", help="plain arches (milgrain is on by default)")
+    so.add_argument("--bead-radius", type=float, default=0.3, help="arch milgrain bead radius, mm")
+    so.add_argument("--bead-pitch", type=float, default=2.2, help="bead spacing in bead radii")
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

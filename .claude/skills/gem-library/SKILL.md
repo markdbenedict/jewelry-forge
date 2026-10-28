@@ -66,15 +66,19 @@ numbers. v1: round stones only.
 
 ```powershell
 python -m ntopjewel api build solitaire                                # once: ntop\notebooks\solitaire.ntop (embeds stone_seat + prong_head)
-python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # court band, cathedral shoulders; out\solitaire
+python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # court band, gothic arches, arch milgrain; out\solitaire
 python -m ntopjewel solitaire --size 6 --dry-run                       # placement and cathedral numbers
 python -m ntopjewel solitaire --size 6 --deliver --metal sterling      # PASSED -> Jewelry\Solitaires\<stem>\ + print-scaled STL
 ```
 
 Band options are the `band` ones (`--width` is the band's; the stone's are `--stone-width`,
 `--stone-depth`). `--finger-clear` (default 0.6 mm, never under the wall floor) is the metal
-between the bore and the culet; `--shoulder` (default 45°) is where the cathedral leaves the band.
+between the bore and the culet; `--shoulder` (default 45°) is where the arch leaves the band
+(tangentially: the arch is the band's section swept round a circle tangent there, through a crest
+0.6 mm under the girdle). Milgrain runs along both edges of both arches, from the tangent point
+to just short of the head: `--no-milgrain`, `--bead-radius` (0.3), `--bead-pitch` (2.2 radii).
 The head is the `prong_head` block turned a quarter about +Y so its axis points out along +X;
 the seat cutter goes through the shank as well. Gate: closed, one shell, walls on the band
 (x < -2), bore Ø, bore closed at the top (the culet/feet do not break into it), extents, stone
-fits / ledges / drop-in measured in the head frame, volume vs nTop and vs the independent ring.
+fits / ledges / drop-in measured in the head frame, **arch milgrain** (every designed bead's apex
+found by a ray), volume vs nTop and vs the independent ring.

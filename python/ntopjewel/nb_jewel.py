@@ -35,6 +35,7 @@ IMPLICIT_FROM_MESH = [["implicit_from_mesh<mesh>"], ["implicit_from_mesh"], ["me
 REMAP_CYLINDRICAL = [["remap_cylindrical_implicit"], ["remap_cylindrical", "implicit"]]
 ROTATION_TRANSFORM = [["rotation_transform<point,vector,real>"], ["rotation_transform"]]
 TRANSFORM_OBJECT = [["transform_object", "transformation"], ["transform_object"]]
+BOX_FROM_CORNERS = [["box_from_corners<point,point>"], ["box_from_corners"]]
 PATH_VARS = ("core.var<file_path>", "core.var<text>")      # file inputs: the text route is the one that works
 INTEGER_VARS = ("core.var<integer>", "core.var<int>")
 
@@ -163,9 +164,12 @@ def add_band_inputs(h: NotebookHelper, values: dict) -> None:
         h.real_var(name, float(values[name]), "mm")
 
 
-def add_profiled_band(h: NotebookHelper) -> str:
+def add_profiled_band(h: NotebookHelper, extra=None) -> str:
     """Outer/Bore cylinders -> subtract -> ∩ dome torus ∩ comfort torus -> offset -e -> offset +e.
     Expects the BAND_INPUTS variables to exist. Returns the id of the "Band Body" variable.
+
+    `extra(h) -> body id`: a body united with the shaped band BEFORE the edge-round offsets, so
+    one rounding runs over both (the solitaire's arches: a seamless band-to-arch transition).
 
     Both tori are INTERSECTED: the dome torus (tube centred inside the outer surface) keeps the
     domed outside, the comfort torus (tube centred outside the bore) keeps the barrel bore.
@@ -201,6 +205,11 @@ def add_profiled_band(h: NotebookHelper) -> str:
     for body_id in (band, *tori):
         h.to_list(body_id, shaped, ["Bodies"])
 
+    if extra is not None:
+        joined = h.add("Band + Extra", mask="union", must=UNION)
+        h.to_list(shaped, joined, ["Bodies"])
+        h.to_list(extra(h), joined, ["Bodies"])
+        shaped = joined
     shrunk = h.add("Shrunk", mask="offset", must=OFFSET)
     h.wire(shaped, shrunk, ["Body"])
     h.wire(h.blocks["Edge Round Inward"], shrunk, ["Distance", "Offset"])

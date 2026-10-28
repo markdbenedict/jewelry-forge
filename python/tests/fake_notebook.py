@@ -51,6 +51,7 @@ SIGNATURES = {
     "volume_integral<implicit,real_field,real>": ("Volume Integral", [("Body", "implicit"), ("Integrand", "real_field"), ("Relative Error", "real")], "real"),
     "subtract<real,real>": ("Subtract", [("A", "real"), ("B", "real")], "real"),          # scalar decoy
     "offset_voxel_grid<voxel_grid,real>[1.1.0]": ("Offset Voxel Grid", [("Grid", "voxel_grid"), ("Distance", "real")], "voxel_grid"),
+    "box_from_corners<point,point>": ("Box from Corners", [("Corner 1", "point"), ("Corner 2", "point")], "box"),
     "rotation_transform<point,vector,real>": ("Rotation Transform", [("Origin", "point"), ("Axis", "vector"), ("Angle", "real")], "transformation"),
     "transform_object<spatial3d,transformation>[1.1.0]": ("Transform Object", [("Object", "spatial3d"), ("Transformation", "transformation")], "implicit"),
     "transform_object<spatial3d,transformation>": ("Transform Object", [("Object", "spatial3d"), ("Transformation", "transformation")], "implicit"),
@@ -217,7 +218,8 @@ class FakeNotebook:
                           ("point", "point"), ("vector", "vector"), ("mesh", "mesh"), ("implicit", "implicit"),
                           ("cylinder", "implicit"), ("torus", "implicit"), ("sphere", "implicit"), ("axis", "axis"),
                           ("integer", "integer"), ("any", want),
-                          ("implicit", "spatial3d"), ("cylinder", "spatial3d"), ("sphere", "spatial3d"), ("torus", "spatial3d")}
+                          ("implicit", "spatial3d"), ("cylinder", "spatial3d"), ("sphere", "spatial3d"), ("torus", "spatial3d"),
+                          ("box", "implicit"), ("box", "spatial3d")}
             if (have, want) not in compatible and have != want:
                 raise ValueError(f"cannot connect a {have} to '{input_name}' ({want}) of '{target_block_id}'")
         b["wired"][input_name] = (source_block_id, property_name)

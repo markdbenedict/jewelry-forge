@@ -3,10 +3,17 @@
 Ring frame (nTop convention): ring axis Z, band centred on the origin, the head on +X.
 
     band       the profiled band (ring_band_profile's eleven numbers)
-    cathedral  a cylinder along Z of radius R2 centred at (Cathedral X, 0): through the band's
-               outer surface at ±`shoulder_deg` from the top and through a crown just below the
-               girdle - each shoulder sweeps up from the band to the head. Intersected with the
-               band's comfort torus, so it stops at the comfort bore and keeps its relief
+    arch       the cathedral: a gothic arch each side. The +y shoulder is the band's own section
+               swept round a circle centred at c+ = -t(cos φ, sin φ) of radius ro + t: tangent to
+               the band's outer surface at +φ (`shoulder_deg` from the top) and through the crest
+               just under the girdle; the -y shoulder mirrors it about c- = -t(cos φ, -sin φ). At
+               the tangent ray the arch's section IS the band's, so the band flows into the arch
+               (no step, no crease); arch+ ∩ arch- ∩ the wedge |angle| <= φ + 2° minus a cylinder
+               at mid-wall (the arch never reaches the bore), united with the band BEFORE the band's
+               edge-round offsets, so one rounding runs over band and arch alike
+    milgrain   bead rows along both edges of each arch (the band's milgrain conventions: centre
+               0.15 radii inside the edge corner, 2.2 radii apart), from the tangent point up to
+               where the head's envelope + 0.2 mm begins; polar arrays about the arch centres
     seat       the stone_seat cutter (stone + straight drop-in path + clearance), placed with the
                head, subtracted from band + shoulders: the pavilion sits down into the metal
     head       the prong_head block (its own seat cut), placed: a quarter-turn about the line
@@ -30,6 +37,11 @@ from . import band as bandmod, gems, geom, heads, tables
 
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
 HEAD_ANGLE_DEG = 90.0
+WEDGE_EXTRA_DEG = 2.0           # the arch is cut 2° past its tangent ray (it departs from the band by < 0.01 mm there)
+BEAD_CORNER_INSET = 0.15        # as features.py: bead centre this many radii inside the edge corner
+BEAD_PITCH = 2.2                # centre to centre, in bead radii
+BEAD_HEAD_GAP = 0.2             # beads stop this far (surface to surface) from the head's envelope
+MIN_BEAD_RADIUS = tables.FLOORS["bead_dia"] / 2
 
 
 @dataclass
@@ -38,7 +50,10 @@ class SolitaireSpec:
     head: heads.HeadSpec
     finger_clear_mm: float | None = None    # metal between the bore and the culet
     shoulder_deg: float = 45.0              # where each shoulder leaves the band, from the top
-    crown_below_girdle_mm: float = 0.6      # the shoulders' crown, below the girdle's underside
+    crown_below_girdle_mm: float = 0.6      # the arch's crest, below the girdle's underside
+    milgrain: bool = True                   # bead rows along the arch edges
+    bead_radius_mm: float = 0.3
+    bead_pitch: float = BEAD_PITCH
 
     # ---- placement ------------------------------------------------------------------------
     @property
@@ -67,14 +82,81 @@ class SolitaireSpec:
         R = self.girdle_radius
         return R / 2, -R / 2
 
-    def cathedral(self) -> tuple[float, float]:
-        """(centre x, radius) of the shoulder circle through the band's outer surface at
-        ±shoulder_deg and the crown just under the girdle."""
-        ro = self.band.outer_radius_mm
-        x_top = self.girdle_radius - self.head.stone.girdle / 2 - self.crown_below_girdle_mm
-        phi = math.radians(self.shoulder_deg)
-        xc = (x_top ** 2 - ro ** 2) / (2 * (x_top - ro * math.cos(phi)))
-        return xc, x_top - xc
+    @property
+    def crest_radius(self) -> float:
+        return self.girdle_radius - self.head.stone.girdle / 2 - self.crown_below_girdle_mm
+
+    def arch(self) -> dict:
+        """The gothic arch: t (centre offset), R (arch outer radius), the +y centre, the dome torus
+        ring radius around it, the wedge half-angle, the mid-wall cut radius and the radius the
+        independent model hollows the arch to (any value between `inner_min` and `inner_max`)."""
+        b = self.band
+        ro, phi, xt = b.outer_radius_mm, math.radians(self.shoulder_deg), self.crest_radius
+        den = 2 * (ro - xt * math.cos(phi))
+        t = (xt ** 2 - ro ** 2) / den if den > 1e-6 else float("inf")
+        dr, dt = b.dome_torus
+        cx, cy = -t * math.cos(phi), -t * math.sin(phi)
+        r_cut = b.bore_radius_at(b.width_mm / 2) + b.edge_thickness_mm / 2
+        inner_max = math.hypot(t, r_cut) - 0.5                       # nearest wedge point outside the cut
+        inner_min = dr + t - math.sqrt(max(dt ** 2 - (b.width_mm / 2) ** 2, 0.0)) + 0.3   # inside the dome tube
+        return {"t": t, "R": ro + t, "cx": cx, "cy": cy, "dome_ring": dr + t, "dome_tube": dt,
+                "wedge_deg": self.shoulder_deg + WEDGE_EXTRA_DEG, "r_cut": r_cut,
+                "inner": (inner_min + inner_max) / 2, "inner_min": inner_min, "inner_max": inner_max,
+                "crest": xt, "rise": xt - ro}
+
+    def _head_envelope(self, x: float) -> float:
+        """Radius (about the ring's X axis, the head's axis) the placed head and its seat occupy at
+        ring x: prongs (as if a full cone), rails, the stone + clearance and its drop-in path."""
+        h = self.placed_head
+        lay, s = h.layout(), h.stone
+        z = x - self.girdle_radius                                   # the head's own z
+        env = 0.0
+        if lay["z_base"] - h.rho <= z <= lay["z_tip"] + h.rho:
+            zz = min(max(z, lay["z_base"]), lay["z_tip"])
+            f = (zz - lay["z_base"]) / (lay["z_tip"] - lay["z_base"])
+            env = max(env, lay["r_base"] + f * (lay["r_tip"] - lay["r_base"]) + h.rho)
+        for zr, rr in (lay["rail_upper"], lay["rail_lower"]):
+            if abs(z - zr) < h.rail_rho:
+                env = max(env, rr + math.sqrt(h.rail_rho ** 2 - (z - zr) ** 2))
+        _, pav = s.heights
+        Rg, g, c = s.width / 2, s.girdle, h.clearance
+        if -g / 2 - pav - c <= z < -g / 2:
+            env = max(env, Rg * (1 + (z + g / 2) / pav) + c)
+        elif z >= -g / 2:
+            env = max(env, Rg + c)
+        return env
+
+    def beads(self) -> dict:
+        """The +y arch's bead row: angles (deg, about c+, from the tangent point towards the crest),
+        radius, the row radius about c+, z, the spacing (deg); the -y row mirrors it."""
+        a, b, rho = self.arch(), self.band, self.bead_radius_mm
+        r_row = b.outer_radius_at(b.width_mm / 2) + a["t"] - BEAD_CORNER_INSET * rho
+        z = b.width_mm / 2 - BEAD_CORNER_INSET * rho
+        step = math.degrees(self.bead_pitch * rho / r_row)
+        angles = []
+        psi = self.shoulder_deg
+        while psi > 0 and len(angles) < 400:
+            x = a["cx"] + r_row * math.cos(math.radians(psi))
+            y = a["cy"] + r_row * math.sin(math.radians(psi))
+            if math.hypot(y, z) - rho < self._head_envelope(x) + BEAD_HEAD_GAP:
+                break
+            angles.append(psi)
+            psi -= step
+        return {"radius": rho, "row_radius": r_row, "z": z, "angles": angles, "spacing": step}
+
+    def bead_centres(self) -> list[tuple[float, float, float, int]]:
+        """Every arch bead (x, y, z, side) in the ring frame; side +1 about c+, -1 about c-."""
+        if not self.milgrain:
+            return []
+        a, bd = self.arch(), self.beads()
+        out = []
+        for psi in bd["angles"]:
+            r = math.radians(psi)
+            x, y = a["cx"] + bd["row_radius"] * math.cos(r), a["cy"] + bd["row_radius"] * math.sin(r)
+            for z in (bd["z"], -bd["z"]):
+                out.append((x, y, z, 1))
+                out.append((x, -y, z, -1))
+        return out
 
     # ---- the notebook's numbers ----------------------------------------------------------------
     def notebook_inputs(self, seat_path: str, output_path: str | None = None) -> dict:
@@ -83,16 +165,44 @@ class SolitaireSpec:
         head = self.placed_head.notebook_inputs(seat_path)            # Seat Path, Clearance + the 14 head numbers
         ins.update(head)
         px, pz = self.pivot
-        xc, r2 = self.cathedral()
+        a = self.arch()
         ins.update({"Pivot X": round(px, 4), "Pivot Z": round(pz, 4),
-                    "Cathedral X": round(xc, 4), "Cathedral Radius": round(r2, 4)})
+                    "Arch Centre X": round(a["cx"], 4), "Arch Centre Y": round(a["cy"], 4),
+                    "Arch Centre Y Minus": round(-a["cy"], 4), "Arch Radius": round(a["R"], 4),
+                    "Arch Dome Ring Radius": round(a["dome_ring"], 4), "Arch Cut Radius": round(a["r_cut"], 4),
+                    "Wedge Angle": round(a["wedge_deg"], 4), "Wedge Angle Minus": round(-a["wedge_deg"], 4)})
+        ins.update(self.bead_inputs())
         if output_path is not None:
             ins["Output Path"] = output_path
         return ins
 
+    def bead_inputs(self) -> dict:
+        """Start beads for the two polar arrays (each runs counter-clockwise about its arch centre):
+        +y starts at the head end, -y at the band end. Milgrain off: one 0.05 mm bead buried in the
+        shank opposite the head (it cannot change the ring)."""
+        a, bd = self.arch(), self.beads()
+        if not self.milgrain or not bd["angles"]:
+            hidden = -(self.band.bore_radius_mm + self.band.thickness_mm / 2)
+            return {"Bead Radius": 0.05, "Bead Z": 0.0, "Bead Z Minus": 0.0, "Bead Spacing": 1.0, "Bead Count": 1,
+                    "Bead Start X": round(hidden, 4), "Bead Start Y": 0.0,
+                    "Bead Start X Minus": round(hidden, 4), "Bead Start Y Minus": 0.0}
+        last = math.radians(bd["angles"][-1])
+        x = a["cx"] + bd["row_radius"] * math.cos(last)
+        y = a["cy"] + bd["row_radius"] * math.sin(last)
+        first = math.radians(bd["angles"][0])                        # the band end; the -y row starts at its mirror
+        xm = a["cx"] + bd["row_radius"] * math.cos(first)
+        ym = -(a["cy"] + bd["row_radius"] * math.sin(first))
+        return {"Bead Radius": round(bd["radius"], 4), "Bead Z": round(bd["z"], 4), "Bead Z Minus": round(-bd["z"], 4),
+                "Bead Spacing": round(bd["spacing"], 6), "Bead Count": len(bd["angles"]),
+                "Bead Start X": round(x, 4), "Bead Start Y": round(y, 4),
+                "Bead Start X Minus": round(xm, 4), "Bead Start Y Minus": round(ym, 4)}
+
     def design(self) -> dict:
         return {"band": self.band.design(), "head": self.placed_head.design(), "finger_clear_mm": self.finger_clear,
-                "shoulder_deg": self.shoulder_deg, "crown_below_girdle_mm": self.crown_below_girdle_mm}
+                "shoulder_deg": self.shoulder_deg, "crown_below_girdle_mm": self.crown_below_girdle_mm,
+                "arch": "gothic-tangent", "milgrain": self.milgrain,
+                "bead_radius_mm": self.bead_radius_mm if self.milgrain else None,
+                "bead_pitch": self.bead_pitch if self.milgrain else None}
 
     @property
     def stem(self) -> str:
@@ -113,37 +223,93 @@ class SolitaireSpec:
                      f"less finger clearance or a deeper base")
         if feet - self.head.rail_rho < self.band.bore_radius_mm + 0.1:
             p.append(f"the lower rail (inner r {feet - self.head.rail_rho:.2f}) breaks into the bore")
-        xc, r2 = self.cathedral()
-        crown = xc + r2
-        if crown < self.band.outer_radius_mm + 0.3:
-            p.append(f"the shoulders' crown (r {crown:.2f}) barely rises above the band (r {self.band.outer_radius_mm:.2f})")
-        if not 20 <= self.shoulder_deg <= 75:
-            p.append("shoulder angle outside 20-75°")
+        if not 30 <= self.shoulder_deg <= 75:
+            p.append("shoulder angle outside 30-75°")
+            return p
+        a = self.arch()
+        if a["rise"] < 0.3:
+            p.append(f"the arch's crest (r {a['crest']:.2f}) barely rises above the band (r {self.band.outer_radius_mm:.2f})")
+        if not math.isfinite(a["t"]) or a["t"] > 60:
+            p.append(f"no tangent arch from {self.shoulder_deg:g}° reaches the crest: a larger shoulder angle")
+        elif a["inner_min"] >= a["inner_max"]:
+            p.append("the arch section cannot be hollowed clear of the wedge (independent model): a larger shoulder angle")
+        if self.milgrain:
+            bd = self.beads()
+            if self.bead_radius_mm < MIN_BEAD_RADIUS:
+                p.append(f"bead radius {self.bead_radius_mm} mm below the milgrain floor {MIN_BEAD_RADIUS} mm")
+            if self.bead_pitch < 2.0:
+                p.append("bead pitch below 2 radii: beads would merge")
+            if len(bd["angles"]) < 3:
+                p.append(f"only {len(bd['angles'])} beads fit on each arch edge before the head: smaller beads or a lower shoulder angle")
         return p
 
     def describe(self) -> str:
-        xc, r2 = self.cathedral()
+        a = self.arch()
         px, pz = self.pivot
         lay = self.placed_head.layout()
         return (f"{self.stem}\n  {self.band.describe()}\n  {self.placed_head.describe()}\n"
                 f"  placement: girdle at r {self.girdle_radius:.3f}, culet {self.finger_clear} mm above the bore, "
                 f"feet at r {self.girdle_radius + lay['z_base']:.3f}; quarter-turn about (x {px:.3f}, z {pz:.3f}) ∥ Y\n"
-                f"  cathedral: circle centre x {xc:.3f}, radius {r2:.3f}: leaves the band at ±{self.shoulder_deg:g}°, "
-                f"crown at r {xc + r2:.3f}")
+                f"  arch: gothic, tangent to the band at ±{self.shoulder_deg:g}°, radius {a['R']:.3f} about "
+                f"({a['cx']:.3f}, ±{-a['cy']:.3f}); crest at r {a['crest']:.3f} ({a['rise']:.2f} mm above the band)"
+                + (f"\n  milgrain: {len(self.beads()['angles'])} beads of r {self.bead_radius_mm} mm per arch edge (x4), "
+                   f"{self.beads()['spacing']:.3f}° apart" if self.milgrain else "\n  milgrain: off"))
 
 
 # ---- the independent ring ---------------------------------------------------------------------
-def ring_mesh(v: dict, envelope, cut_seat: bool = True):
+def arch_mesh(v: dict, inner: float):
+    """The cathedral arches from the notebook's numbers: arch+ ∩ arch- ∩ wedge - the mid-wall cylinder.
+    Each arch is the band's outer section (dome torus, edge round) about its centre; `inner` hollows
+    it (any radius clear of the wedge - nTop leaves the arch solid; the wedge and cut decide)."""
+    import numpy as np
+    import trimesh
+    from shapely.geometry import Point, Polygon, box
+    zb, zt, e = float(v["Z Bottom"]), float(v["Z Top"]), float(v.get("Edge Round", 0.0))
+    R, dr, dt = float(v["Arch Radius"]), float(v["Arch Dome Ring Radius"]), float(v["Dome Tube Radius"])
+    sec = box(inner, zb, R, zt).intersection(Point(dr, 0.0).buffer(dt, quad_segs=256))
+    if e > 0:
+        sec = sec.buffer(-e, quad_segs=16).buffer(e, quad_segs=16)
+    parts = []
+    for cy in (float(v["Arch Centre Y"]), float(v["Arch Centre Y Minus"])):
+        m = geom.revolve_section(sec, sections=720)
+        m.apply_translation([float(v["Arch Centre X"]), cy, 0.0])
+        parts.append(m)
+    w = math.radians(float(v["Wedge Angle"]))
+    L = 40.0
+    wedge = trimesh.creation.extrude_polygon(Polygon([(0, 0), (L * math.cos(w), -L * math.sin(w)), (L, 0),
+                                                      (L * math.cos(w), L * math.sin(w))]), height=4 * (zt - zb) + 20)
+    wedge.apply_translation([0, 0, -2 * (zt - zb) - 10])
+    cut = trimesh.creation.cylinder(radius=float(v["Arch Cut Radius"]), height=40, sections=720)
+    arch = trimesh.boolean.intersection(parts + [wedge], engine="manifold")
+    return trimesh.boolean.difference([arch, cut], engine="manifold")
+
+
+def bead_mesh(v: dict):
+    """The four bead rows (or the one buried bead) from the notebook's numbers, as the polar arrays build them."""
+    import trimesh
+    rho, n, step = float(v["Bead Radius"]), int(v["Bead Count"]), math.radians(float(v["Bead Spacing"]))
+    beads = []
+    for (sx, sy), cy in (((float(v["Bead Start X"]), float(v["Bead Start Y"])), float(v["Arch Centre Y"])),
+                         ((float(v["Bead Start X Minus"]), float(v["Bead Start Y Minus"])), float(v["Arch Centre Y Minus"]))):
+        cx = float(v["Arch Centre X"])
+        r0, a0 = math.hypot(sx - cx, sy - cy), math.atan2(sy - cy, sx - cx)
+        for k in range(n):
+            a = a0 + k * step
+            for z in {float(v["Bead Z"]), float(v["Bead Z Minus"])}:
+                beads.append(trimesh.creation.icosphere(subdivisions=3, radius=rho).apply_translation(
+                    [cx + r0 * math.cos(a), cy + r0 * math.sin(a), z]))
+    return trimesh.boolean.union(beads, engine="manifold") if len(beads) > 1 else beads[0]
+
+
+def ring_mesh(v: dict, envelope, cut_seat: bool = True, inner: float | None = None, beads: bool = True):
     """The solitaire from the notebook's input numbers, as nTop builds it."""
     import trimesh
     band = geom.band_mesh(v)
-    xc, r2 = float(v["Cathedral X"]), float(v["Cathedral Radius"])
-    zb, zt = float(v["Z Bottom"]), float(v["Z Top"])
-    cyl = trimesh.creation.cylinder(radius=r2, segment=[[xc, 0, zb], [xc, 0, zt]], sections=360)
-    comfort = trimesh.creation.torus(float(v["Comfort Ring Radius"]), float(v["Comfort Tube Radius"]),
-                                     major_sections=360, minor_sections=96)
-    shoulders = trimesh.boolean.intersection([cyl, comfort], engine="manifold")
-    shank = trimesh.boolean.union([band, shoulders], engine="manifold")
+    if inner is None:                                   # midway between the bounds SolitaireSpec.arch() computes
+        t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
+        lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
+        inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2
+    shank = trimesh.boolean.union([band, arch_mesh(v, inner)] + ([bead_mesh(v)] if beads else []), engine="manifold")
     place = geom.rotation_about_y(HEAD_ANGLE_DEG, [float(v["Pivot X"]), 0.0, float(v["Pivot Z"])])
     if cut_seat:
         cutter = geom.offset_convex(envelope, float(v["Clearance"])).copy()
@@ -198,9 +364,38 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     rep.checks.append(gate.Check("seat ledges", ledges >= spec.head.prongs,
                                  f"{ledges} pieces reach under the girdle (expected >= {spec.head.prongs})"))
     rep.checks.append(gate.Check("drop-in clear", above == 0, f"{above} pieces inside the girdle line above the girdle"))
+    if spec.milgrain:
+        rep.checks.append(milgrain_check(spec, ring))
     from .band import design_volume_check
     rep.checks.append(design_volume_check(float(design.volume), ntop_vol, 3.0))
     return rep
+
+
+def milgrain_check(spec: SolitaireSpec, ring):
+    """Every arch bead is there: a ray from 3 bead radii outside each designed bead centre (along
+    the edge corner's diagonal) must meet the bead's apex (2 radii in) - a bare arch edge is met a
+    radius later. Missing milgrain changes the volume by ~1 %, inside the design-volume tolerance,
+    so only this check catches it."""
+    import numpy as np
+    from . import gate
+    a, rho = spec.arch(), spec.bead_radius_mm
+    origins, dirs = [], []
+    for x, y, z, side in spec.bead_centres():
+        c = np.array([a["cx"], a["cy"] * side])
+        radial = np.array([x, y]) - c
+        radial /= np.linalg.norm(radial)
+        n = np.array([radial[0], radial[1], np.sign(z)]) / math.sqrt(2)
+        origins.append(np.array([x, y, z]) + 3 * rho * n)
+        dirs.append(-n)
+    if not origins:
+        return gate.Check("arch milgrain", False, "the design has no beads", status=gate.INCOMPLETE)
+    locs, idx, _ = ring.ray.intersects_location(np.array(origins), np.array(dirs), multiple_hits=False)
+    hit = {int(i): float(np.linalg.norm(l - origins[i])) for l, i in zip(locs, idx)}
+    tol = max(0.08, 2 * spec.head.mesh_tolerance_mm)
+    missing = [i for i in range(len(origins)) if abs(hit.get(i, 1e9) - 2 * rho) > tol]
+    return gate.Check("arch milgrain", not missing,
+                      f"{len(origins) - len(missing)}/{len(origins)} beads where designed (apex within {tol:.2f} mm)"
+                      + (f"; missing near {[tuple(round(float(q), 2) for q in origins[i][:2]) for i in missing[:4]]}" if missing else ""))
 
 
 @dataclass
