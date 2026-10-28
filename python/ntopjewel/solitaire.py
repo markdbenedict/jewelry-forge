@@ -254,6 +254,8 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(entry) if entry else None
     rep = check_solitaire(spec, stl, ntop_vol)
+    from . import gate as _gate
+    _gate.save(rep)
     res = SolitaireResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     stone = spec.head.stone
     res.notes.append(f"stone {stone.carats():.2f} ct {stone.material}; metal " +

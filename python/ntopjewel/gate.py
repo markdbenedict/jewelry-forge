@@ -347,6 +347,13 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     return rep
 
 
+def save(rep: "GateReport") -> None:
+    """Rewrite <stem>.gate.json from the finished report. gate.check writes it once with the generic
+    checks; a family that appends its own (bore, extents, stone fits, design volume ...) calls this
+    after them, so the file on disk is the gate that decided the status (it was not, 2026-10-28)."""
+    Path(rep.path).with_suffix(".gate.json").write_text(json.dumps(rep.to_dict(), indent=2), encoding="utf-8")
+
+
 def band_volume_mm3(inner_d: float, outer_d: float, width: float) -> float:
     """Analytic volume of a flat band (rectangular section)."""
     return math.pi * ((outer_d / 2) ** 2 - (inner_d / 2) ** 2) * width

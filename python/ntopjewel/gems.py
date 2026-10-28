@@ -385,6 +385,8 @@ def build_seat(spec: SeatSpec, out_dir: Path | None = None, *, notebook: Path | 
     entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(entry) if entry else None
     rep = check_seat(spec, stl, ntop_vol)
+    from . import gate as _gate
+    _gate.save(rep)
     res = SeatResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     (run_dir / f"{spec.stem}.report.json").write_text(json.dumps({
         "stem": spec.stem, "run_id": run_id, "status": res.status, "design": spec.design(),

@@ -51,6 +51,8 @@ DEFAULTS = {
     "save_to": str(REPO / "ntop" / "notebooks" / "solitaire.ntop"),
     "recipe_to": str(REPO / "ntop" / "recipes" / "solitaire.recipe.json"),
     "pause": False,                     # embeds blocks: no paused updates
+    "show": ["Ring", "Ring Body"],      # the GUI shows the finished ring only (the seat cutter, the unplaced head
+                                        # and the construction points stay hidden; they still build)
     "lazy_ok": True,                    # nTopCL (`solitaire` command) is the test
     "fresh": True,
     "wait_s": 240,

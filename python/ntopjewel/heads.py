@@ -314,6 +314,8 @@ def build_head(spec: HeadSpec, out_dir: Path | None = None, *, notebook: Path | 
     entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(entry) if entry else None
     rep = check_head(spec, stl, ntop_vol)
+    from . import gate as _gate
+    _gate.save(rep)
     res = HeadResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     res.notes.append(f"metal: " + ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))
     (run_dir / f"{spec.stem}.report.json").write_text(json.dumps({

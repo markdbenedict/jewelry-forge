@@ -340,6 +340,7 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
     rep = gate.check(stl, expect_inner=spec.inner_diameter_mm, expect_outer=2 * spec.outer_radius_mm,
                      expect_width=spec.width_mm, expect_volume=ntop_vol, wall_floor=floor)
     rep.checks.append(design_volume_check(spec.design_volume_mm3(), ntop_vol, 2.0))
+    gate.save(rep)
     result = BandResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     result.notes += spec.warnings()
 

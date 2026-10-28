@@ -77,3 +77,19 @@ def test_cli_solitaire_dry_run(capsys):
     out = capsys.readouterr().out
     assert "Cathedral Radius" in out and "court" in out
     assert cli.main(["solitaire", "--size", "6", "--finger-clear", "0.2", "--dry-run"]) == 1
+
+
+def test_gate_json_on_disk_holds_the_family_checks(fake_ntopcl, tmp_path):
+    """2026-10-28: the first real run's gate.json held only the generic checks (written before the
+    solitaire ones were appended) - the report was right, the file Mark opened was not."""
+    import json
+    nb = tmp_path / "solitaire.ntop"
+    nb.write_bytes(b"fake")
+    res = solitaire.build(spec(6), tmp_path / "out", notebook=nb)
+    names = [c["name"] for c in json.loads(res.stl.with_suffix(".gate.json").read_text())["checks"]]
+    assert {"bore", "extents", "stone fits", "design volume"} <= set(names)
+
+
+def test_solitaire_gui_shows_only_the_ring():
+    from .test_notebook_api import load_recipe
+    assert load_recipe("solitaire").DEFAULTS["show"] == ["Ring", "Ring Body"]

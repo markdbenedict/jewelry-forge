@@ -446,6 +446,7 @@ def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None 
     vol_entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(vol_entry) if vol_entry else None
     rep, notes = check_mesh(spec, stl, ntop_vol, info)
+    gate.save(rep)
     result = RingResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     result.notes += spec.band.warnings() + notes
 
