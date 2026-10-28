@@ -384,7 +384,14 @@ def test_driver_writes_a_live_progress_log(tmp_path):
     assert rc == 0
     driver = (tmp_path / "band_profile.driver.py").read_text(encoding="utf-8")
     assert "band_profile.progress.log" in driver
-    exec(driver, {"notebook": FakeNotebook()})
+    import sys
+    keep = {k: v for k, v in sys.modules.items() if k == "ntopjewel" or k.startswith("ntopjewel.")}
+    try:
+        exec(driver, {"notebook": FakeNotebook()})            # the driver reloads ntopjewel, as inside nTop
+    finally:
+        for k in [k for k in sys.modules if k == "ntopjewel" or k.startswith("ntopjewel.")]:
+            del sys.modules[k]
+        sys.modules.update(keep)                               # the rest of the suite keeps its classes
     lines = (tmp_path / "band_profile.progress.log").read_text(encoding="utf-8").splitlines()
     assert len(lines) > 30 and any("add Band:" in ln for ln in lines) and lines[0][2] == ":"
     napi.PROGRESS_PATH = None
@@ -409,9 +416,9 @@ def test_settle_warns_on_a_lazy_output_and_raises_on_a_failed_one():
             self.s = state
         def block_state(self, bid):
             return {"blockId": bid, "buildState": self.s, "error": "boom" if self.s == "e_FAILED" else ""}
-    h = NotebookHelper(NB("e_DIRTY"))
+    h = nj.NotebookHelper(NB("e_DIRTY"))
     w = nj.settle(h, "Implicit Body_4", "the block's Output", wait_s=0.6)
     assert w and "e_DIRTY" in w[0] and "nTopCL" in w[0]
-    assert nj.settle(NotebookHelper(NB("e_OK")), "x", "y", wait_s=0) == []
-    with pytest.raises(ConsoleError, match="failed to build: boom"):
-        nj.settle(NotebookHelper(NB("e_FAILED")), "x", "the block's Output", wait_s=0)
+    assert nj.settle(nj.NotebookHelper(NB("e_OK")), "x", "y", wait_s=0) == []
+    with pytest.raises(nj.ConsoleError, match="failed to build: boom"):        # nb_jewel's own class (drivers reload modules)
+        nj.settle(nj.NotebookHelper(NB("e_FAILED")), "x", "the block's Output", wait_s=0)
