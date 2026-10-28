@@ -422,3 +422,11 @@ def test_settle_warns_on_a_lazy_output_and_raises_on_a_failed_one():
     assert nj.settle(nj.NotebookHelper(NB("e_OK")), "x", "y", wait_s=0) == []
     with pytest.raises(nj.ConsoleError, match="failed to build: boom"):        # nb_jewel's own class (drivers reload modules)
         nj.settle(nj.NotebookHelper(NB("e_FAILED")), "x", "the block's Output", wait_s=0)
+
+
+def test_block_rules_probe_runs_every_variant(tmp_path, monkeypatch):
+    mod = load_recipe("block_rules_probe")
+    monkeypatch.setattr(mod, "OUT", tmp_path)
+    res = mod.build(FakeNotebook())
+    assert set(res["results"]) == {"base", "integer", "angle", "combo", "nested", "implicit_in"}
+    assert all(r.get("embed") == "ok" for r in res["results"].values())       # the fake accepts all; nTop decides
