@@ -48,25 +48,30 @@ def test_head_end_to_end_and_the_missing_seat_is_caught(fake_ntopcl, tmp_path, m
     assert bad.status == "failed" and {"stone fits", "drop-in clear", "design volume"} <= failed
 
 
-def test_prong_head_recipe_builds_the_block_with_the_seat_inside_then_the_harness(tmp_path, monkeypatch):
+def test_prong_head_recipe_builds_a_cutter_input_block_then_a_harness_wiring_both(tmp_path):
+    """The head block takes the seat cutter as an implicit input and holds no other block; the
+    build embeds the saved block in a fresh notebook at once (self-test); the harness embeds
+    stone_seat and prong_head side by side and wires the seat's output into the head."""
     from .fake_notebook import FakeNotebook
     from .test_notebook_api import load_recipe
     seat = load_recipe("stone_seat")
     env = tmp_path / "env.stl"
     gems.SeatSpec(gems.StoneSpec("round", 6.5)).envelope().export(str(env))
-    nb = FakeNotebook()
-    seat.build(nb, {"save_to": str(tmp_path / "sh.ntop"), "recipe_to": str(tmp_path / "sh.json"),
-                    "test_output": str(tmp_path / "s.stl"), "values": {"Seat Path": str(env)}})
+    seat.build(FakeNotebook(), {"save_to": str(tmp_path / "sh.ntop"), "recipe_to": str(tmp_path / "sh.json"),
+                                "test_output": str(tmp_path / "s.stl"), "values": {"Seat Path": str(env)}})
     mod = load_recipe("prong_head")
     params = mod.prepare({}, tmp_path)
     params.update({"save_to": str(tmp_path / "ph.ntop"), "recipe_to": str(tmp_path / "ph.json"),
                    "test_output": str(tmp_path / "h.stl"), "seat_block": str(tmp_path / "stone_seat.ntop")})
-    nb2 = FakeNotebook()
-    res = mod.build(nb2, params)
+    nb = FakeNotebook()
+    res = mod.build(nb, params)
     blk = res["block"]
-    assert blk["identifiers"]["Prongs"].startswith("polar_array_implicit") and blk["identifiers"]["Seat"].startswith("user_func_")
-    assert blk["identifiers"]["Seated"].startswith("boolean_subtract") and (tmp_path / "prong_head.ntop").exists()
-    ident = res["identifiers"]["block:prong_head"]
-    assert ident.startswith("user_func_") and ident.endswith("<text,real,integer,real,real,real,real,real,real,real,real,real,real,real,real,real>")
-    assert nb2.inputs == mod.INPUT_ORDER and nb2.output == "Volume" and res["warnings"] == [] and nb2.lint() == []
+    assert blk["identifiers"]["Seat Cutter"] == "core.var<implicit>" and "Seat" not in blk["identifiers"]
+    assert blk["identifiers"]["Prongs"].startswith("polar_array_implicit") and blk["self_test"]["accepted"]
+    head_id = res["identifiers"]["block:prong_head"]
+    assert head_id.endswith("<implicit,integer," + ",".join(["real"] * 13) + ">")        # cutter, count, 13 reals
+    assert res["identifiers"]["block:stone_seat"].endswith("<text,real>")
+    head_inst = res["blocks"]["Prong Head"]
+    assert nb.blocks[head_inst]["wired"]["Seat Cutter"][0] == res["blocks"]["Stone Seat"]
+    assert nb.inputs == mod.INPUT_ORDER and nb.output == "Volume" and res["warnings"] == [] and nb.lint() == []
     assert list(catalog.load("prong_head_harness").inputs) == mod.INPUT_ORDER

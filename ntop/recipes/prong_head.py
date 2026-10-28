@@ -3,15 +3,16 @@
     python -m ntopjewel api build stone_seat             # first, if ntop/blocks/stone_seat.ntop is not there
     python -m ntopjewel api build prong_head             # nTop open, View > Python Console open
 
-1. Block `ntop/blocks/prong_head.ntop` (embeds `stone_seat`):
+1. Block `ntop/blocks/prong_head.ntop` (Seat Cutter is an implicit INPUT; no block inside):
        one prong   Cylinder Base -> Tip (Prong Radius) ∪ a sphere on each end
        prongs      Polar Array of it about +Z: Prong Count copies, Prong Spacing (deg) apart
        basket      ∪ two tori about Z: Upper Rail (Z, Radius), Lower Rail (Z, Radius), Rail Tube Radius
-       seat        − stone_seat(Seat Path, Clearance): trims the prongs back to the girdle line
+       seat        − Seat Cutter (the stone_seat block's output, wired in): trims the prongs back to the girdle line
                    above the girdle (the stone drops in) and leaves a ledge in each below it
        Output      Head (implicit)
-2. Harness `ntop/notebooks/prong_head_harness.ntop`: the block's 16 inputs + Mesh Tolerance +
-   Output Path, the block embedded and measured (Volume Integral, Mesh, Export Mesh). Run by
+2. Harness `ntop/notebooks/prong_head_harness.ntop`: Seat Path + Clearance (to an embedded
+   stone_seat) and the 14 head numbers (to an embedded prong_head, with the seat's output as its
+   cutter) + Mesh Tolerance + Output Path, measured (Volume Integral, Mesh, Export Mesh). Run by
    `python -m ntopjewel head ...` (ntopjewel.heads.build_head), gated for fit, ledges, drop-in
    and volume against the independent trimesh/manifold head.
 
@@ -29,11 +30,15 @@ HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
 TEST_ENVELOPE = REPO / "out" / "api" / "prong_head_test_envelope.stl"
 
-BLOCK_SPECS = [("Seat Path", "path"), ("Clearance", "mm"), ("Prong Count", "int"), ("Prong Spacing", "deg"),
-               ("Prong Radius", "mm"), ("Base X", "mm"), ("Base Y", "mm"), ("Base Z", "mm"),
-               ("Tip X", "mm"), ("Tip Y", "mm"), ("Tip Z", "mm"), ("Upper Rail Z", "mm"), ("Upper Rail Radius", "mm"),
-               ("Lower Rail Z", "mm"), ("Lower Rail Radius", "mm"), ("Rail Tube Radius", "mm")]
+# the block's numeric inputs; its first input is the seat cutter (implicit), wired in by whoever uses it
+GEOMETRY_SPECS = [("Prong Count", "int"), ("Prong Spacing", "deg"),
+                  ("Prong Radius", "mm"), ("Base X", "mm"), ("Base Y", "mm"), ("Base Z", "mm"),
+                  ("Tip X", "mm"), ("Tip Y", "mm"), ("Tip Z", "mm"), ("Upper Rail Z", "mm"), ("Upper Rail Radius", "mm"),
+                  ("Lower Rail Z", "mm"), ("Lower Rail Radius", "mm"), ("Rail Tube Radius", "mm")]
+SEAT_SPECS = [("Seat Path", "path"), ("Clearance", "mm")]           # the harness's, for the stone_seat block
+BLOCK_SPECS = SEAT_SPECS + GEOMETRY_SPECS                           # = the harness inputs before Mesh Tolerance
 INPUT_ORDER = [n for n, _ in BLOCK_SPECS] + ["Mesh Tolerance", "Output Path"]
+CUTTER_INPUT = "Seat Cutter"
 
 
 def _test_values() -> dict:
@@ -73,9 +78,18 @@ def prepare(params: dict, work_dir: Path) -> dict:
 
 
 def build_block(notebook, p: dict, values: dict) -> dict:
+    """The head block: Seat Cutter (implicit input) + 14 numbers -> Head. It contains no other
+    block: a notebook embedding stone_seat and feeding it a text input was refused as a custom
+    block (2026-10-28) though nesting, integer/angle inputs and an unbuilt Output each embed
+    alone (block_rules_probe); a cutter input is also what lets a bezel reuse the same seat."""
     h = NotebookHelper(notebook)
     notebook.new_notebook()
-    v = nj.add_typed_inputs(h, BLOCK_SPECS, values)
+    cut = notebook.add_block("core.var<implicit>")
+    cutter = cut["id"] if cut["id"] == CUTTER_INPUT else notebook.rename_variable(cut["id"], CUTTER_INPUT)["id"]
+    h.blocks[CUTTER_INPUT] = cutter
+    h.identifiers[CUTTER_INPUT] = "core.var<implicit>"
+    h.log.append(f"var {CUTTER_INPUT}: core.var<implicit> (an input: the seat cutter)")
+    v = nj.add_typed_inputs(h, GEOMETRY_SPECS, values)
 
     base = nj.point_from_vars(h, "Base", v["Base X"], v["Base Y"], v["Base Z"])
     tip = nj.point_from_vars(h, "Tip", v["Tip X"], v["Tip Y"], v["Tip Z"])
@@ -112,16 +126,12 @@ def build_block(notebook, p: dict, values: dict) -> dict:
     for b in (prongs, *rails):
         h.to_list(b, basket, ["Bodies"])
 
-    seat_ident = h.embed_block(p["seat_block"])
-    seat = h.add("Seat", seat_ident)
-    h.wire(v["Seat Path"], seat, ["Seat Path"])
-    h.wire(v["Clearance"], seat, ["Clearance"])
     head = h.add("Seated", mask="subtract", must=nj.SUBTRACT)
     h.wire(basket, head, ["Primary Body", "Body"])
-    h.to_list(seat, head, ["Subtraction Bodies", "Bodies"])
+    h.to_list(cutter, head, ["Subtraction Bodies", "Bodies"])
 
     out = h.wrap_var("Head", head)
-    h.declare_inputs(list(v.values()))
+    h.declare_inputs([cutter, *v.values()])
     h.set_output(out)
     warnings = nj.settle(h, head, "the block's Output")
     Path(p["block_to"]).parent.mkdir(parents=True, exist_ok=True)
@@ -132,8 +142,41 @@ def build_block(notebook, p: dict, values: dict) -> dict:
         h.log.append(f"export_as_recipe (block) failed: {e}")
     if not Path(p["block_to"]).exists():
         raise ConsoleError(f"the block was not saved to {p['block_to']}")
+    self_test = embed_self_test(notebook, p["block_to"])
+    h.log.append(f"self-test: {self_test}")
     return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers, "warnings": warnings,
+            "self_test": self_test,
             "blocks": h.blocks, "states": h.states(0), "log": h.log}
+
+
+def embed_self_test(notebook, block_path: str) -> dict:
+    """Embed the saved block into a fresh notebook at once, so a block nTop will not accept is
+    named here rather than as a harness failure later."""
+    notebook.new_notebook()
+    try:
+        notebook.embed_custom_block(block_path)
+    except Exception as e:
+        raise ConsoleError(f"nTop refuses the saved block as a custom block: {e}") from e
+    blocks = [b for b in notebook.list_custom_blocks() if b.get("name") == Path(block_path).stem]
+    if not blocks:
+        raise ConsoleError(f"embedded {block_path} but list_custom_blocks() does not name it")
+    return {"accepted": True, "id": blocks[0]["id"]}
+
+
+def _harness(h, p, values, test_output):
+    """Harness: the stone_seat block cuts, the prong_head block takes that cutter + its numbers."""
+    ids = nj.add_typed_inputs(h, BLOCK_SPECS + [("Mesh Tolerance", "mm")], values)
+    out_var = nj.path_variable(h, "Output Path", test_output)
+    seat = h.add("Stone Seat", h.embed_block(p["seat_block"]))
+    for name, _ in SEAT_SPECS:
+        h.wire(ids[name], seat, [name])
+    head = h.add("Prong Head", h.embed_block(p["block_to"]))
+    h.wire(seat, head, [CUTTER_INPUT])
+    for name, _ in GEOMETRY_SPECS:
+        h.wire(ids[name], head, [name])
+    body = h.wrap_var("Result", head)
+    integ, _mesh, export = nj.add_measure_mesh_export(h, body, out_var, ids["Mesh Tolerance"])
+    return integ, export
 
 
 def build(notebook, params: dict | None = None) -> dict:
@@ -152,8 +195,7 @@ def build(notebook, params: dict | None = None) -> dict:
         raise ConsoleError(f"{p['seat_block']} is missing: run `python -m ntopjewel api build stone_seat` first")
     p["values"] = values
     block = build_block(notebook, p, values)
-    res = nj.run_build(notebook, p, {**DEFAULTS, "values": values},
-                       lambda h, pp, vals, out: nj.harness(h, pp, vals, out, p["block_to"], BLOCK_SPECS, "Prong Head"))
+    res = nj.run_build(notebook, p, {**DEFAULTS, "values": values}, _harness)
     res["block"] = block
     res["warnings"] = block.get("warnings", []) + res.get("warnings", [])
     return res

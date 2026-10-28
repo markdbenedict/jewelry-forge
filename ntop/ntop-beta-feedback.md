@@ -91,6 +91,14 @@ Windows 11 laptops, Python per nTop's bundled console.
   test. Expected: a way to request a build, or `block_state` distinguishing "not requested" from
   "queued".
 
+- Eighth build (2026-10-28): that prong_head block, saved with 16 inputs and its Output, was refused by
+  `embed_custom_block`: "Not a valid custom block; output may be absent or missing inputs". A probe
+  (`block_rules_probe`) then embedded, each on its own and all accepted: integer input, angle input,
+  an unbuilt combination as Output, a block nesting another, and an implicit input with an unbuilt
+  Output. What prong_head alone had: a text input passed into a nested block that feeds a subtraction.
+  We now pass block results as implicit inputs. Expected: the message to name the input or output
+  it found wanting.
+
 ## Open questions
 
 - None blocking. Nice to have: a documented way to register a unit in a notebook, and a

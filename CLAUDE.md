@@ -154,7 +154,12 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   input names. Resolve the identifier by name from `list_custom_blocks()`, never hard-code it.
   `open_custom_block(name)` takes the display name, not an instance id. The Output's type is the
   variable's (`core.var<sphere>` for a sphere): wrap a block's body as `core.var<implicit>` when
-  consumers expect an implicit. Library blocks live in `ntop/blocks/<name>.ntop`; runners embed them.
+  consumers expect an implicit. Library blocks live in `ntop/blocks/<name>.ntop`; runners embed them. **A block takes
+  another block's result as an implicit input (`core.var<implicit>`, declared as an input) instead of embedding it**:
+  prong_head holding stone_seat and passing it a text input was refused as "Not a valid custom block", although
+  nesting, integer/angle inputs and an unbuilt Output each embed on their own (`block_rules_probe`). Combinations
+  in a block notebook may stay `e_DIRTY` in the GUI (`nj.settle` saves anyway; nTopCL is the test), and every
+  block build ends by embedding the saved block in a fresh notebook (self-test).
 - **Units are a per-notebook table.** A fresh notebook knows `mm` (its length unit) and
   nothing else: `add_real_variable(…, "kg/m3")` and `set_block_input_units` answer
   `"kg/m3" is not a unit this notebook knows`, although `get_block_input_units` spells the
@@ -216,7 +221,7 @@ python -m ntopjewel api check                                        # SSH to th
 python -m ntopjewel api build band_profile                           # writes ntop\notebooks\ring_band_profile.ntop
 python -m ntopjewel api build ring_features --scratch                # Phase 1 step 2 notebook (prepare() writes the test engraving STL)
 python -m ntopjewel api build stone_seat                             # library block ntop\blocks\stone_seat.ntop + its harness ntop\notebooks\stone_seat_harness.ntop
-python -m ntopjewel api build prong_head                             # ntop\blocks\prong_head.ntop (embeds stone_seat) + ntop\notebooks\prong_head_harness.ntop
+python -m ntopjewel api build prong_head                             # ntop\blocks\prong_head.ntop (seat cutter as an input) + ntop\notebooks\prong_head_harness.ntop (embeds stone_seat + prong_head)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
