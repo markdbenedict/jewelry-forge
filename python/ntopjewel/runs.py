@@ -101,9 +101,14 @@ def status_of(run_ok: bool, report: gate.GateReport | None) -> str:
 
 
 def deliver(stl: Path, run_dir: Path, stem: str, project: str, manifest: dict,
-            extra_files: list[Path] = ()) -> Path:
+            extra_files: list[Path] = (), cast_metal: str | None = None) -> Path:
     """Copy an accepted part and its evidence to <deliver>/<project>/<stem>/. Returns the STL
-    there. Refuses unless manifest["status"] is PASSED."""
+    there. Refuses unless manifest["status"] is PASSED.
+
+    With `cast_metal`, also writes `<stem>.print_<metal>.stl`: the gated design scaled about the
+    origin by tables.print_scale(metal) (casting + resin shrink, isotropic), the file to print
+    when the part will be cast. The design-size STL stays beside it; the manifest records the
+    factor and whether its figures are calibrated."""
     if manifest.get("status") != gate.PASSED:
         raise ValueError(f"refusing to deliver {stem}: status is {manifest.get('status')!r}, not {gate.PASSED!r}")
     dest = config.deliver_dir() / project / stem
@@ -115,5 +120,15 @@ def deliver(stl: Path, run_dir: Path, stem: str, project: str, manifest: dict,
             shutil.copy2(p, dest / p.name)
     manifest = {**manifest, "delivered_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "delivered_stl": str(out), "sha256": sha256(out)}
+    if cast_metal:
+        from . import tables
+        import trimesh
+        factor, warnings = tables.print_scale(cast_metal)
+        m = trimesh.load(str(stl), force="mesh")
+        m.apply_scale(factor)                          # about the origin: the ring stays on its axis
+        printed = dest / f"{stem}.print_{cast_metal}.stl"
+        m.export(str(printed))
+        manifest["print"] = {"stl": str(printed), "sha256": sha256(printed), "metal": cast_metal, "scale": factor,
+                             "warnings": warnings}
     (dest / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
     return out

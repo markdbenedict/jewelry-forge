@@ -33,6 +33,10 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 
 ## Current limitations
 
+- Shrink: `--deliver --metal` writes the print file scaled for casting + resin shrink, but the
+  metal shrink figures are defaults and the resin's is an uncalibrated 0 %: the first print and
+  cast set them (Phase 1 gate).
+
 - No part has been printed or cast yet: every wall floor, density, shrink figure and the
   `cast_ring_size_offset` in `data/jewelry_tables.json` is a **default**, not a calibration.
 - `ring_features.ntop` lives in `out\api\` (scratch) until `api build ring_features` saves it

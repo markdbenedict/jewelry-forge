@@ -74,7 +74,9 @@ def test_ring_spec_numbers_and_switches():
     assert b.design_volume_mm3() - 10 < v < b.design_volume_mm3() + 15     # beads add ~11, groove and text remove ~9
     ins = s.notebook_inputs("X.stl", "E.stl")
     assert list(catalog.load("ring_features").inputs) == list(ins) and ins["Bead Count"] == 87
-    assert ins["Bead Z Minus"] == -ins["Bead Z"] and ins["Engraving Wrap Length"] == pytest.approx(2 * math.pi * b.bore_radius_mm, abs=1e-3)
+    mean_bore = sum(b.bore_radius_at(-1 + k / 20) for k in range(41)) / 41               # over the 2 mm text
+    assert ins["Bead Z Minus"] == -ins["Bead Z"] and ins["Engraving Wrap Length"] == pytest.approx(2 * math.pi * mean_bore, abs=1e-3)
+    assert b.bore_radius_mm < mean_bore < b.bore_radius_at(1.0)                          # comfort bore: wider off the mid-plane
 
 
 def test_ring_spec_rejects_what_will_not_cast():
@@ -384,3 +386,41 @@ def test_engraving_names_the_missing_triangulation_engine(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", no_engines)
     with pytest.raises(RuntimeError, match="pip install"):
         engrave.text_mesh("A", 1.5, 0.3, 9.5)
+
+
+# ------------------------------------------------------------------ review 2026-10-28
+def test_groove_volume_is_exact_on_a_domed_profile_off_centre():
+    """The groove is subtracted from the section itself: equal to a brute-force revolve of the
+    section with the groove circle cut out, on a half-round band with the groove off-centre."""
+    import numpy as np
+    b = band.BandSpec(size=6, profile="half-round", thickness_mm=1.6)
+    s = features.RingSpec(b, groove_depth_mm=0.3, groove_z_mm=0.5)
+    g = s.groove_geometry()
+    r, z, mask = b.opened_section(0.004)
+    R, Z = np.meshgrid(r, z)
+    keep = mask & ~((R - g["ring_radius"]) ** 2 + (Z - g["z"]) ** 2 <= g["tube"] ** 2)
+    brute = 2 * math.pi * (R[keep] * 0.004 ** 2).sum()
+    assert s.design_volume_mm3(step=0.004) == pytest.approx(brute, rel=2e-3)
+
+
+def test_engraving_cut_volume_matches_the_cut_mesh(tmp_path):
+    """The exact pocket formula against a real boolean of the wrapped text out of the band."""
+    from .fake_ntopcl import build_mesh
+    spec = features.RingSpec(band.BandSpec(size=6, profile="court"), text="Makena")
+    eng = tmp_path / "e.stl"
+    spec.write_engraving(eng)
+    plain = features.RingSpec(band.BandSpec(size=6, profile="court"))
+    pe = tmp_path / "p.stl"
+    plain.write_engraving(pe)
+    cut = build_mesh(spec.notebook_inputs(str(tmp_path / "o.stl"), str(eng)), "design")
+    whole = build_mesh(plain.notebook_inputs(str(tmp_path / "o2.stl"), str(pe)), "design")
+    measured = whole.volume - cut.volume
+    assert spec.engraving_cut_volume_mm3() == pytest.approx(measured, rel=0.05)
+    area_depth = engrave.text_polygons("Makena", spec.engrave_geometry()["height"]).area * 0.3
+    assert abs(spec.engraving_cut_volume_mm3() - measured) < abs(area_depth - measured)    # better than area x depth
+
+
+def test_beads_that_would_touch_are_refused():
+    b = band.BandSpec(size=6, profile="court")
+    assert features.RingSpec(b, milgrain=True).validate() == []
+    assert any("would merge" in p for p in features.RingSpec(b, milgrain=True, bead_pitch=2.0).validate())

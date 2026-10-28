@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import math
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import catalog, config, gate, ntopcl, runs, tables
@@ -307,7 +307,7 @@ def design_volume_check(design_mm3: float, ntop_mm3: float | None, tol_pct: floa
 
 
 def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
-          catalog_name: str = "ring_band_profile", deliver: bool = False, deliver_project: str = "Bands",
+          catalog_name: str = "ring_band_profile", deliver: bool = False, deliver_project: str = "Bands", cast_metal: str | None = None,
           wall_floor: float | None = None) -> BandResult:
     problems = spec.validate()
     if problems:
@@ -345,14 +345,14 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
 
     report = {
         "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
-        "spec": spec.__dict__, "design": spec.design(), "inputs": spec.notebook_inputs(str(stl)), "stl": str(stl),
+        "spec": asdict(spec), "design": spec.design(), "inputs": spec.notebook_inputs(str(stl)), "stl": str(stl),
         "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(), "gate": rep.to_dict(),
         "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
         "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()),
     }
     (run_dir / f"{stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     if deliver and result.ok:
-        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report)
+        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report, cast_metal=cast_metal)
     elif deliver:
         result.notes.append(f"not delivered: status {result.status}")
     return result

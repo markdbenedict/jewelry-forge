@@ -62,6 +62,7 @@
   },
   "settings": {
     "seat_clearance_mm": {"value": 0.05, "status": "default", "source": "stone-to-seat gap for a resin-printed, cast seat; the metal is burnished over the stone afterwards"},
+    "resin_shrink_pct":  {"value": 0.0,  "status": "uncalibrated", "source": "castable resin post-cure + burnout shrink, model -> pattern; measure on the first print"},
     "seat_drop_mm":      {"value": 8.0,  "status": "default", "source": "height of the straight drop-in path above the girdle: clears any head we make"}
   },
   "calibration_log": [],

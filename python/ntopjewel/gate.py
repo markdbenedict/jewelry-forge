@@ -140,10 +140,34 @@ def load_mesh(path: Path) -> trimesh.Trimesh:
     return m
 
 
-def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None) -> tuple[str, float, float, float]:
-    """(axis, inner diameter, outer diameter, width). Axis defaults to the smallest extent."""
+MIN_WALL_SAMPLES = 1000      # fewer usable rays and p1 rests on a handful of them: not a measurement
+
+
+def ring_axis(mesh: trimesh.Trimesh) -> int:
+    """The ring axis: the bounding-box axis along which a line through the centre passes
+    through the bore without touching metal. Only when that does not single out one axis (no
+    bore, or a ball) does it fall back to the smallest extent - which alone would pick the
+    wrong axis on a band wider than its diameter (a cigar band, a signet sleeve)."""
     ext = mesh.bounding_box.extents
-    ai = AXES.index(axis) if axis else int(np.argmin(ext))
+    centre = mesh.bounding_box.centroid
+    open_axes = []
+    for i in range(3):
+        d = np.zeros(3)
+        d[i] = 1.0
+        start = centre - d * (ext[i] + 1.0)
+        try:
+            hits = mesh.ray.intersects_any([start], [d])
+        except BaseException:
+            return int(np.argmin(ext))
+        if not bool(hits[0]):
+            open_axes.append(i)
+    return open_axes[0] if len(open_axes) == 1 else int(np.argmin(ext))
+
+
+def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None) -> tuple[str, float, float, float]:
+    """(axis, inner diameter, outer diameter, width). Axis: given, else `ring_axis`."""
+    ext = mesh.bounding_box.extents
+    ai = AXES.index(axis) if axis else ring_axis(mesh)
     center = mesh.bounding_box.centroid
     others = [i for i in range(3) if i != ai]
     v = mesh.vertices
@@ -291,7 +315,12 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     c.append(Check("watertight", rep.watertight, "closed mesh" if rep.watertight else "open edges or holes"))
     c.append(Check("winding", rep.winding_consistent, "consistent" if rep.winding_consistent else "inconsistent face winding"))
     c.append(Check("shells", rep.shells == shells, f"{rep.shells} (expected {shells})"))
-    if rep.thickness:
+    if rep.thickness and rep.thickness["samples"] < MIN_WALL_SAMPLES and wall_floor > 0:
+        t = rep.thickness
+        c.append(incomplete("wall thickness", f"only {t['samples']} usable rays (need {MIN_WALL_SAMPLES}): p1 {t['p01']:.3f} mm "
+                            "is not a measurement" + ("; install embreex (python -m pip install -e .\\python -c "
+                            ".\\python\\constraints.txt)" if t.get("note") else "; raise --samples")))
+    elif rep.thickness:
         t = rep.thickness
         c.append(Check("wall thickness", t["p01"] >= wall_floor,
                        f"p1 {t['p01']:.3f} mm vs floor {wall_floor:.2f} mm" + (f" ({t['zone']})" if t.get("zone") else ""),

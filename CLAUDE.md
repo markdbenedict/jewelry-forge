@@ -59,8 +59,10 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   Python - the only check that catches a notebook building the wrong section)** and, when
   engraved, the pocket. The wall check casts rays only along radial/axial directions (letter
   walls and bead seams measure ribs and slivers, not walls), only between the bead rows, and
-  not axially inside an engraving's span. Nothing is reported as finished until the status
-  is PASSED.
+  not axially inside an engraving's span; fewer than 1000 usable rays is INCOMPLETE (p1 of a
+  few hundred rays is not a measurement). The ring axis is the one whose centre line passes
+  through the bore (a band wider than its diameter keeps its axis). Nothing is reported as
+  finished until the status is PASSED.
 - **Every variant and run has a distinct identity.** A stem is
   `ring_band_<profile>_<size>_w<width>_t<thickness>_<spec id>` (rings: `ring_<profile>_<features>_…`),
   the spec id being a hash of every number that defines the design, so two designs never share
@@ -70,6 +72,12 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 - Deliverables go to Mark's `OneDrive\Documents\Jewelry\<project>\<stem>\` only when the status
   is PASSED (`--deliver`; `runs.deliver` refuses anything else): the STL with the input JSON,
   the gate and build reports and `manifest.json`. `out/` is scratch and git-ignored.
+- **Shrink is a scale, allowance is fit.** Casting and resin shrink are isotropic (width,
+  thickness and seats shrink too), so they are never folded into `allowance_mm`. Every part is
+  designed and gated at its finished size; `--deliver --metal sterling` adds
+  `<stem>.print_sterling.stl`, the design scaled about the origin by `tables.print_scale`
+  (metal + resin shrink), with the factor and the calibration state of both figures in the
+  manifest. `allowance_mm` stays the mandrel/comfort adjustment.
 
 ## nTopCL rules (verified 2026-10-25 on nTop 6.3.3, cloud licence, Mark's laptop)
 

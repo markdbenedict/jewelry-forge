@@ -105,10 +105,17 @@ class StoneSpec:
 
     # ---- solid ---------------------------------------------------------------------------
     def mesh(self):
-        """Watertight trimesh: table cap, crown, girdle band, pavilion to a culet point."""
+        """Watertight trimesh: table cap, crown, girdle band, pavilion to a culet point.
+
+        The table and pavilion are fans from the centre, valid only for a CONVEX outline (all
+        six shapes are). A concave cut (heart, a trillion with indented sides) must switch to
+        polygon triangulation and a keel/culet model first; until then it is refused here
+        rather than meshed into self-intersecting triangles (review 2026-10-28)."""
         import numpy as np
         import trimesh
         xy = self.outline()
+        if not _is_convex(xy):
+            raise ValueError(f"{self.shape} outline is not convex: the fan-triangulated table/pavilion would self-intersect")
         n = len(xy)
         crown, pav = self.heights
         g = self.girdle
@@ -176,6 +183,16 @@ class StoneSpec:
                 "extents_mm": [float(x) for x in m.extents], "watertight": bool(m.is_watertight)}
         (out_dir / f"{self.stem}.stone.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
         return info
+
+
+def _is_convex(xy) -> bool:
+    """Every turn of the closed outline has the same sign (collinear points allowed)."""
+    import numpy as np
+    a = np.roll(xy, -1, axis=0) - xy
+    b = np.roll(xy, -2, axis=0) - np.roll(xy, -1, axis=0)
+    cross = a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]
+    tol = 1e-9 * float(np.abs(xy).max()) ** 2
+    return bool(np.all(cross >= -tol) or np.all(cross <= tol))
 
 
 def _resample(poly, n: int):

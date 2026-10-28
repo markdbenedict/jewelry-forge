@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import math
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import catalog, config, engrave, gate, ntopcl, runs, tables
@@ -110,12 +110,16 @@ class RingSpec:
     def engrave_geometry(self) -> dict:
         """Where the text sits: the surface radius at the text's half-height (so the pocket is
         `depth` deep at the text's edges and a little deeper in the middle on a curved face),
-        the wrap length (undistorted at the mid-plane radius) and the height used."""
+        the wrap radius and the height used. Remap Cylindrical has one Y mapping length for
+        every z, so text is undistorted at one radius only; on a curved face the surface radius
+        varies over the text's height, and the wrap uses its MEAN over that span (not the
+        mid-plane radius) so the glyphs are stretched and squeezed least (review 2026-10-28)."""
         b = self.band
         h = self.engrave_height_mm or min(2.0, b.width_mm - 2 * b.edge_round - 0.6)
-        if self.engrave_side == "inside":
-            return {"height": h, "radius": b.bore_radius_at(h / 2), "wrap_radius": b.bore_radius_mm, "side": "inside"}
-        return {"height": h, "radius": b.outer_radius_at(h / 2), "wrap_radius": b.outer_radius_mm, "side": "outside"}
+        surface = b.bore_radius_at if self.engrave_side == "inside" else b.outer_radius_at
+        zs = [(-h / 2 + h * k / 40) for k in range(41)]
+        mean_r = sum(surface(z) for z in zs) / len(zs)
+        return {"height": h, "radius": surface(h / 2), "wrap_radius": mean_r, "side": self.engrave_side}
 
     # ---- the engraving file ----------------------------------------------------------------
     def write_engraving(self, path: Path) -> dict:
@@ -155,6 +159,11 @@ class RingSpec:
                 problems.append(f"bead radius {self.bead_radius_mm} mm below the milgrain floor {MIN_BEAD_RADIUS} mm")
             if self.bead_pitch < 2.0:
                 problems.append("bead pitch below 2 radii: beads would merge")
+            g = self.bead_geometry()
+            chord = 2 * g["ring_radius"] * math.sin(math.pi / g["count"])
+            if chord < 2 * self.bead_radius_mm * 1.02:
+                problems.append(f"neighbouring beads {chord:.3f} mm apart (centre to centre) for {2 * self.bead_radius_mm:.3f} mm "
+                                f"beads: they would merge - raise --bead-pitch")
         if self.has_groove:
             if self.groove_depth_mm < 0.1:
                 problems.append("groove depth below 0.1 mm would not survive casting")
@@ -311,18 +320,40 @@ class RingSpec:
                 outside += float((in_sphere & ~in_band).sum()) * s * s * s
             vol += 2 * g["count"] * outside
         if self.has_groove:
+            # the groove torus's meridian section is a circle: subtract it from the finished
+            # section and integrate (Pappus) - exact on any profile and at any groove z, where
+            # a flat-surface circular-segment formula is not (review 2026-10-28)
             g = self.groove_geometry()
-            t, d = g["tube"], self.groove_depth_mm
-            d = min(d, 2 * t)
-            seg = t * t * math.acos((t - d) / t) - (t - d) * math.sqrt(max(2 * t * d - d * d, 0.0))
-            vol -= 2 * math.pi * (g["ring_radius"] - t + d / 2) * seg
+            r, z, mask = b.opened_section(step)
+            R, Z = np.meshgrid(r, z)
+            removed = mask & ((R - g["ring_radius"]) ** 2 + (Z - g["z"]) ** 2 <= g["tube"] ** 2)
+            vol -= float(2 * math.pi * (R[removed] * step * step).sum())
         if self.has_engraving:
-            cut = self.engraving_info.get("cut_volume_mm3")
-            if cut is None:
-                g = self.engrave_geometry()
-                cut = engrave.text_polygons(self.text, g["height"], self.font).area * self.engrave_depth_mm
-            vol -= float(cut)
+            vol -= self.engraving_cut_volume_mm3()
         return float(vol)
+
+    def engraving_cut_volume_mm3(self, step: float = 0.01) -> float:
+        """The pocket the wrapped text cuts, exactly: the text solid spans radially to a floor at
+        a constant radius (surface radius at the text's edge -/+ depth), and Remap Cylindrical
+        maps the reading direction u to the angle u / wrap radius. So over the glyphs,
+        V = ∫∫ |R_floor² - r_surface(z)²| / (2 R_wrap) du dz - deeper than `depth` mid-height on
+        a curved face, which area x depth misses (review 2026-10-28)."""
+        import numpy as np
+        import shapely
+        g = self.engrave_geometry()
+        shape = engrave.text_polygons(self.text, g["height"], self.font)
+        minx, miny, maxx, maxy = shape.bounds
+        u = np.arange(minx + step / 2, maxx, step)
+        v = np.arange(miny + step / 2, maxy, step)
+        U, V = np.meshgrid(u, v)
+        inside_glyph = shapely.contains_xy(shape, U, V)
+        surface = self.band.bore_radius_at if g["side"] == "inside" else self.band.outer_radius_at
+        floor = g["radius"] + self.engrave_depth_mm if g["side"] == "inside" else g["radius"] - self.engrave_depth_mm
+        rs = np.array([surface(float(zz)) for zz in v])[:, None] * np.ones_like(U)
+        # inside: pocket from the bore out to the floor; outside: from the floor out to the surface
+        cut = (floor ** 2 - rs ** 2) if g["side"] == "inside" else (rs ** 2 - floor ** 2)
+        cut = np.clip(cut, 0.0, None) / (2 * g["wrap_radius"])
+        return float((cut * inside_glyph).sum() * step * step)
 
     def describe(self) -> str:
         beads, groove, eng = self.bead_geometry(), self.groove_geometry(), self.engrave_geometry()
@@ -391,7 +422,7 @@ def check_mesh(spec: RingSpec, stl: Path, ntop_vol: float | None, info: dict) ->
 
 
 def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
-          catalog_name: str = "ring_features", deliver: bool = False, deliver_project: str = "Rings") -> RingResult:
+          catalog_name: str = "ring_features", deliver: bool = False, deliver_project: str = "Rings", cast_metal: str | None = None) -> RingResult:
     problems = spec.validate()
     if problems:
         raise ValueError("; ".join(problems))
@@ -420,7 +451,7 @@ def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None 
 
     report = {
         "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
-        "band": spec.band.__dict__, "features": {k: v for k, v in spec.__dict__.items() if k not in ("band", "engraving_info")},
+        "band": asdict(spec.band), "features": {k: v for k, v in asdict(spec).items() if k not in ("band", "engraving_info")},
         "design": spec.design(), "engraving": info, "inputs": spec.notebook_inputs(str(stl), str(engraving)), "stl": str(stl),
         "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(), "gate": rep.to_dict(),
         "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
@@ -428,7 +459,8 @@ def build(spec: RingSpec, out_dir: Path | None = None, *, notebook: Path | None 
     }
     (run_dir / f"{stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     if deliver and result.ok:
-        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report, extra_files=[engraving])
+        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report, extra_files=[engraving],
+                                      cast_metal=cast_metal)
     elif deliver:
         result.notes.append(f"not delivered: status {result.status}")
     return result

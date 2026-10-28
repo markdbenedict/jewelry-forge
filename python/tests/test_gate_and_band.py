@@ -16,7 +16,7 @@ def test_gate_passes_a_clean_band(tmp_path):
     p = tmp_path / "band.stl"
     m.export(p)
     rep = gate.check(p, expect_inner=16.51, expect_outer=19.11, expect_width=4.0,
-                     expect_volume=gate.band_volume_mm3(16.51, 19.11, 4.0), wall_samples=600)
+                     expect_volume=gate.band_volume_mm3(16.51, 19.11, 4.0))
     assert rep.passed, rep.text()
     assert rep.axis == "z" and rep.shells == 1 and rep.watertight
     assert rep.inner_diameter_mm == pytest.approx(16.51, abs=0.01)
@@ -220,3 +220,42 @@ def test_profile_booleans_give_the_designed_section():
             idx = np.flatnonzero(row)
             assert idx[-1] - idx[0] + 1 == len(idx), (name, zq)
             assert thickness(zq) >= edge - 0.02, (name, zq)
+
+
+# ------------------------------------------------------------------ review 2026-10-28
+def test_sparse_wall_sample_is_incomplete(tmp_path):
+    m = _band_mesh()
+    p = tmp_path / "band.stl"
+    m.export(p)
+    rep = gate.check(p, expect_inner=16.51, wall_samples=300)
+    wall = [c for c in rep.checks if c.name == "wall thickness"][0]
+    assert wall.status == gate.INCOMPLETE and "300 usable rays" in wall.detail and rep.status == gate.INCOMPLETE
+
+
+def test_ring_axis_found_through_the_bore_not_the_smallest_extent():
+    import numpy as np
+    cigar = trimesh.creation.annulus(r_min=7.6, r_max=8.6, height=18.0, sections=180)      # wider than its diameter
+    assert np.argmin(cigar.extents) != 2                                                  # the old rule would pick X or Y
+    axis, inner, outer, width = gate.ring_metrics(cigar)
+    assert axis == "z" and inner == pytest.approx(15.2, abs=0.01) and width == pytest.approx(18.0)
+    side = cigar.copy()
+    side.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
+    assert gate.ring_metrics(side)[0] == "y"
+
+
+def test_print_file_is_scaled_for_casting_shrink(fake_ntopcl, profile_notebook, tmp_path, monkeypatch):
+    """Shrink is isotropic: the print file is the whole design scaled by (1 + metal + resin shrink),
+    width and thickness included; the design-size STL is delivered beside it and the allowance
+    stays a fit adjustment."""
+    import json
+    monkeypatch.setenv("JEWELRY_DELIVER", str(tmp_path / "Jewelry"))
+    spec = band.BandSpec(size=6, profile="flat")
+    res = band.build(spec, tmp_path / "o", notebook=profile_notebook, deliver=True, cast_metal="sterling")
+    folder = tmp_path / "Jewelry" / "Bands" / spec.stem
+    printed = trimesh.load(folder / f"{spec.stem}.print_sterling.stl")
+    design = trimesh.load(res.delivered)
+    k = tables.print_scale("sterling")[0]
+    assert k == pytest.approx(1.017) and printed.extents == pytest.approx(design.extents * k, rel=1e-6)
+    man = json.loads((folder / "manifest.json").read_text())
+    assert man["print"]["scale"] == pytest.approx(k) and any("default" in w for w in man["print"]["warnings"])
+    assert any("uncalibrated" in w for w in man["print"]["warnings"])

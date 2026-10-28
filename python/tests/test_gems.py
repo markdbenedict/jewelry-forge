@@ -118,3 +118,12 @@ def test_stone_seat_recipe_builds_block_then_harness(tmp_path):
     assert nb.saved[-1] == str(tmp_path / "h.ntop") and res["warnings"] == [] and nb.lint() == []
     from ntopjewel import catalog
     assert list(catalog.load("stone_seat_harness").inputs) == mod.INPUT_ORDER
+
+
+def test_a_concave_outline_is_refused_not_mis_meshed(monkeypatch):
+    import numpy as np
+    t = np.linspace(0, 2 * math.pi, 64, endpoint=False)
+    r = 3 + 0.8 * np.cos(3 * t)                                   # a three-lobed, concave outline
+    monkeypatch.setattr(gems.StoneSpec, "outline", lambda self, n=0: np.column_stack([r * np.cos(t), r * np.sin(t)]))
+    with pytest.raises(ValueError, match="not convex"):
+        gems.StoneSpec("round", 6.5).mesh()

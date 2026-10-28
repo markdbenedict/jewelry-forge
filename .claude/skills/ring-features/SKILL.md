@@ -56,12 +56,13 @@ through an Import Mesh block, which is quicker when only the mesh matters.
 - **Engraving**: Python writes the text as a solid (matplotlib DejaVu Sans Bold → shapely →
   trimesh), extruded radially across the surface it cuts; the notebook imports it, wraps it
   with Remap Cylindrical Body (X radial, Y around the circumference, Z axial; `Y mapping
-  length` = 2π x the surface radius) and subtracts it. Reading direction is mirrored for the
+  length` = 2π x the MEAN surface radius over the text's height, so glyphs are distorted least on a curved face) and subtracts it. Reading direction is mirrored for the
   inside. Checks: depth ≥ 0.25, thinnest stroke ≥ 0.3 mm at the chosen height, ≥ 0.5 mm wall
   left at the text's edge, text shorter than 90 % of the circumference. The cut is `depth`
   deep at the text's top and bottom and a little deeper mid-height on a curved face.
 - `design volume` is a hard gate check: nTop's volume against the design volume (band +
-  exposed bead volume − groove − text area x depth), ±3 % with features, ±2 % plain;
+  exposed bead volume − the groove circle cut from the section itself (exact on any profile) −
+  the exact pocket ∫∫ |R_floor² − r(z)²| / 2R_wrap over the glyphs, deeper mid-height on a curved face), ±3 % with features, ±2 % plain;
   INCOMPLETE when nTop reports no volume. The simulated nTop in the tests builds this exact
   geometry (section, beads, groove, cut text) and passes it; told to build a flat annulus
   instead, it fails here and only here (+17 %).

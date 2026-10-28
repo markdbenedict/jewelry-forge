@@ -182,3 +182,18 @@ def shrink_scale(metal: str | Metal, extra_pct: float = 0.0) -> float:
     """Linear scale factor to apply to a model so the cast comes out at size."""
     m = METALS[metal] if isinstance(metal, str) else metal
     return 1.0 + (m.linear_shrink_pct + extra_pct) / 100.0
+
+
+def print_scale(metal: str) -> tuple[float, list[str]]:
+    """The uniform scale for the file sent to the printer so the CAST part comes out at the
+    designed size: the metal's casting shrink plus the resin's own (settings.resin_shrink_pct).
+    Shrink is isotropic - width, thickness and seats shrink too - so it is a scale of the whole
+    part, never a bore allowance; `allowance_mm` stays the fit/comfort adjustment. Returns the
+    factor and a warning per figure that is not yet calibrated."""
+    resin = SETTINGS["resin_shrink_pct"]
+    warnings = []
+    if METALS[metal].status != "calibrated":
+        warnings.append(f"{metal} casting shrink {METALS[metal].linear_shrink_pct} % is a {METALS[metal].status} figure")
+    if TABLES["settings"]["resin_shrink_pct"]["status"] != "calibrated":
+        warnings.append(f"resin shrink {resin} % is {TABLES['settings']['resin_shrink_pct']['status']}")
+    return shrink_scale(metal, resin), warnings

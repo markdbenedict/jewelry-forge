@@ -106,9 +106,7 @@ def cmd_run(a: argparse.Namespace) -> int:
 
 
 def cmd_band(a: argparse.Namespace) -> int:
-    spec = band.BandSpec(size=a.size, system=a.system, width_mm=a.width, thickness_mm=a.thickness,
-                         profile=a.profile, dome_mm=a.dome, comfort_mm=a.comfort, edge_round_mm=a.edge_round,
-                         allowance_mm=a.allowance, mesh_tolerance_mm=a.tolerance)
+    spec = _band_spec(a)
     if a.dry_run:
         probs = spec.validate()
         print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
@@ -120,7 +118,8 @@ def cmd_band(a: argparse.Namespace) -> int:
         return 1 if probs else 0
     try:
         res = band.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
-                         catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project)
+                         catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project,
+                         cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"band failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
@@ -128,6 +127,20 @@ def cmd_band(a: argparse.Namespace) -> int:
         return 2
     print(res.text())
     return 0 if res.ok else 1
+
+
+def _add_band_args(p: argparse.ArgumentParser) -> None:
+    """The band flags every ring family takes (band, ring, and the heads and assemblies to come)."""
+    p.add_argument("--size", default="6")
+    p.add_argument("--system", default="US", help="US | UK | ISO | MM")
+    p.add_argument("--width", type=float, default=4.0)
+    p.add_argument("--thickness", type=float, default=1.3, help="radial thickness at the mid-plane, mm")
+    p.add_argument("--profile", default="court", choices=sorted(band.PROFILES), help="cross-section preset")
+    p.add_argument("--dome", type=float, help="outer drop from mid-plane to edge, mm (overrides the preset)")
+    p.add_argument("--comfort", type=float, help="bore relief at the edges, mm (overrides the preset)")
+    p.add_argument("--edge-round", type=float, help="radius rounded onto every edge, mm (overrides the preset)")
+    p.add_argument("--allowance", type=float, default=0.0, help="mm added to the inner diameter (fit, not shrink)")
+    p.add_argument("--tolerance", type=float, default=0.1, help="Mesh from Implicit Body tolerance (= 2 x voxel size), mm")
 
 
 def _band_spec(a: argparse.Namespace) -> band.BandSpec:
@@ -166,7 +179,8 @@ def cmd_ring(a: argparse.Namespace) -> int:
         return 0 if res.ok else 1
     try:
         res = features.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
-                             catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project)
+                             catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project,
+                         cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
         print(f"ring failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
@@ -377,30 +391,19 @@ def main(argv: list[str] | None = None) -> int:
     r.set_defaults(fn=cmd_run)
 
     b = sub.add_parser("band")
-    b.add_argument("--size", default="6")
-    b.add_argument("--system", default="US", help="US | UK | ISO | MM")
-    b.add_argument("--width", type=float, default=4.0)
-    b.add_argument("--thickness", type=float, default=1.3, help="radial thickness at the mid-plane, mm")
-    b.add_argument("--profile", default="court", choices=sorted(band.PROFILES), help="cross-section preset")
-    b.add_argument("--dome", type=float, help="outer drop from mid-plane to edge, mm (overrides the preset)")
-    b.add_argument("--comfort", type=float, help="bore relief at the edges, mm (overrides the preset)")
-    b.add_argument("--edge-round", type=float, help="radius rounded onto every edge, mm (overrides the preset)")
+    _add_band_args(b)
     b.add_argument("--catalog", default="ring_band_profile", help="catalog entry / notebook family")
-    b.add_argument("--allowance", type=float, default=0.0, help="mm added to the inner diameter")
-    b.add_argument("--tolerance", type=float, default=0.1, help="Mesh from Implicit Body tolerance (= 2 x voxel size), mm")
     b.add_argument("--out")
     b.add_argument("--notebook")
-    b.add_argument("--deliver", action="store_true", help="copy a passing STL to the Jewelry folder")
+    b.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
     b.add_argument("--project", default="Bands")
+    b.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     b.add_argument("--dry-run", action="store_true")
     b.set_defaults(fn=cmd_band)
 
     rg = sub.add_parser("ring", help="profiled band with milgrain, groove and engraving (ring_features.ntop)")
-    for flag, kw in (("--size", dict(default="6")), ("--system", dict(default="US")), ("--width", dict(type=float, default=4.0)),
-                     ("--thickness", dict(type=float, default=1.3)), ("--profile", dict(default="court", choices=sorted(band.PROFILES))),
-                     ("--dome", dict(type=float)), ("--comfort", dict(type=float)), ("--edge-round", dict(type=float)),
-                     ("--allowance", dict(type=float, default=0.0)), ("--tolerance", dict(type=float, default=0.1))):
-        rg.add_argument(flag, **kw)
+    _add_band_args(rg)
+    rg.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     rg.add_argument("--milgrain", action="store_true", help="a row of beads along each edge")
     rg.add_argument("--bead-radius", type=float, default=0.3, help="mm (floor 0.25)")
     rg.add_argument("--bead-pitch", type=float, default=features.BEAD_PITCH, help="centre spacing in bead radii")
