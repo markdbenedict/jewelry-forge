@@ -1,0 +1,501 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "user_func_ba06df7e_052b_4e21_9eab_2ab3c446a0f0<implicit,integer,real,real,real,real,real,real,real,real,real,real,real,real,real>",
+        "id": "inst156",
+        "inputs": [
+          {
+            "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
+            "id": "inst141",
+            "inputs": [
+              {
+                "input": 0,
+                "props": []
+              },
+              {
+                "input": 1,
+                "props": []
+              }
+            ],
+            "name": "Implicit Body_0",
+            "type": "implicit"
+          },
+          {
+            "input": 2,
+            "props": []
+          },
+          {
+            "input": 3,
+            "props": []
+          },
+          {
+            "input": 4,
+            "props": []
+          },
+          {
+            "input": 5,
+            "props": []
+          },
+          {
+            "input": 6,
+            "props": []
+          },
+          {
+            "input": 7,
+            "props": []
+          },
+          {
+            "input": 8,
+            "props": []
+          },
+          {
+            "input": 9,
+            "props": []
+          },
+          {
+            "input": 10,
+            "props": []
+          },
+          {
+            "input": 11,
+            "props": []
+          },
+          {
+            "input": 12,
+            "props": []
+          },
+          {
+            "input": 13,
+            "props": []
+          },
+          {
+            "input": 14,
+            "props": []
+          },
+          {
+            "input": 15,
+            "props": []
+          }
+        ],
+        "name": "Implicit Body_1",
+        "type": "implicit"
+      },
+      "id": "inst157",
+      "name": "Result",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "volume_integral<implicit,real_field,real>",
+        "id": "inst159",
+        "inputs": [
+          {
+            "props": [],
+            "ref": {
+              "id": "inst157"
+            }
+          },
+          {
+            "props": [],
+            "ref": {
+              "id": "inst160"
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {},
+              "val": 0.01
+            }
+          }
+        ],
+        "name": "Scalar_0",
+        "type": "real"
+      },
+      "id": "inst167",
+      "name": "Volume",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {},
+          "val": 1.0
+        }
+      },
+      "id": "inst160",
+      "name": "One",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "func": "export_mesh<file_path,mesh,unit_length_enum>",
+      "id": "inst166",
+      "inputs": [
+        {
+          "input": 17,
+          "props": []
+        },
+        {
+          "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+          "id": "inst164",
+          "inputs": [
+            {
+              "props": [],
+              "ref": {
+                "id": "inst157"
+              }
+            },
+            {
+              "input": 16,
+              "props": []
+            },
+            null,
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            },
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            }
+          ],
+          "name": "Mesh_0",
+          "type": "mesh"
+        },
+        {
+          "type": "unit_length_enum",
+          "value": {
+            "id": "mm"
+          }
+        }
+      ],
+      "name": "Mesh File Data_0",
+      "type": "mesh_file_data"
+    }
+  ],
+  "description": "",
+  "displayname": "prong_head_harness",
+  "inputs": [
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\prong_head_test_envelope.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Seat Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Clearance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "integer",
+        "value": {
+          "val": 6
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Prong Count",
+      "type": "integer"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "angle": 1
+          },
+          "val": 1.0471975511965976
+        }
+      },
+      "description": "",
+      "dimension": {
+        "angle": 1
+      },
+      "name": "Prong Spacing",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0006
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Prong Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0014073
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Base X",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0008125000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Base Y",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0033925
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Base Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0030743999999999997
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Tip X",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0017749999999999999
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Tip Y",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0008975
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Tip Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0014975000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Upper Rail Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0024752999999999997
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Upper Rail Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0033925
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Lower Rail Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0016250000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Lower Rail Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.00045000000000000004
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Rail Tube Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Mesh Tolerance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\prong_head_test.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Output Path",
+      "type": "text"
+    }
+  ],
+  "name": "user_func_35dc60e5_19b6_4880_9ef9_3dfd3d414369",
+  "output": {
+    "id": "inst167"
+  }
+}
