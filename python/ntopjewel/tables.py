@@ -119,6 +119,14 @@ METALS: dict[str, Metal] = {
     for key, m in TABLES["metals"].items()
 }
 DEFAULT_WEIGHT_METALS = tuple(TABLES["default_weight_metals"])
+STONE_DENSITY_G_CM3: dict[str, float] = {k: float(v["density_g_cm3"]) for k, v in TABLES["stones"].items()}
+DEFAULT_STONE = TABLES["default_stone"]
+CARAT_G = 0.2
+
+
+def carats(volume_mm3: float, stone: str = DEFAULT_STONE) -> float:
+    """Carat weight of a stone of this volume (1 ct = 0.2 g)."""
+    return float(volume_mm3) * STONE_DENSITY_G_CM3[stone] / 1000.0 / CARAT_G
 SPRUE_ALLOWANCE = float(TABLES["weight"]["sprue_allowance_fraction"]["value"])   # extra metal for sprue + button
 
 

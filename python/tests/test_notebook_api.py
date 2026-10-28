@@ -355,3 +355,20 @@ def test_custom_block_probe_runs_and_never_raises(tmp_path):
     res = mod.build(FakeNotebook(), {"block_path": str(tmp_path / "b.ntop")})
     assert res["verdict"].startswith("no route") and any("embed_custom_block" in ln for ln in res["log"])
     assert "save_notebook_as" in res["methods"] and res["summary"][-1].startswith("  ")
+
+
+def test_embed_block_resolves_the_identifier_by_name(tmp_path):
+    nb = FakeNotebook()
+    h = NotebookHelper(nb)
+    block = tmp_path / "stone.ntop"
+    with pytest.raises(ConsoleError, match="not found"):
+        h.embed_block(block)
+    block.write_bytes(b"fake block")
+    with nb.paused_updates():
+        with pytest.raises(RuntimeError, match="paused"):
+            h.embed_block(block)
+    ident = h.embed_block(block)
+    assert ident.startswith("user_func_") and ident.endswith("<real>") and h.identifiers["block:stone"] == ident
+    inst = nb.add_block(ident)
+    assert [i["name"] for i in nb.list_block_inputs(inst["id"]) if not i["isReturnValue"]] == ["Radius"]
+    assert h.embed_block(block) == ident and len(nb.list_custom_blocks()) == 1     # again: replaces, same id

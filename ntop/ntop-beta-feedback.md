@@ -71,6 +71,17 @@ Windows 11 laptops, Python per nTop's bundled console.
   `implicit_from_mesh<mesh>` (`Mesh`), `remap_cylindrical_implicit` (`Y Mapping Length`) and
   `volume_integral` (`Body`, `Integrand`) all build on their defaults.
 
+- Sixth build (2026-10-28, `custom_block_probe`): the custom-block methods carry good docstrings
+  (they read like this file's wish list: "no dialog", "replaces that copy rather than adding a
+  second"). A notebook with an input and an Output saved by `save_notebook_as` embeds with
+  `embed_custom_block(path)`; `list_custom_blocks()` → `[{'name': 'probe_block', 'id':
+  'user_func_ff2e1992_..._<real>', 'bufferId': 2}]`; `add_block(that id)` gives an instance with the
+  block's `Radius` input, settable and `e_OK`. `embed_custom_block` raises while `paused_updates()`
+  is held. `open_custom_block` takes the display name (`probe_block`), not the instance id.
+  `add_variable(name, sphere_id)` makes a `core.var<sphere>`, i.e. the variable takes the wrapped
+  block's own type. Nice to have: the uuid in `user_func_<uuid>` documented as stable per block
+  file (or not), and a way to create a block from inside a notebook without a save/embed round trip.
+
 ## Open questions
 
 - None blocking. Nice to have: a documented way to register a unit in a notebook, and a

@@ -26,7 +26,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | --- | --- | --- | --- |
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct; `ring_features.ntop` to be committed; print + cast pending (printer/resin not yet chosen) |
-| 2 — custom-block library | `ntop/blocks/`: band profile, bead row, groove, engraving wrap as reusable blocks; My Blocks pointed at the repo; gem bodies (round, oval, pear, cushion, emerald, marquise); prong and bezel heads; ring assembly | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | not started |
+| 2 — custom-block library | `ntop/blocks/`: band profile, bead row, groove, engraving wrap as reusable blocks; My Blocks pointed at the repo; gem bodies (round, oval, pear, cushion, emerald, marquise); prong and bezel heads; ring assembly | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | started 28 Oct: custom blocks proven through the API (`custom_block_probe`: save -> `embed_custom_block` -> `add_block`, builds); `NotebookHelper.embed_block`; stone bodies for all six shapes (`gem`, exact meshes, 6.5 mm round = 1.02 ct) |
 | 3 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
 | 4 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–2 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
 | 5 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
@@ -48,6 +48,18 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
   handling, blend radii and voxel effects are only seen in real runs.
 - Blender scripts run only on the laptops (bpy); the offline suite imports them with stubs.
 - nTop runs on the main laptop only (32 GB); casting trees may need the 128 GB machine.
+
+## Phase 2 order of work
+
+1. Stone bodies - done (Python meshes, `gem`).
+2. The first library block, `ntop/blocks/stone_seat.ntop`: stone mesh path in, the stone
+   implicit plus its seat cutter (the stone, a clearance offset and a straight drop-in path
+   above the girdle) out; built by a script, embedded and measured by a harness notebook that
+   nTopCL runs, so the block has a gate of its own.
+3. `prong_head`: N prongs (4/6) on a basket, tips >= 0.8 mm, seat cut by `stone_seat`.
+4. `bezel`: wall 0.5-0.8 mm round the outline, lip, light windows.
+5. `ring_assembly`: band block + head block, blended, culet clearance to the finger.
+6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed.
 
 ## Next acceptance milestone — the Phase 1 gate
 

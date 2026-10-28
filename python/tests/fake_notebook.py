@@ -332,6 +332,26 @@ class FakeNotebook:
             raise ValueError(f"'{block_id}' has no parameter '{input_name}'")
         return TYPICAL_UNITS.get((input_name, t), "")
 
+    # ---- custom blocks (behaviour seen 2026-10-28) ------------------------------------
+    def embed_custom_block(self, custom_block_path: str):
+        import uuid
+        from pathlib import Path as _P
+        if self.paused:
+            raise RuntimeError("embed_custom_block cannot run while updates are paused")
+        p = _P(custom_block_path)
+        if not p.exists():
+            raise RuntimeError(f'No readable nTop file exists at "{p}".')
+        self.custom = getattr(self, "custom", {})
+        meta = getattr(FakeNotebook, "BLOCK_FILES", {}).get(str(p), {"inputs": [("Radius", "real")], "out": "implicit"})
+        types = ",".join(t for _, t in meta["inputs"])
+        ident = self.custom.get(p.stem, {}).get("id") or f"user_func_{uuid.uuid4().hex}<{types}>"
+        self.custom[p.stem] = {"name": p.stem, "id": ident, "bufferId": 2, **meta}
+        SIGNATURES[ident] = (p.stem, list(meta["inputs"]), meta["out"])
+        self.available_ids = list(self.available_ids) + [ident]
+
+    def list_custom_blocks(self):
+        return [{"name": c["name"], "id": c["id"], "bufferId": c["bufferId"]} for c in getattr(self, "custom", {}).values()]
+
     # ---- viewport ----------------------------------------------------------------------
     def set_block_visibility(self, block_id: str, visible: bool):
         """nTop 6.3.3 has set_block_visibility/get_block_visibility; a variable has no eye

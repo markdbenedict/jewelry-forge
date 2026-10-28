@@ -137,6 +137,16 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   Radius`, `Distance`: 'has type "real_field", which cannot be set yet', with or without
   units). Feed it by **wiring a `core.var<real>`** into it (`add_real_variable` +
   `connect_block_property`), as the band does for the offsets.
+- **Custom blocks work through the API** (verified 2026-10-28, `custom_block_probe`): a notebook
+  saved with inputs (`move_block_to_input`) and one Output IS a custom block. In a user notebook,
+  `embed_custom_block(path)` reads it in (no dialog; again for the same path replaces the copy;
+  **refused while `paused_updates()` is held**), `list_custom_blocks()` then gives
+  `{name, id, bufferId}` where `name` is the file stem and `id` the identifier
+  `user_func_<uuid><input types>` that `add_block` takes; the instance's inputs keep the block's
+  input names. Resolve the identifier by name from `list_custom_blocks()`, never hard-code it.
+  `open_custom_block(name)` takes the display name, not an instance id. The Output's type is the
+  variable's (`core.var<sphere>` for a sphere): wrap a block's body as `core.var<implicit>` when
+  consumers expect an implicit. Library blocks live in `ntop/blocks/<name>.ntop`; runners embed them.
 - **Units are a per-notebook table.** A fresh notebook knows `mm` (its length unit) and
   nothing else: `add_real_variable(…, "kg/m3")` and `set_block_input_units` answer
   `"kg/m3" is not a unit this notebook knows`, although `get_block_input_units` spells the
@@ -168,7 +178,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 
 | Path | What |
 | --- | --- |
-| `.claude/skills/` | Skills: `ntop-automate`, `jewelry-design-rules`, `ring-band`, `ring-features` (more per phase) |
+| `.claude/skills/` | Skills: `ntop-automate`, `jewelry-design-rules`, `ring-band`, `ring-features`, `gem-library` (more per phase) |
 | `ntop/recipes/` | Build scripts (`<name>.py`, run through the Notebook API) + their exported `.recipe.json`; `*.md` are the GUI fallbacks |
 | `ntop/blocks/` | Custom-block notebooks (`.ntop`), the library; nTop's My Blocks folder points here |
 | `ntop/notebooks/` | Automate-ready runner notebooks, one per product family |
@@ -205,6 +215,7 @@ python -m ntopjewel band --size 6 --profile court --out out\band      # profiles
 python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring   # --deliver copies a PASSED part + evidence to the Jewelry folder
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
+python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop
@@ -229,4 +240,5 @@ pytest python\tests -q -m slow                  # tests that run nTop
 - `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers.
 - `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1).
 - `ring-features` — milgrain, channel groove and wrapped engraving on a band (`ring` command).
+- `gem-library` — stone bodies for seats and cutters, carat weights (`gem` command).
 - `blender-jewelry-render` (synced from claude.ai) — the silver product shot.

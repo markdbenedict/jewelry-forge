@@ -530,6 +530,25 @@ class NotebookHelper:
             errors.append(f"untyped variable: {e}")
         raise ConsoleError(f"could not feed a variable from {source_id}.{prop}: " + "; ".join(errors))
 
+    def embed_block(self, path: str | Path) -> str:
+        """Embed the custom block saved at `path` (a library notebook in ntop/blocks/) and return
+        the identifier `add_block` takes, looked up by name in list_custom_blocks() - the name is
+        the file stem, the identifier `user_func_<uuid><input types>` (verified 2026-10-28).
+        nTop refuses the embed while paused_updates() is held, so call this outside `paused()`."""
+        path = Path(path)
+        if not path.exists():
+            raise ConsoleError(f"custom block not found: {path} (build it first: api build <block recipe>)")
+        self.nb.embed_custom_block(str(path))
+        blocks = self.nb.list_custom_blocks()
+        match = [b for b in blocks if b.get("name") == path.stem] or [b for b in blocks if _norm(b.get("name", "")) == _norm(path.stem)]
+        if not match:
+            raise ConsoleError(f"embedded {path.name} but list_custom_blocks() does not name it: {blocks}")
+        ident = match[-1]["id"]
+        self._available = None                 # the identifier list grew
+        self.identifiers[f"block:{path.stem}"] = ident
+        self.log.append(f"embedded {path} as {ident}")
+        return ident
+
     def remove(self, block_id: str) -> bool:
         """Delete a block or variable we added and cannot use (an unset one makes nTopCL fail
         with `Input "Input" is incomplete`). Tries delete_variable, then delete_block."""

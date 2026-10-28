@@ -6,6 +6,7 @@
   band --size 6 ...           Phase 0 band: build, export, gate, report
   ring --size 6 --milgrain --groove 0.25 --engrave "M+K"   Phase 1 band with features: build, export, gate
   ring ... --show             the same ring built in nTop's open session, to look at it in the GUI
+  gem --shape pear --length 12.3 --width 8.9 --depth 4.6   a stone body STL (seat/cutter), carats
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -20,7 +21,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, ntopcl, tables
+from . import __version__, band, catalog, config, features, gate, gems, ntopcl, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -172,6 +173,24 @@ def cmd_ring(a: argparse.Namespace) -> int:
         return 2
     print(res.text())
     return 0 if res.ok else 1
+
+
+def cmd_gem(a: argparse.Namespace) -> int:
+    spec = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
+                          table_frac=a.table, girdle_mm=a.girdle, material=a.material)
+    probs = spec.validate()
+    if probs:
+        print(f"gem: problems: " + "; ".join(probs))
+        return 1
+    print(spec.describe())
+    if a.dry_run:
+        return 0
+    info = spec.write(Path(a.out) if a.out else config.out_dir() / "gems")
+    others = ", ".join(f"{k} {tables.carats(info['volume_mm3'], k):.2f} ct" for k in tables.STONE_DENSITY_G_CM3 if k != spec.material)
+    print(f"  wrote {info['stl']} (watertight {info['watertight']}, extents "
+          + " x ".join(f"{x:.3f}" for x in info["extents_mm"]) + " mm)")
+    print(f"  same size in other stones: {others}")
+    return 0
 
 
 def cmd_gate(a: argparse.Namespace) -> int:
@@ -378,6 +397,18 @@ def main(argv: list[str] | None = None) -> int:
                          "saves out/api/preview/<stem>.ntop, gates the exported mesh, runs no nTopCL")
     rg.add_argument("--timeout", type=float, default=900, help="--show: seconds to wait for nTop")
     rg.set_defaults(fn=cmd_ring)
+
+    gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald) as STL")
+    gm.add_argument("--shape", default="round", choices=gems.SHAPES)
+    gm.add_argument("--length", type=float, required=True, help="mm; the diameter for a round")
+    gm.add_argument("--width", type=float, help="mm (not for round)")
+    gm.add_argument("--depth", type=float, help="total depth, mm (a calipered stone); default ideal proportions")
+    gm.add_argument("--table", type=float, help="table as a fraction of the width (0.57)")
+    gm.add_argument("--girdle", type=float, help="girdle thickness, mm")
+    gm.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    gm.add_argument("--out")
+    gm.add_argument("--dry-run", action="store_true")
+    gm.set_defaults(fn=cmd_gem)
 
     g = sub.add_parser("gate")
     g.add_argument("file")
