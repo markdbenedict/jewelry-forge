@@ -346,3 +346,12 @@ def test_cli_api_unknown_recipe(tmp_path):
     from ntopjewel import cli
     with pytest.raises(SystemExit, match="no build script"):
         cli.main(["api", "--out", str(tmp_path), "build", "no_such_thing", "--dry-run"])
+
+
+def test_custom_block_probe_runs_and_never_raises(tmp_path):
+    """Phase 2 step 0: the probe records every refusal (the fake has no custom-block methods)
+    instead of crashing, and reports a verdict."""
+    mod = load_recipe("custom_block_probe")
+    res = mod.build(FakeNotebook(), {"block_path": str(tmp_path / "b.ntop")})
+    assert res["verdict"].startswith("no route") and any("embed_custom_block" in ln for ln in res["log"])
+    assert "save_notebook_as" in res["methods"] and res["summary"][-1].startswith("  ")
