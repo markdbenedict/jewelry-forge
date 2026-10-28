@@ -15,6 +15,6 @@ or ring uses it.
 | `stone_seat.ntop` | Seat Path (text: the envelope STL from `gems.seat_envelope`), Clearance (mm) | Seat Cutter (implicit): stone + straight drop-in path, offset by the clearance | `ntop/recipes/stone_seat.py` | `python -m ntopjewel seat --shape round --length 6.5` |
 | `prong_head.ntop` | Seat Cutter (implicit: wire `stone_seat`'s output in), Prong Count (int), Prong Spacing (deg), Prong Radius, Base X/Y/Z, Tip X/Y/Z, Upper/Lower Rail Z + Radius, Rail Tube Radius | Head (implicit): N prongs on two rails minus the cutter | `ntop/recipes/prong_head.py` | `python -m ntopjewel head --length 6.5 --prongs 6` |
 
-Blocks take other blocks' results as **implicit inputs** rather than embedding them: a block holding `stone_seat` and feeding it a text input was refused by `embed_custom_block` (2026-10-28). The harness (or a runner) embeds the blocks side by side and wires them. Every block build ends with a self-test: the saved block is embedded into a fresh notebook at once.
+Inside a block, a block output that feeds two inputs must go through a variable, or nTop refuses the block (2026-10-28). Blocks take other blocks' results as **implicit inputs** rather than embedding them. The harness (or a runner) embeds the blocks side by side and wires them. Every block build ends with a self-test: the saved block is embedded into a fresh notebook at once.
 
 Point nTop's **My Blocks** folder here to find these blocks in the GUI as well.

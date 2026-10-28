@@ -156,8 +156,8 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   variable's (`core.var<sphere>` for a sphere): wrap a block's body as `core.var<implicit>` when
   consumers expect an implicit. Library blocks live in `ntop/blocks/<name>.ntop`; runners embed them. **A block takes
   another block's result as an implicit input (`core.var<implicit>`, declared as an input) instead of embedding it**:
-  prong_head holding stone_seat and passing it a text input was refused as "Not a valid custom block", although
-  nesting, integer/angle inputs and an unbuilt Output each embed on their own (`block_rules_probe`). Combinations
+  that keeps each block small and lets a bezel reuse the seat. (The refusals that led here came from a
+  shared block output, not from nesting - see the variable rule below.) Combinations
   in a block notebook may stay `e_DIRTY` in the GUI (`nj.settle` saves anyway; nTopCL is the test), and every
   block build ends by embedding the saved block in a fresh notebook (self-test).
 - **Units are a per-notebook table.** A fresh notebook knows `mm` (its length unit) and
@@ -178,7 +178,10 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the
   session, never `exit()`**. `ntopjewel.notebook_api.Console` does all of this.
 - `add_block` returns `{name, id, funcId}`; use the returned id, never the display name.
-  A block output used twice goes through a variable. Variables are notebook inputs once
+  **A block output used twice goes through a variable** (`h.wrap_var`) - in a custom block this is
+  not style but validity: a block notebook in which one Point fed both a cylinder and a sphere was
+  refused by `embed_custom_block` ("Not a valid custom block"; bisected 2026-10-28). Variables may
+  feed any number of inputs. Variables are notebook inputs once
   `move_block_to_input` is called; one `set_block_as_output`.
 - Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
   (`e_FAILED` carries `error`); do not trust a call that returned without raising.

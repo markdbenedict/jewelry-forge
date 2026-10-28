@@ -85,3 +85,16 @@ def test_bisect_builds_and_embeds_every_stage(tmp_path):
     assert [ln.split()[0] for ln in res["summary"]] == list(mod.STAGES)
     assert all(isinstance(r["embed"], dict) for r in res["results"].values())
     assert res["results"]["full"]["inputs"] == 15 and res["results"]["cut_only"]["inputs"] == 2
+
+
+def test_a_block_output_used_twice_is_refused_by_the_fake_as_by_ntop(tmp_path, monkeypatch):
+    """The bisect on nTop 6.3.3 (2026-10-28): the stage feeding one Point to the rod and a sphere
+    was refused; the fake refuses the same, and the recipe passes the points through variables."""
+    from ntopjewel import nb_jewel as nj
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    mod = load_recipe("prong_head")
+    monkeypatch.setattr(nj.NotebookHelper, "wrap_var", lambda self, name, bid: bid)     # the old, unwrapped build
+    res = mod.bisect(FakeNotebook(), mod._test_values(), tmp_path)
+    assert isinstance(res["results"]["point_sphere"]["embed"], dict)
+    assert "REFUSED" in res["results"]["prong"]["embed"] and isinstance(res["results"]["cut_only"]["embed"], dict)

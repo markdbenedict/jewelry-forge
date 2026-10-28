@@ -99,6 +99,14 @@ Windows 11 laptops, Python per nTop's bundled console.
   We now pass block results as implicit inputs. Expected: the message to name the input or output
   it found wanting.
 
+- Ninth build (2026-10-28, `prong_head --param bisect=true`): building the head in cumulative stages,
+  each saved and embedded, found the cause. A Point block built from three inputs feeding ONE sphere
+  embeds; the next stage, where the same Point feeds both a Cylinder end and a Sphere centre, is refused
+  ("Not a valid custom block; output may be absent or missing inputs"), and so is every stage after it.
+  Passing the Point through a variable fixes it. The same notebook builds fine as an ordinary notebook.
+  Expected: the GUI's own rule (a block output used twice goes through a variable) enforced or reported
+  when the notebook is saved, and the embed message to name the offending block.
+
 ## Open questions
 
 - None blocking. Nice to have: a documented way to register a unit in a notebook, and a

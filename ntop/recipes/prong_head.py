@@ -126,11 +126,13 @@ def _head_body(notebook, values: dict, stage: str = "full"):
         return h, body, used
 
     cutter = cutter_input() if stage == "full" else None
-    base = nj.point_from_vars(h, "Base", inp("Base X"), inp("Base Y"), inp("Base Z"))
+    # a block output used twice goes through a variable - in a custom block this is not optional:
+    # the stage that fed one Point to both the rod and a sphere was refused (bisect, 2026-10-28)
+    base = h.wrap_var("Base Point", nj.point_from_vars(h, "Base", inp("Base X"), inp("Base Y"), inp("Base Z")))
     foot = sphere("Prong Foot", base)
     if stage == "point_sphere":
         return h, foot, used
-    tip = nj.point_from_vars(h, "Tip", inp("Tip X"), inp("Tip Y"), inp("Tip Z"))
+    tip = h.wrap_var("Tip Point", nj.point_from_vars(h, "Tip", inp("Tip X"), inp("Tip Y"), inp("Tip Z")))
     rod = h.add("Prong Rod", nj.CYLINDER, mask="cylinder", must=[["cylinder", "point,point,real"]])
     h.wire(base, rod, ["Point 1"])
     h.wire(tip, rod, ["Point 2"])

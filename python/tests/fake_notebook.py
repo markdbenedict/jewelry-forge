@@ -347,12 +347,27 @@ class FakeNotebook:
         if raw.startswith(b'{"fake_block"'):                  # saved by this fake: its declared inputs + Output
             import json as _json
             d = _json.loads(raw)
+            if d.get("shared_outputs") or not d.get("out"):
+                raise RuntimeError(f'Failed to import the custom block at "{p}": Not a valid custom block; '
+                                   f'output may be absent or missing inputs')
             meta = {"inputs": [tuple(x) for x in d["inputs"]], "out": d["out"] or "any"}
         types = ",".join(t for _, t in meta["inputs"])
         ident = self.custom.get(p.stem, {}).get("id") or f"user_func_{uuid.uuid4().hex}<{types}>"
         self.custom[p.stem] = {"name": p.stem, "id": ident, "bufferId": 2, **meta}
         SIGNATURES[ident] = (p.stem, list(meta["inputs"]), meta["out"])
         self.available_ids = list(self.available_ids) + [ident]
+
+    def shared_outputs(self) -> list[str]:
+        """Plain blocks (not variables) whose output feeds more than one input - what nTop will not
+        accept inside a custom block (2026-10-28: 'Not a valid custom block')."""
+        uses: dict[str, int] = {}
+        for b in self.blocks.values():
+            for src, _prop in b["wired"].values():
+                uses[src] = uses.get(src, 0) + 1
+            for lst in b["lists"].values():
+                for src in lst:
+                    uses[src] = uses.get(src, 0) + 1
+        return sorted(k for k, n in uses.items() if n > 1 and k in self.blocks)
 
     def list_custom_blocks(self):
         return [{"name": c["name"], "id": c["id"], "bufferId": c["bufferId"]} for c in getattr(self, "custom", {}).values()]
@@ -422,7 +437,7 @@ class FakeNotebook:
                 return self.blocks[v["wraps"]]["out"]
             return v.get("typed") or "any"
         meta = {"fake_block": True, "inputs": [[i, vtype(i)] for i in self.inputs],
-                "out": vtype(self.output) if self.output else None}
+                "out": vtype(self.output) if self.output else None, "shared_outputs": self.shared_outputs()}
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(_json.dumps(meta), encoding="utf-8")
 
