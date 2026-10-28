@@ -55,6 +55,7 @@ DEFAULTS = {
     "save_to": str(REPO / "ntop" / "notebooks" / "prong_head_harness.ntop"),
     "recipe_to": str(REPO / "ntop" / "recipes" / "prong_head_harness.recipe.json"),
     "pause": False,                     # embeds: no paused updates
+    "lazy_ok": True,                    # the GUI may leave the head unbuilt; `head` under nTopCL is the test
     "fresh": True,
     "wait_s": 240,
     "volume_hint": "6-prong head, 6.5 mm round: 38.6 mm³ (heads.design_mesh)",
@@ -122,7 +123,7 @@ def build_block(notebook, p: dict, values: dict) -> dict:
     out = h.wrap_var("Head", head)
     h.declare_inputs(list(v.values()))
     h.set_output(out)
-    h.assert_ok(head, p["wait_s"])
+    warnings = nj.settle(h, head, "the block's Output")
     Path(p["block_to"]).parent.mkdir(parents=True, exist_ok=True)
     notebook.save_notebook_as(p["block_to"])
     try:
@@ -131,7 +132,7 @@ def build_block(notebook, p: dict, values: dict) -> dict:
         h.log.append(f"export_as_recipe (block) failed: {e}")
     if not Path(p["block_to"]).exists():
         raise ConsoleError(f"the block was not saved to {p['block_to']}")
-    return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers,
+    return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers, "warnings": warnings,
             "blocks": h.blocks, "states": h.states(0), "log": h.log}
 
 
@@ -154,4 +155,5 @@ def build(notebook, params: dict | None = None) -> dict:
     res = nj.run_build(notebook, p, {**DEFAULTS, "values": values},
                        lambda h, pp, vals, out: nj.harness(h, pp, vals, out, p["block_to"], BLOCK_SPECS, "Prong Head"))
     res["block"] = block
+    res["warnings"] = block.get("warnings", []) + res.get("warnings", [])
     return res

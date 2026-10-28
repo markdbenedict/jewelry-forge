@@ -234,14 +234,18 @@ def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], int
     h.declare_inputs(h.blocks[name] for name in input_order)
     h.set_output(vol_var)
 
-    h.assert_ok(export, p["wait_s"])             # Export Mesh is the end of the geometry chain
+    if p.get("lazy_ok"):                         # a harness: nTopCL is its test, the GUI need not build it
+        lazy_warnings = settle(h, export, "Export Mesh", min(p["wait_s"], 60))
+    else:
+        lazy_warnings = []
+        h.assert_ok(export, p["wait_s"])         # Export Mesh is the end of the geometry chain
     volume = h.pull_value(vol_var)               # asking for the value may trigger the lazy build
     meas_state = h.state(vol_var, min(p["wait_s"], 30))
     if meas_state.get("buildState") != "e_OK":
         h.nudge_build(integ)
         meas_state = h.state(vol_var, min(p["wait_s"], 30))
         volume = h.pull_value(vol_var)
-    warnings = []
+    warnings = list(lazy_warnings)
     if meas_state.get("buildState") == "e_FAILED":
         raise ConsoleError(f"the volume did not build: {meas_state.get('error', '')}")
     if meas_state.get("buildState") != "e_OK":
@@ -360,3 +364,21 @@ def harness(h: NotebookHelper, p: dict, values: dict, test_output: str, block_pa
     body = h.wrap_var("Result", inst)
     integ, _mesh, export = add_measure_mesh_export(h, body, out_var, ids["Mesh Tolerance"])
     return integ, export
+
+
+def settle(h: NotebookHelper, block_id: str, label: str, wait_s: float = 20) -> list[str]:
+    """For the last block of a BLOCK notebook: raise if nTop reports it failed; if it is still
+    unbuilt (e_DIRTY) after `wait_s`, return a warning and go on. A block notebook is never run
+    on its own - the harness's nTopCL run builds and measures it - and nTop builds a combination
+    in the GUI only when something displayed needs it (2026-10-28: prong_head's subtraction stayed
+    e_DIRTY for minutes while its primitives showed). Waiting longer waits for nothing."""
+    st = h.state(block_id, wait_s)
+    state = st.get("buildState")
+    if state in ("e_FAILED", "e_UNBUILDABLE"):
+        raise ConsoleError(f"{label} ({block_id}) failed to build: {st.get('error', '')}")
+    if state != "e_OK":
+        msg = (f"{label} stayed {state} in the GUI session (lazy: nothing displayed needs it); saved anyway - "
+               f"the harness run under nTopCL builds and gates it")
+        h.log.append("warning: " + msg)
+        return [msg]
+    return []

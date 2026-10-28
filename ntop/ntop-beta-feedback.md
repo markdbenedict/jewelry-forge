@@ -82,6 +82,15 @@ Windows 11 laptops, Python per nTop's bundled console.
   block's own type. Nice to have: the uuid in `user_func_<uuid>` documented as stable per block
   file (or not), and a way to create a block from inside a notebook without a save/embed round trip.
 
+- Seventh build (2026-10-28, `prong_head`): a block notebook embedding another block (stone_seat)
+  builds its primitives in the GUI (they display) but leaves every combination - Boolean Union,
+  Polar Array, Boolean Subtract with the embedded block - `e_DIRTY` indefinitely (100+ s, no
+  error), even with the subtract wrapped in the typed Output variable. The stone_seat block
+  (Import Mesh -> Implicit from Mesh -> Offset, Output-wrapped) had built at once. Our scripts now
+  save a block notebook whose Output is merely unbuilt and let the harness under nTopCL be the
+  test. Expected: a way to request a build, or `block_state` distinguishing "not requested" from
+  "queued".
+
 ## Open questions
 
 - None blocking. Nice to have: a documented way to register a unit in a notebook, and a

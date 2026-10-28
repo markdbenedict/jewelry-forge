@@ -71,7 +71,7 @@ def build_block(notebook, p: dict, values: dict) -> dict:
     out = h.wrap_var("Seat Cutter", cutter)          # core.var<implicit>: what a head subtracts
     h.declare_inputs([path_var, clearance])
     h.set_output(out)
-    h.assert_ok(cutter, p["wait_s"])
+    warnings = nj.settle(h, cutter, "the block's Output")
     Path(p["block_to"]).parent.mkdir(parents=True, exist_ok=True)
     notebook.save_notebook_as(p["block_to"])
     try:
@@ -80,7 +80,7 @@ def build_block(notebook, p: dict, values: dict) -> dict:
         h.log.append(f"export_as_recipe (block) failed: {e}")
     if not Path(p["block_to"]).exists():
         raise ConsoleError(f"the block was not saved to {p['block_to']}")
-    return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers,
+    return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers, "warnings": warnings,
             "blocks": h.blocks, "states": h.states(0), "log": h.log}
 
 

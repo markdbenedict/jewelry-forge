@@ -399,3 +399,19 @@ def test_report_states_do_not_wait_on_lazy_blocks(tmp_path):
     res = mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
                          "test_output": str(tmp_path / "t.stl"), "wait_s": 5})
     assert res["states"]["Volume Integral"] == "e_DIRTY" and time.time() - t < 25
+
+
+def test_settle_warns_on_a_lazy_output_and_raises_on_a_failed_one():
+    from ntopjewel import nb_jewel as nj
+
+    class NB:
+        def __init__(self, state):
+            self.s = state
+        def block_state(self, bid):
+            return {"blockId": bid, "buildState": self.s, "error": "boom" if self.s == "e_FAILED" else ""}
+    h = NotebookHelper(NB("e_DIRTY"))
+    w = nj.settle(h, "Implicit Body_4", "the block's Output", wait_s=0.6)
+    assert w and "e_DIRTY" in w[0] and "nTopCL" in w[0]
+    assert nj.settle(NotebookHelper(NB("e_OK")), "x", "y", wait_s=0) == []
+    with pytest.raises(ConsoleError, match="failed to build: boom"):
+        nj.settle(NotebookHelper(NB("e_FAILED")), "x", "the block's Output", wait_s=0)
