@@ -75,3 +75,13 @@ def test_prong_head_recipe_builds_a_cutter_input_block_then_a_harness_wiring_bot
     assert nb.blocks[head_inst]["wired"]["Seat Cutter"][0] == res["blocks"]["Stone Seat"]
     assert nb.inputs == mod.INPUT_ORDER and nb.output == "Volume" and res["warnings"] == [] and nb.lint() == []
     assert list(catalog.load("prong_head_harness").inputs) == mod.INPUT_ORDER
+
+
+def test_bisect_builds_and_embeds_every_stage(tmp_path):
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    mod = load_recipe("prong_head")
+    res = mod.bisect(FakeNotebook(), mod._test_values(), tmp_path)
+    assert [ln.split()[0] for ln in res["summary"]] == list(mod.STAGES)
+    assert all(isinstance(r["embed"], dict) for r in res["results"].values())
+    assert res["results"]["full"]["inputs"] == 15 and res["results"]["cut_only"]["inputs"] == 2
