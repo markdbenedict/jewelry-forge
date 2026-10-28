@@ -2,9 +2,9 @@
 # Built by ntop/recipes/solitaire.py; run by `python -m ntopjewel solitaire ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire.ntop
-version: 0.4.0
-title: 'Solitaire: prong head on a profiled band with gothic cathedral arches and
-  arch milgrain'
+version: 0.5.0
+title: 'Solitaire (round stone, prong_head): gothic cathedral arches, arch milgrain,
+  optional engraving'
 output:
   name: Volume
   type: scalar
@@ -285,6 +285,17 @@ inputs:
     min: -40.0
     max: 40.0
     doc: y of the -y rows' first bead.
+  Engraving Path:
+    type: text
+    doc: 'The engraving STL (engrave.text_mesh, or a speck outside the ring when there
+      is no text): wrapped round the ring, turned to face the palm, subtracted.'
+  Engraving Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 200.0
+    doc: 'Remap Cylindrical''s Y mapping length: 2π x the radius the text is undistorted
+      at.'
   Output Path:
     type: text
     doc: Where Export Mesh writes the ring.

@@ -324,3 +324,349 @@ def build_head(spec: HeadSpec, out_dir: Path | None = None, *, notebook: Path | 
         "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()), "notes": res.notes,
     }, indent=2, default=str), encoding="utf-8")
     return res
+
+
+# =============================================================================================
+# Outline heads: prongs placed on any convex girdle outline (pear first), rails that follow it
+# =============================================================================================
+PEAR_PRONG_ANGLES = {5: (180.0, 105.0, -105.0, 35.0, -35.0)}    # about the round end's centre; 180 = the point
+
+
+@dataclass
+class OutlineHeadSpec:
+    """A prong head for a fancy stone (the `outline_head` block). Head frame as HeadSpec.
+
+        prongs   one per outline point: a rod up the pavilion, `d` = prong radius - ledge off its
+                 surface along the pavilion's normal (so the prong's inner side overlaps the
+                 pavilion by `ledge` all the way up and the seat cut leaves a groove the stone
+                 rests in), from a foot low on the pavilion to a knee at the girdle, then straight
+                 up to a tip above it; a sphere at the foot, the knee and the tip. Python writes the
+                 rods as one STL (Prongs Path) - any count, any outline.
+        rails    the seat cutter offset outward by Rail Offset, cut to a slab: a gallery hugging the
+                 pavilion all the way round, whatever the outline. The prongs lie on the pavilion's
+                 offset (a cone's normal is constant along each generator), so every rail meets
+                 every prong.
+        seat     minus the Seat Cutter, as prong_head.
+    Pear: the point prong plus four on the round end (PEAR_PRONG_ANGLES). Other shapes: prongs on
+    rays from the centre, evenly spaced, offset half a spacing."""
+    stone: gems.StoneSpec
+    prongs: int | None = None              # pear 5; others 4
+    prong_dia_mm: float | None = None      # as HeadSpec
+    ledge_mm: float = 0.30
+    tip_above_mm: float | None = None
+    clearance_mm: float | None = None
+    rail_height_mm: float | None = None    # slab height; default max(0.75, 0.9 x prong radius)
+    rail_width_mm: float | None = None     # metal outside the cutter; default max(0.75, d - clearance + prong radius / 2)
+    rail_below_girdle_mm: float = 0.6      # the upper rail's top this far below the girdle's underside
+    rail_gap_mm: float = 0.4               # open gallery between the rails
+    foot_frac: float = 0.22                # where the prongs start on the pavilion (culet 0 -> girdle 1)
+    floor_z: float | None = None           # nothing below this (head frame); raised feet/rail for a ring
+    mesh_tolerance_mm: float = 0.05
+
+    # ---- numbers ---------------------------------------------------------------------------
+    @property
+    def count(self) -> int:
+        return int(self.prongs) if self.prongs is not None else (5 if self.stone.shape == "pear" else 4)
+
+    @property
+    def rho(self) -> float:
+        floor = PRONG_TIP_FLOOR + self.ledge_mm + self.clearance + 0.05
+        d = self.prong_dia_mm if self.prong_dia_mm is not None else max(floor, 0.18 * self.stone.width)
+        return float(d) / 2
+
+    @property
+    def clearance(self) -> float:
+        return tables.SETTINGS["seat_clearance_mm"] if self.clearance_mm is None else float(self.clearance_mm)
+
+    @property
+    def offset(self) -> float:
+        """Prong axis distance off the pavilion surface."""
+        return self.rho - self.ledge_mm
+
+    @property
+    def rail_half(self) -> float:
+        return (self.rail_height_mm if self.rail_height_mm is not None else max(WALL_FLOOR * 1.5, 0.9 * self.rho)) / 2
+
+    @property
+    def rail_width(self) -> float:
+        return float(self.rail_width_mm) if self.rail_width_mm is not None else max(WALL_FLOOR * 1.5, self.offset - self.clearance + self.rho / 2)
+
+    @property
+    def seat(self) -> gems.SeatSpec:
+        return gems.SeatSpec(self.stone, clearance_mm=self.clearance, mesh_tolerance_mm=self.mesh_tolerance_mm)
+
+    @property
+    def z_culet(self) -> float:
+        _, pav = self.stone.heights
+        return -self.stone.girdle / 2 - pav
+
+    @property
+    def z_tip(self) -> float:
+        crown, _ = self.stone.heights
+        return self.stone.girdle / 2 + (self.tip_above_mm if self.tip_above_mm is not None else max(0.8, 0.8 * crown))
+
+    def outline_points(self) -> list[tuple]:
+        """[(q, m)]: the girdle outline points the prongs sit on and the outline's outward normals."""
+        import numpy as np
+        xy = self.stone.outline(2048)
+        n = len(xy)
+        tang = np.roll(xy, -1, axis=0) - np.roll(xy, 1, axis=0)
+        normal = np.column_stack([tang[:, 1], -tang[:, 0]])
+        normal /= np.linalg.norm(normal, axis=1)[:, None]
+        if np.mean(np.einsum("ij,ij->i", normal, xy)) < 0:              # outward
+            normal = -normal
+        out = []
+        if self.stone.shape == "pear":
+            angles = PEAR_PRONG_ANGLES.get(self.count)
+            centre = np.array([self.stone.length / 2 - self.stone.width / 2, 0.0])
+        else:
+            step = 360.0 / self.count
+            angles = [step / 2 + k * step for k in range(self.count)]
+            centre = np.zeros(2)
+        for a in angles:
+            if self.stone.shape == "pear" and a == 180.0:
+                i = int(np.argmin(xy[:, 0]))
+                out.append((xy[i], np.array([-1.0, 0.0])))                # the point: straight along the axis
+                continue
+            d = np.array([math.cos(math.radians(a)), math.sin(math.radians(a))])
+            rel = xy - centre
+            ang = np.abs(np.arctan2(rel[:, 1], rel[:, 0]) - math.radians(a))
+            ang = np.minimum(ang, 2 * math.pi - ang)
+            i = int(np.argmin(ang + 1e-3 * np.abs(np.einsum("ij,j->i", rel, np.array([-d[1], d[0]])))))
+            out.append((xy[i], normal[i]))
+        return out
+
+    def _pavilion_normal(self, q, m):
+        """Outward unit normal of the pavilion along the generator culet -> (q, -g/2)."""
+        import numpy as np
+        Q = np.array([q[0], q[1], -self.stone.girdle / 2])
+        C = np.array([0.0, 0.0, self.z_culet])
+        t = np.array([-m[1], m[0], 0.0])                                 # outline tangent
+        N = np.cross(Q - C, t)
+        N /= np.linalg.norm(N)
+        if N[0] * m[0] + N[1] * m[1] < 0:
+            N = -N
+        return N, Q, C
+
+    def _foot_frac(self) -> float:
+        """The prongs' start on the pavilion: `foot_frac`, raised until the feet clear `floor_z`."""
+        _, pav = self.stone.heights
+        s = self.foot_frac
+        if self.floor_z is not None:
+            worst_nz = min(self._pavilion_normal(q, m)[0][2] for q, m in self.outline_points())
+            need = (self.floor_z + self.rho - self.offset * worst_nz - self.z_culet) / pav
+            s = max(s, need + 0.01)
+        return s
+
+    def prong_axes(self) -> list[tuple]:
+        """[(foot, knee, tip)] 3-D points per prong (head frame)."""
+        import numpy as np
+        _, pav = self.stone.heights
+        s0, d = self._foot_frac(), self.offset
+        out = []
+        for q, m in self.outline_points():
+            N, Q, C = self._pavilion_normal(q, m)
+            foot = C + s0 * (Q - C) + d * N
+            knee = Q + d * N
+            tip = np.array([knee[0], knee[1], self.z_tip])
+            out.append((foot, knee, tip))
+        return out
+
+    def rails(self) -> dict:
+        """Upper rail just under the girdle, the lower one a gap below it - raised (with the gap
+        shrinking to 0.3 mm) if it would go under `floor_z` or below the prong feet."""
+        h = self.rail_half
+        top = -self.stone.girdle / 2 - self.rail_below_girdle_mm
+        zu = top - h
+        zl = zu - 2 * h - self.rail_gap_mm
+        lowest_ok = max(min(a[0][2] for a in self.prong_axes()) + 0.2,
+                        (self.floor_z + h) if self.floor_z is not None else -1e9)
+        zl = max(zl, min(lowest_ok, zu - 2 * h - 0.3))
+        return {"upper": (zu - h, zu + h), "lower": (zl - h, zl + h), "offset": self.rail_width}
+
+    def lowest_z(self) -> float:
+        foots = [a[0][2] for a in self.prong_axes()]
+        return min(min(foots) - self.rho, self.rails()["lower"][0])
+
+    def prongs_mesh(self):
+        """The prong rods (cylinders + spheres) as one watertight mesh: what Prongs Path points at."""
+        import trimesh
+        parts = []
+        for foot, knee, tip in self.prong_axes():
+            for a, b in ((foot, knee), (knee, tip)):
+                parts.append(trimesh.creation.cylinder(radius=self.rho, segment=[a, b], sections=64))
+            for c in (foot, knee, tip):
+                ball = trimesh.creation.icosphere(subdivisions=4, radius=self.rho)
+                ball.apply_translation(c)
+                parts.append(ball)
+        from . import geom
+        return geom.clean(trimesh.boolean.union(parts, engine="manifold"))      # survives STL (float32) intact
+
+    # ---- notebook ------------------------------------------------------------------------------
+    def notebook_inputs(self, seat_path: str, prongs_path: str = "", output_path: str | None = None) -> dict:
+        r = self.rails()
+        ins = {"Seat Path": seat_path, "Clearance": round(self.clearance, 4), "Prongs Path": prongs_path,
+               "Rail Offset": round(r["offset"], 4),
+               "Upper Rail Bottom": round(r["upper"][0], 4), "Upper Rail Top": round(r["upper"][1], 4),
+               "Lower Rail Bottom": round(r["lower"][0], 4), "Lower Rail Top": round(r["lower"][1], 4)}
+        if output_path is not None:
+            ins["Mesh Tolerance"] = self.mesh_tolerance_mm
+            ins["Output Path"] = output_path
+        return ins
+
+    def design(self) -> dict:
+        d = asdict(self)
+        d["inputs"] = self.notebook_inputs("")
+        d["prong_axes"] = [[[round(float(c), 4) for c in p] for p in axis] for axis in self.prong_axes()]
+        return d
+
+    @property
+    def stem(self) -> str:
+        from . import runs
+        return f"head_{self.count}prong_{self.stone.stem[len('stone_'):]}_{runs.spec_id(self.design())}"
+
+    def validate(self) -> list[str]:
+        p = self.stone.validate()
+        if p:
+            return p
+        if self.stone.shape == "pear" and self.count not in PEAR_PRONG_ANGLES:
+            p.append(f"a pear head has {', '.join(map(str, PEAR_PRONG_ANGLES))} prongs (the point + the round end)")
+            return p
+        if self.stone.shape != "pear" and self.count not in (4, 6, 8):
+            p.append("outline head prongs: 4, 6 or 8 (pear: 5)")
+            return p
+        tip_left = 2 * self.rho - self.ledge_mm - self.clearance
+        if tip_left < PRONG_TIP_FLOOR:
+            p.append(f"prong left above the girdle is {tip_left:.2f} mm thick; floor {PRONG_TIP_FLOOR} mm")
+        if self.ledge_mm < 0.15:
+            p.append("ledge under 0.15 mm will not carry the stone")
+        r = self.rails()
+        if r["upper"][1] > -self.stone.girdle / 2 - 0.3:
+            p.append("the upper rail reaches the girdle: lower it")
+        if r["lower"][1] > r["upper"][0] - 0.3 + 1e-9:
+            p.append("the rails overlap or touch: lower the lower rail or raise the upper one")
+        if self.floor_z is not None and self.lowest_z() < self.floor_z - 1e-6:
+            p.append(f"the head reaches z {self.lowest_z():.2f}, below its floor {self.floor_z:.2f}")
+        if self._foot_frac() > 0.7:
+            p.append("the prong feet are pushed up past 70 % of the pavilion: more room under the stone")
+        if min(r["upper"][1] - r["upper"][0], r["offset"]) < WALL_FLOOR:
+            p.append(f"rail section under the wall floor {WALL_FLOOR} mm")
+        return p
+
+    def describe(self) -> str:
+        r = self.rails()
+        return (f"{self.stem}: {self.count} prongs of {2 * self.rho:.2f} mm on a {self.stone.describe()}\n"
+                f"  prongs {self.offset:.2f} mm off the pavilion (ledge {self.ledge_mm} mm) from {self._foot_frac():.0%} of its "
+                f"depth, upright from the girdle to z {self.z_tip:.2f}; clearance {self.clearance} mm\n"
+                f"  rails: the seat + {r['offset']:.2f} mm, z {r['upper'][0]:.2f}..{r['upper'][1]:.2f} and "
+                f"{r['lower'][0]:.2f}..{r['lower'][1]:.2f}; tip left above the girdle {2 * self.rho - self.ledge_mm - self.clearance:.2f} mm")
+
+
+def outline_head_mesh(v: dict, envelope, prongs, cut_seat: bool = True):
+    """The outline head from the block's input numbers, the seat envelope and the prong mesh."""
+    import trimesh
+    from . import geom
+    c, off = float(v["Clearance"]), float(v["Rail Offset"])
+    grown = _offset_convex(envelope, c + off)
+    if not prongs.is_volume:                                     # read back from STL
+        prongs = geom.clean(prongs)
+    parts = [prongs]
+    for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top")):
+        z0, z1 = float(v[lo]), float(v[hi])
+        slab = trimesh.creation.box(extents=(60.0, 60.0, z1 - z0))
+        slab.apply_translation((0.0, 0.0, (z0 + z1) / 2))
+        parts.append(trimesh.boolean.intersection([grown, slab], engine="manifold"))
+    head = trimesh.boolean.union(parts, engine="manifold")
+    if cut_seat:
+        head = trimesh.boolean.difference([head, _offset_convex(envelope, c)], engine="manifold")
+    return geom.clean(head)
+
+
+def outline_design_mesh(spec: OutlineHeadSpec):
+    return outline_head_mesh(spec.notebook_inputs(""), spec.seat.envelope(), spec.prongs_mesh())
+
+
+def outline_count(mesh, z: float, region) -> int:
+    """How many separate pieces of the section at height z overlap the 2-D `region` (shapely)."""
+    import numpy as np
+    from shapely.geometry import Polygon
+    sec = mesh.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
+    if sec is None:
+        return 0
+    planar, to3d = sec.to_2D()
+    count = 0
+    for poly in planar.polygons_full:
+        pts = np.asarray(poly.exterior.coords)
+        pts3 = (to3d @ np.column_stack([pts, np.zeros(len(pts)), np.ones(len(pts))]).T).T[:, :3]
+        if Polygon(pts3[:, :2]).buffer(0).intersection(region).area > 1e-4:
+            count += 1
+    return count
+
+
+def seat_regions(stone: gems.StoneSpec, clearance: float):
+    """(under, above): the girdle outline inset 0.1 mm (metal there under the girdle = a ledge)
+    and grown by half the clearance (metal there above the girdle blocks the drop-in)."""
+    from shapely.geometry import Polygon
+    outline = Polygon(stone.outline())
+    return outline.buffer(-0.1), outline.buffer(clearance * 0.5)
+
+
+def check_outline_head(spec: OutlineHeadSpec, stl: Path, ntop_vol: float | None):
+    """As check_head, for any outline: fits, ledges (every prong reaches under the girdle),
+    drop-in clear, closed, one shell, volume vs nTop and vs the independent head."""
+    import trimesh
+    from . import band, gate
+    rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=0.0, wall_samples=0, tol_volume_pct=2.0)
+    rep.checks = [c for c in rep.checks if c.name != "wall thickness"]
+    head = gate.load_mesh(stl)
+    stone = spec.stone.mesh()
+    overlap = float("nan")
+    if head.is_watertight:
+        inter = trimesh.boolean.intersection([head, stone], engine="manifold")
+        overlap = float(inter.volume) if len(inter.faces) else 0.0
+    allowed = 0.002 * stone.volume
+    rep.checks.append(gate.Check("stone fits", overlap <= allowed, f"head ∩ stone {overlap:.3f} mm³ (allowed {allowed:.3f})"))
+    under, above = seat_regions(spec.stone, spec.clearance)
+    g = spec.stone.girdle
+    ledges = outline_count(head, -g / 2 - 0.3, under)
+    blocking = outline_count(head, g / 2 + 0.15, above)
+    rep.checks.append(gate.Check("seat ledges", ledges == spec.count, f"{ledges} prongs reach under the girdle (expected {spec.count})"))
+    rep.checks.append(gate.Check("drop-in clear", blocking == 0, f"{blocking} pieces inside the girdle line above the girdle"))
+    rep.checks.append(band.design_volume_check(float(outline_design_mesh(spec).volume), ntop_vol, 3.0))
+    return rep
+
+
+def build_outline_head(spec: OutlineHeadSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
+                       catalog_name: str = "outline_head_harness") -> HeadResult:
+    """Run the outline_head block through its harness under nTopCL and gate the head."""
+    from . import catalog, config, ntopcl, runs
+    from . import gate as _gate
+    problems = spec.validate()
+    if problems:
+        raise ValueError("; ".join(problems))
+    cat = catalog.load(catalog_name)
+    nb = Path(notebook) if notebook else cat.notebook
+    run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "head", spec.stem)
+    envelope, prongs = run_dir / f"{spec.stem}.envelope.stl", run_dir / f"{spec.stem}.prongs.stl"
+    spec.seat.envelope().export(str(envelope))
+    spec.prongs_mesh().export(str(prongs))
+    spec.stone.mesh().export(str(run_dir / f"{spec.stem}.stone.stl"))
+    stl = run_dir / f"{spec.stem}.stl"
+    started = time.time()
+    inputs = spec.notebook_inputs(str(envelope), str(prongs), str(stl))
+    run = ntopcl.run(nb, cat.build_inputs(inputs), run_dir, tag=spec.stem)
+    try:
+        runs.require_fresh(stl, started, "the exported head")
+    except FileNotFoundError as e:
+        raise ntopcl.NtopclError(f"notebook reported success but {e}", run) from e
+    entry = run.outputs.get(cat.output.get("name", "Volume"))
+    ntop_vol = ntopcl.scalar_value(entry) if entry else None
+    rep = check_outline_head(spec, stl, ntop_vol)
+    _gate.save(rep)
+    res = HeadResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
+    res.notes.append(f"metal: " + ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))
+    (run_dir / f"{spec.stem}.report.json").write_text(json.dumps({
+        "stem": spec.stem, "run_id": run_id, "status": res.status, "design": spec.design(), "inputs": inputs,
+        "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notebook": runs.notebook_identity(nb),
+        "environment": runs.environment(ntopcl.version()), "notes": res.notes}, indent=2, default=str), encoding="utf-8")
+    return res

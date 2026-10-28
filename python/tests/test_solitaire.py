@@ -119,3 +119,57 @@ def test_gate_json_on_disk_holds_the_family_checks(fake_ntopcl, tmp_path):
 def test_solitaire_gui_shows_only_the_ring():
     from .test_notebook_api import load_recipe
     assert load_recipe("solitaire").DEFAULTS["show"] == ["Ring", "Ring Body"]
+
+
+def makena():
+    return solitaire.SolitaireSpec(band.BandSpec(size=4.5, profile="court", mesh_tolerance_mm=0.05),
+                                   heads.OutlineHeadSpec(gems.StoneSpec("pear", 12.3, 8.9, 4.6, material="glass")), text="Makena")
+
+
+def test_pear_solitaire_spec():
+    s = makena()
+    assert s.validate() == [] and s.outline and s.prong_count == 5
+    assert s.girdle_radius + s.placed_head.lowest_z() >= s.band.bore_radius_mm + 0.2 - 1e-6       # nothing in the bore
+    assert len(s.beads()["angles"]) >= 3
+    v = s.notebook_inputs("E", "O", prongs_path="P", engraving_path="T")
+    assert list(v) == list(catalog.load("solitaire_outline").inputs)
+    assert v["Engraving Wrap Length"] > 2 * 3.14159 * s.band.bore_radius_mm                        # wrapped a little inside the bore surface
+    assert makena().stem == s.stem and "Makena" not in s.stem
+    assert solitaire.SolitaireSpec(s.band, s.head, text="Makenna").stem != s.stem                  # the text is part of the identity
+
+
+def test_pear_solitaire_end_to_end_and_lost_engraving_is_caught(fake_ntopcl, tmp_path, monkeypatch):
+    nb = tmp_path / "solitaire_outline.ntop"
+    nb.write_bytes(b"fake")
+    res = solitaire.build(makena(), tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+    names = {c.name for c in res.gate.checks}
+    assert {"engraving", "arch milgrain", "seat ledges", "design volume"} <= names
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noengrave")
+    bare = solitaire.build(makena(), tmp_path / "out", notebook=nb)
+    assert bare.status == "failed" and [c.name for c in bare.gate.failures()] == ["engraving"]
+
+
+def test_solitaire_outline_recipe_embeds_the_outline_head(tmp_path):
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    stone = gems.StoneSpec("pear", 12.3, 8.9, 4.6, material="glass")
+    env = tmp_path / "env.stl"
+    gems.SeatSpec(stone).envelope().export(str(env))
+    load_recipe("stone_seat").build(FakeNotebook(), {"save_to": str(tmp_path / "sh.ntop"), "recipe_to": str(tmp_path / "sh.json"),
+                                                     "test_output": str(tmp_path / "s.stl"), "values": {"Seat Path": str(env)}})
+    oh = load_recipe("outline_head")
+    pp = oh.prepare({}, tmp_path)
+    pp.update({"save_to": str(tmp_path / "oh.ntop"), "recipe_to": str(tmp_path / "oh.json"), "test_output": str(tmp_path / "h.stl"),
+               "seat_block": str(tmp_path / "stone_seat.ntop")})
+    oh.build(FakeNotebook(), pp)
+    mod = load_recipe("solitaire_outline")
+    params = mod.prepare({}, tmp_path)
+    params.update({"save_to": str(tmp_path / "so.ntop"), "recipe_to": str(tmp_path / "so.json"), "test_output": str(tmp_path / "r.stl"),
+                   "seat_block": str(tmp_path / "stone_seat.ntop"), "head_block": str(tmp_path / "outline_head.ntop")})
+    nb = FakeNotebook()
+    res = mod.build(nb, params)
+    b = res["blocks"]
+    assert nb.blocks[b["Outline Head"]]["wired"]["Seat Cutter"][0] == "Seat Local"
+    assert b["Engraving"] in nb.blocks[b["Seated Shank"]]["lists"]["Subtraction Bodies"]
+    assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []

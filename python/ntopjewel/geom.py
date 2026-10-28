@@ -78,3 +78,16 @@ def clean(mesh, tolerance_mm: float = 1e-4):
                             tri_verts=np.asarray(mesh.faces, np.uint32))).set_tolerance(tolerance_mm)
     out = m.to_mesh()
     return trimesh.Trimesh(np.asarray(out.vert_properties[:, :3], float), np.asarray(out.tri_verts), process=True)
+
+
+def remap_cylindrical(mesh, wrap_length: float):
+    """nTop's Remap Cylindrical Body on a mesh: X -> radius, Y -> angle (Y = wrap length is one
+    turn), Z unchanged. Vertex-wise; an engraving's facets are far smaller than the radius."""
+    import numpy as np
+    v = mesh.vertices.copy()
+    theta = 2 * math.pi * v[:, 1] / wrap_length
+    out = mesh.copy()
+    out.vertices = np.column_stack([v[:, 0] * np.cos(theta), v[:, 0] * np.sin(theta), v[:, 2]])
+    if out.volume < 0:
+        out.invert()
+    return out

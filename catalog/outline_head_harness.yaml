@@ -1,0 +1,64 @@
+# Harness for the outline_head library block (ntop/blocks/outline_head.ntop) with an embedded stone_seat.
+# Built by ntop/recipes/outline_head.py; run by `python -m ntopjewel head --shape pear ...`; every number from
+# ntopjewel.heads.OutlineHeadSpec.notebook_inputs.
+notebook: outline_head_harness.ntop
+version: 0.1.0
+title: Outline head (prongs on any outline, rails following the pavilion, seat cut
+  by stone_seat)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the head; checked against heads.outline_design_mesh.
+inputs:
+  Seat Path:
+    type: text
+    doc: Seat envelope STL (gems.seat_envelope) for the stone_seat block.
+  Clearance:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 0.5
+    doc: Stone-to-seat gap.
+  Prongs Path:
+    type: text
+    doc: The prong rods STL (heads.OutlineHeadSpec.prongs_mesh).
+  Rail Offset:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 3.0
+    doc: Rail metal outside the seat cutter.
+  Upper Rail Bottom:
+    type: scalar
+    units: mm
+    min: -15.0
+    max: 0.0
+    doc: Upper rail slab, bottom z (head frame).
+  Upper Rail Top:
+    type: scalar
+    units: mm
+    min: -15.0
+    max: 0.0
+    doc: Upper rail slab, top z.
+  Lower Rail Bottom:
+    type: scalar
+    units: mm
+    min: -15.0
+    max: 0.0
+    doc: Lower rail slab, bottom z.
+  Lower Rail Top:
+    type: scalar
+    units: mm
+    min: -15.0
+    max: 0.0
+    doc: Lower rail slab, top z.
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 0.5
+    doc: Mesh from Implicit Body tolerance.
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the head.

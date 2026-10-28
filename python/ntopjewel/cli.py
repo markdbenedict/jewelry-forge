@@ -10,6 +10,7 @@
   seat --shape round --length 6.5        the stone_seat block's cutter for that stone (nTopCL + gate)
   head --length 6.5 --prongs 6           the prong_head block for that stone (nTopCL + gate)
   solitaire --size 6 --length 6.5        prong head on a court band, gothic cathedral arches with milgrain (nTopCL + gate)
+  solitaire --shape pear ... --engrave T a pear in an outline head, text inside the shank (solitaire_outline.ntop)
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -237,20 +238,28 @@ def cmd_seat(a: argparse.Namespace) -> int:
 def cmd_head(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
                            table_frac=a.table, girdle_mm=a.girdle, material=a.material)
-    spec = heads.HeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
-                          rail_dia_mm=a.rail_dia, angle_offset_deg=a.angle_offset, clearance_mm=a.clearance,
-                          mesh_tolerance_mm=a.tolerance)
+    outline = stone.shape != "round" or a.outline
+    if outline:                       # the outline_head block: prongs on the outline, rails following the pavilion
+        spec = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
+                                     clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance)
+    else:
+        spec = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
+                              rail_dia_mm=a.rail_dia, angle_offset_deg=a.angle_offset, clearance_mm=a.clearance,
+                              mesh_tolerance_mm=a.tolerance)
     probs = spec.validate()
     if probs:
         print("head: problems: " + "; ".join(probs))
         return 1
     if a.dry_run:
         print(spec.describe())
-        for k, v in spec.notebook_inputs("<envelope path>", "<output path>").items():
+        ins = spec.notebook_inputs("<envelope path>", "<prongs path>", "<output path>") if outline \
+            else spec.notebook_inputs("<envelope path>", "<output path>")
+        for k, v in ins.items():
             print(f"    {k}: {v}")
         return 0
     try:
-        res = heads.build_head(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
+        build = heads.build_outline_head if outline else heads.build_head
+        res = build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"head failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
@@ -262,17 +271,24 @@ def cmd_head(a: argparse.Namespace) -> int:
 
 def cmd_solitaire(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.stone_width, depth_mm=a.stone_depth, material=a.material)
-    head = heads.HeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, clearance_mm=a.clearance,
-                          mesh_tolerance_mm=a.tolerance)
+    if stone.shape != "round":        # pear and other outlines: the outline_head block, solitaire_outline.ntop
+        head = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge,
+                                     clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance)
+    else:
+        head = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, clearance_mm=a.clearance,
+                              mesh_tolerance_mm=a.tolerance)
     spec = solitaire.SolitaireSpec(_band_spec(a), head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder,
-                                   milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch)
+                                   milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
+                                   text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
+                                   engrave_depth_mm=a.engrave_depth)
     probs = spec.validate()
     if probs:
         print("solitaire: problems: " + "; ".join(probs))
         return 1
     if a.dry_run:
         print(spec.describe())
-        for k, v in spec.notebook_inputs("<envelope path>", "<output path>").items():
+        for k, v in spec.notebook_inputs("<envelope path>", "<output path>", prongs_path="<prongs path>" if spec.outline else "",
+                                         engraving_path="<engraving path>").items():
             print(f"    {k}: {v}")
         return 0
     try:
@@ -521,7 +537,8 @@ def main(argv: list[str] | None = None) -> int:
     hd.add_argument("--table", type=float)
     hd.add_argument("--girdle", type=float)
     hd.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
-    hd.add_argument("--prongs", type=int, default=6)
+    hd.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear), 4 (other outlines)")
+    hd.add_argument("--outline", action="store_true", help="a round stone on the outline_head block (fancy shapes always are)")
     hd.add_argument("--prong-dia", type=float, help="mm (default: enough to leave 0.8 mm above the girdle)")
     hd.add_argument("--ledge", type=float, default=0.30, help="how far each prong reaches under the girdle, mm")
     hd.add_argument("--tip-above", type=float, help="prong tip centre above the girdle top, mm")
@@ -542,7 +559,7 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--stone-width", type=float, help="stone width, mm (not for round; --width is the band's)")
     so.add_argument("--stone-depth", type=float, help="stone total depth, mm (a calipered stone)")
     so.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
-    so.add_argument("--prongs", type=int, default=6)
+    so.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear: the point + four on the round end)")
     so.add_argument("--prong-dia", type=float)
     so.add_argument("--ledge", type=float, default=0.30)
     so.add_argument("--clearance", type=float)
@@ -551,6 +568,10 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--no-milgrain", action="store_true", help="plain arches (milgrain is on by default)")
     so.add_argument("--bead-radius", type=float, default=0.3, help="arch milgrain bead radius, mm")
     so.add_argument("--bead-pitch", type=float, default=2.2, help="bead spacing in bead radii")
+    so.add_argument("--engrave", help="text engraved in the shank, centred opposite the head")
+    so.add_argument("--engrave-side", default="inside", choices=["inside", "outside"])
+    so.add_argument("--engrave-height", type=float, help="letter height, mm (default: fits the band width)")
+    so.add_argument("--engrave-depth", type=float, default=0.3)
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

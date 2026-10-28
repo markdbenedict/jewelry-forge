@@ -79,6 +79,20 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
    - Unchecked until the real build: `box_from_corners` input names (resolved by type), the wedge turn's
      sign (right-handed, as the head's turn proved), and whether nTop's offset over band ∪ arch matches
      the independent model (design volume and the bead check will say).
+   - *v2 built 28 Oct:* PASSED at US 5 and 6 under nTopCL (32/32 beads, design volume +0.5 %).
+5b. *(written 28 Oct, offline green; real build pending)* **Fancy stones and engraving.** `outline_head` block
+   (`ntop/recipes/outline_head.py`): prongs on the girdle outline (pear: the point + four on the round end),
+   each rod lying on the pavilion offset by prong radius - ledge (a cone's normal is constant along a
+   generator), upright from the girdle; Python writes the rods as one STL (Prongs Path); the rails are the
+   seat cutter offset by Rail Offset ∩ a slab, so they follow any outline and meet every prong. Gate:
+   fit, ledges and drop-in judged on the outline (`heads.outline_count`). `solitaire_outline.ntop` = the
+   solitaire body (now `ntopjewel.nb_solitaire`, shared with `solitaire.ntop`) with the outline head; on
+   a ring the head's floor is 0.2 mm above the bore (feet and lower rail move up the pavilion); arch beads
+   stop by distance to the real head and seat meshes. **Engraving** in both solitaire notebooks: the
+   ring_features pipeline, the wrapped text turned 180° to sit opposite the head; gate `engraving` (pocket
+   found) and the wall check skips the text's axial ribs. First ring: US 4.5 court, 12.3 x 8.9 x 4.6 pear
+   (glass), 5 prongs, "Makena" inside: 324.5 mm³ designed. `solitaire.ntop` must be rebuilt (new
+   engraving inputs). Later: a V-prong for the pear's point, outline heads for the other shapes in rings.
 6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed.
 
 ## Next acceptance milestone — the Phase 1 gate

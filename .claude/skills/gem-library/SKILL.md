@@ -62,14 +62,36 @@ stone ≈ 0), **seat ledges** (N prongs reach under the girdle), **drop-in clear
 the girdle line above it), volume vs an independent trimesh/manifold build of the same
 numbers. v1: round stones only.
 
-## The solitaire (`solitaire.ntop`, `ntopjewel.solitaire`)
+## Outline heads: pear and other fancy stones (the `outline_head` block, `heads.OutlineHeadSpec`)
+
+```powershell
+python -m ntopjewel head --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # 5 prongs: the point + 4 on the round end
+python -m ntopjewel head --shape pear --length 12.3 --width 8.9 --depth 4.6 --dry-run
+```
+
+Any shape other than round goes to `outline_head` (a round one with `--outline`). Prongs sit on the
+girdle outline; each rod hugs the pavilion (offset prong radius - ledge, so the seat cut leaves a
+groove the stone rests in) and rises straight from the girdle. Python writes the rods as one STL
+(Prongs Path, like the stone and the engraving); nTop makes the rails: the seat cutter offset by
+Rail Offset, cut to two slabs, so they follow any outline and pass through every prong. Gate as the
+round head, with ledges and drop-in judged on the stone's outline. Pear: 5 prongs only (a V-prong
+for the point is a later step). Oval, marquise, cushion, emerald: 4, 6 or 8 on rays from the centre.
+
+## The solitaire (`solitaire.ntop`, `solitaire_outline.ntop`, `ntopjewel.solitaire`)
 
 ```powershell
 python -m ntopjewel api build solitaire                                # once: ntop\notebooks\solitaire.ntop (embeds stone_seat + prong_head)
 python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # court band, gothic arches, arch milgrain; out\solitaire
 python -m ntopjewel solitaire --size 6 --dry-run                       # placement and cathedral numbers
 python -m ntopjewel solitaire --size 6 --deliver --metal sterling      # PASSED -> Jewelry\Solitaires\<stem>\ + print-scaled STL
+python -m ntopjewel api build solitaire_outline                        # once: the fancy-stone notebook (embeds stone_seat + outline_head)
+python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-width 8.9 --stone-depth 4.6 --material glass --engrave Makena
 ```
+
+A non-round `--shape` runs `solitaire_outline.ntop`. `--engrave TEXT` cuts it inside the shank
+(`--engrave-side outside` for the outside), centred opposite the head, 0.3 mm deep, letter height
+to fit the band (`--engrave-height`, `--engrave-depth`); the gate's `engraving` check finds the
+pocket. The text is part of the spec id but not the stem.
 
 Band options are the `band` ones (`--width` is the band's; the stone's are `--stone-width`,
 `--stone-depth`). `--finger-clear` (default 0.6 mm, never under the wall floor) is the metal

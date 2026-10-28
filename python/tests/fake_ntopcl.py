@@ -14,7 +14,7 @@ specs; the section is rebuilt from the notebook inputs alone, as nTop would.
 Knobs (environment variables) let a test make the fake misbehave the way a wrong notebook
 would, so the rejections are tested rather than assumed:
 
-  FAKE_NTOPCL_SHAPE   design (default) | annulus : a flat rectangular section instead of the
+  FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave (solitaire) | annulus : a flat rectangular section instead of the
                       designed one (what a notebook that ignores the tori produces)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
   FAKE_NTOPCL_VOLUME  mesh (default) | none : report no Volume output
@@ -54,8 +54,9 @@ def write_templates(nb: Path) -> None:
     inputs = []
     if "head" in nb.name or "solitaire" in nb.name:
         import yaml
-        name = "solitaire" if "solitaire" in nb.name else "prong_head_harness"
-        cat = yaml.safe_load((HERE.parents[2] / "catalog" / f"{name}.yaml").read_text())
+        cat_dir = HERE.parents[2] / "catalog"
+        name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else "prong_head_harness")
+        cat = yaml.safe_load((cat_dir / f"{name}.yaml").read_text())
         for name, e in cat["inputs"].items():
             t = {"scalar": "real", "integer": "integer", "text": "text"}[e["type"]]
             inputs.append({"name": name, "type": t, "value": 0 if t != "text" else "", **({"units": e["units"]} if "units" in e else {})})
@@ -92,20 +93,7 @@ def write_templates(nb: Path) -> None:
 
 
 # ----------------------------------------------------------------------------- geometry
-from ntopjewel.geom import band_mesh, offset_convex, revolve_section, section_polygon  # noqa: E402,F401
-
-
-def remap_cylindrical(mesh, wrap_length: float):
-    """nTop's Remap Cylindrical Body on a mesh: X -> radius, Y -> angle (Y = wrap length is one
-    turn), Z unchanged. Vertex-wise; the engraving's facets are far smaller than the radius."""
-    import numpy as np
-    v = mesh.vertices.copy()
-    theta = 2 * math.pi * v[:, 1] / wrap_length
-    out = mesh.copy()
-    out.vertices = np.column_stack([v[:, 0] * np.cos(theta), v[:, 0] * np.sin(theta), v[:, 2]])
-    if out.volume < 0:
-        out.invert()
-    return out
+from ntopjewel.geom import band_mesh, offset_convex, remap_cylindrical, revolve_section, section_polygon  # noqa: E402,F401
 
 
 def build_mesh(v: dict, shape: str):
@@ -195,10 +183,27 @@ def main(argv: list[str]) -> int:
             fail("Seat Mesh: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
         shape = os.environ.get("FAKE_NTOPCL_SHAPE", "design")
-        mesh = solitaire.ring_mesh(values, envelope, cut_seat=shape != "noseat", beads=shape != "nobeads")
+        mesh = solitaire.ring_mesh(values, envelope, cut_seat=shape != "noseat", beads=shape != "nobeads",
+                                   engrave=shape != "noengrave")
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Band", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Ring", "Mesh", "Export Mesh"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "outline_head" in nb.name:
+        import trimesh
+        from ntopjewel import heads
+        for key in ("Seat Path", "Prongs Path"):
+            if not Path(values[key]).exists():
+                fail(f"{key}: file not found")
+        envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
+        prongs = trimesh.load(str(values["Prongs Path"]), force="mesh")
+        mesh = heads.outline_head_mesh(values, envelope, prongs, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Prongs", "Upper Rail", "Lower Rail", "Basket", "Seated", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
