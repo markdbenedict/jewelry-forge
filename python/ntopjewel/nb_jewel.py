@@ -248,7 +248,7 @@ def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], int
         warnings.append(f"Volume stayed {meas_state.get('buildState')} in the GUI session (lazy block, nothing "
                         f"displays it); the Output is wired - nTopCL computes it at run time")
 
-    states = h.states(min(10, p["wait_s"]))
+    states = h.states(0)
     failed = {k: v for k, v in states.items() if v.startswith(("e_FAILED", "e_UNBUILDABLE"))}
     if failed:
         raise ConsoleError("blocks failed to build: " + json.dumps(failed, indent=2))

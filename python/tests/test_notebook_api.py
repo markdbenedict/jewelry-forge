@@ -373,3 +373,29 @@ def test_embed_block_resolves_the_identifier_by_name(tmp_path):
     inst = nb.add_block(ident)
     assert [i["name"] for i in nb.list_block_inputs(inst["id"]) if not i["isReturnValue"]] == ["Radius"]
     assert h.embed_block(block) == ident and len(nb.list_custom_blocks()) == 1     # again: replaces, same id
+
+
+def test_driver_writes_a_live_progress_log(tmp_path):
+    """Every helper step lands in <script>.progress.log as it happens, so a build that stalls
+    inside nTop shows where it stopped (2026-10-28: prong_head stalled with nothing to read)."""
+    from ntopjewel import cli
+    rc = cli.main(["api", "--out", str(tmp_path), "build", "band_profile", "--dry-run", "--scratch",
+                   "--param", f"test_output={tmp_path / 't.stl'}"])
+    assert rc == 0
+    driver = (tmp_path / "band_profile.driver.py").read_text(encoding="utf-8")
+    assert "band_profile.progress.log" in driver
+    exec(driver, {"notebook": FakeNotebook()})
+    lines = (tmp_path / "band_profile.progress.log").read_text(encoding="utf-8").splitlines()
+    assert len(lines) > 30 and any("add Band:" in ln for ln in lines) and lines[0][2] == ":"
+    napi.PROGRESS_PATH = None
+
+
+def test_report_states_do_not_wait_on_lazy_blocks(tmp_path):
+    """A lazy block stays e_DIRTY: the final report reads states once instead of waiting on each."""
+    import time
+    mod = load_recipe("band_profile")
+    nb = FakeNotebook(lazy_mass="never")
+    t = time.time()
+    res = mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
+                         "test_output": str(tmp_path / "t.stl"), "wait_s": 5})
+    assert res["states"]["Volume Integral"] == "e_DIRTY" and time.time() - t < 25

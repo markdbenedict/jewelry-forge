@@ -81,7 +81,7 @@ def build_block(notebook, p: dict, values: dict) -> dict:
     if not Path(p["block_to"]).exists():
         raise ConsoleError(f"the block was not saved to {p['block_to']}")
     return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers,
-            "blocks": h.blocks, "states": h.states(10), "log": h.log}
+            "blocks": h.blocks, "states": h.states(0), "log": h.log}
 
 
 def _harness(h, p, values, test_output):

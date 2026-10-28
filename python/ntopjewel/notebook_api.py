@@ -40,6 +40,23 @@ class ConsoleError(RuntimeError):
     pass
 
 
+PROGRESS_PATH: str | None = None     # set by the driver: every helper log line lands here as it happens
+
+
+class _ProgressLog(list):
+    """The helper's log, also appended line by line (with the time) to PROGRESS_PATH, so a build
+    that stalls inside nTop shows where it stopped (`out/api/<script>.progress.log`)."""
+
+    def append(self, line) -> None:
+        super().append(line)
+        if PROGRESS_PATH:
+            try:
+                with open(PROGRESS_PATH, "a", encoding="utf-8") as f:
+                    f.write(f"{time.strftime('%H:%M:%S')} {line}\n")
+            except OSError:
+                pass
+
+
 def default_key() -> Path:
     env = os.environ.get("NTOP_SSH_KEY")
     return Path(env) if env else Path.home() / ".ssh" / "id_ntopcli"
@@ -216,6 +233,7 @@ def collect_result(script: Path, result_path: Path, output: str = "") -> dict:
 def driver_source(script: Path, params_path: Path, result_path: Path, python_path: Path | None, entry: str) -> str:
     """Python that nTop's console runs: load the script by path, call entry(notebook, params)."""
     pp = f"sys.path.insert(0, r\"{python_path}\")" if python_path else ""
+    progress = Path(result_path).with_name(Path(result_path).name.replace(".result.json", ".progress.log"))
     return f'''import sys, json, traceback, importlib, importlib.util
 {pp}
 # nTop's Python lives on between runs: drop our cached modules so edited files are what runs
@@ -224,6 +242,9 @@ for _k in [k for k in list(sys.modules) if k == "ntopjewel" or k.startswith("nto
 importlib.invalidate_caches()
 _result = {{"status": "fail", "script": r"{script}"}}
 try:
+    import ntopjewel.notebook_api as _napi
+    _napi.PROGRESS_PATH = r"{progress}"
+    open(_napi.PROGRESS_PATH, "w", encoding="utf-8").close()
     _spec = importlib.util.spec_from_file_location("{script.stem}", r"{script}")
     _mod = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)
@@ -279,7 +300,7 @@ class NotebookHelper:
     def __init__(self, notebook):
         self.nb = notebook
         self._available: list[str] | None = None
-        self.log: list[str] = []
+        self.log: list[str] = _ProgressLog()
         self.blocks: dict[str, str] = {}       # our label -> nTop id
         self.identifiers: dict[str, str] = {}  # our label -> identifier used
         self.moved_inputs: list[str] = []      # ids moved to the Inputs section (block_state no longer finds them)
@@ -594,11 +615,16 @@ class NotebookHelper:
 
     # ---- build state -----------------------------------------------------------------
     def state(self, block_id: str, wait_s: float = 120) -> dict:
-        deadline = time.time() + wait_s
+        start = time.time()
+        deadline = start + wait_s
         st = self.nb.block_state(block_id)
+        said = start
         while st.get("buildState") in self.BUILDING and time.time() < deadline:
             time.sleep(0.5)
             st = self.nb.block_state(block_id)
+            if time.time() - said >= 10:
+                said = time.time()
+                self.log.append(f"waiting on {block_id}: {st.get('buildState')} after {time.time() - start:.0f} s")
         return st
 
     def assert_ok(self, block_id: str, wait_s: float = 120) -> dict:

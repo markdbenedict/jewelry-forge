@@ -375,10 +375,14 @@ def cmd_api(a: argparse.Namespace) -> int:
         return 0
     print(f"building  : {script.stem} in nTop's open session (a fresh notebook; the canvas fills as blocks are "
           f"added, then it is saved to {params.get('save_to') or 'the recipe default'})", flush=True)
+    progress = work_dir / f"{script.stem}.progress.log"
     try:
         res = _console(a).run_script(script, params, work_dir=work_dir, python_path=python_path, timeout=a.timeout)
-    except notebook_api.ConsoleError as e:
-        print(f"api build failed: {e}")
+    except (notebook_api.ConsoleError, KeyboardInterrupt) as e:
+        print(f"api build failed: {e or 'interrupted'}")
+        if progress.exists():
+            tail = progress.read_text(encoding="utf-8").splitlines()[-15:]
+            print(f"last steps inside nTop ({progress}):\n    " + "\n    ".join(tail))
         return 2
     _print_build_result(res)
     print(f"\nfull result: {work_dir / (script.stem + '.result.json')}")
