@@ -1,0 +1,191 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
+        "id": "inst113",
+        "inputs": [
+          {
+            "input": 0,
+            "props": []
+          },
+          {
+            "input": 1,
+            "props": []
+          }
+        ],
+        "name": "Implicit Body_0",
+        "type": "implicit"
+      },
+      "id": "inst114",
+      "name": "Seat",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "volume_integral<implicit,real_field,real>",
+        "id": "inst116",
+        "inputs": [
+          {
+            "props": [],
+            "ref": {
+              "id": "inst114"
+            }
+          },
+          {
+            "props": [],
+            "ref": {
+              "id": "inst117"
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {},
+              "val": 0.01
+            }
+          }
+        ],
+        "name": "Scalar_0",
+        "type": "real"
+      },
+      "id": "inst124",
+      "name": "Volume",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {},
+          "val": 1.0
+        }
+      },
+      "id": "inst117",
+      "name": "One",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "func": "export_mesh<file_path,mesh,unit_length_enum>",
+      "id": "inst123",
+      "inputs": [
+        {
+          "input": 3,
+          "props": []
+        },
+        {
+          "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+          "id": "inst121",
+          "inputs": [
+            {
+              "props": [],
+              "ref": {
+                "id": "inst114"
+              }
+            },
+            {
+              "input": 2,
+              "props": []
+            },
+            null,
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            },
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            }
+          ],
+          "name": "Mesh_0",
+          "type": "mesh"
+        },
+        {
+          "type": "unit_length_enum",
+          "value": {
+            "id": "mm"
+          }
+        }
+      ],
+      "name": "Mesh File Data_0",
+      "type": "mesh_file_data"
+    }
+  ],
+  "description": "",
+  "displayname": "stone_seat_harness",
+  "inputs": [
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\stone_seat_test_envelope.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Seat Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Clearance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Mesh Tolerance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\stone_seat_test.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Output Path",
+      "type": "text"
+    }
+  ],
+  "name": "user_func_a4dcd949_7a84_46f8_a54e_4509679ca6ce",
+  "output": {
+    "id": "inst124"
+  }
+}

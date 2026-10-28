@@ -1,0 +1,86 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "offset_implicit<implicit,real_field>",
+        "id": "inst109",
+        "inputs": [
+          {
+            "func": "implicit_from_mesh<mesh>",
+            "id": "inst108",
+            "inputs": [
+              {
+                "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                "id": "inst107",
+                "inputs": [
+                  {
+                    "input": 0,
+                    "props": []
+                  },
+                  {
+                    "type": "unit_length_enum",
+                    "value": {
+                      "id": "mm"
+                    }
+                  }
+                ],
+                "name": "Mesh_0",
+                "type": "mesh"
+              }
+            ],
+            "name": "Implicit Body_0",
+            "type": "implicit"
+          },
+          {
+            "input": 1,
+            "props": []
+          }
+        ],
+        "name": "Implicit Body_1",
+        "type": "implicit"
+      },
+      "id": "inst110",
+      "name": "Seat Cutter",
+      "type": "implicit",
+      "variable": true
+    }
+  ],
+  "description": "",
+  "displayname": "stone_seat",
+  "inputs": [
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\stone_seat_test_envelope.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Seat Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Clearance",
+      "type": "real"
+    }
+  ],
+  "name": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4",
+  "output": {
+    "id": "inst110"
+  }
+}
