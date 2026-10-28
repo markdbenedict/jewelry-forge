@@ -349,11 +349,12 @@ def test_cli_api_unknown_recipe(tmp_path):
 
 
 def test_custom_block_probe_runs_and_never_raises(tmp_path):
-    """Phase 2 step 0: the probe records every refusal (the fake has no custom-block methods)
-    instead of crashing, and reports a verdict."""
+    """Phase 2 step 0: the probe reaches the verdict the real nTop gave on 2026-10-28 (the fake
+    now saves and embeds blocks the same way) and records the one refused call verbatim."""
     mod = load_recipe("custom_block_probe")
     res = mod.build(FakeNotebook(), {"block_path": str(tmp_path / "b.ntop")})
-    assert res["verdict"].startswith("no route") and any("embed_custom_block" in ln for ln in res["log"])
+    assert res["verdict"] == "a saved notebook embeds as a custom block and builds"
+    assert any(ln.startswith("OK   embed_custom_block(path)") for ln in res["log"])
     assert "save_notebook_as" in res["methods"] and res["summary"][-1].startswith("  ")
 
 

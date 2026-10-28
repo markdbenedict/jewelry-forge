@@ -342,7 +342,12 @@ class FakeNotebook:
         if not p.exists():
             raise RuntimeError(f'No readable nTop file exists at "{p}".')
         self.custom = getattr(self, "custom", {})
-        meta = getattr(FakeNotebook, "BLOCK_FILES", {}).get(str(p), {"inputs": [("Radius", "real")], "out": "implicit"})
+        meta = {"inputs": [("Radius", "real")], "out": "implicit"}
+        raw = p.read_bytes()
+        if raw.startswith(b'{"fake_block"'):                  # saved by this fake: its declared inputs + Output
+            import json as _json
+            d = _json.loads(raw)
+            meta = {"inputs": [tuple(x) for x in d["inputs"]], "out": d["out"] or "any"}
         types = ",".join(t for _, t in meta["inputs"])
         ident = self.custom.get(p.stem, {}).get("id") or f"user_func_{uuid.uuid4().hex}<{types}>"
         self.custom[p.stem] = {"name": p.stem, "id": ident, "bufferId": 2, **meta}
@@ -402,7 +407,24 @@ class FakeNotebook:
         self.fresh = fresh + 1
 
     def save_notebook_as(self, notebook_path: str):
+        """Records the path and writes a small JSON stand-in carrying the notebook's declared
+        inputs and Output type, so embed_custom_block can read it back as nTop does. Never
+        overwrites a real .ntop (only a missing file or an earlier stand-in)."""
+        import json as _json
+        from pathlib import Path as _P
         self.saved.append(notebook_path)
+        path = _P(notebook_path)
+        if path.exists() and not path.read_bytes().startswith(b'{"fake_block"'):
+            return
+        def vtype(vid):
+            v = self.variables.get(vid, {})
+            if v.get("wraps") in self.blocks:
+                return self.blocks[v["wraps"]]["out"]
+            return v.get("typed") or "any"
+        meta = {"fake_block": True, "inputs": [[i, vtype(i)] for i in self.inputs],
+                "out": vtype(self.output) if self.output else None}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_json.dumps(meta), encoding="utf-8")
 
     def export_as_recipe(self, recipe_path: str, recipe_only: bool = False):
         self.recipes.append(recipe_path)

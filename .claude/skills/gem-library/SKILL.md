@@ -30,3 +30,18 @@ needs the envelope, not the facets.
 Densities come from `data/jewelry_tables.json` (`stones`, all `default`): diamond 3.52,
 moissanite 3.22, cz 5.80, corundum 4.00, beryl 2.72, quartz 2.65, glass 2.60. For a costume
 stone, weigh it and add a calibrated entry.
+
+## Seats (the `stone_seat` block)
+
+```powershell
+python -m ntopjewel seat --shape round --length 6.5                      # 0.05 mm clearance, 8 mm drop-in path
+python -m ntopjewel seat --shape pear --length 12.3 --width 8.9 --depth 4.6 --clearance 0.08 --dry-run
+```
+
+The cutter a head subtracts: the stone plus its girdle outline carried straight up (the
+drop-in path), offset by the clearance. Python writes the envelope (convex hull of stone +
+lifted outline); the block imports it and offsets it in nTop. Gate: closed, one shell, nTop
+volume vs mesh, **design volume vs Steiner's exact offset volume** (V + S c + M c² + 4/3 π c³ -
+exact for convex bodies, and every stone here is convex), extents = stone + 2 x clearance.
+Defaults (`settings` in `data/jewelry_tables.json`): clearance 0.05 mm, drop 8 mm. Files in
+`out\seat\<stem>\<run id>\`.

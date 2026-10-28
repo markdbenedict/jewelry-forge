@@ -53,3 +53,68 @@ def test_cli_gem(tmp_path, capsys):
                      "--material", "glass", "--out", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert "2.03 ct glass" in out and "diamond" in out and (tmp_path / "stone_pear_12p3x8p9x4p60.stl").exists()
+
+
+# ------------------------------------------------------------------ seats
+def test_steiner_offset_volume_is_exact_for_a_box():
+    import trimesh
+    c = 0.1
+    assert gems.offset_volume_mm3(trimesh.creation.box((1, 1, 1)), c) == pytest.approx(
+        1 + 6 * c + 3 * math.pi * c * c + 4 / 3 * math.pi * c ** 3, rel=1e-12)
+
+
+def test_seat_envelope_is_the_stone_with_a_straight_drop_in_path():
+    s = gems.SeatSpec(gems.StoneSpec("pear", 12.3, 8.9, 4.6))
+    e = s.envelope()
+    assert e.is_convex and e.is_watertight
+    _, pav = s.stone.heights
+    assert e.bounds[1, 2] == pytest.approx(s.drop) and e.bounds[0, 2] == pytest.approx(-s.stone.girdle / 2 - pav)
+    assert e.volume > s.stone.volume_mm3()
+    assert s.clearance == tables.SETTINGS["seat_clearance_mm"] and s.stem.startswith("seat_pear_12p3x8p9x4p60_c0p05_")
+    with pytest.raises(ValueError, match="does not clear"):
+        gems.seat_envelope(s.stone, 1.0)
+
+
+def test_seat_end_to_end_with_fake_ntopcl(fake_ntopcl, tmp_path):
+    nb = tmp_path / "stone_seat_harness.ntop"
+    nb.write_bytes(b"fake")
+    spec = gems.SeatSpec(gems.StoneSpec("round", 6.5))
+    res = gems.build_seat(spec, tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+    checks = {c.name: c for c in res.gate.checks}
+    assert checks["design volume"].ok and checks["extents"].ok and "wall thickness" not in checks
+    assert res.ntop_volume_mm3 == pytest.approx(spec.design_volume_mm3(), rel=0.01)
+    assert (res.run_dir / f"{spec.stem}.envelope.stl").exists() and (res.run_dir / f"{spec.stem}.report.json").exists()
+
+
+def test_seat_without_clearance_applied_is_rejected(fake_ntopcl, tmp_path, monkeypatch):
+    """A block that ignores its Clearance input returns the bare envelope: the extents and the
+    design volume both catch it."""
+    nb = tmp_path / "stone_seat_harness.ntop"
+    nb.write_bytes(b"fake")
+    spec = gems.SeatSpec(gems.StoneSpec("round", 6.5), clearance_mm=0.15)
+    monkeypatch.setattr(gems.SeatSpec, "notebook_inputs",
+                        lambda self, a, b: {"Seat Path": a, "Clearance": 0.0, "Mesh Tolerance": 0.05, "Output Path": b})
+    res = gems.build_seat(spec, tmp_path / "out", notebook=nb)
+    failed = {c.name for c in res.gate.failures()}
+    assert res.status == "failed" and {"extents", "design volume"} <= failed
+
+
+def test_stone_seat_recipe_builds_block_then_harness(tmp_path):
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    mod = load_recipe("stone_seat")
+    env = tmp_path / "env.stl"
+    gems.SeatSpec(gems.StoneSpec("round", 6.5)).envelope().export(str(env))
+    nb = FakeNotebook()
+    res = mod.build(nb, {"save_to": str(tmp_path / "h.ntop"), "recipe_to": str(tmp_path / "h.json"),
+                         "test_output": str(tmp_path / "t.stl"), "values": {"Seat Path": str(env)}})
+    blk = res["block"]
+    assert blk["saved"] == str(tmp_path / "stone_seat.ntop") and (tmp_path / "stone_seat.ntop").exists()
+    assert blk["identifiers"]["Seat Offset"].startswith("offset_implicit")
+    ident = res["identifiers"]["block:stone_seat"]
+    assert ident.startswith("user_func_") and ident.endswith("<text,real>")
+    assert res["identifiers"]["Stone Seat"] == ident and nb.inputs == mod.INPUT_ORDER and nb.output == "Volume"
+    assert nb.saved[-1] == str(tmp_path / "h.ntop") and res["warnings"] == [] and nb.lint() == []
+    from ntopjewel import catalog
+    assert list(catalog.load("stone_seat_harness").inputs) == mod.INPUT_ORDER

@@ -52,7 +52,12 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "profile" in nb.name or "features" in nb.name:
+    if "seat" in nb.name:
+        inputs = [{"name": "Seat Path", "type": "text", "value": ""},
+                  {"name": "Clearance", "type": "real", "value": 0, "units": "mm"},
+                  {"name": "Mesh Tolerance", "type": "real", "value": 0, "units": "mm"},
+                  {"name": "Output Path", "type": "text", "value": ""}]
+    elif "profile" in nb.name or "features" in nb.name:
         inputs = [{"name": n, "type": "real", "value": 0, "units": "mm"} for n in BAND_INPUT_NAMES]
         if "features" in nb.name:
             inputs += [{"name": n, "type": "real", "value": 0, "units": "mm"} for n in
@@ -162,6 +167,18 @@ def build_mesh(v: dict, shape: str):
     return body
 
 
+def offset_convex(mesh, c: float):
+    """Offset Body of a convex body by c > 0: the hull of the body's vertices each grown into a
+    small sphere (exact up to the sphere's facetting)."""
+    import numpy as np
+    import trimesh
+    if c <= 0:
+        return mesh
+    ball = trimesh.creation.icosphere(subdivisions=3, radius=c).vertices
+    pts = (mesh.vertices[:, None, :] + ball[None, :, :]).reshape(-1, 3)
+    return trimesh.convex.convex_hull(pts)
+
+
 # ----------------------------------------------------------------------------- main
 def main(argv: list[str]) -> int:
     if argv == ["--version"]:
@@ -198,7 +215,19 @@ def main(argv: list[str]) -> int:
         time.sleep(sleep)
 
     outputs: list[dict] = []
-    if "band" in nb.name or "features" in nb.name:
+    if "seat" in nb.name:
+        import trimesh
+        if not Path(values["Seat Path"]).exists():
+            fail("Seat Mesh: file not found")
+        mesh = offset_convex(trimesh.load(str(values["Seat Path"]), force="mesh"), float(values["Clearance"]))
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Seat Mesh", "Seat Body", "Stone Seat", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "band" in nb.name or "features" in nb.name:
         if "Bead Count" in values and not Path(values["Engraving Path"]).exists():
             fail("Engraving Mesh: file not found")
         shape = os.environ.get("FAKE_NTOPCL_SHAPE", "design")

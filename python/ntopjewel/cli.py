@@ -7,6 +7,7 @@
   ring --size 6 --milgrain --groove 0.25 --engrave "M+K"   Phase 1 band with features: build, export, gate
   ring ... --show             the same ring built in nTop's open session, to look at it in the GUI
   gem --shape pear --length 12.3 --width 8.9 --depth 4.6   a stone body STL (seat/cutter), carats
+  seat --shape round --length 6.5        the stone_seat block's cutter for that stone (nTopCL + gate)
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -191,6 +192,30 @@ def cmd_gem(a: argparse.Namespace) -> int:
           + " x ".join(f"{x:.3f}" for x in info["extents_mm"]) + " mm)")
     print(f"  same size in other stones: {others}")
     return 0
+
+
+def cmd_seat(a: argparse.Namespace) -> int:
+    stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
+                           table_frac=a.table, girdle_mm=a.girdle, material=a.material)
+    spec = gems.SeatSpec(stone, clearance_mm=a.clearance, drop_mm=a.drop, mesh_tolerance_mm=a.tolerance)
+    probs = spec.validate()
+    if probs:
+        print("seat: problems: " + "; ".join(probs))
+        return 1
+    if a.dry_run:
+        print(spec.describe())
+        for k, v in spec.notebook_inputs("<envelope path>", "<output path>").items():
+            print(f"    {k}: {v}")
+        return 0
+    try:
+        res = gems.build_seat(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
+    except (ntopcl.NtopclError, ValueError) as e:
+        print(f"seat failed: {e}")
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        return 2
+    print(res.text())
+    return 0 if res.ok else 1
 
 
 def cmd_gate(a: argparse.Namespace) -> int:
@@ -409,6 +434,22 @@ def main(argv: list[str] | None = None) -> int:
     gm.add_argument("--out")
     gm.add_argument("--dry-run", action="store_true")
     gm.set_defaults(fn=cmd_gem)
+
+    st = sub.add_parser("seat", help="the stone_seat block's cutter for one stone, through its harness under nTopCL, gated")
+    st.add_argument("--shape", default="round", choices=gems.SHAPES)
+    st.add_argument("--length", type=float, required=True)
+    st.add_argument("--width", type=float)
+    st.add_argument("--depth", type=float)
+    st.add_argument("--table", type=float)
+    st.add_argument("--girdle", type=float)
+    st.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    st.add_argument("--clearance", type=float, help="mm (default: tables settings.seat_clearance_mm)")
+    st.add_argument("--drop", type=float, help="drop-in path height above the girdle, mm")
+    st.add_argument("--tolerance", type=float, default=0.05)
+    st.add_argument("--notebook")
+    st.add_argument("--out")
+    st.add_argument("--dry-run", action="store_true")
+    st.set_defaults(fn=cmd_seat)
 
     g = sub.add_parser("gate")
     g.add_argument("file")

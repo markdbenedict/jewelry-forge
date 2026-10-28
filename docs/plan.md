@@ -52,7 +52,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 ## Phase 2 order of work
 
 1. Stone bodies - done (Python meshes, `gem`).
-2. The first library block, `ntop/blocks/stone_seat.ntop`: stone mesh path in, the stone
+2. *(written 28 Oct, offline tests green; first real build pending)* The first library block, `ntop/blocks/stone_seat.ntop`: stone mesh path in, the stone
    implicit plus its seat cutter (the stone, a clearance offset and a straight drop-in path
    above the girdle) out; built by a script, embedded and measured by a harness notebook that
    nTopCL runs, so the block has a gate of its own.

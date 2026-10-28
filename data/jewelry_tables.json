@@ -60,6 +60,10 @@
     "neck_blend_mm":              {"value": [0.5, 1.0], "status": "default", "source": "casting handbooks"},
     "cast_ring_size_offset":      {"value": 0.0, "status": "uncalibrated", "source": "measure on the first cast: cast size - model size"}
   },
+  "settings": {
+    "seat_clearance_mm": {"value": 0.05, "status": "default", "source": "stone-to-seat gap for a resin-printed, cast seat; the metal is burnished over the stone afterwards"},
+    "seat_drop_mm":      {"value": 8.0,  "status": "default", "source": "height of the straight drop-in path above the girdle: clears any head we make"}
+  },
   "calibration_log": [],
   "notes": [
     "Change a number here, never in a notebook, a skill or a script; add a dated calibration_log entry and set the entry's status.",

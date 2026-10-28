@@ -207,6 +207,7 @@ python -m ntopjewel doctor                      # finds ntopcl, nTop, Blender, p
 python -m ntopjewel api check                                        # SSH to the console works?
 python -m ntopjewel api build band_profile                           # writes ntop\notebooks\ring_band_profile.ntop
 python -m ntopjewel api build ring_features --scratch                # Phase 1 step 2 notebook (prepare() writes the test engraving STL)
+python -m ntopjewel api build stone_seat                             # library block ntop\blocks\stone_seat.ntop + its harness ntop\notebooks\stone_seat_harness.ntop
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
@@ -216,6 +217,7 @@ python -m ntopjewel band --size 6 --profile court --dry-run           # the numb
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring   # --deliver copies a PASSED part + evidence to the Jewelry folder
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
+python -m ntopjewel seat --shape round --length 6.5                   # the stone_seat block's cutter through its harness (nTopCL + gate; out\seat)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop

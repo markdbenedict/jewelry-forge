@@ -213,3 +213,166 @@ def _pear_or_marquise(L: float, W: float, n: int, marquise: bool):
     upper = np.column_stack([x[::-1], y[::-1]])          # +X to -X across the top
     lower = np.column_stack([x[1:-1], -y[1:-1]])          # back along the bottom
     return _resample(np.vstack([upper, lower]), n)
+
+
+# ---- seats: the cutter a setting subtracts -------------------------------------------------
+def seat_envelope(spec: StoneSpec, drop_mm: float | None = None):
+    """The stone plus a straight drop-in path: the girdle outline carried up to `drop_mm` above
+    the girdle's mid-plane. Every stone here is convex, so this is the convex hull of the stone
+    and the outline lifted to that height. Offset by the clearance (in nTop: the stone_seat
+    block), it is what a head subtracts so the stone drops in from above and sits on its
+    girdle with the clearance all round."""
+    import numpy as np
+    import trimesh
+    drop = tables.SETTINGS["seat_drop_mm"] if drop_mm is None else float(drop_mm)
+    stone = spec.mesh()
+    crown, _ = spec.heights
+    if drop <= spec.girdle / 2 + crown:
+        raise ValueError(f"drop {drop} mm does not clear the table ({spec.girdle / 2 + crown:.2f} mm above the girdle)")
+    xy = spec.outline()
+    lifted = np.column_stack([xy, np.full(len(xy), drop)])
+    return trimesh.convex.convex_hull(np.vstack([stone.vertices, lifted]))
+
+
+def offset_volume_mm3(mesh, clearance_mm: float) -> float:
+    """Volume of a CONVEX polyhedron offset outward by c, exactly (Steiner's formula):
+    V + S c + M c^2 + 4/3 pi c^3, with M = 1/2 sum over edges of length x exterior dihedral
+    angle. The independent figure nTop's offset seat is checked against."""
+    import numpy as np
+    c = float(clearance_mm)
+    edges = mesh.vertices[mesh.face_adjacency_edges]
+    lengths = np.linalg.norm(edges[:, 0] - edges[:, 1], axis=1)
+    m = 0.5 * float(np.sum(lengths * mesh.face_adjacency_angles))
+    return float(mesh.volume + mesh.area * c + m * c * c + 4.0 / 3.0 * math.pi * c ** 3)
+
+
+@dataclass
+class SeatSpec:
+    stone: StoneSpec
+    clearance_mm: float | None = None
+    drop_mm: float | None = None
+    mesh_tolerance_mm: float = 0.05     # small part: 25 µm voxels
+
+    @property
+    def clearance(self) -> float:
+        return tables.SETTINGS["seat_clearance_mm"] if self.clearance_mm is None else float(self.clearance_mm)
+
+    @property
+    def drop(self) -> float:
+        return tables.SETTINGS["seat_drop_mm"] if self.drop_mm is None else float(self.drop_mm)
+
+    def envelope(self):
+        return seat_envelope(self.stone, self.drop)
+
+    def design(self) -> dict:
+        return {"stone": asdict(self.stone), "clearance_mm": self.clearance, "drop_mm": self.drop,
+                "mesh_tolerance_mm": self.mesh_tolerance_mm}
+
+    @property
+    def stem(self) -> str:
+        from . import runs
+        return f"seat_{self.stone.stem[len('stone_'):]}_c{self.clearance:g}_{runs.spec_id(self.design())}".replace(".", "p")
+
+    def design_volume_mm3(self) -> float:
+        return offset_volume_mm3(self.envelope(), self.clearance)
+
+    def expected_extents(self) -> list[float]:
+        _, pav = self.stone.heights
+        c = self.clearance
+        return [self.stone.length + 2 * c, self.stone.width + 2 * c, self.stone.girdle / 2 + pav + self.drop + 2 * c]
+
+    def validate(self) -> list[str]:
+        p = self.stone.validate()
+        if not 0.0 <= self.clearance <= 0.5:
+            p.append(f"clearance {self.clearance} mm outside 0..0.5 mm")
+        if self.mesh_tolerance_mm > self.clearance * 4 and self.clearance > 0:
+            p.append(f"mesh tolerance {self.mesh_tolerance_mm} mm is coarse for a {self.clearance} mm clearance")
+        return p
+
+    def notebook_inputs(self, seat_path: str, output_path: str) -> dict:
+        return {"Seat Path": seat_path, "Clearance": round(self.clearance, 4),
+                "Mesh Tolerance": self.mesh_tolerance_mm, "Output Path": output_path}
+
+    def describe(self) -> str:
+        e = self.envelope()
+        return (f"{self.stem}: {self.stone.describe()}\n  seat: clearance {self.clearance} mm, drop-in path to "
+                f"{self.drop} mm above the girdle; envelope {e.volume:.2f} mm³ -> seat {self.design_volume_mm3():.2f} mm³; "
+                f"extents " + " x ".join(f"{x:.3f}" for x in self.expected_extents()) + " mm")
+
+
+@dataclass
+class SeatResult:
+    spec: SeatSpec
+    stl: Path
+    run: object
+    gate: object
+    ntop_volume_mm3: float | None
+    run_dir: Path
+    run_id: str
+    notes: list[str] = field(default_factory=list)
+
+    @property
+    def status(self) -> str:
+        from . import runs
+        return runs.status_of(self.run.ok, self.gate)
+
+    @property
+    def ok(self) -> bool:
+        from . import gate
+        return self.status == gate.PASSED
+
+    def text(self) -> str:
+        return "\n".join([self.spec.describe(), self.run.summary(), self.gate.text(),
+                          f"  status: {self.status.upper()}  run {self.run_dir}"] + [f"  note: {n}" for n in self.notes])
+
+
+def check_seat(spec: SeatSpec, stl: Path, ntop_vol: float | None):
+    """Gate for a seat cutter: closed, one shell, nTop's volume against the mesh and against
+    Steiner's exact offset volume, and the bounding box against the stone + clearance. No wall
+    check: a cutter is not metal."""
+    import numpy as np
+    from . import band, gate
+    rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=0.0, wall_samples=0, tol_volume_pct=2.0)
+    rep.checks = [c for c in rep.checks if c.name != "wall thickness"]
+    ext = np.array(rep.extents_mm)
+    want = np.array(spec.expected_extents())
+    tol = max(0.05, spec.mesh_tolerance_mm)
+    d = ext - want
+    rep.checks.append(gate.Check("extents", bool(np.all(np.abs(d) <= tol)),
+                                 "x".join(f"{x:.3f}" for x in ext) + " vs " + "x".join(f"{x:.3f}" for x in want)
+                                 + " mm (Δ " + ", ".join(f"{x:+.3f}" for x in d) + f", tolerance ±{tol:g})"))
+    rep.checks.append(band.design_volume_check(spec.design_volume_mm3(), ntop_vol, 2.0))
+    return rep
+
+
+def build_seat(spec: SeatSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
+               catalog_name: str = "stone_seat_harness") -> SeatResult:
+    """Run the stone_seat block through its harness notebook under nTopCL and gate the cutter."""
+    import time
+    from . import catalog, config, ntopcl, runs
+    problems = spec.validate()
+    if problems:
+        raise ValueError("; ".join(problems))
+    cat = catalog.load(catalog_name)
+    nb = Path(notebook) if notebook else cat.notebook
+    run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "seat", spec.stem)
+    envelope_stl = run_dir / f"{spec.stem}.envelope.stl"
+    spec.envelope().export(str(envelope_stl))
+    stl = run_dir / f"{spec.stem}.stl"
+    started = time.time()
+    run = ntopcl.run(nb, cat.build_inputs(spec.notebook_inputs(str(envelope_stl), str(stl))), run_dir, tag=spec.stem)
+    try:
+        runs.require_fresh(stl, started, "the exported seat")
+    except FileNotFoundError as e:
+        raise ntopcl.NtopclError(f"notebook reported success but {e}", run) from e
+    entry = run.outputs.get(cat.output.get("name", "Volume"))
+    ntop_vol = ntopcl.scalar_value(entry) if entry else None
+    rep = check_seat(spec, stl, ntop_vol)
+    res = SeatResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
+    (run_dir / f"{spec.stem}.report.json").write_text(json.dumps({
+        "stem": spec.stem, "run_id": run_id, "status": res.status, "design": spec.design(),
+        "inputs": spec.notebook_inputs(str(envelope_stl), str(stl)), "ntop_volume_mm3": ntop_vol,
+        "design_volume_mm3": spec.design_volume_mm3(), "gate": rep.to_dict(),
+        "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()),
+    }, indent=2, default=str), encoding="utf-8")
+    return res

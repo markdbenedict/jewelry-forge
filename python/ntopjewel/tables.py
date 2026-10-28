@@ -122,6 +122,7 @@ DEFAULT_WEIGHT_METALS = tuple(TABLES["default_weight_metals"])
 STONE_DENSITY_G_CM3: dict[str, float] = {k: float(v["density_g_cm3"]) for k, v in TABLES["stones"].items()}
 DEFAULT_STONE = TABLES["default_stone"]
 CARAT_G = 0.2
+SETTINGS: dict[str, float] = {k: float(v["value"]) for k, v in TABLES["settings"].items()}
 
 
 def carats(volume_mm3: float, stone: str = DEFAULT_STONE) -> float:

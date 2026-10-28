@@ -1,0 +1,32 @@
+# Harness for the stone_seat library block (ntop/blocks/stone_seat.ntop): embeds the block,
+# feeds it these inputs and measures what it returns. Built by ntop/recipes/stone_seat.py;
+# run by `python -m ntopjewel seat ...` (ntopjewel.gems.build_seat). The envelope STL and
+# every number come from ntopjewel.gems.SeatSpec.
+notebook: stone_seat_harness.ntop
+version: 0.3.0
+title: Stone seat cutter (stone + drop-in path, offset by the clearance)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the cutter; the gate checks it against Steiner's exact offset volume.
+inputs:
+  Seat Path:
+    type: text
+    doc: Seat envelope STL (gems.seat_envelope) - the stone plus its straight drop-in path.
+  Clearance:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 0.5
+    doc: Gap between stone and seat; data/jewelry_tables.json settings.seat_clearance_mm by default.
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 0.5
+    default: 0.05
+    doc: Mesh from Implicit Body tolerance (2 x voxel size).
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the cutter STL.
