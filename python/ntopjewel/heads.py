@@ -430,8 +430,8 @@ class OutlineHeadSpec:
                 continue
             d = np.array([math.cos(math.radians(a)), math.sin(math.radians(a))])
             rel = xy - centre
-            ang = np.abs(np.arctan2(rel[:, 1], rel[:, 0]) - math.radians(a))
-            ang = np.minimum(ang, 2 * math.pi - ang)
+            diff = np.arctan2(rel[:, 1], rel[:, 0]) - math.radians(a)
+            ang = np.abs((diff + math.pi) % (2 * math.pi) - math.pi)        # wrapped to [0, π] (a prong past 180° once all landed on one point)
             i = int(np.argmin(ang + 1e-3 * np.abs(np.einsum("ij,j->i", rel, np.array([-d[1], d[0]])))))
             out.append((xy[i], normal[i]))
         return out

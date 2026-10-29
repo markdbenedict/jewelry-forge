@@ -39,9 +39,6 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 
 - No part has been printed or cast yet: every wall floor, density, shrink figure and the
   `cast_ring_size_offset` in `data/jewelry_tables.json` is a **default**, not a calibration.
-- `ring_features.ntop` lives in `out\api\` (scratch) until `api build ring_features` saves it
-  into `ntop\notebooks\` and it is committed; `ring` runs need `--notebook out\api\ring_features.ntop`
-  until then.
 - The Notebook API cannot register units, set `file_path` or `real_field` parameters, or force a
   lazy block to build; the build scripts route round all of these (see `CLAUDE.md`). nTopCL is
   the only check for a block that never built in the GUI session.
@@ -92,7 +89,10 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
    ring_features pipeline, the wrapped text turned 180° to sit opposite the head; gate `engraving` (pocket
    found) and the wall check skips the text's axial ribs. First ring: US 4.5 court, 12.3 x 8.9 x 4.6 pear
    (glass), 5 prongs, "Makena" inside: 324.5 mm³ designed. `solitaire.ntop` must be rebuilt (new
-   engraving inputs). Later: a V-prong for the pear's point, outline heads for the other shapes in rings.
+   engraving inputs). 29 Oct: the first offline ring gate of the other four shapes found every 4-prong head
+   had 3 prongs (prong angles past 180° were not wrapped; fixed, regression test); oval 8x6, marquise 10x5,
+   cushion 7, emerald 8x6 now pass offline at US 6 - real runs pending. The marquise's 4 prongs leave both
+   points bare: it needs V-prongs (with the pear's point) before it is a real setting.
 6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed.
 
 ## Next acceptance milestone — the Phase 1 gate

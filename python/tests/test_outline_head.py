@@ -40,9 +40,28 @@ def test_design_head_passes_its_gate(tmp_path):
     assert rep.status == "passed", rep.text()
 
 
+@pytest.mark.parametrize("shape,L,W", [("oval", 8.0, 6.0), ("marquise", 10.0, 5.0), ("cushion", 7.0, 7.0), ("emerald", 8.0, 6.0)])
+def test_other_outlines_put_every_prong_on_its_own_ray(shape, L, W):
+    """2026-10-29: prongs at 225° and 315° all landed on one outline point (the angle difference was
+    not wrapped), so 4-prong heads had 3 prongs; the pear's angles never crossed 180° and passed."""
+    import math
+    s = heads.OutlineHeadSpec(gems.StoneSpec(shape, L, W))
+    assert s.validate() == []
+    pts = s.outline_points()
+    assert len({(round(float(q[0]), 3), round(float(q[1]), 3)) for q, _ in pts}) == s.count
+    for k, (q, _) in enumerate(pts):
+        want = math.radians(45.0 + 90.0 * k)
+        got = math.atan2(q[1], q[0])
+        assert abs((got - want + math.pi) % (2 * math.pi) - math.pi) < math.radians(1.0)
+
+
 @pytest.mark.parametrize("shape,L,W", [("oval", 8.0, 6.0), ("emerald", 8.0, 6.0)])
-def test_other_outlines_validate(shape, L, W):
-    assert heads.OutlineHeadSpec(gems.StoneSpec(shape, L, W)).validate() == []
+def test_four_prong_heads_pass_their_gate(shape, L, W, tmp_path):
+    s = heads.OutlineHeadSpec(gems.StoneSpec(shape, L, W))
+    m = heads.outline_design_mesh(s)
+    m.export(tmp_path / "h.stl")
+    rep = heads.check_outline_head(s, tmp_path / "h.stl", float(m.volume))
+    assert rep.status == "passed", rep.text()
 
 
 def test_outline_head_end_to_end_and_an_uncut_seat_is_caught(fake_ntopcl, tmp_path, monkeypatch):
