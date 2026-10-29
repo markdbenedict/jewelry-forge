@@ -80,7 +80,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
      sign (right-handed, as the head's turn proved), and whether nTop's offset over band ∪ arch matches
      the independent model (design volume and the bead check will say).
    - *v2 built 28 Oct:* PASSED at US 5 and 6 under nTopCL (32/32 beads, design volume +0.5 %).
-5b. *(written 28 Oct, offline green; real build pending)* **Fancy stones and engraving.** `outline_head` block
+5b. *(done 28 Oct: outline_head + solitaire_outline built; the Makena ring PASSED under nTopCL first time - 325.7 mm³ vs 324.5 designed (+0.35 %), 28/28 beads, engraving pocket found, bore 15.288 exact)* **Fancy stones and engraving.** `outline_head` block
    (`ntop/recipes/outline_head.py`): prongs on the girdle outline (pear: the point + four on the round end),
    each rod lying on the pavilion offset by prong radius - ledge (a cone's normal is constant along a
    generator), upright from the girdle; Python writes the rods as one STL (Prongs Path); the rails are the
