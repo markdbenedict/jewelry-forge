@@ -91,7 +91,9 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
    (glass), 5 prongs, "Makena" inside: 324.5 mm³ designed. `solitaire.ntop` must be rebuilt (new
    engraving inputs). 29 Oct: the first offline ring gate of the other four shapes found every 4-prong head
    had 3 prongs (prong angles past 180° were not wrapped; fixed, regression test); oval 8x6, marquise 10x5,
-   cushion 7, emerald 8x6 now pass offline at US 6 - real runs pending. The marquise's 4 prongs leave both
+   cushion 7, emerald 8x6 PASSED under nTopCL on 29 Oct, as heads and as US 6 solitaires (nTop within
+   0.2 % of the design for the heads, 0.6 % for the rings). `solitaire.ntop` (round) still needs `api build
+   solitaire` for the engraving inputs; the round US 5-7 re-runs follow. The marquise's 4 prongs leave both
    points bare: it needs V-prongs (with the pear's point) before it is a real setting.
 6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed.
 
