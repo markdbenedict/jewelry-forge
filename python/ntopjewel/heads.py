@@ -330,6 +330,8 @@ def build_head(spec: HeadSpec, out_dir: Path | None = None, *, notebook: Path | 
 # Outline heads: prongs placed on any convex girdle outline (pear first), rails that follow it
 # =============================================================================================
 PEAR_PRONG_ANGLES = {5: (180.0, 105.0, -105.0, 35.0, -35.0)}    # about the round end's centre; 180 = the point
+POINTED = ("pear", "marquise")                                   # shapes whose points get V-prongs
+V_BELOW_GIRDLE = 0.6                                             # the V reaches this far under the girdle
 
 
 @dataclass
@@ -347,10 +349,17 @@ class OutlineHeadSpec:
                  offset (a cone's normal is constant along each generator), so every rail meets
                  every prong.
         seat     minus the Seat Cutter, as prong_head.
-    Pear: the point prong plus four on the round end (PEAR_PRONG_ANGLES). Other shapes: prongs on
-    rays from the centre, evenly spaced, offset half a spacing."""
+        V-prongs a stone's point (the pear's, both of the marquise's) gets a V instead of a round
+                 prong: a chevron of metal `v_thickness` thick hugging the outline for `v_arm` back
+                 from the point on both sides, from `V_BELOW_GIRDLE` under the girdle to just above
+                 the prong tips, carried down the pavilion by a rod like the others. The seat cut
+                 leaves a ledge under the girdle inside the V and a straight wall above it, so the
+                 point drops in, sits, and is covered all round when the setter closes the V.
+    Pear: the point (a V-prong) plus four on the round end (PEAR_PRONG_ANGLES). Marquise: a V at
+    each end plus 4 side prongs. Other shapes: prongs on rays from the centre, evenly spaced,
+    offset half a spacing."""
     stone: gems.StoneSpec
-    prongs: int | None = None              # pear 5; others 4
+    prongs: int | None = None              # round prongs: pear 5 places (the point included); others 4
     prong_dia_mm: float | None = None      # as HeadSpec
     ledge_mm: float = 0.30
     tip_above_mm: float | None = None
@@ -361,12 +370,35 @@ class OutlineHeadSpec:
     rail_gap_mm: float = 0.4               # open gallery between the rails
     foot_frac: float = 0.22                # where the prongs start on the pavilion (culet 0 -> girdle 1)
     floor_z: float | None = None           # nothing below this (head frame); raised feet/rail for a ring
+    v_prongs: bool | None = None           # V-prongs on the points; default on for the shapes that have points
+    v_thickness_mm: float | None = None    # the V's wall; default the prong radius, at least the prong-tip floor
+    v_arm_mm: float | None = None          # how far back from the point the V reaches; default max(1.5, 0.2 x width)
     mesh_tolerance_mm: float = 0.05
 
     # ---- numbers ---------------------------------------------------------------------------
     @property
+    def has_points(self) -> bool:
+        return self.stone.shape in POINTED
+
+    @property
+    def use_v(self) -> bool:
+        return self.has_points if self.v_prongs is None else (bool(self.v_prongs) and self.has_points)
+
+    @property
     def count(self) -> int:
-        return int(self.prongs) if self.prongs is not None else (5 if self.stone.shape == "pear" else 4)
+        """Every prong, V-prongs included."""
+        if self.stone.shape == "pear":
+            return int(self.prongs) if self.prongs is not None else 5
+        rays = int(self.prongs) if self.prongs is not None else 4
+        return rays + (2 if self.stone.shape == "marquise" and self.use_v else 0)
+
+    @property
+    def v_thickness(self) -> float:
+        return float(self.v_thickness_mm) if self.v_thickness_mm is not None else max(self.rho, PRONG_TIP_FLOOR)
+
+    @property
+    def v_arm(self) -> float:
+        return float(self.v_arm_mm) if self.v_arm_mm is not None else max(1.5, 0.2 * self.stone.width)
 
     @property
     def rho(self) -> float:
@@ -405,8 +437,17 @@ class OutlineHeadSpec:
         crown, _ = self.stone.heights
         return self.stone.girdle / 2 + (self.tip_above_mm if self.tip_above_mm is not None else max(0.8, 0.8 * crown))
 
+    def point_kinds(self) -> list[str]:
+        """"v" or "round" for each of outline_points()."""
+        kinds = []
+        for q, m in self.outline_points():
+            is_point = self.has_points and abs(abs(float(m[0])) - 1.0) < 1e-9 and abs(float(m[1])) < 1e-9
+            kinds.append("v" if (is_point and self.use_v) else "round")
+        return kinds
+
     def outline_points(self) -> list[tuple]:
-        """[(q, m)]: the girdle outline points the prongs sit on and the outline's outward normals."""
+        """[(q, m)]: the girdle outline points the prongs sit on and the outline's outward normals.
+        A stone's points come with their axis as the normal (exactly ±X)."""
         import numpy as np
         xy = self.stone.outline(2048)
         n = len(xy)
@@ -420,9 +461,13 @@ class OutlineHeadSpec:
             angles = PEAR_PRONG_ANGLES.get(self.count)
             centre = np.array([self.stone.length / 2 - self.stone.width / 2, 0.0])
         else:
-            step = 360.0 / self.count
-            angles = [step / 2 + k * step for k in range(self.count)]
+            rays = self.count - (2 if self.stone.shape == "marquise" and self.use_v else 0)
+            step = 360.0 / rays
+            angles = [step / 2 + k * step for k in range(rays)]
             centre = np.zeros(2)
+            if self.stone.shape == "marquise" and self.use_v:          # both points, on the axis
+                out.append((xy[int(np.argmax(xy[:, 0]))], np.array([1.0, 0.0])))
+                out.append((xy[int(np.argmin(xy[:, 0]))], np.array([-1.0, 0.0])))
         for a in angles:
             if self.stone.shape == "pear" and a == 180.0:
                 i = int(np.argmin(xy[:, 0]))
@@ -488,14 +533,34 @@ class OutlineHeadSpec:
         foots = [a[0][2] for a in self.prong_axes()]
         return min(min(foots) - self.rho, self.rails()["lower"][0])
 
+    def v_block(self, q):
+        """The V at the point q: the outline grown by the V's wall, within v_arm of the point, its
+        vertical edges rounded, from V_BELOW_GIRDLE under the girdle to just above the prong tips."""
+        import trimesh
+        from shapely.geometry import Point, Polygon
+        band = Polygon(self.stone.outline(2048)).buffer(self.v_thickness, quad_segs=32)
+        shape = band.intersection(Point(float(q[0]), float(q[1])).buffer(self.v_arm, quad_segs=64))
+        shape = shape.buffer(-0.2, quad_segs=16).buffer(0.2, quad_segs=16)
+        z0 = -self.stone.girdle / 2 - V_BELOW_GIRDLE
+        z1 = self.z_tip + 0.3
+        block = trimesh.creation.extrude_polygon(shape, height=z1 - z0)
+        block.apply_translation((0.0, 0.0, z0))
+        return block
+
     def prongs_mesh(self):
-        """The prong rods (cylinders + spheres) as one watertight mesh: what Prongs Path points at."""
+        """The prong rods (cylinders + spheres) and V-prongs as one watertight mesh: what Prongs Path points at."""
         import trimesh
         parts = []
-        for foot, knee, tip in self.prong_axes():
-            for a, b in ((foot, knee), (knee, tip)):
-                parts.append(trimesh.creation.cylinder(radius=self.rho, segment=[a, b], sections=64))
-            for c in (foot, knee, tip):
+        for (foot, knee, tip), kind, (q, _m) in zip(self.prong_axes(), self.point_kinds(), self.outline_points()):
+            if kind == "v":                                  # the support rod up the pavilion + the V
+                parts.append(trimesh.creation.cylinder(radius=self.rho, segment=[foot, knee], sections=64))
+                ends = (foot, knee)
+                parts.append(self.v_block(q))
+            else:
+                for a, b in ((foot, knee), (knee, tip)):
+                    parts.append(trimesh.creation.cylinder(radius=self.rho, segment=[a, b], sections=64))
+                ends = (foot, knee, tip)
+            for c in ends:
                 ball = trimesh.creation.icosphere(subdivisions=4, radius=self.rho)
                 ball.apply_translation(c)
                 parts.append(ball)
@@ -532,9 +597,17 @@ class OutlineHeadSpec:
         if self.stone.shape == "pear" and self.count not in PEAR_PRONG_ANGLES:
             p.append(f"a pear head has {', '.join(map(str, PEAR_PRONG_ANGLES))} prongs (the point + the round end)")
             return p
-        if self.stone.shape != "pear" and self.count not in (4, 6, 8):
-            p.append("outline head prongs: 4, 6 or 8 (pear: 5)")
+        rays = self.count - (2 if self.stone.shape == "marquise" and self.use_v else 0)
+        if self.stone.shape != "pear" and rays not in (4, 6, 8):
+            p.append("outline head prongs: 4, 6 or 8 (pear: 5; a marquise adds a V at each point)")
             return p
+        if self.v_prongs and not self.has_points:
+            p.append(f"a {self.stone.shape} has no points for V-prongs")
+        if self.use_v:
+            if self.v_thickness - self.clearance < PRONG_TIP_FLOOR - 0.05:
+                p.append(f"V-prong wall {self.v_thickness - self.clearance:.2f} mm after the seat cut; floor {PRONG_TIP_FLOOR - 0.05:.2f} mm")
+            if self.v_arm < 1.0:
+                p.append("a V-prong reaching less than 1 mm back from the point will not hold it")
         tip_left = 2 * self.rho - self.ledge_mm - self.clearance
         if tip_left < PRONG_TIP_FLOOR:
             p.append(f"prong left above the girdle is {tip_left:.2f} mm thick; floor {PRONG_TIP_FLOOR} mm")
@@ -555,7 +628,10 @@ class OutlineHeadSpec:
 
     def describe(self) -> str:
         r = self.rails()
-        return (f"{self.stem}: {self.count} prongs of {2 * self.rho:.2f} mm on a {self.stone.describe()}\n"
+        nv = self.point_kinds().count("v")
+        vline = (f"  V-prongs: {nv} (wall {self.v_thickness:.2f} mm, {self.v_arm:.2f} mm back from each point, "
+                 f"{V_BELOW_GIRDLE} mm under the girdle)\n" if nv else "")
+        return (f"{self.stem}: {self.count} prongs ({nv} V) of {2 * self.rho:.2f} mm on a {self.stone.describe()}\n" + vline +
                 f"  prongs {self.offset:.2f} mm off the pavilion (ledge {self.ledge_mm} mm) from {self._foot_frac():.0%} of its "
                 f"depth, upright from the girdle to z {self.z_tip:.2f}; clearance {self.clearance} mm\n"
                 f"  rails: the seat + {r['offset']:.2f} mm, z {r['upper'][0]:.2f}..{r['upper'][1]:.2f} and "

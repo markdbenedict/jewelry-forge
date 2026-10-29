@@ -241,7 +241,8 @@ def cmd_head(a: argparse.Namespace) -> int:
     outline = stone.shape != "round" or a.outline
     if outline:                       # the outline_head block: prongs on the outline, rails following the pavilion
         spec = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
-                                     clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance)
+                                     clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance,
+                                     v_prongs=False if a.no_v_prong else None)
     else:
         spec = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
                               rail_dia_mm=a.rail_dia, angle_offset_deg=a.angle_offset, clearance_mm=a.clearance,
@@ -273,7 +274,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.stone_width, depth_mm=a.stone_depth, material=a.material)
     if stone.shape != "round":        # pear and other outlines: the outline_head block, solitaire_outline.ntop
         head = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge,
-                                     clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance)
+                                     clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance,
+                                     v_prongs=False if a.no_v_prong else None)
     else:
         head = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, clearance_mm=a.clearance,
                               mesh_tolerance_mm=a.tolerance)
@@ -539,6 +541,7 @@ def main(argv: list[str] | None = None) -> int:
     hd.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
     hd.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear), 4 (other outlines)")
     hd.add_argument("--outline", action="store_true", help="a round stone on the outline_head block (fancy shapes always are)")
+    hd.add_argument("--no-v-prong", action="store_true", help="a round prong instead of a V on a pear's or marquise's point")
     hd.add_argument("--prong-dia", type=float, help="mm (default: enough to leave 0.8 mm above the girdle)")
     hd.add_argument("--ledge", type=float, default=0.30, help="how far each prong reaches under the girdle, mm")
     hd.add_argument("--tip-above", type=float, help="prong tip centre above the girdle top, mm")
@@ -560,6 +563,7 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--stone-depth", type=float, help="stone total depth, mm (a calipered stone)")
     so.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
     so.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear: the point + four on the round end)")
+    so.add_argument("--no-v-prong", action="store_true", help="a round prong instead of a V on a pear's or marquise's point")
     so.add_argument("--prong-dia", type=float)
     so.add_argument("--ledge", type=float, default=0.30)
     so.add_argument("--clearance", type=float)
