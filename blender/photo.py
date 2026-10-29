@@ -126,6 +126,8 @@ def setup(scene, rings, samples=256, resolution=(1920, 1280), gpu=True):
         (21.0, 10.0, "flat", 90.0, 20.0),
     ]
     copies = []
+    if len(rings) == 1:                                     # one piece: the hero pose, centre
+        poses = [poses[1]]
     for r, (px, py, lift, rx, rz) in zip(rings, poses):
         c = bpy.data.objects.new(r.name + " (photo)", r.data)
         col.objects.link(c)
@@ -153,7 +155,7 @@ def setup(scene, rings, samples=256, resolution=(1920, 1280), gpu=True):
     cam_data.sensor_width = 36.0
     cam_data.clip_start, cam_data.clip_end = 5.0, 5000.0
     cam_data.dof.use_dof = True
-    cam_data.dof.focus_object = copies[1]
+    cam_data.dof.focus_object = copies[min(1, len(copies) - 1)]
     cam_data.dof.aperture_fstop = 5.6
     cam = bpy.data.objects.new("Photo camera", cam_data)
     col.objects.link(cam)
