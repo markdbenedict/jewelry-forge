@@ -94,13 +94,15 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
    cushion 7, emerald 8x6 PASSED under nTopCL on 29 Oct, as heads and as US 6 solitaires (nTop within
    0.2 % of the design for the heads, 0.6 % for the rings). `solitaire.ntop` (round) still needs `api build
    solitaire` for the engraving inputs; the round US 5-7 re-runs follow.
-   - *V-prongs (written 29 Oct, offline green; real runs pending):* a stone's point (the pear's, both of the
+   - *V-prongs (done 29 Oct: the Makena pear US 4.5 and a 10x5 marquise US 6 PASSED under nTopCL, +0.37 % / +0.45 %):* a stone's point (the pear's, both of the
      marquise's) gets a V: the outline grown by the V wall (prong radius, >= 0.8 mm) within max(1.5, 0.2 W) of
      the point, 0.6 mm under the girdle to just above the tips, on a support rod down the pavilion. Part of the
      prongs STL, so no block or notebook rebuild. Marquise default = 2 V + 4 side prongs. `--no-v-prong` restores
      the round prong. The pear and marquise designs (and stems) change. The marquise's 4 prongs left both
    points bare.
-6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed.
+6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed. *PASSED 29 Oct under nTopCL (US 5 / 6 / 7:
+   +0.51 / +0.58 / +0.48 % vs design, every check green, engraving inputs in place); printing it with every prong
+   intact is what remains.*
 
 ## Next acceptance milestone — the Phase 1 gate
 
