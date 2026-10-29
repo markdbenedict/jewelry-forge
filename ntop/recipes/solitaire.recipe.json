@@ -1,0 +1,2469 @@
+{
+  "body": [
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0
+        }
+      },
+      "id": "inst245",
+      "name": "Zero",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "offset_implicit<implicit,real_field>",
+        "id": "inst330",
+        "inputs": [
+          {
+            "func": "offset_implicit<implicit,real_field>",
+            "id": "inst329",
+            "inputs": [
+              {
+                "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
+                "id": "inst244",
+                "inputs": [
+                  {
+                    "type": "blend_enum",
+                    "value": {
+                      "enum": 0
+                    }
+                  },
+                  {
+                    "type": "real",
+                    "value": {
+                      "isFinite": true,
+                      "units": {
+                        "length": 1
+                      },
+                      "val": 0.0
+                    }
+                  },
+                  {
+                    "func": "core.list<implicit>",
+                    "id": "inst243",
+                    "inputs": [
+                      {
+                        "func": "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]",
+                        "id": "inst240",
+                        "inputs": [
+                          {
+                            "type": "blend_enum",
+                            "value": {
+                              "enum": 0
+                            }
+                          },
+                          {
+                            "type": "real",
+                            "value": {
+                              "isFinite": true,
+                              "units": {
+                                "length": 1
+                              },
+                              "val": 0.0
+                            }
+                          },
+                          {
+                            "func": "core.list<implicit>",
+                            "id": "inst239",
+                            "inputs": [
+                              {
+                                "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
+                                "id": "inst222",
+                                "inputs": [
+                                  {
+                                    "type": "blend_enum",
+                                    "value": {
+                                      "enum": 0
+                                    }
+                                  },
+                                  {
+                                    "type": "real",
+                                    "value": {
+                                      "isFinite": true,
+                                      "units": {
+                                        "length": 1
+                                      },
+                                      "val": 0.0
+                                    }
+                                  },
+                                  {
+                                    "func": "cylinder<point,point,real>",
+                                    "id": "inst212",
+                                    "inputs": [
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst200",
+                                        "inputs": [
+                                          {
+                                            "type": "real",
+                                            "value": {
+                                              "isFinite": true,
+                                              "units": {
+                                                "length": 1
+                                              },
+                                              "val": 0.0
+                                            }
+                                          },
+                                          {
+                                            "type": "real",
+                                            "value": {
+                                              "isFinite": true,
+                                              "units": {
+                                                "length": 1
+                                              },
+                                              "val": 0.0
+                                            }
+                                          },
+                                          {
+                                            "input": 3,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Point_0",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst206",
+                                        "inputs": [
+                                          {
+                                            "type": "real",
+                                            "value": {
+                                              "isFinite": true,
+                                              "units": {
+                                                "length": 1
+                                              },
+                                              "val": 0.0
+                                            }
+                                          },
+                                          {
+                                            "type": "real",
+                                            "value": {
+                                              "isFinite": true,
+                                              "units": {
+                                                "length": 1
+                                              },
+                                              "val": 0.0
+                                            }
+                                          },
+                                          {
+                                            "input": 2,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Point_1",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "input": 0,
+                                        "props": []
+                                      }
+                                    ],
+                                    "name": "Cylinder_0",
+                                    "type": "cylinder"
+                                  },
+                                  {
+                                    "func": "core.list<implicit>",
+                                    "id": "inst221",
+                                    "inputs": [
+                                      {
+                                        "func": "cylinder<point,point,real>",
+                                        "id": "inst216",
+                                        "inputs": [
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": -0.01
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.01
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "input": 1,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Cylinder_1",
+                                        "type": "cylinder"
+                                      }
+                                    ],
+                                    "name": "Implicit Body List_0",
+                                    "type": "list<implicit>"
+                                  }
+                                ],
+                                "name": "Implicit Body_0",
+                                "type": "implicit"
+                              },
+                              {
+                                "func": "torus<point,vector,real,real>",
+                                "id": "inst227",
+                                "inputs": [
+                                  {
+                                    "type": "point",
+                                    "value": [
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "vector",
+                                    "value": {
+                                      "units": {},
+                                      "value": [
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 1.0
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "input": 4,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 5,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Torus_0",
+                                "type": "torus"
+                              },
+                              {
+                                "func": "torus<point,vector,real,real>",
+                                "id": "inst234",
+                                "inputs": [
+                                  {
+                                    "type": "point",
+                                    "value": [
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "vector",
+                                    "value": {
+                                      "units": {},
+                                      "value": [
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 1.0
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "input": 6,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 7,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Torus_1",
+                                "type": "torus"
+                              }
+                            ],
+                            "name": "Implicit Body List_1",
+                            "type": "list<implicit>"
+                          }
+                        ],
+                        "name": "Implicit Body_1",
+                        "type": "implicit"
+                      },
+                      {
+                        "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
+                        "id": "inst328",
+                        "inputs": [
+                          {
+                            "type": "blend_enum",
+                            "value": {
+                              "enum": 0
+                            }
+                          },
+                          {
+                            "type": "real",
+                            "value": {
+                              "isFinite": true,
+                              "units": {
+                                "length": 1
+                              },
+                              "val": 0.0
+                            }
+                          },
+                          {
+                            "func": "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]",
+                            "id": "inst318",
+                            "inputs": [
+                              {
+                                "type": "blend_enum",
+                                "value": {
+                                  "enum": 0
+                                }
+                              },
+                              {
+                                "type": "real",
+                                "value": {
+                                  "isFinite": true,
+                                  "units": {
+                                    "length": 1
+                                  },
+                                  "val": 0.0
+                                }
+                              },
+                              {
+                                "func": "core.list<implicit>",
+                                "id": "inst317",
+                                "inputs": [
+                                  {
+                                    "func": "cylinder<point,point,real>",
+                                    "id": "inst258",
+                                    "inputs": [
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst250",
+                                        "inputs": [
+                                          {
+                                            "input": 29,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 30,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 3,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Point_2",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst254",
+                                        "inputs": [
+                                          {
+                                            "input": 29,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 30,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 2,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Point_3",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "input": 32,
+                                        "props": []
+                                      }
+                                    ],
+                                    "name": "Cylinder_2",
+                                    "type": "cylinder"
+                                  },
+                                  {
+                                    "func": "torus<point,vector,real,real>",
+                                    "id": "inst267",
+                                    "inputs": [
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst262",
+                                        "inputs": [
+                                          {
+                                            "input": 29,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 30,
+                                            "props": []
+                                          },
+                                          {
+                                            "props": [],
+                                            "ref": {
+                                              "id": "inst245"
+                                            }
+                                          }
+                                        ],
+                                        "name": "Point_4",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "type": "vector",
+                                        "value": {
+                                          "units": {},
+                                          "value": [
+                                            {
+                                              "isFinite": true,
+                                              "val": 0.0
+                                            },
+                                            {
+                                              "isFinite": true,
+                                              "val": 0.0
+                                            },
+                                            {
+                                              "isFinite": true,
+                                              "val": 1.0
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      {
+                                        "input": 33,
+                                        "props": []
+                                      },
+                                      {
+                                        "input": 5,
+                                        "props": []
+                                      }
+                                    ],
+                                    "name": "Torus_2",
+                                    "type": "torus"
+                                  },
+                                  {
+                                    "func": "cylinder<point,point,real>",
+                                    "id": "inst280",
+                                    "inputs": [
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst272",
+                                        "inputs": [
+                                          {
+                                            "input": 29,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 31,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 3,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Point_5",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst276",
+                                        "inputs": [
+                                          {
+                                            "input": 29,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 31,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 2,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Point_6",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "input": 32,
+                                        "props": []
+                                      }
+                                    ],
+                                    "name": "Cylinder_3",
+                                    "type": "cylinder"
+                                  },
+                                  {
+                                    "func": "torus<point,vector,real,real>",
+                                    "id": "inst289",
+                                    "inputs": [
+                                      {
+                                        "func": "point<real,real,real>",
+                                        "id": "inst284",
+                                        "inputs": [
+                                          {
+                                            "input": 29,
+                                            "props": []
+                                          },
+                                          {
+                                            "input": 31,
+                                            "props": []
+                                          },
+                                          {
+                                            "props": [],
+                                            "ref": {
+                                              "id": "inst245"
+                                            }
+                                          }
+                                        ],
+                                        "name": "Point_7",
+                                        "type": "point"
+                                      },
+                                      {
+                                        "type": "vector",
+                                        "value": {
+                                          "units": {},
+                                          "value": [
+                                            {
+                                              "isFinite": true,
+                                              "val": 0.0
+                                            },
+                                            {
+                                              "isFinite": true,
+                                              "val": 0.0
+                                            },
+                                            {
+                                              "isFinite": true,
+                                              "val": 1.0
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      {
+                                        "input": 33,
+                                        "props": []
+                                      },
+                                      {
+                                        "input": 5,
+                                        "props": []
+                                      }
+                                    ],
+                                    "name": "Torus_3",
+                                    "type": "torus"
+                                  },
+                                  {
+                                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                                    "id": "inst302",
+                                    "inputs": [
+                                      {
+                                        "func": "box_from_corners<point,point>",
+                                        "id": "inst293",
+                                        "inputs": [
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": -0.04
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": -0.08
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": -0.04
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.04
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.04
+                                              }
+                                            ]
+                                          }
+                                        ],
+                                        "name": "Box_0",
+                                        "type": "box"
+                                      },
+                                      {
+                                        "func": "rotation_transform<point,vector,real>",
+                                        "id": "inst299",
+                                        "inputs": [
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "vector",
+                                            "value": {
+                                              "units": {},
+                                              "value": [
+                                                {
+                                                  "isFinite": true,
+                                                  "val": 0.0
+                                                },
+                                                {
+                                                  "isFinite": true,
+                                                  "val": 0.0
+                                                },
+                                                {
+                                                  "isFinite": true,
+                                                  "val": 1.0
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "input": 35,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Transformation_0",
+                                        "type": "transformation"
+                                      }
+                                    ],
+                                    "name": "Any_0",
+                                    "type": "box"
+                                  },
+                                  {
+                                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                                    "id": "inst314",
+                                    "inputs": [
+                                      {
+                                        "func": "box_from_corners<point,point>",
+                                        "id": "inst305",
+                                        "inputs": [
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": -0.04
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": -0.04
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.04
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.08
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.04
+                                              }
+                                            ]
+                                          }
+                                        ],
+                                        "name": "Box_1",
+                                        "type": "box"
+                                      },
+                                      {
+                                        "func": "rotation_transform<point,vector,real>",
+                                        "id": "inst311",
+                                        "inputs": [
+                                          {
+                                            "type": "point",
+                                            "value": [
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              },
+                                              {
+                                                "isFinite": true,
+                                                "val": 0.0
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "vector",
+                                            "value": {
+                                              "units": {},
+                                              "value": [
+                                                {
+                                                  "isFinite": true,
+                                                  "val": 0.0
+                                                },
+                                                {
+                                                  "isFinite": true,
+                                                  "val": 0.0
+                                                },
+                                                {
+                                                  "isFinite": true,
+                                                  "val": 1.0
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "input": 36,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Transformation_1",
+                                        "type": "transformation"
+                                      }
+                                    ],
+                                    "name": "Any_1",
+                                    "type": "box"
+                                  }
+                                ],
+                                "name": "Implicit Body List_3",
+                                "type": "list<implicit>"
+                              }
+                            ],
+                            "name": "Implicit Body_3",
+                            "type": "implicit"
+                          },
+                          {
+                            "func": "core.list<implicit>",
+                            "id": "inst327",
+                            "inputs": [
+                              {
+                                "func": "cylinder<point,point,real>",
+                                "id": "inst322",
+                                "inputs": [
+                                  {
+                                    "type": "point",
+                                    "value": [
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": -0.02
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "point",
+                                    "value": [
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.0
+                                      },
+                                      {
+                                        "isFinite": true,
+                                        "val": 0.02
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "input": 34,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Cylinder_4",
+                                "type": "cylinder"
+                              }
+                            ],
+                            "name": "Implicit Body List_4",
+                            "type": "list<implicit>"
+                          }
+                        ],
+                        "name": "Implicit Body_4",
+                        "type": "implicit"
+                      }
+                    ],
+                    "name": "Implicit Body List_2",
+                    "type": "list<implicit>"
+                  }
+                ],
+                "name": "Implicit Body_2",
+                "type": "implicit"
+              },
+              {
+                "input": 9,
+                "props": []
+              }
+            ],
+            "name": "Implicit Body_5",
+            "type": "implicit"
+          },
+          {
+            "input": 8,
+            "props": []
+          }
+        ],
+        "name": "Implicit Body_6",
+        "type": "implicit"
+      },
+      "id": "inst331",
+      "name": "Band Body",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
+        "id": "inst334",
+        "inputs": [
+          {
+            "input": 11,
+            "props": []
+          },
+          {
+            "input": 12,
+            "props": []
+          }
+        ],
+        "name": "Implicit Body_7",
+        "type": "implicit"
+      },
+      "id": "inst335",
+      "name": "Seat Local",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "rotation_transform<point,vector,real>",
+        "id": "inst359",
+        "inputs": [
+          {
+            "func": "point<real,real,real>",
+            "id": "inst354",
+            "inputs": [
+              {
+                "input": 27,
+                "props": []
+              },
+              {
+                "type": "real",
+                "value": {
+                  "isFinite": true,
+                  "units": {
+                    "length": 1
+                  },
+                  "val": 0.0
+                }
+              },
+              {
+                "input": 28,
+                "props": []
+              }
+            ],
+            "name": "Point_8",
+            "type": "point"
+          },
+          {
+            "type": "vector",
+            "value": {
+              "units": {},
+              "value": [
+                {
+                  "isFinite": true,
+                  "val": 0.0
+                },
+                {
+                  "isFinite": true,
+                  "val": 1.0
+                },
+                {
+                  "isFinite": true,
+                  "val": 0.0
+                }
+              ]
+            }
+          },
+          {
+            "props": [],
+            "ref": {
+              "id": "inst361"
+            }
+          }
+        ],
+        "name": "Transformation_2",
+        "type": "transformation"
+      },
+      "id": "inst363",
+      "name": "Placement",
+      "type": "transformation",
+      "variable": true
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "angle": 1
+          },
+          "val": 1.5707963267948966
+        }
+      },
+      "id": "inst361",
+      "name": "Head Angle",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
+        "id": "inst431",
+        "inputs": [
+          {
+            "type": "blend_enum",
+            "value": {
+              "enum": 0
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {
+                "length": 1
+              },
+              "val": 0.0
+            }
+          },
+          {
+            "func": "core.list<implicit>",
+            "id": "inst430",
+            "inputs": [
+              {
+                "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
+                "id": "inst427",
+                "inputs": [
+                  {
+                    "type": "blend_enum",
+                    "value": {
+                      "enum": 0
+                    }
+                  },
+                  {
+                    "type": "real",
+                    "value": {
+                      "isFinite": true,
+                      "units": {
+                        "length": 1
+                      },
+                      "val": 0.0
+                    }
+                  },
+                  {
+                    "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
+                    "id": "inst369",
+                    "inputs": [
+                      {
+                        "type": "blend_enum",
+                        "value": {
+                          "enum": 0
+                        }
+                      },
+                      {
+                        "type": "real",
+                        "value": {
+                          "isFinite": true,
+                          "units": {
+                            "length": 1
+                          },
+                          "val": 0.0
+                        }
+                      },
+                      {
+                        "func": "core.list<implicit>",
+                        "id": "inst368",
+                        "inputs": [
+                          {
+                            "props": [],
+                            "ref": {
+                              "id": "inst331"
+                            }
+                          },
+                          {
+                            "func": "polar_array_implicit<implicit,real,integer,axis>",
+                            "id": "inst396",
+                            "inputs": [
+                              {
+                                "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
+                                "id": "inst373",
+                                "inputs": [
+                                  {
+                                    "type": "blend_enum",
+                                    "value": {
+                                      "enum": 0
+                                    }
+                                  },
+                                  {
+                                    "type": "real",
+                                    "value": {
+                                      "isFinite": true,
+                                      "units": {
+                                        "length": 1
+                                      },
+                                      "val": 0.0
+                                    }
+                                  },
+                                  {
+                                    "func": "core.list<implicit>",
+                                    "id": "inst372",
+                                    "inputs": [
+                                      {
+                                        "func": "sphere<point,real>",
+                                        "id": "inst380",
+                                        "inputs": [
+                                          {
+                                            "func": "point<real,real,real>",
+                                            "id": "inst377",
+                                            "inputs": [
+                                              {
+                                                "input": 42,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 43,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 38,
+                                                "props": []
+                                              }
+                                            ],
+                                            "name": "Point_9",
+                                            "type": "point"
+                                          },
+                                          {
+                                            "input": 37,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Sphere_0",
+                                        "type": "sphere"
+                                      },
+                                      {
+                                        "func": "sphere<point,real>",
+                                        "id": "inst387",
+                                        "inputs": [
+                                          {
+                                            "func": "point<real,real,real>",
+                                            "id": "inst384",
+                                            "inputs": [
+                                              {
+                                                "input": 42,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 43,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 39,
+                                                "props": []
+                                              }
+                                            ],
+                                            "name": "Point_10",
+                                            "type": "point"
+                                          },
+                                          {
+                                            "input": 37,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Sphere_1",
+                                        "type": "sphere"
+                                      }
+                                    ],
+                                    "name": "Implicit Body List_6",
+                                    "type": "list<implicit>"
+                                  }
+                                ],
+                                "name": "Implicit Body_10",
+                                "type": "implicit"
+                              },
+                              {
+                                "input": 40,
+                                "props": []
+                              },
+                              {
+                                "input": 41,
+                                "props": []
+                              },
+                              {
+                                "func": "axis<point,vector>",
+                                "id": "inst394",
+                                "inputs": [
+                                  {
+                                    "func": "point<real,real,real>",
+                                    "id": "inst391",
+                                    "inputs": [
+                                      {
+                                        "input": 29,
+                                        "props": []
+                                      },
+                                      {
+                                        "input": 30,
+                                        "props": []
+                                      },
+                                      {
+                                        "props": [],
+                                        "ref": {
+                                          "id": "inst245"
+                                        }
+                                      }
+                                    ],
+                                    "name": "Point_11",
+                                    "type": "point"
+                                  },
+                                  {
+                                    "type": "vector",
+                                    "value": {
+                                      "units": {},
+                                      "value": [
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 1.0
+                                        }
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "name": "Axis_0",
+                                "type": "axis"
+                              }
+                            ],
+                            "name": "Implicit Body_11",
+                            "type": "implicit"
+                          },
+                          {
+                            "func": "polar_array_implicit<implicit,real,integer,axis>",
+                            "id": "inst423",
+                            "inputs": [
+                              {
+                                "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
+                                "id": "inst400",
+                                "inputs": [
+                                  {
+                                    "type": "blend_enum",
+                                    "value": {
+                                      "enum": 0
+                                    }
+                                  },
+                                  {
+                                    "type": "real",
+                                    "value": {
+                                      "isFinite": true,
+                                      "units": {
+                                        "length": 1
+                                      },
+                                      "val": 0.0
+                                    }
+                                  },
+                                  {
+                                    "func": "core.list<implicit>",
+                                    "id": "inst399",
+                                    "inputs": [
+                                      {
+                                        "func": "sphere<point,real>",
+                                        "id": "inst407",
+                                        "inputs": [
+                                          {
+                                            "func": "point<real,real,real>",
+                                            "id": "inst404",
+                                            "inputs": [
+                                              {
+                                                "input": 44,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 45,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 38,
+                                                "props": []
+                                              }
+                                            ],
+                                            "name": "Point_12",
+                                            "type": "point"
+                                          },
+                                          {
+                                            "input": 37,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Sphere_2",
+                                        "type": "sphere"
+                                      },
+                                      {
+                                        "func": "sphere<point,real>",
+                                        "id": "inst414",
+                                        "inputs": [
+                                          {
+                                            "func": "point<real,real,real>",
+                                            "id": "inst411",
+                                            "inputs": [
+                                              {
+                                                "input": 44,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 45,
+                                                "props": []
+                                              },
+                                              {
+                                                "input": 39,
+                                                "props": []
+                                              }
+                                            ],
+                                            "name": "Point_13",
+                                            "type": "point"
+                                          },
+                                          {
+                                            "input": 37,
+                                            "props": []
+                                          }
+                                        ],
+                                        "name": "Sphere_3",
+                                        "type": "sphere"
+                                      }
+                                    ],
+                                    "name": "Implicit Body List_7",
+                                    "type": "list<implicit>"
+                                  }
+                                ],
+                                "name": "Implicit Body_12",
+                                "type": "implicit"
+                              },
+                              {
+                                "input": 40,
+                                "props": []
+                              },
+                              {
+                                "input": 41,
+                                "props": []
+                              },
+                              {
+                                "func": "axis<point,vector>",
+                                "id": "inst421",
+                                "inputs": [
+                                  {
+                                    "func": "point<real,real,real>",
+                                    "id": "inst418",
+                                    "inputs": [
+                                      {
+                                        "input": 29,
+                                        "props": []
+                                      },
+                                      {
+                                        "input": 31,
+                                        "props": []
+                                      },
+                                      {
+                                        "props": [],
+                                        "ref": {
+                                          "id": "inst245"
+                                        }
+                                      }
+                                    ],
+                                    "name": "Point_14",
+                                    "type": "point"
+                                  },
+                                  {
+                                    "type": "vector",
+                                    "value": {
+                                      "units": {},
+                                      "value": [
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 0.0
+                                        },
+                                        {
+                                          "isFinite": true,
+                                          "val": 1.0
+                                        }
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "name": "Axis_1",
+                                "type": "axis"
+                              }
+                            ],
+                            "name": "Implicit Body_13",
+                            "type": "implicit"
+                          }
+                        ],
+                        "name": "Implicit Body List_5",
+                        "type": "list<implicit>"
+                      }
+                    ],
+                    "name": "Implicit Body_9",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "core.list<implicit>",
+                    "id": "inst426",
+                    "inputs": [
+                      {
+                        "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                        "id": "inst365",
+                        "inputs": [
+                          {
+                            "props": [],
+                            "ref": {
+                              "id": "inst335"
+                            }
+                          },
+                          {
+                            "props": [],
+                            "ref": {
+                              "id": "inst363"
+                            }
+                          }
+                        ],
+                        "name": "Any_3",
+                        "type": "implicit"
+                      }
+                    ],
+                    "name": "Implicit Body List_8",
+                    "type": "list<implicit>"
+                  }
+                ],
+                "name": "Implicit Body_14",
+                "type": "implicit"
+              },
+              {
+                "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                "id": "inst364",
+                "inputs": [
+                  {
+                    "func": "user_func_ba06df7e_052b_4e21_9eab_2ab3c446a0f0<implicit,integer,real,real,real,real,real,real,real,real,real,real,real,real,real>",
+                    "id": "inst350",
+                    "inputs": [
+                      {
+                        "props": [],
+                        "ref": {
+                          "id": "inst335"
+                        }
+                      },
+                      {
+                        "input": 13,
+                        "props": []
+                      },
+                      {
+                        "input": 14,
+                        "props": []
+                      },
+                      {
+                        "input": 15,
+                        "props": []
+                      },
+                      {
+                        "input": 16,
+                        "props": []
+                      },
+                      {
+                        "input": 17,
+                        "props": []
+                      },
+                      {
+                        "input": 18,
+                        "props": []
+                      },
+                      {
+                        "input": 19,
+                        "props": []
+                      },
+                      {
+                        "input": 20,
+                        "props": []
+                      },
+                      {
+                        "input": 21,
+                        "props": []
+                      },
+                      {
+                        "input": 22,
+                        "props": []
+                      },
+                      {
+                        "input": 23,
+                        "props": []
+                      },
+                      {
+                        "input": 24,
+                        "props": []
+                      },
+                      {
+                        "input": 25,
+                        "props": []
+                      },
+                      {
+                        "input": 26,
+                        "props": []
+                      }
+                    ],
+                    "name": "Implicit Body_8",
+                    "type": "implicit"
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst363"
+                    }
+                  }
+                ],
+                "name": "Any_2",
+                "type": "implicit"
+              }
+            ],
+            "name": "Implicit Body List_9",
+            "type": "list<implicit>"
+          }
+        ],
+        "name": "Implicit Body_15",
+        "type": "implicit"
+      },
+      "id": "inst432",
+      "name": "Ring Body",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "volume_integral<implicit,real_field,real>",
+        "id": "inst434",
+        "inputs": [
+          {
+            "props": [],
+            "ref": {
+              "id": "inst432"
+            }
+          },
+          {
+            "props": [],
+            "ref": {
+              "id": "inst435"
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {},
+              "val": 0.01
+            }
+          }
+        ],
+        "name": "Scalar_0",
+        "type": "real"
+      },
+      "id": "inst442",
+      "name": "Volume",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {},
+          "val": 1.0
+        }
+      },
+      "id": "inst435",
+      "name": "One",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "func": "export_mesh<file_path,mesh,unit_length_enum>",
+      "id": "inst441",
+      "inputs": [
+        {
+          "input": 46,
+          "props": []
+        },
+        {
+          "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+          "id": "inst439",
+          "inputs": [
+            {
+              "props": [],
+              "ref": {
+                "id": "inst432"
+              }
+            },
+            {
+              "input": 10,
+              "props": []
+            },
+            null,
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            },
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            }
+          ],
+          "name": "Mesh_0",
+          "type": "mesh"
+        },
+        {
+          "type": "unit_length_enum",
+          "value": {
+            "id": "mm"
+          }
+        }
+      ],
+      "name": "Mesh File Data_0",
+      "type": "mesh_file_data"
+    }
+  ],
+  "description": "",
+  "displayname": "solitaire",
+  "inputs": [
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0095534
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Outer Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0082534
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bore Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.002
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Z Top",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.002
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Z Bottom",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0032371
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Dome Ring Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0063163
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Dome Tube Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.015389400000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Comfort Ring Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.007136
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Comfort Tube Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.00025
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.00025
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round Inward",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Mesh Tolerance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\solitaire_test_envelope.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Seat Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Clearance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "integer",
+        "value": {
+          "val": 6
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Prong Count",
+      "type": "integer"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "angle": 1
+          },
+          "val": 1.0471975511965976
+        }
+      },
+      "description": "",
+      "dimension": {
+        "angle": 1
+      },
+      "name": "Prong Spacing",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0006
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Prong Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0014073
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Base X",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0008125000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Base Y",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0028425
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Base Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0030743999999999997
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Tip X",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0017749999999999999
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Tip Y",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0008975
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Tip Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0014975000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Upper Rail Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0023173
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Upper Rail Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0028425
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Lower Rail Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0016250000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Lower Rail Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.00045000000000000004
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Rail Tube Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0058728999999999995
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Pivot X",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0058728999999999995
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Pivot Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0062546
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Arch Centre X",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0062546
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Arch Centre Y",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0062546
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Arch Centre Y Minus",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.018398800000000003
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Arch Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0120824
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Arch Dome Ring Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0088839
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Arch Cut Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "angle": 1
+          },
+          "val": 0.8203047484373349
+        }
+      },
+      "description": "",
+      "dimension": {
+        "angle": 1
+      },
+      "name": "Wedge Angle",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "angle": 1
+          },
+          "val": -0.8203047484373349
+        }
+      },
+      "description": "",
+      "dimension": {
+        "angle": 1
+      },
+      "name": "Wedge Angle Minus",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0003
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bead Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.001955
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bead Z",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.001955
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bead Z Minus",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "angle": 1
+          },
+          "val": 0.036608106527655865
+        }
+      },
+      "description": "",
+      "dimension": {
+        "angle": 1
+      },
+      "name": "Bead Spacing",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "integer",
+        "value": {
+          "val": 8
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Bead Count",
+      "type": "integer"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0093086
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bead Start X",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0028462
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bead Start Y",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0064935999999999995
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bead Start X Minus",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0064935999999999995
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bead Start Y Minus",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\solitaire_test.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Output Path",
+      "type": "text"
+    }
+  ],
+  "name": "user_func_efeb8340_41d8_4080_a24f_8f730fe5f711",
+  "output": {
+    "id": "inst442"
+  }
+}
