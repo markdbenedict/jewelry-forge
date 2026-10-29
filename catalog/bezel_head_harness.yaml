@@ -1,0 +1,52 @@
+# Harness for the bezel_head library block (ntop/blocks/bezel_head.ntop) with an embedded stone_seat.
+# Built by ntop/recipes/bezel_head.py; run by `python -m ntopjewel head --bezel ...`; every number from
+# ntopjewel.heads.BezelSpec.notebook_inputs.
+notebook: bezel_head_harness.ntop
+version: 0.1.0
+title: Bezel head (a wall and cup round any outline, light windows, seat cut by stone_seat)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the bezel; checked against heads.BezelSpec.design_mesh.
+inputs:
+  Seat Path:
+    type: text
+    doc: Seat envelope STL (gems.seat_envelope) for the stone_seat block.
+  Clearance:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 0.5
+    doc: Stone-to-seat gap.
+  Windows Path:
+    type: text
+    doc: The light windows STL (heads.BezelSpec.windows_mesh; a speck outside when
+      there are none).
+  Wall:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 2.0
+    doc: 'Bezel wall: the seat cutter grown by this much.'
+  Bezel Bottom:
+    type: scalar
+    units: mm
+    min: -15.0
+    max: 0.0
+    doc: The cup's lower edge, z (head frame).
+  Bezel Top:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 5.0
+    doc: 'The wall''s top, z: the girdle top + the lip.'
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 0.5
+    doc: Mesh from Implicit Body tolerance.
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the bezel.

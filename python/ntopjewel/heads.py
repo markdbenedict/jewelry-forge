@@ -670,11 +670,16 @@ def outline_count(mesh, z: float, region) -> int:
     if sec is None:
         return 0
     planar, to3d = sec.to_2D()
+
+    def lift(coords):
+        pts = np.asarray(coords)
+        return (to3d @ np.column_stack([pts, np.zeros(len(pts)), np.ones(len(pts))]).T).T[:, :2]
     count = 0
     for poly in planar.polygons_full:
-        pts = np.asarray(poly.exterior.coords)
-        pts3 = (to3d @ np.column_stack([pts, np.zeros(len(pts)), np.ones(len(pts))]).T).T[:, :3]
-        if Polygon(pts3[:, :2]).buffer(0).intersection(region).area > 1e-4:
+        # with its holes: a bezel wall's section is a ring, and its outer boundary alone would
+        # cover the opening the stone drops through (2026-10-29)
+        piece = Polygon(lift(poly.exterior.coords), [lift(h.coords) for h in poly.interiors]).buffer(0)
+        if piece.intersection(region).area > 1e-4:
             count += 1
     return count
 
@@ -738,6 +743,306 @@ def build_outline_head(spec: OutlineHeadSpec, out_dir: Path | None = None, *, no
     entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(entry) if entry else None
     rep = check_outline_head(spec, stl, ntop_vol)
+    _gate.save(rep)
+    res = HeadResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
+    res.notes.append(f"metal: " + ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))
+    (run_dir / f"{spec.stem}.report.json").write_text(json.dumps({
+        "stem": spec.stem, "run_id": run_id, "status": res.status, "design": spec.design(), "inputs": inputs,
+        "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notebook": runs.notebook_identity(nb),
+        "environment": runs.environment(ntopcl.version()), "notes": res.notes}, indent=2, default=str), encoding="utf-8")
+    return res
+
+
+# =============================================================================================
+# Bezel heads: a wall round the stone, a lip to burnish over it, light windows in the cup
+# =============================================================================================
+@dataclass
+class BezelSpec:
+    """A bezel head (the `bezel_head` block). Head frame as HeadSpec; any convex outline.
+
+        cup      the Seat Cutter offset outward by `wall`, kept between Bezel Bottom and Bezel
+                 Top, minus the cutter: above the girdle a straight wall round the outline (the
+                 cutter's drop-in path is vertical), rising `lip` above the girdle top to be pushed
+                 over the crown; below it a cup hugging the pavilion, the stone's seat
+        windows  light openings through the cup below a solid bearing band under the girdle:
+                 stadium-shaped slots, evenly spaced round the outline, that Python writes as one
+                 STL (Windows Path) and the block subtracts; none = a speck far outside
+    Every number from the tables' settings unless given."""
+    stone: gems.StoneSpec
+    wall_mm: float | None = None
+    lip_mm: float | None = None
+    bearing_mm: float | None = None
+    windows: int | None = None             # default 6 where there is room, else 0 (a closed cup)
+    window_width_mm: float | None = None   # default min(1.6, 0.4 x the spacing along the outline)
+    bottom_frac: float = 0.35              # the cup's bottom edge, as a fraction of the pavilion above the culet
+    floor_z: float | None = None           # nothing below this (head frame): raised for a ring
+    clearance_mm: float | None = None
+    mesh_tolerance_mm: float = 0.05
+
+    # ---- numbers ---------------------------------------------------------------------------
+    @property
+    def wall(self) -> float:
+        return float(self.wall_mm) if self.wall_mm is not None else tables.SETTINGS["bezel_wall_mm"]
+
+    @property
+    def lip(self) -> float:
+        return float(self.lip_mm) if self.lip_mm is not None else tables.SETTINGS["bezel_lip_mm"]
+
+    @property
+    def bearing(self) -> float:
+        return float(self.bearing_mm) if self.bearing_mm is not None else tables.SETTINGS["bezel_bearing_mm"]
+
+    @property
+    def clearance(self) -> float:
+        return tables.SETTINGS["seat_clearance_mm"] if self.clearance_mm is None else float(self.clearance_mm)
+
+    @property
+    def seat(self) -> gems.SeatSpec:
+        return gems.SeatSpec(self.stone, clearance_mm=self.clearance, mesh_tolerance_mm=self.mesh_tolerance_mm)
+
+    @property
+    def count(self) -> int:                 # a bezel has no prongs; the solitaire's ledge check wants one piece
+        return 1
+
+    @property
+    def n_windows(self) -> int:
+        """`windows`, or by default 6 where the cup has room for them (a shallow pavilion: none)."""
+        if self.windows is not None:
+            return int(self.windows)
+        z0, z1 = self.window_zone()
+        return 6 if z1 - z0 >= 0.5 else 0
+
+    @property
+    def z_culet(self) -> float:
+        _, pav = self.stone.heights
+        return -self.stone.girdle / 2 - pav
+
+    @property
+    def z_bottom(self) -> float:
+        _, pav = self.stone.heights
+        z = self.z_culet + self.bottom_frac * pav
+        return max(z, self.floor_z) if self.floor_z is not None else z
+
+    @property
+    def z_top(self) -> float:
+        return self.stone.girdle / 2 + self.lip
+
+    def window_zone(self) -> tuple[float, float]:
+        """(bottom, top) of the light windows: above the cup's bottom edge, below the bearing band."""
+        return self.z_bottom + 0.45, -self.stone.girdle / 2 - self.bearing
+
+    def window_points(self) -> list[tuple]:
+        """[(q, m)] evenly spaced round the girdle outline by arc length, offset half a spacing."""
+        import numpy as np
+        xy = self.stone.outline(2048)
+        closed = np.vstack([xy, xy[:1]])
+        seg = np.linalg.norm(np.diff(closed, axis=0), axis=1)
+        cum = np.concatenate([[0.0], np.cumsum(seg)])
+        per = cum[-1]
+        out = []
+        for k in range(self.n_windows):
+            s = (k + 0.5) * per / self.n_windows
+            i = int(np.searchsorted(cum, s)) % len(xy)
+            t = xy[(i + 1) % len(xy)] - xy[i - 1]
+            m = np.array([t[1], -t[0]]) / np.linalg.norm(t)
+            if np.dot(m, xy[i]) < 0:
+                m = -m
+            out.append((xy[i], m))
+        return out
+
+    @property
+    def window_width(self) -> float:
+        if self.window_width_mm is not None:
+            return float(self.window_width_mm)
+        per = float(sum(__import__("numpy").linalg.norm(__import__("numpy").diff(
+            __import__("numpy").vstack([self.stone.outline(512), self.stone.outline(512)[:1]]), axis=0), axis=1)))
+        return min(1.6, 0.4 * per / max(1, self.n_windows))
+
+    def windows_mesh(self):
+        """The light windows as one watertight mesh (Windows Path): a stadium slot per window,
+        through the cup along the outline's normal. No windows: a speck far outside the head."""
+        import numpy as np
+        import trimesh
+        from shapely.geometry import LineString
+        z0, z1 = self.window_zone()
+        if self.n_windows == 0 or z1 - z0 < 0.5:
+            speck = trimesh.creation.box(extents=(0.2, 0.2, 0.2))
+            speck.apply_translation((self.stone.length + 10.0, 0.0, 0.0))
+            return speck
+        w = self.window_width
+        r = min(w, z1 - z0) / 2
+        parts = []
+        for q, m in self.window_points():
+            # the stadium in the (tangent, z) plane, extruded along the outward normal through the wall
+            zc0, zc1 = z0 + r, z1 - r
+            hw = max(w / 2 - r, 0.0)
+            shape = LineString([(-hw, zc0), (hw, zc0), (hw, zc1), (-hw, zc1), (-hw, zc0)]).buffer(r, quad_segs=16) \
+                if hw > 0 else LineString([(0, zc0), (0, zc1)]).buffer(r, quad_segs=16)
+            slot = trimesh.creation.extrude_polygon(shape.convex_hull, height=4.0 + self.wall)
+            # local (u, v, w) = (tangent, z, normal) -> head frame; the slot runs from 2 mm inside the girdle outward
+            t = np.array([-m[1], m[0], 0.0]); n = np.array([m[0], m[1], 0.0]); zax = np.array([0.0, 0.0, 1.0])
+            M = np.eye(4)
+            M[:3, 0], M[:3, 1], M[:3, 2] = t, zax, n
+            M[:3, 3] = np.array([q[0], q[1], 0.0]) - 2.0 * n
+            slot.apply_transform(M)
+            parts.append(slot)
+        from . import geom
+        return geom.clean(trimesh.boolean.union(parts, engine="manifold") if len(parts) > 1 else parts[0])
+
+    def lowest_z(self) -> float:
+        return self.z_bottom
+
+    # ---- notebook ------------------------------------------------------------------------------
+    def notebook_inputs(self, seat_path: str, windows_path: str = "", output_path: str | None = None) -> dict:
+        ins = {"Seat Path": seat_path, "Clearance": round(self.clearance, 4), "Windows Path": windows_path,
+               "Wall": round(self.wall, 4), "Bezel Bottom": round(self.z_bottom, 4), "Bezel Top": round(self.z_top, 4)}
+        if output_path is not None:
+            ins["Mesh Tolerance"] = self.mesh_tolerance_mm
+            ins["Output Path"] = output_path
+        return ins
+
+    def design(self) -> dict:
+        d = asdict(self)
+        d["inputs"] = self.notebook_inputs("")
+        d["window_zone"] = [round(v, 4) for v in self.window_zone()]
+        return d
+
+    @property
+    def stem(self) -> str:
+        from . import runs
+        return f"bezel_{self.stone.stem[len('stone_'):]}_{runs.spec_id(self.design())}"
+
+    def validate(self) -> list[str]:
+        p = self.stone.validate()
+        if p:
+            return p
+        if self.wall < WALL_FLOOR:
+            p.append(f"bezel wall {self.wall} mm below the wall floor {WALL_FLOOR} mm")
+        if self.wall > 1.2:
+            p.append(f"a {self.wall} mm bezel wall is too stiff to burnish over the stone (0.5-0.8 mm)")
+        crown, _ = self.stone.heights
+        if not 0.2 <= self.lip <= 0.8 * crown:
+            p.append(f"bezel lip {self.lip} mm: 0.2 mm up to 80 % of the crown ({0.8 * crown:.2f} mm)")
+        if self.n_windows:
+            z0, z1 = self.window_zone()
+            if z1 - z0 < 0.5:
+                p.append(f"no room for light windows ({z1 - z0:.2f} mm between the cup's edge and the bearing): windows=0")
+            if self.window_width < WALL_FLOOR:
+                p.append("windows narrower than the wall floor will not print or cast open")
+        if self.z_bottom > -self.stone.girdle / 2 - self.bearing - 0.3:
+            p.append("the cup is too shallow to carry the stone: more pavilion under the bearing")
+        return p
+
+    def describe(self) -> str:
+        z0, z1 = self.window_zone()
+        win = (f"{self.n_windows} light windows {self.window_width:.2f} mm wide, z {z0:.2f}..{z1:.2f}" if self.n_windows
+               else "a closed cup")
+        return (f"{self.stem}: bezel on a {self.stone.describe()}\n"
+                f"  wall {self.wall} mm, lip {self.lip} mm above the girdle (top z {self.z_top:.2f}), cup down to z "
+                f"{self.z_bottom:.2f}, bearing {self.bearing} mm under the girdle; {win}; clearance {self.clearance} mm")
+
+    def design_mesh(self):
+        return bezel_mesh(self.notebook_inputs(""), self.seat.envelope(), self.windows_mesh())
+
+
+def bezel_mesh(v: dict, envelope, windows, cut_seat: bool = True):
+    """The bezel from the block's numbers, the seat envelope and the windows mesh (as nTop builds it)."""
+    import trimesh
+    from . import geom
+    c, wall = float(v["Clearance"]), float(v["Wall"])
+    z0, z1 = float(v["Bezel Bottom"]), float(v["Bezel Top"])
+    grown = _offset_convex(envelope, c + wall)
+    slab = trimesh.creation.box(extents=(80.0, 80.0, z1 - z0))
+    slab.apply_translation((0.0, 0.0, (z0 + z1) / 2))
+    cup = trimesh.boolean.intersection([grown, slab], engine="manifold")
+    if not windows.is_volume:
+        windows = geom.clean(windows)
+    cuts = [windows] + ([_offset_convex(envelope, c)] if cut_seat else [])
+    return geom.clean(trimesh.boolean.difference([cup] + cuts, engine="manifold"))
+
+
+def bezel_wall_check(spec: BezelSpec, mesh, frame=None):
+    """The wall above the girdle is a closed ring at least the wall floor thick everywhere:
+    shrunk by half the floor, the section half way up the lip must still be one ring."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    from . import gate
+    import numpy as np
+    z = spec.stone.girdle / 2 + spec.lip / 2
+    sec = mesh.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
+    if sec is None:
+        return gate.Check("bezel wall", False, f"no metal at z {z:.2f}", status=gate.INCOMPLETE)
+    planar, to3d = sec.to_2D()
+    polys = []
+    for poly in planar.polygons_full:
+        ext = (to3d @ np.column_stack([np.asarray(poly.exterior.coords), np.zeros(len(poly.exterior.coords)),
+                                        np.ones(len(poly.exterior.coords))]).T).T[:, :2]
+        holes = [(to3d @ np.column_stack([np.asarray(h.coords), np.zeros(len(h.coords)), np.ones(len(h.coords))]).T).T[:, :2]
+                 for h in poly.interiors]
+        polys.append(Polygon(ext, holes).buffer(0))
+    outline = Polygon(spec.stone.outline())
+    ring = unary_union(polys).intersection(outline.buffer(spec.wall + spec.clearance + 0.3).difference(outline.buffer(-0.1)))
+    thin = ring.buffer(-WALL_FLOOR / 2 + 1e-3)
+    pieces = list(thin.geoms) if hasattr(thin, "geoms") else ([thin] if not thin.is_empty else [])
+    closed = len(pieces) == 1 and len(pieces[0].interiors) == 1
+    width = ring.area / max(outline.length, 1e-9)
+    return gate.Check("bezel wall", closed, f"{'a closed ring' if closed else 'broken or thin'} at z {z:.2f}, "
+                                            f"mean {width:.2f} mm, every part >= {WALL_FLOOR} mm" if closed else
+                      f"the wall at z {z:.2f} is broken or under {WALL_FLOOR} mm somewhere (mean {width:.2f} mm)")
+
+
+def check_bezel(spec: BezelSpec, stl: Path, ntop_vol: float | None):
+    """Closed, one shell, stone fits, seated (metal under the girdle all round), drop-in clear,
+    the wall a closed ring >= the floor, volume vs nTop and vs the independent bezel."""
+    import trimesh
+    from . import band, gate
+    rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=0.0, wall_samples=0, tol_volume_pct=2.0)
+    rep.checks = [c for c in rep.checks if c.name != "wall thickness"]
+    head = gate.load_mesh(stl)
+    stone = spec.stone.mesh()
+    overlap = float("nan")
+    if head.is_watertight:
+        inter = trimesh.boolean.intersection([head, stone], engine="manifold")
+        overlap = float(inter.volume) if len(inter.faces) else 0.0
+    allowed = 0.002 * stone.volume
+    rep.checks.append(gate.Check("stone fits", overlap <= allowed, f"bezel ∩ stone {overlap:.3f} mm³ (allowed {allowed:.3f})"))
+    under, above = seat_regions(spec.stone, spec.clearance)
+    g = spec.stone.girdle
+    seated = outline_count(head, -g / 2 - 0.3, under)
+    blocking = outline_count(head, g / 2 + 0.15, above)
+    rep.checks.append(gate.Check("seated", seated >= 1, f"{seated} piece(s) of the cup under the girdle"))
+    rep.checks.append(gate.Check("drop-in clear", blocking == 0, f"{blocking} pieces inside the girdle line above the girdle"))
+    rep.checks.append(bezel_wall_check(spec, head))
+    rep.checks.append(band.design_volume_check(float(spec.design_mesh().volume), ntop_vol, 3.0))
+    return rep
+
+
+def build_bezel(spec: BezelSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
+                catalog_name: str = "bezel_head_harness") -> HeadResult:
+    """Run the bezel_head block through its harness under nTopCL and gate it."""
+    from . import catalog, config, ntopcl, runs
+    from . import gate as _gate
+    problems = spec.validate()
+    if problems:
+        raise ValueError("; ".join(problems))
+    cat = catalog.load(catalog_name)
+    nb = Path(notebook) if notebook else cat.notebook
+    run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "head", spec.stem)
+    envelope, windows = run_dir / f"{spec.stem}.envelope.stl", run_dir / f"{spec.stem}.windows.stl"
+    spec.seat.envelope().export(str(envelope))
+    spec.windows_mesh().export(str(windows))
+    spec.stone.mesh().export(str(run_dir / f"{spec.stem}.stone.stl"))
+    stl = run_dir / f"{spec.stem}.stl"
+    inputs = spec.notebook_inputs(str(envelope), str(windows), str(stl))
+    started = time.time()
+    run = ntopcl.run(nb, cat.build_inputs(inputs), run_dir, tag=spec.stem)
+    try:
+        runs.require_fresh(stl, started, "the exported bezel")
+    except FileNotFoundError as e:
+        raise ntopcl.NtopclError(f"notebook reported success but {e}", run) from e
+    entry = run.outputs.get(cat.output.get("name", "Volume"))
+    ntop_vol = ntopcl.scalar_value(entry) if entry else None
+    rep = check_bezel(spec, stl, ntop_vol)
     _gate.save(rep)
     res = HeadResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     res.notes.append(f"metal: " + ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))

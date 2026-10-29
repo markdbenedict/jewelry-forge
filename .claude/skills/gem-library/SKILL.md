@@ -80,7 +80,21 @@ chevron wall (>= 0.8 mm) hugging the outline about 1.5-1.8 mm back from the poin
 under the girdle to just above the tips, carried down the pavilion by a rod; the seat cut leaves
 the point a ledge inside it. Oval, cushion, emerald: 4, 6 or 8 on rays from the centre.
 
-## The solitaire (`solitaire.ntop`, `solitaire_outline.ntop`, `ntopjewel.solitaire`)
+## Bezels (the `bezel_head` block, `heads.BezelSpec`)
+
+```powershell
+python -m ntopjewel head --bezel --length 6.5                                   # a 6.5 mm round in a bezel
+python -m ntopjewel head --bezel --shape pear --length 12.3 --width 8.9 --depth 4.6 --wall 0.7 --lip 0.4
+python -m ntopjewel solitaire --bezel --size 6 --length 6.5                      # solitaire_bezel.ntop
+```
+
+The seat cutter grown by the wall (default `bezel_wall_mm` 0.65 in the tables; 0.5-0.8 burnishes),
+cut from the cup's edge to `bezel_lip_mm` (0.5) above the girdle, minus the cutter: a straight
+wall above the girdle, a cup on the pavilion below. Light windows (`--windows`, default 6 where
+the cup has room, else a closed cup) under a solid `bezel_bearing_mm` band. Any of the six shapes.
+Gate: fit, seated, drop-in, the wall a closed ring at least the wall floor thick, volume.
+
+## The solitaire (`solitaire.ntop`, `solitaire_outline.ntop`, `solitaire_bezel.ntop`, `ntopjewel.solitaire`)
 
 ```powershell
 python -m ntopjewel api build solitaire                                # once: ntop\notebooks\solitaire.ntop (embeds stone_seat + prong_head)

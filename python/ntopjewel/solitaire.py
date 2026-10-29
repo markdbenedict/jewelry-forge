@@ -19,8 +19,9 @@ Ring frame (nTop convention): ring axis Z, band centred on the origin, the head 
                where the head's envelope + 0.2 mm begins; polar arrays about the arch centres
     seat       the stone_seat cutter (stone + straight drop-in path + clearance), placed with the
                head, subtracted from band + shoulders: the pavilion sits down into the metal
-    head       the prong_head block (round) or the outline_head block (pear and other fancy
-               outlines: prongs on the outline, rails following the pavilion), placed: a quarter-turn about the line
+    head       the prong_head block (round), the outline_head block (pear and other fancy
+               outlines: prongs on the outline, rails following the pavilion) or the bezel_head
+               block (a wall and cup round any outline), placed: a quarter-turn about the line
                through (Pivot X, *, Pivot Z) parallel to +Y takes the head's +Z to +X and its
                origin (the girdle centre) to (Girdle Radius, 0, 0)
 
@@ -67,12 +68,32 @@ class SolitaireSpec:
 
     # ---- head kind -----------------------------------------------------------------------
     @property
+    def kind(self) -> str:
+        """round (prong_head), outline (outline_head) or bezel (bezel_head)."""
+        if isinstance(self.head, heads.BezelSpec):
+            return "bezel"
+        return "outline" if isinstance(self.head, heads.OutlineHeadSpec) else "round"
+
+    @property
     def outline(self) -> bool:
-        return isinstance(self.head, heads.OutlineHeadSpec)
+        return self.kind == "outline"
+
+    @property
+    def bezel(self) -> bool:
+        return self.kind == "bezel"
+
+    @property
+    def floored(self) -> bool:
+        """Heads placed by a floor under them (outline, bezel) rather than by raised feet (round)."""
+        return self.kind != "round"
 
     @property
     def prong_count(self) -> int:
-        return self.head.count if self.outline else self.head.prongs
+        return self.head.count if self.floored else self.head.prongs
+
+    @property
+    def catalog_name(self) -> str:
+        return {"round": "solitaire", "outline": "solitaire_outline", "bezel": "solitaire_bezel"}[self.kind]
 
     @property
     def engraving(self):
@@ -95,11 +116,15 @@ class SolitaireSpec:
         """The head as it goes on this band: nothing of it below 0.2 mm above the bore (the
         standalone head drops its feet below the culet; on a ring with 0.6 mm under the culet that
         would break into the finger hole). Round: the feet and lower rail raised; outline: the
-        head's floor set there (feet and lower rail move up the pavilion)."""
+        head's floor set there (feet and lower rail move up the pavilion); bezel: the cup carried
+        down to that floor, so it stands in the band."""
         from dataclasses import replace
-        if self.outline:
+        if self.floored:
             _, pav = self.head.stone.heights
-            return replace(self.head, floor_z=round(-(self.head.stone.girdle / 2 + pav + self.finger_clear - 0.2), 4))
+            floor = round(-(self.head.stone.girdle / 2 + pav + self.finger_clear - 0.2), 4)
+            if self.bezel:                                   # the cup runs down into the band, to the floor
+                return replace(self.head, floor_z=floor, bottom_frac=0.0)
+            return replace(self.head, floor_z=floor)
         drop = self.finger_clear - (self.head.rail_rho + 0.2)
         return replace(self.head, base_drop_mm=round(drop, 4))
 
@@ -173,7 +198,7 @@ class SolitaireSpec:
             from scipy.spatial import cKDTree
             h = self.placed_head
             place = geom.rotation_about_y(HEAD_ANGLE_DEG, [self.pivot[0], 0.0, self.pivot[1]])
-            head = heads.outline_design_mesh(h).copy()
+            head = (heads.outline_design_mesh(h) if self.outline else h.design_mesh()).copy()
             head.apply_transform(place)
             cutter = geom.offset_convex(h.seat.envelope(), h.clearance).copy()
             cutter.apply_transform(place)
@@ -183,7 +208,7 @@ class SolitaireSpec:
 
     def _bead_clear(self, x: float, y: float, z: float) -> bool:
         rho = self.bead_radius_mm
-        if not self.outline:
+        if not self.floored:
             return math.hypot(y, z) - rho >= self._head_envelope(x) + BEAD_HEAD_GAP
         tree, head, cutter = self._head_surface()
         p = [[x, y, z]]
@@ -229,11 +254,13 @@ class SolitaireSpec:
 
     # ---- the notebook's numbers ----------------------------------------------------------------
     def notebook_inputs(self, seat_path: str, output_path: str | None = None, *, prongs_path: str = "",
-                        engraving_path: str = "") -> dict:
+                        engraving_path: str = "", windows_path: str = "") -> dict:
         ins = self.band.notebook_inputs("")
         ins.pop("Output Path")
         if self.outline:                                              # Seat Path, Clearance, Prongs Path + the rail numbers
             ins.update(self.placed_head.notebook_inputs(seat_path, prongs_path))
+        elif self.bezel:                                              # Seat Path, Clearance, Windows Path, Wall, Bezel Bottom/Top
+            ins.update(self.placed_head.notebook_inputs(seat_path, windows_path))
         else:                                                         # Seat Path, Clearance + the 14 head numbers
             ins.update(self.placed_head.notebook_inputs(seat_path))
         px, pz = self.pivot
@@ -305,7 +332,8 @@ class SolitaireSpec:
     def stem(self) -> str:
         from . import runs
         b, s = self.band, self.head.stone
-        return (f"solitaire_{b.profile}_{b.label}_{self.prong_count}prong_{s.stem[len('stone_'):]}_"
+        setting = "bezel" if self.bezel else f"{self.prong_count}prong"
+        return (f"solitaire_{b.profile}_{b.label}_{setting}_{s.stem[len('stone_'):]}_"
                 f"{runs.spec_id(self.design())}")
 
     # ---- checks on the design ---------------------------------------------------------------
@@ -313,7 +341,7 @@ class SolitaireSpec:
         p = self.band.validate() + self.placed_head.validate()
         if self.finger_clear < WALL_FLOOR:
             p.append(f"{self.finger_clear} mm of metal under the culet is below the wall floor {WALL_FLOOR} mm")
-        if self.outline:
+        if self.floored:
             low = self.girdle_radius + self.placed_head.lowest_z()
             if low > self.band.outer_radius_mm - 0.2:
                 p.append(f"the head's lowest metal (r {low:.2f}) does not reach into the band (outer r "
@@ -353,10 +381,10 @@ class SolitaireSpec:
     def describe(self) -> str:
         a = self.arch()
         px, pz = self.pivot
-        low = self.placed_head.lowest_z() if self.outline else self.placed_head.layout()["z_base"]
+        low = self.placed_head.lowest_z() if self.floored else self.placed_head.layout()["z_base"]
         return (f"{self.stem}\n  {self.band.describe()}\n  {self.placed_head.describe()}\n"
                 f"  placement: girdle at r {self.girdle_radius:.3f}, culet {self.finger_clear} mm above the bore, "
-                f"{'lowest metal' if self.outline else 'feet'} at r {self.girdle_radius + low:.3f}; "
+                f"{'lowest metal' if self.floored else 'feet'} at r {self.girdle_radius + low:.3f}; "
                 f"quarter-turn about (x {px:.3f}, z {pz:.3f}) ∥ Y\n"
                 f"  arch: gothic, tangent to the band at ±{self.shoulder_deg:g}°, radius {a['R']:.3f} about "
                 f"({a['cx']:.3f}, ±{-a['cy']:.3f}); crest at r {a['crest']:.3f} ({a['rise']:.2f} mm above the band)"
@@ -424,7 +452,7 @@ def wrapped_engraving(v: dict, engraving):
 
 
 def ring_mesh(v: dict, envelope, cut_seat: bool = True, inner: float | None = None, beads: bool = True,
-              prongs=None, engraving=None, engrave: bool = True):
+              prongs=None, engraving=None, engrave: bool = True, windows=None):
     """The solitaire from the notebook's input numbers, as nTop builds it. `prongs` / `engraving`:
     the meshes the notebook's Prongs Path / Engraving Path point at (read from those paths when
     not given)."""
@@ -448,6 +476,10 @@ def ring_mesh(v: dict, envelope, cut_seat: bool = True, inner: float | None = No
         if prongs is None:
             prongs = trimesh.load(str(v["Prongs Path"]), force="mesh")
         head = heads.outline_head_mesh(v, envelope, prongs, cut_seat=cut_seat)
+    elif "Windows Path" in v:
+        if windows is None:
+            windows = trimesh.load(str(v["Windows Path"]), force="mesh")
+        head = heads.bezel_mesh(v, envelope, windows, cut_seat=cut_seat)
     else:
         head = heads.head_mesh(v, envelope, cut_seat=cut_seat)
     head = head.copy()
@@ -458,8 +490,9 @@ def ring_mesh(v: dict, envelope, cut_seat: bool = True, inner: float | None = No
 def design_mesh(spec: SolitaireSpec):
     if "design_mesh" not in spec._cache:
         prongs = spec.placed_head.prongs_mesh() if spec.outline else None
+        windows = spec.placed_head.windows_mesh() if spec.bezel else None
         spec._cache["design_mesh"] = ring_mesh(spec.notebook_inputs(""), spec.head.seat.envelope(), prongs=prongs,
-                                               engraving=spec.engraving_mesh())
+                                               engraving=spec.engraving_mesh(), windows=windows)
     return spec._cache["design_mesh"]
 
 
@@ -504,16 +537,21 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     allowed = 0.002 * stone.volume
     rep.checks.append(gate.Check("stone fits", overlap <= allowed, f"ring ∩ stone {overlap:.3f} mm³ (allowed {allowed:.3f})"))
     Rg, g = spec.head.stone.width / 2, spec.head.stone.girdle
-    if spec.outline:
+    if spec.floored:
         under, over = heads.seat_regions(spec.head.stone, spec.head.clearance)
         ledges = heads.outline_count(local, -g / 2 - 0.3, under)
         above = heads.outline_count(local, g / 2 + 0.15, over)
     else:
         ledges = heads._inner_count(local, -g / 2 - 0.3, Rg - 0.1)
         above = heads._inner_count(local, g / 2 + 0.15, Rg + spec.head.clearance * 0.5)
-    rep.checks.append(gate.Check("seat ledges", ledges >= spec.prong_count,
-                                 f"{ledges} pieces reach under the girdle (expected >= {spec.prong_count})"))
+    if spec.bezel:
+        rep.checks.append(gate.Check("seated", ledges >= 1, f"{ledges} piece(s) of the cup under the girdle"))
+    else:
+        rep.checks.append(gate.Check("seat ledges", ledges >= spec.prong_count,
+                                     f"{ledges} pieces reach under the girdle (expected >= {spec.prong_count})"))
     rep.checks.append(gate.Check("drop-in clear", above == 0, f"{above} pieces inside the girdle line above the girdle"))
+    if spec.bezel:
+        rep.checks.append(heads.bezel_wall_check(spec.placed_head, local))
     if spec.milgrain:
         rep.checks.append(milgrain_check(spec, ring))
     if spec.has_engraving:
@@ -588,12 +626,13 @@ class SolitaireResult:
 def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
           catalog_name: str | None = None, deliver: bool = False, deliver_project: str = "Solitaires",
           cast_metal: str | None = None) -> SolitaireResult:
-    """solitaire.ntop (round, prong_head) or solitaire_outline.ntop (fancy, outline_head), gated."""
+    """solitaire.ntop (round, prong_head), solitaire_outline.ntop (fancy, outline_head) or
+    solitaire_bezel.ntop (any stone, bezel_head), gated."""
     from . import catalog, config, ntopcl, runs
     problems = spec.validate()
     if problems:
         raise ValueError("; ".join(problems))
-    cat = catalog.load(catalog_name or ("solitaire_outline" if spec.outline else "solitaire"))
+    cat = catalog.load(catalog_name or spec.catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
     run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "solitaire", spec.stem)
     envelope = run_dir / f"{spec.stem}.envelope.stl"
@@ -601,11 +640,14 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     prongs = run_dir / f"{spec.stem}.prongs.stl"
     if spec.outline:
         spec.placed_head.prongs_mesh().export(str(prongs))
+    windows = run_dir / f"{spec.stem}.windows.stl"
+    if spec.bezel:
+        spec.placed_head.windows_mesh().export(str(windows))
     engraving = run_dir / f"{spec.stem}.engraving.stl"
     spec.write_engraving(engraving)
     stl = run_dir / f"{spec.stem}.stl"
     inputs = spec.notebook_inputs(str(envelope), str(stl), prongs_path=str(prongs) if spec.outline else "",
-                                  engraving_path=str(engraving))
+                                  engraving_path=str(engraving), windows_path=str(windows) if spec.bezel else "")
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(inputs), run_dir, tag=spec.stem)
     try:

@@ -1,0 +1,245 @@
+# ntop/notebooks/solitaire_bezel.ntop: embeds stone_seat and bezel_head. Built by ntop/recipes/solitaire_bezel.py
+# (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --bezel ...`; every number from
+# ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
+notebook: solitaire_bezel.ntop
+version: 0.1.0
+title: 'Solitaire (any stone, bezel_head): gothic cathedral arches, arch milgrain,
+  optional engraving'
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the ring; checked against the independent ring (solitaire.design_mesh).
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be
+      small or negative for shallow domes.
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Seat Path:
+    type: text
+    doc: Seat envelope STL (gems.seat_envelope) for the stone_seat block inside.
+  Clearance:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 0.5
+    doc: Stone-to-seat gap.
+  Windows Path:
+    type: text
+    doc: The light windows STL (heads.BezelSpec.windows_mesh; a speck outside when
+      there are none).
+  Wall:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 2.0
+    doc: 'Bezel wall: the seat cutter grown by this much.'
+  Bezel Bottom:
+    type: scalar
+    units: mm
+    min: -15.0
+    max: 0.0
+    doc: The cup's lower edge, z (head frame).
+  Bezel Top:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 5.0
+    doc: 'The wall''s top, z: the girdle top + the lip.'
+  Pivot X:
+    type: scalar
+    units: mm
+    min: 2.0
+    max: 20.0
+    doc: 'Head placement: a 90° turn about the line through (Pivot X, 0, Pivot Z)
+      parallel to +Y puts the girdle centre at (girdle radius, 0, 0).'
+  Pivot Z:
+    type: scalar
+    units: mm
+    min: -20.0
+    max: -2.0
+    doc: = -Pivot X.
+  Arch Centre X:
+    type: scalar
+    units: mm
+    min: -40.0
+    max: 0.0
+    doc: 'Centre of the +y arch circle, x: -t cos(shoulder angle).'
+  Arch Centre Y:
+    type: scalar
+    units: mm
+    min: -40.0
+    max: 0.0
+    doc: 'Centre of the +y arch circle, y: -t sin(shoulder angle) (the -y arch mirrors
+      it).'
+  Arch Centre Y Minus:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 40.0
+    doc: '= -Arch Centre Y: the -y arch''s centre.'
+  Arch Radius:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 80.0
+    doc: 'Outer radius of each arch about its centre: tangent to the band at ±shoulder
+      angle, through the crest.'
+  Arch Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: 3.0
+    max: 70.0
+    doc: 'Dome torus ring radius about the arch centre (the band''s + t): the arch
+      keeps the band''s dome.'
+  Arch Cut Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 20.0
+    doc: 'The arch stops at this radius about the ring axis (mid-wall): it never reaches
+      the bore.'
+  Wedge Angle:
+    type: scalar
+    units: deg
+    min: 30.0
+    max: 80.0
+    doc: The arch is kept within ±this angle from the head (shoulder angle + 2°).
+  Wedge Angle Minus:
+    type: scalar
+    units: deg
+    min: -80.0
+    max: -30.0
+    doc: = -Wedge Angle.
+  Bead Radius:
+    type: scalar
+    units: mm
+    min: 0.04
+    max: 1.0
+    doc: Milgrain bead radius (0.05 mm and buried when milgrain is off).
+  Bead Z:
+    type: scalar
+    units: mm
+    min: -5.0
+    max: 5.0
+    doc: 'Bead row height: band edge - 0.15 bead radii.'
+  Bead Z Minus:
+    type: scalar
+    units: mm
+    min: -5.0
+    max: 5.0
+    doc: = -Bead Z.
+  Bead Spacing:
+    type: scalar
+    units: deg
+    min: 0.1
+    max: 360.0
+    doc: Angle between beads about the arch centre (2.2 bead radii along the row).
+  Bead Count:
+    type: integer
+    min: 1
+    max: 400
+    doc: 'Beads per row (four rows: two edges, two arches).'
+  Bead Start X:
+    type: scalar
+    units: mm
+    min: -40.0
+    max: 40.0
+    doc: +y rows start at the head end and run counter-clockwise about the +y arch
+      centre.
+  Bead Start Y:
+    type: scalar
+    units: mm
+    min: -40.0
+    max: 40.0
+    doc: y of the +y rows' first bead.
+  Bead Start X Minus:
+    type: scalar
+    units: mm
+    min: -40.0
+    max: 40.0
+    doc: -y rows start at the band end (the mirror of the +y rows' last bead).
+  Bead Start Y Minus:
+    type: scalar
+    units: mm
+    min: -40.0
+    max: 40.0
+    doc: y of the -y rows' first bead.
+  Engraving Path:
+    type: text
+    doc: 'The engraving STL (engrave.text_mesh, or a speck outside the ring when there
+      is no text): wrapped round the ring, turned to face the palm, subtracted.'
+  Engraving Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 200.0
+    doc: 'Remap Cylindrical''s Y mapping length: 2π x the radius the text is undistorted
+      at.'
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the ring.

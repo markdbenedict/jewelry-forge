@@ -58,7 +58,15 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
    above the girdle) out; built by a script, embedded and measured by a harness notebook that
    nTopCL runs, so the block has a gate of its own.
 3. *(done 28 Oct: built, embedded, PASSED under nTopCL)* `prong_head`: N prongs on an open two-rail basket, seat cut by `stone_seat` (drop-in above the girdle, a ledge under it), >= 0.8 mm of prong left above the girdle; gate: stone fits, ledges, drop-in clear, volume vs an independent trimesh/manifold head. Round stones (torus rails); fancy outlines need outline rails.
-4. `bezel`: wall 0.5-0.8 mm round the outline, lip, light windows.
+4. *(written 29 Oct, offline green; first real build pending)* `bezel_head` (`ntop/recipes/bezel_head.py`): the seat
+   cutter offset by the wall (`bezel_wall_mm` 0.65) ∩ a slab from the cup's edge to `bezel_lip_mm` (0.5) above the girdle,
+   minus the cutter: a straight wall above the girdle to burnish over the crown, a cup on the pavilion below it, any
+   outline. Light windows (6 stadium slots under a `bezel_bearing_mm` 0.55 band; none where the cup has no room) are a
+   Python STL (Windows Path), subtracted. Gate: fit, seated, drop-in, `bezel wall` (the section half way up the lip
+   shrunk by half the wall floor is still one closed ring), volume. `solitaire_bezel.ntop`: the solitaire body with the
+   bezel; on a ring the cup runs down into the band (the floor 0.2 mm above the bore). Offline: round 6.5, Makena pear
+   US 4.5 and 10x5 marquise bezel rings PASSED. The check that counts pieces in a section now keeps holes (a bezel
+   ring's outer boundary alone covered the stone's opening).
 5. `solitaire.ntop` (`ntop/recipes/solitaire.py`): court band + embedded `stone_seat` + `prong_head`,
    head turned a quarter about +Y onto the band top, culet 0.6 mm above the bore.
    - *28 Oct, first real build:* PASSED at US 5-7 with a circular-segment shoulder that barely read as a

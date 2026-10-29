@@ -63,7 +63,10 @@
   "settings": {
     "seat_clearance_mm": {"value": 0.05, "status": "default", "source": "stone-to-seat gap for a resin-printed, cast seat; the metal is burnished over the stone afterwards"},
     "resin_shrink_pct":  {"value": 0.0,  "status": "uncalibrated", "source": "castable resin post-cure + burnout shrink, model -> pattern; measure on the first print"},
-    "seat_drop_mm":      {"value": 8.0,  "status": "default", "source": "height of the straight drop-in path above the girdle: clears any head we make"}
+    "seat_drop_mm":      {"value": 8.0,  "status": "default", "source": "height of the straight drop-in path above the girdle: clears any head we make"},
+    "bezel_wall_mm":     {"value": 0.65, "status": "default", "source": "bezel wall round the girdle: 0.5-0.8 mm (jewelry-design-rules); thin enough to burnish over the stone, above the 0.5 mm marginal wall floor"},
+    "bezel_lip_mm":      {"value": 0.5,  "status": "default", "source": "bezel wall height above the girdle top, pushed over the crown when setting: 0.3-0.5 mm (jewelry-design-rules)"},
+    "bezel_bearing_mm":  {"value": 0.55, "status": "default", "source": "solid band of the bezel cup kept under the girdle (the stone's bearing); the light windows start below it"}
   },
   "calibration_log": [],
   "notes": [

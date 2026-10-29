@@ -192,6 +192,22 @@ def main(argv: list[str]) -> int:
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
                         "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "bezel_head" in nb.name:
+        import trimesh
+        from ntopjewel import heads
+        for key in ("Seat Path", "Windows Path"):
+            if not Path(values[key]).exists():
+                fail(f"{key}: file not found")
+        envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
+        windows = trimesh.load(str(values["Windows Path"]), force="mesh")
+        mesh = heads.bezel_mesh(values, envelope, windows, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Bezel Grown", "Bezel Cup", "Windows", "Seated", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
     elif "outline_head" in nb.name:
         import trimesh
         from ntopjewel import heads

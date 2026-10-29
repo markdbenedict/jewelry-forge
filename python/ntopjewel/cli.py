@@ -11,6 +11,7 @@
   head --length 6.5 --prongs 6           the prong_head block for that stone (nTopCL + gate)
   solitaire --size 6 --length 6.5        prong head on a court band, gothic cathedral arches with milgrain (nTopCL + gate)
   solitaire --shape pear ... --engrave T a pear in an outline head, text inside the shank (solitaire_outline.ntop)
+  solitaire --bezel ...                  any stone in a bezel (solitaire_bezel.ntop)
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
@@ -238,8 +239,11 @@ def cmd_seat(a: argparse.Namespace) -> int:
 def cmd_head(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
                            table_frac=a.table, girdle_mm=a.girdle, material=a.material)
-    outline = stone.shape != "round" or a.outline
-    if outline:                       # the outline_head block: prongs on the outline, rails following the pavilion
+    outline = (stone.shape != "round" or a.outline) and not a.bezel
+    if a.bezel:                       # the bezel_head block: a wall and cup round any outline
+        spec = heads.BezelSpec(stone, wall_mm=a.wall, lip_mm=a.lip, windows=a.windows, clearance_mm=a.clearance,
+                               mesh_tolerance_mm=a.tolerance)
+    elif outline:                     # the outline_head block: prongs on the outline, rails following the pavilion
         spec = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
                                      clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance,
                                      v_prongs=False if a.no_v_prong else None)
@@ -253,13 +257,17 @@ def cmd_head(a: argparse.Namespace) -> int:
         return 1
     if a.dry_run:
         print(spec.describe())
-        ins = spec.notebook_inputs("<envelope path>", "<prongs path>", "<output path>") if outline \
-            else spec.notebook_inputs("<envelope path>", "<output path>")
+        if a.bezel:
+            ins = spec.notebook_inputs("<envelope path>", "<windows path>", "<output path>")
+        elif outline:
+            ins = spec.notebook_inputs("<envelope path>", "<prongs path>", "<output path>")
+        else:
+            ins = spec.notebook_inputs("<envelope path>", "<output path>")
         for k, v in ins.items():
             print(f"    {k}: {v}")
         return 0
     try:
-        build = heads.build_outline_head if outline else heads.build_head
+        build = heads.build_bezel if a.bezel else (heads.build_outline_head if outline else heads.build_head)
         res = build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"head failed: {e}")
@@ -272,7 +280,10 @@ def cmd_head(a: argparse.Namespace) -> int:
 
 def cmd_solitaire(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.stone_width, depth_mm=a.stone_depth, material=a.material)
-    if stone.shape != "round":        # pear and other outlines: the outline_head block, solitaire_outline.ntop
+    if a.bezel:                       # any stone in a bezel: the bezel_head block, solitaire_bezel.ntop
+        head = heads.BezelSpec(stone, wall_mm=a.wall, lip_mm=a.lip, windows=a.windows, clearance_mm=a.clearance,
+                               mesh_tolerance_mm=a.tolerance)
+    elif stone.shape != "round":      # pear and other outlines: the outline_head block, solitaire_outline.ntop
         head = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge,
                                      clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance,
                                      v_prongs=False if a.no_v_prong else None)
@@ -290,7 +301,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
     if a.dry_run:
         print(spec.describe())
         for k, v in spec.notebook_inputs("<envelope path>", "<output path>", prongs_path="<prongs path>" if spec.outline else "",
-                                         engraving_path="<engraving path>").items():
+                                         engraving_path="<engraving path>",
+                                         windows_path="<windows path>" if spec.bezel else "").items():
             print(f"    {k}: {v}")
         return 0
     try:
@@ -541,6 +553,10 @@ def main(argv: list[str] | None = None) -> int:
     hd.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
     hd.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear), 4 (other outlines)")
     hd.add_argument("--outline", action="store_true", help="a round stone on the outline_head block (fancy shapes always are)")
+    hd.add_argument("--bezel", action="store_true", help="a bezel (wall, lip, light windows) instead of prongs")
+    hd.add_argument("--wall", type=float, help="bezel wall, mm (default: the tables' bezel_wall_mm)")
+    hd.add_argument("--lip", type=float, help="bezel height above the girdle, mm (default: bezel_lip_mm)")
+    hd.add_argument("--windows", type=int, help="light windows in the bezel cup (default 6 where there is room; 0 = closed)")
     hd.add_argument("--no-v-prong", action="store_true", help="a round prong instead of a V on a pear's or marquise's point")
     hd.add_argument("--prong-dia", type=float, help="mm (default: enough to leave 0.8 mm above the girdle)")
     hd.add_argument("--ledge", type=float, default=0.30, help="how far each prong reaches under the girdle, mm")
@@ -563,6 +579,10 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--stone-depth", type=float, help="stone total depth, mm (a calipered stone)")
     so.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
     so.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear: the point + four on the round end)")
+    so.add_argument("--bezel", action="store_true", help="a bezel (wall, lip, light windows) instead of prongs")
+    so.add_argument("--wall", type=float, help="bezel wall, mm (default: the tables' bezel_wall_mm)")
+    so.add_argument("--lip", type=float, help="bezel height above the girdle, mm (default: bezel_lip_mm)")
+    so.add_argument("--windows", type=int, help="light windows in the bezel cup (default 6 where there is room; 0 = closed)")
     so.add_argument("--no-v-prong", action="store_true", help="a round prong instead of a V on a pear's or marquise's point")
     so.add_argument("--prong-dia", type=float)
     so.add_argument("--ledge", type=float, default=0.30)

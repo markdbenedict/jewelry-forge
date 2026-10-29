@@ -4,8 +4,8 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
 
     band       the profiled band (11 inputs) with the arches joined before its edge-round offsets
     seat       stone_seat(Seat Path, Clearance), embedded -> Seat Local (head frame)
-    head       prong_head(Seat Local + 14 numbers) or outline_head(Seat Local, Prongs Path + 5 rail
-               numbers), embedded -> head frame
+    head       prong_head(Seat Local + 14 numbers), outline_head(Seat Local, Prongs Path + 5 rail
+               numbers) or bezel_head(Seat Local, Windows Path, Wall, Bezel Bottom/Top), embedded -> head frame
     placement  Rotation Transform: 90° about the line through (Pivot X, 0, Pivot Z) parallel to +Y;
                Transform Object puts the head and the seat on the ring (head +Z -> ring +X)
     arch       per side: Cylinder (Arch Radius) ∩ Torus (Arch Dome Ring Radius / Dome Tube Radius) about
@@ -32,6 +32,8 @@ ROUND_HEAD = [("Prong Count", "int"), ("Prong Spacing", "deg"), ("Prong Radius",
               ("Rail Tube Radius", "mm")]
 OUTLINE_HEAD = [("Prongs Path", "path"), ("Rail Offset", "mm"), ("Upper Rail Bottom", "mm"), ("Upper Rail Top", "mm"),
                 ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm")]
+BEZEL_HEAD = [("Windows Path", "path"), ("Wall", "mm"), ("Bezel Bottom", "mm"), ("Bezel Top", "mm")]
+HEAD_LABEL = {"round": "Prong Head", "outline": "Outline Head", "bezel": "Bezel Head"}
 ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
         ("Arch Centre X", "mm"), ("Arch Centre Y", "mm"), ("Arch Centre Y Minus", "mm"), ("Arch Radius", "mm"),
         ("Arch Dome Ring Radius", "mm"), ("Arch Cut Radius", "mm"), ("Wedge Angle", "deg"), ("Wedge Angle Minus", "deg"),
@@ -42,7 +44,7 @@ ENGRAVING_TURN_DEG = 180.0
 
 
 def head_specs(kind: str) -> list[tuple[str, str]]:
-    return OUTLINE_HEAD if kind == "outline" else ROUND_HEAD
+    return {"outline": OUTLINE_HEAD, "bezel": BEZEL_HEAD}.get(kind, ROUND_HEAD)
 
 
 def specs(kind: str) -> list[tuple[str, str]]:
@@ -156,7 +158,7 @@ def body(kind: str):
         h.wire(ids["Seat Path"], seat, ["Seat Path"])
         h.wire(ids["Clearance"], seat, ["Clearance"])
         seat_local = h.wrap_var("Seat Local", seat)                 # used twice: the head's cutter and the shank's
-        head = h.add("Outline Head" if kind == "outline" else "Prong Head", h.embed_block(p["head_block"]))
+        head = h.add(HEAD_LABEL[kind], h.embed_block(p["head_block"]))
         h.wire(seat_local, head, ["Seat Cutter"])
         for name, _ in head_specs(kind):
             h.wire(ids[name], head, [name])
@@ -195,13 +197,16 @@ def body(kind: str):
 def prepare(spec, params: dict, test_dir: Path, tag: str) -> dict:
     """Laptop side: the test envelope / prongs / engraving files and every input value of `spec`."""
     test_dir.mkdir(parents=True, exist_ok=True)
-    env, prongs, eng = (test_dir / f"{tag}_test_envelope.stl", test_dir / f"{tag}_test_prongs.stl",
-                        test_dir / f"{tag}_test_engraving.stl")
+    env, prongs, eng, win = (test_dir / f"{tag}_test_envelope.stl", test_dir / f"{tag}_test_prongs.stl",
+                             test_dir / f"{tag}_test_engraving.stl", test_dir / f"{tag}_test_windows.stl")
     spec.head.seat.envelope().export(str(env))
     if spec.outline:
         spec.placed_head.prongs_mesh().export(str(prongs))
+    if spec.bezel:
+        spec.placed_head.windows_mesh().export(str(win))
     spec.write_engraving(eng)
-    v = spec.notebook_inputs(str(env), prongs_path=str(prongs) if spec.outline else "", engraving_path=str(eng))
+    v = spec.notebook_inputs(str(env), prongs_path=str(prongs) if spec.outline else "", engraving_path=str(eng),
+                             windows_path=str(win) if spec.bezel else "")
     params["values"] = {**v, **(params.get("values") or {})}
     return params
 
