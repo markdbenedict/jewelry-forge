@@ -74,8 +74,11 @@ girdle outline; each rod hugs the pavilion (offset prong radius - ledge, so the 
 groove the stone rests in) and rises straight from the girdle. Python writes the rods as one STL
 (Prongs Path, like the stone and the engraving); nTop makes the rails: the seat cutter offset by
 Rail Offset, cut to two slabs, so they follow any outline and pass through every prong. Gate as the
-round head, with ledges and drop-in judged on the stone's outline. Pear: 5 prongs only (a V-prong
-for the point is a later step). Oval, marquise, cushion, emerald: 4, 6 or 8 on rays from the centre.
+round head, with ledges and drop-in judged on the stone's outline. Pear: the point gets a V-prong plus four round prongs on the round end. Marquise: a V at each
+point plus 4 side prongs. `--no-v-prong` puts a round prong on the point instead. The V is a
+chevron wall (>= 0.8 mm) hugging the outline about 1.5-1.8 mm back from the point, from 0.6 mm
+under the girdle to just above the tips, carried down the pavilion by a rod; the seat cut leaves
+the point a ledge inside it. Oval, cushion, emerald: 4, 6 or 8 on rays from the centre.
 
 ## The solitaire (`solitaire.ntop`, `solitaire_outline.ntop`, `ntopjewel.solitaire`)
 

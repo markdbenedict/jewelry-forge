@@ -49,7 +49,9 @@ def test_other_outlines_put_every_prong_on_its_own_ray(shape, L, W):
     assert s.validate() == []
     pts = s.outline_points()
     assert len({(round(float(q[0]), 3), round(float(q[1]), 3)) for q, _ in pts}) == s.count
-    for k, (q, _) in enumerate(pts):
+    rays = [q for (q, _), kind in zip(pts, s.point_kinds()) if kind == "round"]
+    assert len(rays) == 4
+    for k, q in enumerate(rays):
         want = math.radians(45.0 + 90.0 * k)
         got = math.atan2(q[1], q[0])
         assert abs((got - want + math.pi) % (2 * math.pi) - math.pi) < math.radians(1.0)
@@ -100,3 +102,31 @@ def test_outline_head_recipe_builds_a_block_and_its_harness(tmp_path):
     ids = res["block"]["identifiers"]
     assert ids["Upper Rail Slab"].startswith("box_from_corners") and ids["Prongs"].startswith("implicit_from_mesh")
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
+
+
+def test_v_prongs_on_the_points():
+    """A pear's point and both of a marquise's get a V (on by default); --no-v-prong gives round ones."""
+    p = heads.OutlineHeadSpec(pear())
+    assert p.point_kinds() == ["v", "round", "round", "round", "round"] and p.count == 5
+    m = heads.OutlineHeadSpec(gems.StoneSpec("marquise", 10.0, 5.0))
+    assert m.point_kinds().count("v") == 2 and m.count == 6 and m.validate() == []
+    assert m.v_thickness - m.clearance >= heads.PRONG_TIP_FLOOR - 0.05                 # the V's wall after the seat cut
+    off = heads.OutlineHeadSpec(gems.StoneSpec("marquise", 10.0, 5.0), v_prongs=False)
+    assert off.point_kinds().count("v") == 0 and off.count == 4 and off.stem != m.stem
+    assert heads.OutlineHeadSpec(gems.StoneSpec("oval", 8.0, 6.0)).point_kinds().count("v") == 0
+    assert heads.OutlineHeadSpec(gems.StoneSpec("oval", 8.0, 6.0), v_prongs=True).validate()   # no points to cover
+
+
+def test_v_prong_wraps_the_point_and_the_head_still_seats(tmp_path):
+    """The V covers the point (metal ahead of it, past the clearance) and leaves it its ledge and drop-in."""
+    import numpy as np
+    s = heads.OutlineHeadSpec(gems.StoneSpec("marquise", 10.0, 5.0))
+    m = heads.outline_design_mesh(s)
+    m.export(tmp_path / "h.stl")
+    rep = heads.check_outline_head(s, tmp_path / "h.stl", float(m.volume))
+    assert rep.status == "passed", rep.text()
+    # a ray along the axis at the girdle, from beyond each point back towards the stone, meets metal first
+    for sx in (1.0, -1.0):
+        origin = np.array([[sx * 8.0, 0.0, 0.0]])
+        locs, _, _ = m.ray.intersects_location(origin, np.array([[-sx, 0.0, 0.0]]), multiple_hits=False)
+        assert len(locs) and abs(locs[0][0]) > s.stone.length / 2 + s.clearance
