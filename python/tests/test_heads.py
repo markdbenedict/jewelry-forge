@@ -69,7 +69,7 @@ def test_prong_head_recipe_builds_a_cutter_input_block_then_a_harness_wiring_bot
     assert blk["identifiers"]["Seat Cutter"] == "core.var<implicit>" and "Seat" not in blk["identifiers"]
     assert blk["identifiers"]["Prongs"].startswith("polar_array_implicit") and blk["self_test"]["accepted"]
     head_id = res["identifiers"]["block:prong_head"]
-    assert head_id.endswith("<implicit,integer," + ",".join(["real"] * 13) + ">")        # cutter, count, 13 reals
+    assert head_id.endswith("<implicit,integer," + ",".join(["real"] * 14) + ">")        # cutter, count, 13 reals + the blend radius
     assert res["identifiers"]["block:stone_seat"].endswith("<text,real>")
     head_inst = res["blocks"]["Prong Head"]
     assert nb.blocks[head_inst]["wired"]["Seat Cutter"][0] == res["blocks"]["Stone Seat"]
@@ -84,7 +84,7 @@ def test_bisect_builds_and_embeds_every_stage(tmp_path):
     res = mod.bisect(FakeNotebook(), mod._test_values(), tmp_path)
     assert [ln.split()[0] for ln in res["summary"]] == list(mod.STAGES)
     assert all(isinstance(r["embed"], dict) for r in res["results"].values())
-    assert res["results"]["full"]["inputs"] == 15 and res["results"]["cut_only"]["inputs"] == 2
+    assert res["results"]["full"]["inputs"] == 16 and res["results"]["cut_only"]["inputs"] == 2      # cutter + 14 numbers + the blend
 
 
 def test_a_block_output_used_twice_is_refused_by_the_fake_as_by_ntop(tmp_path, monkeypatch):

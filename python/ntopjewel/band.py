@@ -306,6 +306,18 @@ def design_volume_check(design_mm3: float, ntop_mm3: float | None, tol_pct: floa
                       + ("" if abs(dev) <= tol_pct else " - the notebook does not build the designed section"))
 
 
+def blended_design_volume_check(design_mm3: float, blend_mm3: float, ntop_mm3: float | None, tol_pct: float) -> gate.Check:
+    """design_volume_check for a part nTop builds with blended unions: the expectation is the
+    unblended design plus the blend's estimate (tables' blend_volume_factor), and until that
+    factor is calibrated the tolerance widens by the estimate's share, since the estimate may be
+    off by its own size either way."""
+    est_pct = 100.0 * blend_mm3 / design_mm3 if design_mm3 else 0.0
+    c = design_volume_check(design_mm3 + blend_mm3, ntop_mm3, tol_pct + est_pct)
+    if blend_mm3 and c.status != gate.INCOMPLETE:
+        c.detail += f" [incl. blend ≈ {blend_mm3:.2f} mm³, {est_pct:.1f} % of the design]"
+    return c
+
+
 def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None = None,
           catalog_name: str = "ring_band_profile", deliver: bool = False, deliver_project: str = "Bands", cast_metal: str | None = None,
           wall_floor: float | None = None) -> BandResult:

@@ -64,7 +64,18 @@ class SolitaireSpec:
     engrave_height_mm: float | None = None
     engrave_depth_mm: float = 0.3
     font: dict | None = None
+    shank_blend_mm: float | None = None     # nTop blend radius where the head meets the shank; default tables, 0 = sharp
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
+
+    @property
+    def shank_blend(self) -> float:
+        return tables.SETTINGS["blend_radius_mm"] if self.shank_blend_mm is None else float(self.shank_blend_mm)
+
+    @property
+    def bead_head_gap(self) -> float:
+        """Beads stop this far from the head: at least BEAD_HEAD_GAP, and wider than the shank
+        blend would bridge (a smooth union fills gaps narrower than about half its radius)."""
+        return max(BEAD_HEAD_GAP, 0.8 * self.shank_blend)
 
     # ---- head kind -----------------------------------------------------------------------
     @property
@@ -209,12 +220,12 @@ class SolitaireSpec:
     def _bead_clear(self, x: float, y: float, z: float) -> bool:
         rho = self.bead_radius_mm
         if not self.floored:
-            return math.hypot(y, z) - rho >= self._head_envelope(x) + BEAD_HEAD_GAP
+            return math.hypot(y, z) - rho >= self._head_envelope(x) + self.bead_head_gap
         tree, head, cutter = self._head_surface()
         p = [[x, y, z]]
         if cutter.contains(p)[0] or head.contains(p)[0]:
             return False
-        return float(tree.query(p)[0][0]) >= rho + BEAD_HEAD_GAP
+        return float(tree.query(p)[0][0]) >= rho + self.bead_head_gap
 
     def beads(self) -> dict:
         """The +y arch's bead row: angles (deg, about c+, from the tangent point towards the crest),
@@ -258,11 +269,13 @@ class SolitaireSpec:
         ins = self.band.notebook_inputs("")
         ins.pop("Output Path")
         if self.outline:                                              # Seat Path, Clearance, Prongs Path + the rail numbers
-            ins.update(self.placed_head.notebook_inputs(seat_path, prongs_path))
+            head = self.placed_head.notebook_inputs(seat_path, prongs_path)
         elif self.bezel:                                              # Seat Path, Clearance, Windows Path, Wall, Bezel Bottom/Top
-            ins.update(self.placed_head.notebook_inputs(seat_path, windows_path))
+            head = self.placed_head.notebook_inputs(seat_path, windows_path)
         else:                                                         # Seat Path, Clearance + the 14 head numbers
-            ins.update(self.placed_head.notebook_inputs(seat_path))
+            head = self.placed_head.notebook_inputs(seat_path)
+        head["Head Blend"] = head.pop("Blend Radius")                 # the block's own blend, named for this notebook
+        ins.update(head)
         px, pz = self.pivot
         a = self.arch()
         ins.update({"Pivot X": round(px, 4), "Pivot Z": round(pz, 4),
@@ -271,7 +284,8 @@ class SolitaireSpec:
                     "Arch Dome Ring Radius": round(a["dome_ring"], 4), "Arch Cut Radius": round(a["r_cut"], 4),
                     "Wedge Angle": round(a["wedge_deg"], 4), "Wedge Angle Minus": round(-a["wedge_deg"], 4)})
         ins.update(self.bead_inputs())
-        ins.update({"Engraving Path": engraving_path, "Engraving Wrap Length": round(self.engraving_wrap_length, 4)})
+        ins.update({"Engraving Path": engraving_path, "Engraving Wrap Length": round(self.engraving_wrap_length, 4),
+                    "Shank Blend": round(self.shank_blend, 4)})
         if output_path is not None:
             ins["Output Path"] = output_path
         return ins
@@ -326,7 +340,18 @@ class SolitaireSpec:
                 "bead_radius_mm": self.bead_radius_mm if self.milgrain else None,
                 "bead_pitch": self.bead_pitch if self.milgrain else None,
                 "engraving": ({"text": self.text, "side": self.engrave_side, "height_mm": self.engraving.engrave_geometry()["height"],
-                               "depth_mm": self.engrave_depth_mm, "font": self.font} if self.has_engraving else None)}
+                               "depth_mm": self.engrave_depth_mm, "font": self.font} if self.has_engraving else None),
+                "shank_blend_mm": self.shank_blend}
+
+    def blend_volume_mm3(self) -> float:
+        """What the blends add: the head's own (prongs into rails) plus the head-to-shank union."""
+        if "blend_volume" not in self._cache:
+            est = self.placed_head.blend_volume_mm3()
+            if self.shank_blend > 0:
+                shank, head = design_parts(self)
+                est += geom.blend_volume_mm3(self.shank_blend, geom.junction_length(shank, head))
+            self._cache["blend_volume"] = est
+        return self._cache["blend_volume"]
 
     @property
     def stem(self) -> str:
@@ -358,6 +383,7 @@ class SolitaireSpec:
                 p.append(f"the lower rail (inner r {feet - self.head.rail_rho:.2f}) breaks into the bore")
         if self.has_engraving:
             p += [q for q in self.engraving.validate() if q not in p]
+        p += heads.blend_problems(self.shank_blend, self.band.edge_thickness_mm)
         if not 30 <= self.shoulder_deg <= 75:
             p.append("shoulder angle outside 30-75°")
             return p
@@ -391,7 +417,8 @@ class SolitaireSpec:
                 + (f"\n  milgrain: {len(self.beads()['angles'])} beads of r {self.bead_radius_mm} mm per arch edge (x4), "
                    f"{self.beads()['spacing']:.3f}° apart" if self.milgrain else "\n  milgrain: off")
                 + (f"\n  engraving: {self.text!r} {self.engrave_side}, {self.engraving.engrave_geometry()['height']:.2f} mm high, "
-                   f"{self.engrave_depth_mm} mm deep, centred opposite the head" if self.has_engraving else ""))
+                   f"{self.engrave_depth_mm} mm deep, centred opposite the head" if self.has_engraving else "")
+                + f"\n  blends: head {self.placed_head.blend:g} mm, head into shank {self.shank_blend:g} mm")
 
 
 # ---- the independent ring ---------------------------------------------------------------------
@@ -464,14 +491,6 @@ def ring_mesh(v: dict, envelope, cut_seat: bool = True, inner: float | None = No
         inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2
     shank = trimesh.boolean.union([band, arch_mesh(v, inner)] + ([bead_mesh(v)] if beads else []), engine="manifold")
     place = geom.rotation_about_y(HEAD_ANGLE_DEG, [float(v["Pivot X"]), 0.0, float(v["Pivot Z"])])
-    if cut_seat:
-        cutter = geom.offset_convex(envelope, float(v["Clearance"])).copy()
-        cutter.apply_transform(place)
-        shank = trimesh.boolean.difference([shank, cutter], engine="manifold")
-    if engrave and "Engraving Path" in v:
-        if engraving is None:
-            engraving = trimesh.load(str(v["Engraving Path"]), force="mesh")
-        shank = trimesh.boolean.difference([shank, wrapped_engraving(v, engraving)], engine="manifold")
     if "Prongs Path" in v:
         if prongs is None:
             prongs = trimesh.load(str(v["Prongs Path"]), force="mesh")
@@ -484,7 +503,39 @@ def ring_mesh(v: dict, envelope, cut_seat: bool = True, inner: float | None = No
         head = heads.head_mesh(v, envelope, cut_seat=cut_seat)
     head = head.copy()
     head.apply_transform(place)
-    return geom.clean(trimesh.boolean.union([shank, head], engine="manifold"))
+    ring = trimesh.boolean.union([shank, head], engine="manifold")        # blended in nTop; then the cuts, sharp
+    cuts = []
+    if cut_seat:
+        cutter = geom.offset_convex(envelope, float(v["Clearance"])).copy()
+        cutter.apply_transform(place)
+        cuts.append(cutter)
+    if engrave and "Engraving Path" in v:
+        if engraving is None:
+            engraving = trimesh.load(str(v["Engraving Path"]), force="mesh")
+        cuts.append(wrapped_engraving(v, engraving))
+    if cuts:
+        ring = trimesh.boolean.difference([ring] + cuts, engine="manifold")
+    return geom.clean(ring)
+
+
+def design_parts(spec: "SolitaireSpec"):
+    """(shank, placed head) of the design, the two bodies the notebook's blended union joins."""
+    import trimesh
+    v = spec.notebook_inputs("")
+    t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
+    lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
+    inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2
+    shank = trimesh.boolean.union([geom.band_mesh(v), arch_mesh(v, inner), bead_mesh(v)], engine="manifold")
+    envelope = spec.head.seat.envelope()
+    if spec.outline:
+        head = heads.outline_head_mesh(v, envelope, spec.placed_head.prongs_mesh())
+    elif spec.bezel:
+        head = heads.bezel_mesh(v, envelope, spec.placed_head.windows_mesh())
+    else:
+        head = heads.head_mesh(v, envelope)
+    head = head.copy()
+    head.apply_transform(geom.rotation_about_y(HEAD_ANGLE_DEG, [float(v["Pivot X"]), 0.0, float(v["Pivot Z"])]))
+    return shank, head
 
 
 def design_mesh(spec: SolitaireSpec):
@@ -562,8 +613,8 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
                                      f"{pocket['pocket_area_mm2']:.1f} mm² of pocket on the {pocket['side']} for "
                                      f"{pocket['text_area_mm2']:.1f} mm² of text, opposite the head"
                                      + (f"; {pocket['stray_area_mm2']:.1f} mm² stray" if pocket["stray_area_mm2"] > 0.05 else "")))
-    from .band import design_volume_check
-    rep.checks.append(design_volume_check(float(design.volume), ntop_vol, 3.0))
+    from .band import blended_design_volume_check
+    rep.checks.append(blended_design_volume_check(float(design.volume), spec.blend_volume_mm3(), ntop_vol, 3.0))
     return rep
 
 

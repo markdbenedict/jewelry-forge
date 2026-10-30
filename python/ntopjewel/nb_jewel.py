@@ -219,6 +219,12 @@ def add_profiled_band(h: NotebookHelper, extra=None) -> str:
     return h.wrap_var("Band Body", profile)      # a variable: the body is consumed by more than one block
 
 
+def wire_blend(h: NotebookHelper, block_id: str, var_id: str) -> str:
+    """Feed a boolean's Blend Radius (a real_field: unsettable, wireable) from a mm variable. The
+    Blend Type enum is left at nTop's default."""
+    return h.wire(var_id, block_id, ["Blend Radius", "Blend radius", "Radius", "Blend"])
+
+
 # ---- measure, mesh, export, finish --------------------------------------------------------------
 def add_measure_mesh_export(h: NotebookHelper, body_var: str, out_var: str, tolerance_var: str) -> tuple[str, str, str]:
     """Volume Integral of 1 over the body (the Output), Mesh from Implicit Body, Export Mesh."""

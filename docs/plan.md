@@ -26,10 +26,11 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | --- | --- | --- | --- |
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct, `ring_features.ntop` committed; print + cast waits for the kit (printer/resin being bought) |
-| 2 — custom-block library | `ntop/blocks/`: band profile, bead row, groove, engraving wrap as reusable blocks; My Blocks pointed at the repo; gem bodies (round, oval, pear, cushion, emerald, marquise); prong and bezel heads; ring assembly | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | started 28 Oct: custom blocks proven through the API (`custom_block_probe`: save -> `embed_custom_block` -> `add_block`, builds); `NotebookHelper.embed_block`; stone bodies for all six shapes (`gem`, exact meshes, 6.5 mm round = 1.02 ct) |
-| 3 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
-| 4 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–2 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
-| 5 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
+| 2 — custom-block library | `ntop/blocks/`: stone seat, prong heads (round, outline, V-prongs), bezel; gem bodies (round, oval, pear, cushion, emerald, marquise); the solitaire assembly (cathedral arches, milgrain, engraving) | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | software half PASSED 29 Oct (round US 5-7, every fancy shape, pear and marquise with V-prongs, bezels offline); the print is what remains (band profile / bead / groove / wrap as library blocks deferred to Phase 3 step 1) |
+| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) written, offline green, real build pending |
+| 4 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
+| 5 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–3 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
+| 6 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
 
 ## Current limitations
 
@@ -111,6 +112,40 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 6. Gate: 6.5 mm round 6-prong solitaire, sizes 5-7, PASSED and printed. *PASSED 29 Oct under nTopCL (US 5 / 6 / 7:
    +0.51 / +0.58 / +0.48 % vs design, every check green, engraving inputs in place); printing it with every prong
    intact is what remains.*
+
+## Phase 3 order of work — ring styles
+
+The reference set is `docs/reference/rings/` (README: what each ring needs). Mark's call (30 Oct):
+explore the ring space fully before pendants, bracelets and chains; blends first.
+
+0. *(written 30 Oct, offline green; real build pending)* **Blended booleans.** nTop's Boolean Union /
+   Intersect `Blend Radius` (a `real_field`: wired from a mm variable, the Blend Type enum left at its
+   default) on every metal-to-metal junction: `prong_head` prongs ∪ rails; `outline_head` rails ∩ slab
+   (edges rounded) and prongs ∪ rails; `bezel_head` cup ∩ slab (rim and lip rounded); the solitaires'
+   head ∪ shank. **The seat and the engraving are cut after the blended join**: a smooth union fills
+   every corner two surfaces make within its radius, the seat's corners included (0.05 mm clearance).
+   Default `blend_radius_mm` 0.3 (tables); `--blend`, `--shank-blend`; 0 = sharp. The independent model
+   stays unblended and bounds what the blend adds: `blend_volume_factor` x r² x the junction length
+   (`geom.junction_length`, from manifold3d's face origins); the design-volume check expects design +
+   that and widens its tolerance by the estimate until the factor is calibrated on the first real
+   build. Arch beads keep 0.8 x the shank blend clear of the head. Every head and solitaire notebook
+   has new inputs: rebuild all six.
+1. **Shank shaping.** Tapered section (field-driven offset; the gate's wall check given the local
+   design thickness); non-circular centrelines (chevron dips, contour curves, double bands bridged);
+   split and twisted shanks (strands swept along splines: nTop `spline_through_points`,
+   `sweep_along_one_rail`, `twisted_sweep`, or Python-written meshes); Celtic knotwork last. Carry the
+   band profile, bead row, groove and engraving wrap into library blocks on the way.
+2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
+   library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
+   seats and drops in, stone-to-stone clearance.
+3. **Pavé and accents.** Rows of 1–1.5 mm rounds along a path with seats and beads, graduated sizes,
+   small polygon bezels (kite, hexagon); spacing and bead rules into the tables.
+4. **New stone bodies.** Pearl (sphere on a post in a cup), cabochon (dome on a flat base), asscher
+   (emerald outline with a corner-cut ratio); their seats.
+5. **Artwork on the band.** Scroll and floral relief panels, leaf borders, vein engraving: the
+   medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
+6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the
+   shank where they are simple; Blender sculpts imported as meshes where they are not.
 
 ## Next acceptance milestone — the Phase 1 gate
 

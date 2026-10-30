@@ -91,3 +91,39 @@ def remap_cylindrical(mesh, wrap_length: float):
     if out.volume < 0:
         out.invert()
     return out
+
+
+def _manifold(mesh):
+    import numpy as np
+    import manifold3d as mf
+    return mf.Manifold(mf.Mesh(vert_properties=np.asarray(mesh.vertices, np.float32), tri_verts=np.asarray(mesh.faces, np.uint32)))
+
+
+def junction_length(a, b) -> float:
+    """Length (mm) of the curves where the surfaces of a and b meet in a ∪ b: the edges of the
+    union whose two faces came from different inputs (manifold3d keeps each face's origin). A
+    blended union fills these corners, so this bounds the metal a blend adds."""
+    import numpy as np
+    u = _manifold(a).as_original() + _manifold(b).as_original()
+    g = u.to_mesh()
+    tris = np.asarray(g.tri_verts).reshape(-1, 3)
+    verts = np.asarray(g.vert_properties)[:, :3]
+    runs, ids = np.asarray(g.run_index), np.asarray(g.run_original_id)
+    src = np.empty(len(tris), dtype=int)
+    for k in range(len(ids)):
+        src[runs[k] // 3: runs[k + 1] // 3] = ids[k]
+    e = np.vstack([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]])
+    e.sort(axis=1)
+    owner = np.tile(src, 3)
+    order = np.lexsort((e[:, 1], e[:, 0]))
+    e, owner = e[order], owner[order]
+    same = (e[1:] == e[:-1]).all(axis=1)
+    cross = same & (owner[1:] != owner[:-1])
+    seg = e[:-1][cross]
+    return float(np.linalg.norm(verts[seg[:, 0]] - verts[seg[:, 1]], axis=1).sum())
+
+
+def blend_volume_mm3(radius_mm: float, junction_mm: float) -> float:
+    """What a blended union of the given radius adds along that much junction (tables' factor)."""
+    from . import tables
+    return tables.SETTINGS["blend_volume_factor"] * radius_mm ** 2 * junction_mm

@@ -2,7 +2,7 @@
 # Built by ntop/recipes/prong_head.py; run by `python -m ntopjewel head ...`; every number from
 # ntopjewel.heads.HeadSpec.notebook_inputs.
 notebook: prong_head_harness.ntop
-version: 0.3.0
+version: 0.4.0
 title: Prong head (N prongs, open basket, seat cut by stone_seat)
 output:
   name: Volume
@@ -98,6 +98,12 @@ inputs:
     min: 0.25
     max: 1.0
     doc: Half the rail diameter.
+  Blend Radius:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: Boolean blend radius where the prongs meet the rails (0 = sharp).
   Mesh Tolerance:
     type: scalar
     units: mm

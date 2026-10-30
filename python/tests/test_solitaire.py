@@ -171,5 +171,5 @@ def test_solitaire_outline_recipe_embeds_the_outline_head(tmp_path):
     res = mod.build(nb, params)
     b = res["blocks"]
     assert nb.blocks[b["Outline Head"]]["wired"]["Seat Cutter"][0] == "Seat Local"
-    assert b["Engraving"] in nb.blocks[b["Seated Shank"]]["lists"]["Subtraction Bodies"]
+    assert b["Engraving"] in nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"]            # cut after the blended join
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []

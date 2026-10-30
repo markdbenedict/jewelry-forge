@@ -2,7 +2,7 @@
 # Built by ntop/recipes/outline_head.py; run by `python -m ntopjewel head --shape pear ...`; every number from
 # ntopjewel.heads.OutlineHeadSpec.notebook_inputs.
 notebook: outline_head_harness.ntop
-version: 0.1.0
+version: 0.2.0
 title: Outline head (prongs on any outline, rails following the pavilion, seat cut
   by stone_seat)
 output:
@@ -53,6 +53,13 @@ inputs:
     min: -15.0
     max: 0.0
     doc: Lower rail slab, top z.
+  Blend Radius:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: 'Boolean blend radius: prongs into rails, the rails'' edges rounded (0 =
+      sharp).'
   Mesh Tolerance:
     type: scalar
     units: mm

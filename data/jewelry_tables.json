@@ -66,7 +66,9 @@
     "seat_drop_mm":      {"value": 8.0,  "status": "default", "source": "height of the straight drop-in path above the girdle: clears any head we make"},
     "bezel_wall_mm":     {"value": 0.65, "status": "default", "source": "bezel wall round the girdle: 0.5-0.8 mm (jewelry-design-rules); thin enough to burnish over the stone, above the 0.5 mm marginal wall floor"},
     "bezel_lip_mm":      {"value": 0.5,  "status": "default", "source": "bezel wall height above the girdle top, pushed over the crown when setting: 0.3-0.5 mm (jewelry-design-rules)"},
-    "bezel_bearing_mm":  {"value": 0.55, "status": "default", "source": "solid band of the bezel cup kept under the girdle (the stone's bearing); the light windows start below it"}
+    "bezel_bearing_mm":  {"value": 0.55, "status": "default", "source": "solid band of the bezel cup kept under the girdle (the stone's bearing); the light windows start below it"},
+    "blend_radius_mm":   {"value": 0.3,  "status": "default", "source": "nTop Boolean blend radius at metal-to-metal junctions (prongs into rails, head into shank, rail and bezel edges): a castable fillet; 0 = sharp"},
+    "blend_volume_factor": {"value": 0.17, "status": "default", "source": "metal a blended union adds ~ factor x radius^2 x junction length: 0.167 for the usual polynomial smooth union in a right-angle corner (cubic 0.084, rolling-ball fillet 0.215); until calibrated the gate widens its volume tolerance by the estimate; calibrate against nTop's volume on the first blended build"}
   },
   "calibration_log": [],
   "notes": [

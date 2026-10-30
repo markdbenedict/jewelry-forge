@@ -121,3 +121,12 @@ the seat cutter goes through the shank as well. Gate: closed, one shell, walls o
 (x < -2), bore Ø, bore closed at the top (the culet/feet do not break into it), extents, stone
 fits / ledges / drop-in measured in the head frame, **arch milgrain** (every designed bead's apex
 found by a ray), volume vs nTop and vs the independent ring.
+
+## Blends (every head and solitaire notebook)
+
+Metal-to-metal junctions are blended in nTop (prongs into rails, rail and bezel edges, the head into
+the shank) by `blend_radius_mm` from the tables (0.3; `--blend` for the head's own, `--shank-blend` for
+the join; 0 = sharp; at most 1 mm and never wider than the feature joined). The seat and the engraving
+are cut after the blended join, so the stone's clearance survives. The independent model is unblended:
+the gate expects the design plus `blend_volume_factor` x r² x junction length and says so in the
+design-volume line. Beads stop 0.8 x the shank blend clear of the head.

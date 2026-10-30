@@ -7,7 +7,8 @@
        prongs   Import Mesh (Prongs Path: the rods Python writes, ntopjewel.heads.OutlineHeadSpec)
                 -> Implicit from Mesh
        rails    per rail: Offset Body (Seat Cutter, Rail Offset) ∩ a slab (Box from Corners,
-                z Rail Bottom .. Rail Top): a gallery following the pavilion, whatever the outline
+                z Rail Bottom .. Rail Top), the intersection blended (edges rounded): a gallery
+                following the pavilion, whatever the outline; prongs ∪ rails blended too (Blend Radius)
        seat     (prongs ∪ rails) − Seat Cutter
        Output   Head (implicit)
 2. Harness `ntop/notebooks/outline_head_harness.ntop`: Seat Path + Clearance (an embedded
@@ -28,7 +29,7 @@ TEST_ENVELOPE = REPO / "out" / "api" / "outline_head_test_envelope.stl"
 TEST_PRONGS = REPO / "out" / "api" / "outline_head_test_prongs.stl"
 
 GEOMETRY_SPECS = [("Prongs Path", "path"), ("Rail Offset", "mm"), ("Upper Rail Bottom", "mm"), ("Upper Rail Top", "mm"),
-                  ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm")]
+                  ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm"), ("Blend Radius", "mm")]
 SEAT_SPECS = [("Seat Path", "path"), ("Clearance", "mm")]
 BLOCK_SPECS = SEAT_SPECS + GEOMETRY_SPECS
 INPUT_ORDER = [n for n, _ in BLOCK_SPECS] + ["Mesh Tolerance", "Output Path"]
@@ -54,7 +55,7 @@ DEFAULTS = {
     "lazy_ok": True,
     "fresh": True,
     "wait_s": 240,
-    "volume_hint": "5-prong head, 12.3 x 8.9 pear: 92.4 mm³ (heads.outline_design_mesh)",
+    "volume_hint": "5-prong head (1 V), 12.3 x 8.9 pear: ~99 mm³ unblended + the blend (heads.outline_design_mesh, blend_volume_mm3)",
 }
 
 
@@ -98,10 +99,12 @@ def _block_body(notebook, values: dict):
         r = h.add(f"{rail} Rail", mask="intersect", must=nj.INTERSECT)
         h.to_list(grown, r, ["Bodies"])
         h.to_list(slab, r, ["Bodies"])
+        nj.wire_blend(h, r, ids["Blend Radius"])                 # the slab's edges rounded
         parts.append(r)
     basket = h.add("Basket", mask="union", must=nj.UNION)
     for part in parts:
         h.to_list(part, basket, ["Bodies"])
+    nj.wire_blend(h, basket, ids["Blend Radius"])                # prongs melt into the rails
     head = h.add("Seated", mask="subtract", must=nj.SUBTRACT)
     h.wire(basket, head, ["Primary Body", "Body"])
     h.to_list(cutter, head, ["Subtraction Bodies", "Bodies"])

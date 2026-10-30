@@ -47,6 +47,7 @@ class HeadSpec:
     rail_below_girdle_mm: float = 1.4      # upper rail centre this far below the girdle bottom (the pavilion narrows faster than the prongs)
     angle_offset_deg: float | None = None  # first prong's angle; default half a spacing (prongs off the band axis)
     clearance_mm: float | None = None      # stone_seat clearance; default tables settings
+    blend_mm: float | None = None          # nTop blend radius where the prongs meet the rails; default tables, 0 = sharp
     mesh_tolerance_mm: float = 0.05
 
     # ---- numbers -------------------------------------------------------------------------
@@ -55,6 +56,10 @@ class HeadSpec:
         floor = PRONG_TIP_FLOOR + self.ledge_mm + self.clearance + 0.05          # what stays above the girdle >= the tip floor
         d = self.prong_dia_mm if self.prong_dia_mm is not None else max(floor, 0.18 * self.stone.width)
         return float(d) / 2
+
+    @property
+    def blend(self) -> float:
+        return tables.SETTINGS["blend_radius_mm"] if self.blend_mm is None else float(self.blend_mm)
 
     @property
     def rail_rho(self) -> float:
@@ -113,6 +118,7 @@ class HeadSpec:
             "Upper Rail Z": round(zu, 4), "Upper Rail Radius": round(ru, 4),
             "Lower Rail Z": round(zl, 4), "Lower Rail Radius": round(rl, 4),
             "Rail Tube Radius": round(self.rail_rho, 4),
+            "Blend Radius": round(self.blend, 4),
         }
         if output_path is not None:
             ins["Mesh Tolerance"] = self.mesh_tolerance_mm
@@ -123,6 +129,14 @@ class HeadSpec:
         d = asdict(self)
         d["inputs"] = self.notebook_inputs("")
         return d
+
+    def blend_volume_mm3(self) -> float:
+        """The metal the blended prongs-to-rails union is expected to add (0 for a sharp union)."""
+        from . import geom
+        if self.blend <= 0:
+            return 0.0
+        prongs, rails = head_parts(self.notebook_inputs(""))
+        return geom.blend_volume_mm3(self.blend, geom.junction_length(prongs, rails))
 
     @property
     def stem(self) -> str:
@@ -158,6 +172,7 @@ class HeadSpec:
             pass                                                                    # feet merge into a solid foot: fine
         if zu - self.rail_rho < lay["z_base"] + self.rail_rho:
             p.append("the two rails overlap: raise the upper rail or drop the base")
+        p += blend_problems(self.blend, self.rho)
         return p
 
     def describe(self) -> str:
@@ -167,30 +182,50 @@ class HeadSpec:
                 f"first at {self.offset_deg:g}°, every {self.spacing_deg:g}°; ledge {self.ledge_mm} mm, clearance {self.clearance} mm\n"
                 f"  rails: upper r {lay['rail_upper'][1]:.3f} @ z {lay['rail_upper'][0]:.3f}, lower r {lay['rail_lower'][1]:.3f} @ "
                 f"z {lay['rail_lower'][0]:.3f}, tube {2 * self.rail_rho:.2f} mm; tip left above the girdle "
-                f"{2 * self.rho - self.ledge_mm - self.clearance:.2f} mm")
+                f"{2 * self.rho - self.ledge_mm - self.clearance:.2f} mm; blend {self.blend:g} mm")
 
 
 # ---- the independent geometry ---------------------------------------------------------------
-def head_mesh(v: dict, seat_mesh=None, cut_seat: bool = True):
-    """The head from the notebook's input numbers (trimesh + manifold3d). `seat_mesh` is the
-    seat envelope (stone + drop path); it is offset by Clearance (exact for a convex body) and
-    subtracted."""
+def head_parts(v: dict):
+    """(prongs, rails): the two bodies the block unions (with a blend) from the notebook's numbers."""
     import numpy as np
     import trimesh
     rho = float(v["Prong Radius"])
     base = np.array([v["Base X"], v["Base Y"], v["Base Z"]], float)
     tip = np.array([v["Tip X"], v["Tip Y"], v["Tip Z"]], float)
-    parts = []
+    prongs = []
     for k in range(int(v["Prong Count"])):
         rot = trimesh.transformations.rotation_matrix(math.radians(k * float(v["Prong Spacing"])), [0, 0, 1])[:3, :3]
         a, b = rot @ base, rot @ tip
         rod = trimesh.creation.cylinder(radius=rho, segment=[a, b], sections=48)
-        parts += [rod, _ball(a, rho), _ball(b, rho)]
+        prongs += [rod, _ball(a, rho), _ball(b, rho)]
+    rails = []
     for zk, rk in (("Upper Rail Z", "Upper Rail Radius"), ("Lower Rail Z", "Lower Rail Radius")):
         t = trimesh.creation.torus(float(v[rk]), float(v["Rail Tube Radius"]), major_sections=180, minor_sections=24)
         t.apply_translation((0.0, 0.0, float(v[zk])))
-        parts.append(t)
-    head = trimesh.boolean.union(parts, engine="manifold")
+        rails.append(t)
+    return trimesh.boolean.union(prongs, engine="manifold"), trimesh.boolean.union(rails, engine="manifold")
+
+
+def blend_problems(blend: float, feature_radius: float) -> list[str]:
+    """A blend radius must be a castable fillet, not a reshaping: 0 .. 1 mm and no more than the
+    feature it joins (a blend wider than a prong turns the basket into a web)."""
+    p = []
+    if blend < 0 or blend > 1.0:
+        p.append(f"blend radius {blend:g} mm: 0 (sharp) to 1 mm")
+    elif blend > feature_radius + 1e-9:
+        p.append(f"blend radius {blend:g} mm exceeds the feature it joins ({feature_radius:.2f} mm): the junctions would web over")
+    return p
+
+
+def head_mesh(v: dict, seat_mesh=None, cut_seat: bool = True):
+    """The head from the notebook's input numbers (trimesh + manifold3d), without the blend (an
+    implicit operation the independent model estimates by volume instead). `seat_mesh` is the
+    seat envelope (stone + drop path); it is offset by Clearance (exact for a convex body) and
+    subtracted."""
+    import trimesh
+    prongs, rails = head_parts(v)
+    head = trimesh.boolean.union([prongs, rails], engine="manifold")
     if cut_seat and seat_mesh is not None:
         cutter = _offset_convex(seat_mesh, float(v["Clearance"]))
         head = trimesh.boolean.difference([head, cutter], engine="manifold")
@@ -244,8 +279,7 @@ def check_head(spec: HeadSpec, stl: Path, ntop_vol: float | None):
                                  f"{ledges} prongs reach under the girdle (expected {spec.prongs})"))
     rep.checks.append(gate.Check("drop-in clear", above == 0,
                                  f"{above} prongs inside the girdle line above the girdle (expected 0: the stone drops in)"))
-    design = float(design_mesh(spec).volume)
-    rep.checks.append(band.design_volume_check(design, ntop_vol, 3.0))
+    rep.checks.append(band.blended_design_volume_check(float(design_mesh(spec).volume), spec.blend_volume_mm3(), ntop_vol, 3.0))
     return rep
 
 
@@ -373,9 +407,14 @@ class OutlineHeadSpec:
     v_prongs: bool | None = None           # V-prongs on the points; default on for the shapes that have points
     v_thickness_mm: float | None = None    # the V's wall; default the prong radius, at least the prong-tip floor
     v_arm_mm: float | None = None          # how far back from the point the V reaches; default max(1.5, 0.2 x width)
+    blend_mm: float | None = None          # nTop blend radius: prongs into rails, and the rails' edges rounded; default tables
     mesh_tolerance_mm: float = 0.05
 
     # ---- numbers ---------------------------------------------------------------------------
+    @property
+    def blend(self) -> float:
+        return tables.SETTINGS["blend_radius_mm"] if self.blend_mm is None else float(self.blend_mm)
+
     @property
     def has_points(self) -> bool:
         return self.stone.shape in POINTED
@@ -573,7 +612,8 @@ class OutlineHeadSpec:
         ins = {"Seat Path": seat_path, "Clearance": round(self.clearance, 4), "Prongs Path": prongs_path,
                "Rail Offset": round(r["offset"], 4),
                "Upper Rail Bottom": round(r["upper"][0], 4), "Upper Rail Top": round(r["upper"][1], 4),
-               "Lower Rail Bottom": round(r["lower"][0], 4), "Lower Rail Top": round(r["lower"][1], 4)}
+               "Lower Rail Bottom": round(r["lower"][0], 4), "Lower Rail Top": round(r["lower"][1], 4),
+               "Blend Radius": round(self.blend, 4)}
         if output_path is not None:
             ins["Mesh Tolerance"] = self.mesh_tolerance_mm
             ins["Output Path"] = output_path
@@ -584,6 +624,15 @@ class OutlineHeadSpec:
         d["inputs"] = self.notebook_inputs("")
         d["prong_axes"] = [[[round(float(c), 4) for c in p] for p in axis] for axis in self.prong_axes()]
         return d
+
+    def blend_volume_mm3(self) -> float:
+        """What the blended prongs-to-rails union adds (the rails' rounded edges, which take a
+        little away, are not counted)."""
+        from . import geom
+        if self.blend <= 0:
+            return 0.0
+        prongs, rails = outline_head_parts(self.notebook_inputs(""), self.seat.envelope(), self.prongs_mesh())
+        return geom.blend_volume_mm3(self.blend, geom.junction_length(prongs, rails))
 
     @property
     def stem(self) -> str:
@@ -624,6 +673,7 @@ class OutlineHeadSpec:
             p.append("the prong feet are pushed up past 70 % of the pavilion: more room under the stone")
         if min(r["upper"][1] - r["upper"][0], r["offset"]) < WALL_FLOOR:
             p.append(f"rail section under the wall floor {WALL_FLOOR} mm")
+        p += blend_problems(self.blend, min(self.rho, self.rail_half))
         return p
 
     def describe(self) -> str:
@@ -635,24 +685,35 @@ class OutlineHeadSpec:
                 f"  prongs {self.offset:.2f} mm off the pavilion (ledge {self.ledge_mm} mm) from {self._foot_frac():.0%} of its "
                 f"depth, upright from the girdle to z {self.z_tip:.2f}; clearance {self.clearance} mm\n"
                 f"  rails: the seat + {r['offset']:.2f} mm, z {r['upper'][0]:.2f}..{r['upper'][1]:.2f} and "
-                f"{r['lower'][0]:.2f}..{r['lower'][1]:.2f}; tip left above the girdle {2 * self.rho - self.ledge_mm - self.clearance:.2f} mm")
+                f"{r['lower'][0]:.2f}..{r['lower'][1]:.2f}; tip left above the girdle {2 * self.rho - self.ledge_mm - self.clearance:.2f} mm; "
+                f"blend {self.blend:g} mm")
 
 
-def outline_head_mesh(v: dict, envelope, prongs, cut_seat: bool = True):
-    """The outline head from the block's input numbers, the seat envelope and the prong mesh."""
+def outline_head_parts(v: dict, envelope, prongs):
+    """(prongs, rails) from the block's numbers: the two bodies its blended union joins."""
     import trimesh
     from . import geom
     c, off = float(v["Clearance"]), float(v["Rail Offset"])
     grown = _offset_convex(envelope, c + off)
     if not prongs.is_volume:                                     # read back from STL
         prongs = geom.clean(prongs)
-    parts = [prongs]
+    rails = []
     for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top")):
         z0, z1 = float(v[lo]), float(v[hi])
         slab = trimesh.creation.box(extents=(60.0, 60.0, z1 - z0))
         slab.apply_translation((0.0, 0.0, (z0 + z1) / 2))
-        parts.append(trimesh.boolean.intersection([grown, slab], engine="manifold"))
-    head = trimesh.boolean.union(parts, engine="manifold")
+        rails.append(trimesh.boolean.intersection([grown, slab], engine="manifold"))
+    return prongs, trimesh.boolean.union(rails, engine="manifold")
+
+
+def outline_head_mesh(v: dict, envelope, prongs, cut_seat: bool = True):
+    """The outline head from the block's input numbers, the seat envelope and the prong mesh
+    (unblended: the blend is estimated by volume)."""
+    import trimesh
+    from . import geom
+    c = float(v["Clearance"])
+    prongs, rails = outline_head_parts(v, envelope, prongs)
+    head = trimesh.boolean.union([prongs, rails], engine="manifold")
     if cut_seat:
         head = trimesh.boolean.difference([head, _offset_convex(envelope, c)], engine="manifold")
     return geom.clean(head)
@@ -713,7 +774,7 @@ def check_outline_head(spec: OutlineHeadSpec, stl: Path, ntop_vol: float | None)
     blocking = outline_count(head, g / 2 + 0.15, above)
     rep.checks.append(gate.Check("seat ledges", ledges == spec.count, f"{ledges} prongs reach under the girdle (expected {spec.count})"))
     rep.checks.append(gate.Check("drop-in clear", blocking == 0, f"{blocking} pieces inside the girdle line above the girdle"))
-    rep.checks.append(band.design_volume_check(float(outline_design_mesh(spec).volume), ntop_vol, 3.0))
+    rep.checks.append(band.blended_design_volume_check(float(outline_design_mesh(spec).volume), spec.blend_volume_mm3(), ntop_vol, 3.0))
     return rep
 
 
@@ -777,9 +838,14 @@ class BezelSpec:
     bottom_frac: float = 0.35              # the cup's bottom edge, as a fraction of the pavilion above the culet
     floor_z: float | None = None           # nothing below this (head frame): raised for a ring
     clearance_mm: float | None = None
+    blend_mm: float | None = None          # nTop blend radius on the cup's edges (its rim and lip rounded); default tables
     mesh_tolerance_mm: float = 0.05
 
     # ---- numbers ---------------------------------------------------------------------------
+    @property
+    def blend(self) -> float:
+        return tables.SETTINGS["blend_radius_mm"] if self.blend_mm is None else float(self.blend_mm)
+
     @property
     def wall(self) -> float:
         return float(self.wall_mm) if self.wall_mm is not None else tables.SETTINGS["bezel_wall_mm"]
@@ -895,7 +961,8 @@ class BezelSpec:
     # ---- notebook ------------------------------------------------------------------------------
     def notebook_inputs(self, seat_path: str, windows_path: str = "", output_path: str | None = None) -> dict:
         ins = {"Seat Path": seat_path, "Clearance": round(self.clearance, 4), "Windows Path": windows_path,
-               "Wall": round(self.wall, 4), "Bezel Bottom": round(self.z_bottom, 4), "Bezel Top": round(self.z_top, 4)}
+               "Wall": round(self.wall, 4), "Bezel Bottom": round(self.z_bottom, 4), "Bezel Top": round(self.z_top, 4),
+               "Blend Radius": round(self.blend, 4)}
         if output_path is not None:
             ins["Mesh Tolerance"] = self.mesh_tolerance_mm
             ins["Output Path"] = output_path
@@ -906,6 +973,10 @@ class BezelSpec:
         d["inputs"] = self.notebook_inputs("")
         d["window_zone"] = [round(v, 4) for v in self.window_zone()]
         return d
+
+    def blend_volume_mm3(self) -> float:
+        """A bezel blends only an intersection (its edges rounded): nothing is added."""
+        return 0.0
 
     @property
     def stem(self) -> str:
@@ -931,6 +1002,7 @@ class BezelSpec:
                 p.append("windows narrower than the wall floor will not print or cast open")
         if self.z_bottom > -self.stone.girdle / 2 - self.bearing - 0.3:
             p.append("the cup is too shallow to carry the stone: more pavilion under the bearing")
+        p += blend_problems(self.blend, self.wall / 2)
         return p
 
     def describe(self) -> str:
@@ -939,7 +1011,8 @@ class BezelSpec:
                else "a closed cup")
         return (f"{self.stem}: bezel on a {self.stone.describe()}\n"
                 f"  wall {self.wall} mm, lip {self.lip} mm above the girdle (top z {self.z_top:.2f}), cup down to z "
-                f"{self.z_bottom:.2f}, bearing {self.bearing} mm under the girdle; {win}; clearance {self.clearance} mm")
+                f"{self.z_bottom:.2f}, bearing {self.bearing} mm under the girdle; {win}; clearance {self.clearance} mm; "
+                f"edges blended {self.blend:g} mm")
 
     def design_mesh(self):
         return bezel_mesh(self.notebook_inputs(""), self.seat.envelope(), self.windows_mesh())

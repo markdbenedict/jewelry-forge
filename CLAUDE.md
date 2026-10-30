@@ -183,6 +183,11 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   refused by `embed_custom_block` ("Not a valid custom block"; bisected 2026-10-28). Variables may
   feed any number of inputs. Variables are notebook inputs once
   `move_block_to_input` is called; one `set_block_as_output`.
+- **Blends**: Boolean Union / Intersect take `Blend Radius` (a `real_field`: wire a `core.var<real>`,
+  `nj.wire_blend`); the Blend Type enum stays at nTop's default. A smooth union fills every corner two
+  surfaces make within its radius, so **the seat and the engraving are subtracted after the blended
+  join**, never before. The independent model is unblended; the gate expects design + `blend_volume_factor`
+  x r² x junction length and widens its tolerance by that estimate until the factor is calibrated.
 - Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
   (`e_FAILED` carries `error`); do not trust a call that returned without raising.
 - `new_notebook()` discards the open notebook; `save_notebook_as` / `export_as_recipe`
@@ -244,6 +249,7 @@ python -m ntopjewel head --length 6.5 --prongs 6                      # the pron
 python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # the Phase 2 ring: head on a court band, gothic arches with milgrain, gated (out\solitaire)
 python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-width 8.9 --stone-depth 4.6 --material glass --engrave Makena   # pear, text inside the shank
 python -m ntopjewel solitaire --bezel --size 6 --length 6.5            # any stone in a bezel (head --bezel for the head alone)
+python -m ntopjewel solitaire --size 6 --length 6.5 --blend 0 --shank-blend 0   # sharp junctions (default: the tables' blend_radius_mm on both)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop

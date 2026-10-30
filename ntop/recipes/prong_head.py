@@ -7,7 +7,8 @@
 1. Block `ntop/blocks/prong_head.ntop` (Seat Cutter is an implicit INPUT; no block inside):
        one prong   Cylinder Base -> Tip (Prong Radius) ∪ a sphere on each end
        prongs      Polar Array of it about +Z: Prong Count copies, Prong Spacing (deg) apart
-       basket      ∪ two tori about Z: Upper Rail (Z, Radius), Lower Rail (Z, Radius), Rail Tube Radius
+       basket      ∪ two tori about Z: Upper Rail (Z, Radius), Lower Rail (Z, Radius), Rail Tube Radius,
+                   the union blended by Blend Radius (prongs melt into the rails)
        seat        − Seat Cutter (the stone_seat block's output, wired in): trims the prongs back to the girdle line
                    above the girdle (the stone drops in) and leaves a ledge in each below it
        Output      Head (implicit)
@@ -35,7 +36,7 @@ TEST_ENVELOPE = REPO / "out" / "api" / "prong_head_test_envelope.stl"
 GEOMETRY_SPECS = [("Prong Count", "int"), ("Prong Spacing", "deg"),
                   ("Prong Radius", "mm"), ("Base X", "mm"), ("Base Y", "mm"), ("Base Z", "mm"),
                   ("Tip X", "mm"), ("Tip Y", "mm"), ("Tip Z", "mm"), ("Upper Rail Z", "mm"), ("Upper Rail Radius", "mm"),
-                  ("Lower Rail Z", "mm"), ("Lower Rail Radius", "mm"), ("Rail Tube Radius", "mm")]
+                  ("Lower Rail Z", "mm"), ("Lower Rail Radius", "mm"), ("Rail Tube Radius", "mm"), ("Blend Radius", "mm")]
 SEAT_SPECS = [("Seat Path", "path"), ("Clearance", "mm")]           # the harness's, for the stone_seat block
 BLOCK_SPECS = SEAT_SPECS + GEOMETRY_SPECS                           # = the harness inputs before Mesh Tolerance
 INPUT_ORDER = [n for n, _ in BLOCK_SPECS] + ["Mesh Tolerance", "Output Path"]
@@ -64,7 +65,7 @@ DEFAULTS = {
     "lazy_ok": True,                    # the GUI may leave the head unbuilt; `head` under nTopCL is the test
     "fresh": True,
     "wait_s": 240,
-    "volume_hint": "6-prong head, 6.5 mm round: 38.6 mm³ (heads.design_mesh)",
+    "volume_hint": "6-prong head, 6.5 mm round: 38.6 mm³ unblended + ~1.3 mm³ of blend (heads.design_mesh, blend_volume_mm3)",
 }
 
 
@@ -162,6 +163,7 @@ def _head_body(notebook, values: dict, stage: str = "full"):
     basket = h.add("Basket", mask="union", must=nj.UNION)
     for b in (prongs, *rails):
         h.to_list(b, basket, ["Bodies"])
+    nj.wire_blend(h, basket, inp("Blend Radius"))              # prongs melt into the rails (a real_field: wired, not set)
     if stage == "basket":
         return h, basket, used
     head = h.add("Seated", mask="subtract", must=nj.SUBTRACT)

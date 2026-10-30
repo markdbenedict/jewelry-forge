@@ -2,7 +2,7 @@
 # Built by ntop/recipes/bezel_head.py; run by `python -m ntopjewel head --bezel ...`; every number from
 # ntopjewel.heads.BezelSpec.notebook_inputs.
 notebook: bezel_head_harness.ntop
-version: 0.1.0
+version: 0.2.0
 title: Bezel head (a wall and cup round any outline, light windows, seat cut by stone_seat)
 output:
   name: Volume
@@ -41,6 +41,12 @@ inputs:
     min: 0.0
     max: 5.0
     doc: 'The wall''s top, z: the girdle top + the lip.'
+  Blend Radius:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: Boolean blend radius on the cup's rim and lip edges (0 = sharp).
   Mesh Tolerance:
     type: scalar
     units: mm

@@ -15,7 +15,9 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
                Array (Bead Count, Bead Spacing) about the axis through that arch's centre ∥ Z
     engraving  Import Mesh (Engraving Path) -> Implicit from Mesh -> Remap Cylindrical (Engraving Wrap
                Length) -> turned 180° about +Z (the text opposite the head)
-    ring       ((Band Body ∪ milgrain) - placed seat - engraving) ∪ placed head -> Volume, Mesh, Export
+    ring       ((Band Body ∪ milgrain) ∪ placed head, blended by Shank Blend) - placed seat - engraving
+               -> Volume, Mesh, Export. The cuts come AFTER the blend: a smooth union fills every corner
+               two surfaces make within its radius, and the seat's corners must stay empty
 
 Every number comes from ntopjewel.solitaire.SolitaireSpec.notebook_inputs; the notebook has no arithmetic.
 """
@@ -29,10 +31,12 @@ from .notebook_api import ConsoleError
 ROUND_HEAD = [("Prong Count", "int"), ("Prong Spacing", "deg"), ("Prong Radius", "mm"),
               ("Base X", "mm"), ("Base Y", "mm"), ("Base Z", "mm"), ("Tip X", "mm"), ("Tip Y", "mm"), ("Tip Z", "mm"),
               ("Upper Rail Z", "mm"), ("Upper Rail Radius", "mm"), ("Lower Rail Z", "mm"), ("Lower Rail Radius", "mm"),
-              ("Rail Tube Radius", "mm")]
+              ("Rail Tube Radius", "mm"), ("Head Blend", "mm")]
 OUTLINE_HEAD = [("Prongs Path", "path"), ("Rail Offset", "mm"), ("Upper Rail Bottom", "mm"), ("Upper Rail Top", "mm"),
-                ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm")]
-BEZEL_HEAD = [("Windows Path", "path"), ("Wall", "mm"), ("Bezel Bottom", "mm"), ("Bezel Top", "mm")]
+                ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm"), ("Head Blend", "mm")]
+BEZEL_HEAD = [("Windows Path", "path"), ("Wall", "mm"), ("Bezel Bottom", "mm"), ("Bezel Top", "mm"), ("Head Blend", "mm")]
+JOIN = [("Shank Blend", "mm")]
+BLOCK_INPUT = {"Head Blend": "Blend Radius"}          # a notebook input whose name differs from the block input it feeds
 HEAD_LABEL = {"round": "Prong Head", "outline": "Outline Head", "bezel": "Bezel Head"}
 ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
         ("Arch Centre X", "mm"), ("Arch Centre Y", "mm"), ("Arch Centre Y Minus", "mm"), ("Arch Radius", "mm"),
@@ -49,7 +53,7 @@ def head_specs(kind: str) -> list[tuple[str, str]]:
 
 def specs(kind: str) -> list[tuple[str, str]]:
     return ([(n, "mm") for n in nj.BAND_INPUTS] + [("Seat Path", "path"), ("Clearance", "mm")] + head_specs(kind)
-            + ARCH + ENGRAVING)
+            + ARCH + ENGRAVING + JOIN)
 
 
 def input_order(kind: str) -> list[str]:
@@ -161,7 +165,7 @@ def body(kind: str):
         head = h.add(HEAD_LABEL[kind], h.embed_block(p["head_block"]))
         h.wire(seat_local, head, ["Seat Cutter"])
         for name, _ in head_specs(kind):
-            h.wire(ids[name], head, [name])
+            h.wire(ids[name], head, [BLOCK_INPUT.get(name, name)])
 
         pivot = nj.point_block(h, "Pivot", x_var=ids["Pivot X"], z_var=ids["Pivot Z"])
         rot = h.add("Head Placement", mask="rotation_transform", must=nj.ROTATION_TRANSFORM)
@@ -181,13 +185,16 @@ def body(kind: str):
         h.to_list(band, shank, ["Bodies"])
         for row in milgrain(h, ids):
             h.to_list(row, shank, ["Bodies"])
-        seated = h.add("Seated Shank", mask="subtract", must=nj.SUBTRACT)
-        h.wire(shank, seated, ["Primary Body", "Body"])
-        h.to_list(placed["Placed Seat"], seated, ["Subtraction Bodies", "Bodies"])
-        h.to_list(engraving(h, ids), seated, ["Subtraction Bodies", "Bodies"])
-        ring = h.add("Ring", mask="union", must=nj.UNION)
-        h.to_list(seated, ring, ["Bodies"])
-        h.to_list(placed["Placed Head"], ring, ["Bodies"])
+        # the head melts into the shank (blended), THEN the seat and the engraving are cut, sharp:
+        # a blend fills every corner two surfaces make within its radius, the seat's included
+        joined = h.add("Joined", mask="union", must=nj.UNION)
+        h.to_list(shank, joined, ["Bodies"])
+        h.to_list(placed["Placed Head"], joined, ["Bodies"])
+        nj.wire_blend(h, joined, ids["Shank Blend"])
+        ring = h.add("Ring", mask="subtract", must=nj.SUBTRACT)
+        h.wire(joined, ring, ["Primary Body", "Body"])
+        h.to_list(placed["Placed Seat"], ring, ["Subtraction Bodies", "Bodies"])
+        h.to_list(engraving(h, ids), ring, ["Subtraction Bodies", "Bodies"])
         out = h.wrap_var("Ring Body", ring)
         integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, ids["Mesh Tolerance"])
         return integ, export

@@ -2,7 +2,7 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --bezel ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_bezel.ntop
-version: 0.1.0
+version: 0.2.0
 title: 'Solitaire (any stone, bezel_head): gothic cathedral arches, arch milgrain,
   optional engraving'
 output:
@@ -110,6 +110,13 @@ inputs:
     min: 0.0
     max: 5.0
     doc: 'The wall''s top, z: the girdle top + the lip.'
+  Head Blend:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: The head block's own blend radius (prongs into rails / the bezel's edges);
+      0 = sharp.
   Pivot X:
     type: scalar
     units: mm
@@ -240,6 +247,13 @@ inputs:
     max: 200.0
     doc: 'Remap Cylindrical''s Y mapping length: 2π x the radius the text is undistorted
       at.'
+  Shank Blend:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: Blend radius where the head meets the shank; the seat and engraving are cut
+      after the blend (0 = sharp).
   Output Path:
     type: text
     doc: Where Export Mesh writes the ring.

@@ -5,8 +5,9 @@
 
 1. Block `ntop/blocks/bezel_head.ntop` (Seat Cutter is an implicit INPUT, as the prong heads'):
        cup      Offset Body (Seat Cutter, Wall) ∩ a slab (Box from Corners, z Bezel Bottom .. Bezel
-                Top): above the girdle a straight wall round the outline with a lip to burnish over
-                the crown, below it a cup on the pavilion
+                Top), the intersection blended by Blend Radius (rim and lip edges rounded): above the
+                girdle a straight wall round the outline with a lip to burnish over the crown, below
+                it a cup on the pavilion
        windows  Import Mesh (Windows Path: the light windows Python writes, heads.BezelSpec)
                 -> Implicit from Mesh
        seat     cup − Seat Cutter − windows
@@ -28,7 +29,7 @@ REPO = HERE.parents[2]
 TEST_ENVELOPE = REPO / "out" / "api" / "bezel_head_test_envelope.stl"
 TEST_WINDOWS = REPO / "out" / "api" / "bezel_head_test_windows.stl"
 
-GEOMETRY_SPECS = [("Windows Path", "path"), ("Wall", "mm"), ("Bezel Bottom", "mm"), ("Bezel Top", "mm")]
+GEOMETRY_SPECS = [("Windows Path", "path"), ("Wall", "mm"), ("Bezel Bottom", "mm"), ("Bezel Top", "mm"), ("Blend Radius", "mm")]
 SEAT_SPECS = [("Seat Path", "path"), ("Clearance", "mm")]
 BLOCK_SPECS = SEAT_SPECS + GEOMETRY_SPECS
 INPUT_ORDER = [n for n, _ in BLOCK_SPECS] + ["Mesh Tolerance", "Output Path"]
@@ -92,6 +93,7 @@ def _block_body(notebook, values: dict):
     cup = h.add("Bezel Cup", mask="intersect", must=nj.INTERSECT)
     h.to_list(grown, cup, ["Bodies"])
     h.to_list(slab, cup, ["Bodies"])
+    nj.wire_blend(h, cup, ids["Blend Radius"])                   # the rim and the lip's edge rounded
     imp = h.add("Windows Mesh", mask="import_mesh", must=nj.IMPORT_MESH)
     h.wire(ids["Windows Path"], imp, ["Path", "File Path", "File", "Filename"])
     windows = h.add("Windows", mask="implicit_from_mesh", must=nj.IMPLICIT_FROM_MESH)

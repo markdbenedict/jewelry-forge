@@ -2,7 +2,7 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --shape pear ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_outline.ntop
-version: 0.1.0
+version: 0.2.0
 title: 'Solitaire (pear / fancy stone, outline_head): gothic cathedral arches, arch
   milgrain, optional engraving'
 output:
@@ -121,6 +121,13 @@ inputs:
     min: -15.0
     max: 0.0
     doc: Lower rail slab, top z.
+  Head Blend:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: The head block's own blend radius (prongs into rails / the bezel's edges);
+      0 = sharp.
   Pivot X:
     type: scalar
     units: mm
@@ -251,6 +258,13 @@ inputs:
     max: 200.0
     doc: 'Remap Cylindrical''s Y mapping length: 2π x the radius the text is undistorted
       at.'
+  Shank Blend:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: Blend radius where the head meets the shank; the seat and engraving are cut
+      after the blend (0 = sharp).
   Output Path:
     type: text
     doc: Where Export Mesh writes the ring.
