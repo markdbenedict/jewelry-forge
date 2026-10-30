@@ -3,7 +3,7 @@
     {
       "contents": {
         "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
-        "id": "inst137",
+        "id": "inst139",
         "inputs": [
           {
             "type": "blend_enum",
@@ -23,7 +23,7 @@
           },
           {
             "func": "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]",
-            "id": "inst130",
+            "id": "inst132",
             "inputs": [
               {
                 "type": "blend_enum",
@@ -32,22 +32,16 @@
                 }
               },
               {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
-                  },
-                  "val": 0.0
-                }
+                "input": 5,
+                "props": []
               },
               {
                 "func": "core.list<implicit>",
-                "id": "inst129",
+                "id": "inst131",
                 "inputs": [
                   {
                     "func": "offset_implicit<implicit,real_field>",
-                    "id": "inst111",
+                    "id": "inst113",
                     "inputs": [
                       {
                         "input": 0,
@@ -63,11 +57,11 @@
                   },
                   {
                     "func": "box_from_corners<point,point>",
-                    "id": "inst126",
+                    "id": "inst128",
                     "inputs": [
                       {
                         "func": "point<real,real,real>",
-                        "id": "inst115",
+                        "id": "inst117",
                         "inputs": [
                           {
                             "type": "real",
@@ -99,7 +93,7 @@
                       },
                       {
                         "func": "point<real,real,real>",
-                        "id": "inst121",
+                        "id": "inst123",
                         "inputs": [
                           {
                             "type": "real",
@@ -143,7 +137,7 @@
           },
           {
             "func": "core.list<implicit>",
-            "id": "inst136",
+            "id": "inst138",
             "inputs": [
               {
                 "input": 0,
@@ -151,11 +145,11 @@
               },
               {
                 "func": "implicit_from_mesh<mesh>",
-                "id": "inst133",
+                "id": "inst135",
                 "inputs": [
                   {
                     "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                    "id": "inst132",
+                    "id": "inst134",
                     "inputs": [
                       {
                         "input": 1,
@@ -183,7 +177,7 @@
         "name": "Implicit Body_3",
         "type": "implicit"
       },
-      "id": "inst138",
+      "id": "inst140",
       "name": "Head",
       "type": "implicit",
       "variable": true
@@ -263,10 +257,28 @@
       },
       "name": "Bezel Top",
       "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0003
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Blend Radius",
+      "type": "real"
     }
   ],
-  "name": "user_func_81e94e93_59a6_46ef_8e6f_b256f2c36aee",
+  "name": "user_func_48dc7c01_85cb_4f06_bc92_3f0a0b48021d",
   "output": {
-    "id": "inst138"
+    "id": "inst140"
   }
 }

@@ -55,7 +55,7 @@
     {
       "contents": {
         "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
-        "id": "inst191",
+        "id": "inst193",
         "inputs": [
           {
             "type": "blend_enum",
@@ -84,14 +84,8 @@
                 }
               },
               {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
-                  },
-                  "val": 0.0
-                }
+                "input": 15,
+                "props": []
               },
               {
                 "func": "core.list<implicit>",
@@ -396,7 +390,7 @@
           },
           {
             "func": "core.list<implicit>",
-            "id": "inst190",
+            "id": "inst192",
             "inputs": [
               {
                 "input": 0,
@@ -410,7 +404,7 @@
         "name": "Implicit Body_3",
         "type": "implicit"
       },
-      "id": "inst192",
+      "id": "inst194",
       "name": "Head",
       "type": "implicit",
       "variable": true
@@ -670,10 +664,28 @@
       },
       "name": "Rail Tube Radius",
       "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0003
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Blend Radius",
+      "type": "real"
     }
   ],
-  "name": "user_func_ba06df7e_052b_4e21_9eab_2ab3c446a0f0",
+  "name": "user_func_c1b12bc9_4521_4af8_bd51_7a9b782f6a93",
   "output": {
-    "id": "inst192"
+    "id": "inst194"
   }
 }

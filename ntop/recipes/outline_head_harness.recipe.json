@@ -2,12 +2,12 @@
   "body": [
     {
       "contents": {
-        "func": "user_func_461f28af_7d37_4601_a9a9_da314348e356<implicit,text,real,real,real,real,real>",
-        "id": "inst133",
+        "func": "user_func_53a1ab73_5cc2_4242_bf8c_fa93ae1bf57b<implicit,text,real,real,real,real,real,real>",
+        "id": "inst136",
         "inputs": [
           {
             "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
-            "id": "inst126",
+            "id": "inst128",
             "inputs": [
               {
                 "input": 0,
@@ -44,12 +44,16 @@
           {
             "input": 7,
             "props": []
+          },
+          {
+            "input": 8,
+            "props": []
           }
         ],
         "name": "Implicit Body_1",
         "type": "implicit"
       },
-      "id": "inst134",
+      "id": "inst137",
       "name": "Result",
       "type": "implicit",
       "variable": true
@@ -57,18 +61,18 @@
     {
       "contents": {
         "func": "volume_integral<implicit,real_field,real>",
-        "id": "inst136",
+        "id": "inst139",
         "inputs": [
           {
             "props": [],
             "ref": {
-              "id": "inst134"
+              "id": "inst137"
             }
           },
           {
             "props": [],
             "ref": {
-              "id": "inst137"
+              "id": "inst140"
             }
           },
           {
@@ -83,7 +87,7 @@
         "name": "Scalar_0",
         "type": "real"
       },
-      "id": "inst144",
+      "id": "inst147",
       "name": "Volume",
       "type": "real",
       "variable": true
@@ -97,31 +101,31 @@
           "val": 1.0
         }
       },
-      "id": "inst137",
+      "id": "inst140",
       "name": "One",
       "type": "real",
       "variable": true
     },
     {
       "func": "export_mesh<file_path,mesh,unit_length_enum>",
-      "id": "inst143",
+      "id": "inst146",
       "inputs": [
         {
-          "input": 9,
+          "input": 10,
           "props": []
         },
         {
           "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-          "id": "inst141",
+          "id": "inst144",
           "inputs": [
             {
               "props": [],
               "ref": {
-                "id": "inst134"
+                "id": "inst137"
               }
             },
             {
-              "input": 8,
+              "input": 9,
               "props": []
             },
             null,
@@ -295,6 +299,24 @@
           "units": {
             "length": 1
           },
+          "val": 0.0003
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Blend Radius",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
           "val": 5e-05
         }
       },
@@ -318,8 +340,8 @@
       "type": "text"
     }
   ],
-  "name": "user_func_b81d520d_a48f_4bf2_baaf_8d9bb504eaeb",
+  "name": "user_func_505aaf6d_6e57_4d27_a055_951af3daee30",
   "output": {
-    "id": "inst144"
+    "id": "inst147"
   }
 }

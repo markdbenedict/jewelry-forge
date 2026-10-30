@@ -3,7 +3,7 @@
     {
       "contents": {
         "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
-        "id": "inst165",
+        "id": "inst167",
         "inputs": [
           {
             "type": "blend_enum",
@@ -23,7 +23,7 @@
           },
           {
             "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
-            "id": "inst161",
+            "id": "inst163",
             "inputs": [
               {
                 "type": "blend_enum",
@@ -32,26 +32,20 @@
                 }
               },
               {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
-                  },
-                  "val": 0.0
-                }
+                "input": 7,
+                "props": []
               },
               {
                 "func": "core.list<implicit>",
-                "id": "inst160",
+                "id": "inst162",
                 "inputs": [
                   {
                     "func": "implicit_from_mesh<mesh>",
-                    "id": "inst117",
+                    "id": "inst119",
                     "inputs": [
                       {
                         "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                        "id": "inst116",
+                        "id": "inst118",
                         "inputs": [
                           {
                             "input": 1,
@@ -73,7 +67,7 @@
                   },
                   {
                     "func": "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]",
-                    "id": "inst137",
+                    "id": "inst139",
                     "inputs": [
                       {
                         "type": "blend_enum",
@@ -82,22 +76,16 @@
                         }
                       },
                       {
-                        "type": "real",
-                        "value": {
-                          "isFinite": true,
-                          "units": {
-                            "length": 1
-                          },
-                          "val": 0.0
-                        }
+                        "input": 7,
+                        "props": []
                       },
                       {
                         "func": "core.list<implicit>",
-                        "id": "inst136",
+                        "id": "inst138",
                         "inputs": [
                           {
                             "func": "offset_implicit<implicit,real_field>",
-                            "id": "inst118",
+                            "id": "inst120",
                             "inputs": [
                               {
                                 "input": 0,
@@ -113,11 +101,11 @@
                           },
                           {
                             "func": "box_from_corners<point,point>",
-                            "id": "inst133",
+                            "id": "inst135",
                             "inputs": [
                               {
                                 "func": "point<real,real,real>",
-                                "id": "inst122",
+                                "id": "inst124",
                                 "inputs": [
                                   {
                                     "type": "real",
@@ -149,7 +137,7 @@
                               },
                               {
                                 "func": "point<real,real,real>",
-                                "id": "inst128",
+                                "id": "inst130",
                                 "inputs": [
                                   {
                                     "type": "real",
@@ -193,7 +181,7 @@
                   },
                   {
                     "func": "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]",
-                    "id": "inst157",
+                    "id": "inst159",
                     "inputs": [
                       {
                         "type": "blend_enum",
@@ -202,22 +190,16 @@
                         }
                       },
                       {
-                        "type": "real",
-                        "value": {
-                          "isFinite": true,
-                          "units": {
-                            "length": 1
-                          },
-                          "val": 0.0
-                        }
+                        "input": 7,
+                        "props": []
                       },
                       {
                         "func": "core.list<implicit>",
-                        "id": "inst156",
+                        "id": "inst158",
                         "inputs": [
                           {
                             "func": "offset_implicit<implicit,real_field>",
-                            "id": "inst138",
+                            "id": "inst140",
                             "inputs": [
                               {
                                 "input": 0,
@@ -233,11 +215,11 @@
                           },
                           {
                             "func": "box_from_corners<point,point>",
-                            "id": "inst153",
+                            "id": "inst155",
                             "inputs": [
                               {
                                 "func": "point<real,real,real>",
-                                "id": "inst142",
+                                "id": "inst144",
                                 "inputs": [
                                   {
                                     "type": "real",
@@ -269,7 +251,7 @@
                               },
                               {
                                 "func": "point<real,real,real>",
-                                "id": "inst148",
+                                "id": "inst150",
                                 "inputs": [
                                   {
                                     "type": "real",
@@ -321,7 +303,7 @@
           },
           {
             "func": "core.list<implicit>",
-            "id": "inst164",
+            "id": "inst166",
             "inputs": [
               {
                 "input": 0,
@@ -335,7 +317,7 @@
         "name": "Implicit Body_6",
         "type": "implicit"
       },
-      "id": "inst166",
+      "id": "inst168",
       "name": "Head",
       "type": "implicit",
       "variable": true
@@ -451,10 +433,28 @@
       },
       "name": "Lower Rail Top",
       "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0003
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Blend Radius",
+      "type": "real"
     }
   ],
-  "name": "user_func_461f28af_7d37_4601_a9a9_da314348e356",
+  "name": "user_func_53a1ab73_5cc2_4242_bf8c_fa93ae1bf57b",
   "output": {
-    "id": "inst166"
+    "id": "inst168"
   }
 }
