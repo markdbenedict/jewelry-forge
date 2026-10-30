@@ -3,6 +3,7 @@ import math
 import pytest
 
 from ntopjewel import catalog, gems, heads
+from .pseudo_blend import Blended
 
 
 def spec(n=6, **kw):
@@ -30,7 +31,7 @@ def test_notebook_inputs_match_the_catalog_and_place_the_first_prong():
 
 def test_the_design_head_fits_sits_and_drops_in(tmp_path):
     s = spec(6)
-    m = heads.design_mesh(s)
+    m = heads.design_mesh(s, ops=Blended())                # as nTop builds it: the junctions filled by the blend
     assert m.is_watertight and len(m.split(only_watertight=False)) == 1
     m.export(tmp_path / "h.stl")
     rep = heads.check_head(s, tmp_path / "h.stl", float(m.volume))

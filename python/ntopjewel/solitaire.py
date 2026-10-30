@@ -344,13 +344,12 @@ class SolitaireSpec:
                 "shank_blend_mm": self.shank_blend}
 
     def blend_volume_mm3(self) -> float:
-        """What the blends add: the head's own (prongs into rails) plus the head-to-shank union."""
+        """What the blends add (see blend_estimate): the head's own junctions where exposed, the
+        head's rounded edges against, and the head-to-shank union."""
         if "blend_volume" not in self._cache:
-            est = self.placed_head.blend_volume_mm3()
-            if self.shank_blend > 0:
-                shank, head = design_parts(self)
-                est += geom.blend_volume_mm3(self.shank_blend, geom.junction_length(shank, head))
-            self._cache["blend_volume"] = est
+            self._cache["blend_volume"] = blend_estimate(self.notebook_inputs(""), self.head.seat.envelope(),
+                                                         prongs=self.placed_head.prongs_mesh() if self.outline else None,
+                                                         windows=self.placed_head.windows_mesh() if self.bezel else None)
         return self._cache["blend_volume"]
 
     @property
@@ -478,73 +477,82 @@ def wrapped_engraving(v: dict, engraving):
     return w
 
 
-def ring_mesh(v: dict, envelope, cut_seat: bool = True, inner: float | None = None, beads: bool = True,
-              prongs=None, engraving=None, engrave: bool = True, windows=None):
-    """The solitaire from the notebook's input numbers, as nTop builds it. `prongs` / `engraving`:
-    the meshes the notebook's Prongs Path / Engraving Path point at (read from those paths when
-    not given)."""
+def ring_parts(v: dict, envelope, prongs=None, windows=None, beads: bool = True, cut_seat: bool = True,
+               ops: geom.Booleans = geom.SHARP):
+    """(shank, placed head, placement, placed seat cutter) from the notebook's numbers: the bodies
+    the notebook's blended join unites and the cut that follows it. `prongs` / `windows`: the
+    meshes the notebook's Prongs Path / Windows Path point at (read from those paths when not
+    given). The head is built the way its block builds it (`ops` decides the blends)."""
     import trimesh
-    band = geom.band_mesh(v)
-    if inner is None:                                   # midway between the bounds SolitaireSpec.arch() computes
-        t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
-        lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
-        inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2
-    shank = trimesh.boolean.union([band, arch_mesh(v, inner)] + ([bead_mesh(v)] if beads else []), engine="manifold")
-    place = geom.rotation_about_y(HEAD_ANGLE_DEG, [float(v["Pivot X"]), 0.0, float(v["Pivot Z"])])
-    if "Prongs Path" in v:
+    t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
+    lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
+    inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2     # midway between the bounds SolitaireSpec.arch() computes
+    shank = ops.union([geom.band_mesh(v), arch_mesh(v, inner)] + ([bead_mesh(v)] if beads else []))
+    kind = heads.head_kind(v)
+    if kind == "outline":
         if prongs is None:
             prongs = trimesh.load(str(v["Prongs Path"]), force="mesh")
-        head = heads.outline_head_mesh(v, envelope, prongs, cut_seat=cut_seat)
-    elif "Windows Path" in v:
+        head = heads.outline_head_mesh(v, envelope, prongs, cut_seat=cut_seat, ops=ops)
+    elif kind == "bezel":
         if windows is None:
             windows = trimesh.load(str(v["Windows Path"]), force="mesh")
-        head = heads.bezel_mesh(v, envelope, windows, cut_seat=cut_seat)
+        head = heads.bezel_mesh(v, envelope, windows, cut_seat=cut_seat, ops=ops)
     else:
-        head = heads.head_mesh(v, envelope, cut_seat=cut_seat)
+        head = heads.head_mesh(v, envelope, cut_seat=cut_seat, ops=ops)
+    place = geom.rotation_about_y(HEAD_ANGLE_DEG, [float(v["Pivot X"]), 0.0, float(v["Pivot Z"])])
     head = head.copy()
     head.apply_transform(place)
-    ring = trimesh.boolean.union([shank, head], engine="manifold")        # blended in nTop; then the cuts, sharp
-    cuts = []
-    if cut_seat:
-        cutter = geom.offset_convex(envelope, float(v["Clearance"])).copy()
-        cutter.apply_transform(place)
-        cuts.append(cutter)
+    cutter = geom.offset_convex(envelope, float(v["Clearance"])).copy()
+    cutter.apply_transform(place)
+    return shank, head, place, cutter
+
+
+def ring_mesh(v: dict, envelope, cut_seat: bool = True, beads: bool = True, prongs=None, engraving=None,
+              engrave: bool = True, windows=None, ops: geom.Booleans = geom.SHARP):
+    """The solitaire from the notebook's input numbers, in the notebook's order: shank ∪ placed
+    head (blended in nTop by Shank Blend; `ops` decides), then the seat cutter and the engraving
+    subtracted. `engraving`: the mesh Engraving Path points at (read from it when not given)."""
+    import trimesh
+    shank, head, place, cutter = ring_parts(v, envelope, prongs, windows, beads=beads, cut_seat=cut_seat, ops=ops)
+    ring = ops.union([shank, head], float(v.get("Shank Blend", 0.0)))
+    cuts = [cutter] if cut_seat else []
     if engrave and "Engraving Path" in v:
         if engraving is None:
             engraving = trimesh.load(str(v["Engraving Path"]), force="mesh")
         cuts.append(wrapped_engraving(v, engraving))
-    if cuts:
-        ring = trimesh.boolean.difference([ring] + cuts, engine="manifold")
-    return geom.clean(ring)
+    return ops.clean(ops.difference(ring, cuts))
 
 
-def design_parts(spec: "SolitaireSpec"):
-    """(shank, placed head) of the design, the two bodies the notebook's blended union joins."""
-    import trimesh
-    v = spec.notebook_inputs("")
-    t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
-    lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
-    inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2
-    shank = trimesh.boolean.union([geom.band_mesh(v), arch_mesh(v, inner), bead_mesh(v)], engine="manifold")
-    envelope = spec.head.seat.envelope()
-    if spec.outline:
-        head = heads.outline_head_mesh(v, envelope, spec.placed_head.prongs_mesh())
-    elif spec.bezel:
-        head = heads.bezel_mesh(v, envelope, spec.placed_head.windows_mesh())
-    else:
-        head = heads.head_mesh(v, envelope)
-    head = head.copy()
-    head.apply_transform(geom.rotation_about_y(HEAD_ANGLE_DEG, [float(v["Pivot X"]), 0.0, float(v["Pivot Z"])]))
-    return shank, head
+def blend_estimate(v: dict, envelope, prongs=None, windows=None) -> float:
+    """What the ring's blends add (negative: remove), mm³, from the notebook's numbers: the head's
+    own junctions where they are exposed (buried in the shank: already solid; inside the seat: cut
+    away afterwards), its rounded edges against, plus the head-to-shank union."""
+    hv = {k: v[k] for k in v if k not in ("Head Blend",)}
+    hv["Blend Radius"] = v.get("Head Blend", 0.0)
+    shank_blend = float(v.get("Shank Blend", 0.0))
+    if float(hv["Blend Radius"]) <= 0 and shank_blend <= 0:
+        return 0.0
+    shank, head, place, cutter = ring_parts(v, envelope, prongs, windows)
+    j = heads.blend_junctions(hv, envelope, prongs)
+    exposed = {k: geom.exposed_segments(geom.transform_segments(seg, place), shank, cutter) for k, seg in j.items()}
+    est = heads.blend_estimate(hv, envelope, prongs, junctions=exposed)
+    if shank_blend > 0:
+        est += geom.blend_volume_mm3(shank_blend, geom.segments_length(geom.exposed_segments(geom.junction_segments(shank, head), cutter)))
+    return est
 
 
-def design_mesh(spec: SolitaireSpec):
-    if "design_mesh" not in spec._cache:
+def design_mesh(spec: SolitaireSpec, ops: geom.Booleans = geom.SHARP):
+    """The independent ring (sharp by default; cached per spec)."""
+    key = "design_mesh" if ops is geom.SHARP else None
+    if key is None or key not in spec._cache:
         prongs = spec.placed_head.prongs_mesh() if spec.outline else None
         windows = spec.placed_head.windows_mesh() if spec.bezel else None
-        spec._cache["design_mesh"] = ring_mesh(spec.notebook_inputs(""), spec.head.seat.envelope(), prongs=prongs,
-                                               engraving=spec.engraving_mesh(), windows=windows)
-    return spec._cache["design_mesh"]
+        mesh = ring_mesh(spec.notebook_inputs(""), spec.head.seat.envelope(), prongs=prongs,
+                         engraving=spec.engraving_mesh(), windows=windows, ops=ops)
+        if key is None:
+            return mesh
+        spec._cache[key] = mesh
+    return spec._cache[key]
 
 
 # ---- the gate -----------------------------------------------------------------------------------
@@ -575,9 +583,11 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
                                  f"from the axis towards the head, metal starts at r {first:.3f} (bore r {b.bore_radius_mm:.3f})"))
     design = design_mesh(spec)
     d = np.array(rep.extents_mm) - np.array(design.extents)
-    rep.checks.append(gate.Check("extents", bool(np.all(np.abs(d) <= max(0.1, 2 * spec.head.mesh_tolerance_mm))),
+    tol = max(0.1, 2 * spec.head.mesh_tolerance_mm)
+    shrink = tol + spec.placed_head.blend          # a blended intersection rounds the head's outermost edges away
+    rep.checks.append(gate.Check("extents", bool(np.all(d <= tol) and np.all(d >= -shrink)),
                                  " x ".join(f"{x:.2f}" for x in rep.extents_mm) + " vs design "
-                                 + " x ".join(f"{x:.2f}" for x in design.extents) + " mm"))
+                                 + " x ".join(f"{x:.2f}" for x in design.extents) + f" mm (+{tol:.2f} / -{shrink:.2f})"))
     # the head's checks, in the head's own frame
     place = geom.rotation_about_y(HEAD_ANGLE_DEG, [spec.pivot[0], 0.0, spec.pivot[1]])
     local = ring.copy()

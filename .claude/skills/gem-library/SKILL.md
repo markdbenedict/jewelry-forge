@@ -128,5 +128,8 @@ Metal-to-metal junctions are blended in nTop (prongs into rails, rail and bezel 
 the shank) by `blend_radius_mm` from the tables (0.3; `--blend` for the head's own, `--shank-blend` for
 the join; 0 = sharp; at most 1 mm and never wider than the feature joined). The seat and the engraving
 are cut after the blended join, so the stone's clearance survives. The independent model is unblended:
-the gate expects the design plus `blend_volume_factor` x r² x junction length and says so in the
-design-volume line. Beads stop 0.8 x the shank blend clear of the head.
+the gate expects the design plus `blend_volume_factor` x r² x the exposed junction length (calibrated
+2026-10-30 on nTop 6.3.3: 0.32; an intersection's rounded edges count against) and says so in the
+design-volume line; a blended intersection may shrink the extents by the blend radius (the pear's
+rails: 0.23 mm). Beads stop 0.8 x the shank blend clear of the head. Offline, the simulated nTop
+blends too (`tests/pseudo_blend.py`).

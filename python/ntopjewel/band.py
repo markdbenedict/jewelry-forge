@@ -307,12 +307,14 @@ def design_volume_check(design_mm3: float, ntop_mm3: float | None, tol_pct: floa
 
 
 def blended_design_volume_check(design_mm3: float, blend_mm3: float, ntop_mm3: float | None, tol_pct: float) -> gate.Check:
-    """design_volume_check for a part nTop builds with blended unions: the expectation is the
-    unblended design plus the blend's estimate (tables' blend_volume_factor), and until that
-    factor is calibrated the tolerance widens by the estimate's share, since the estimate may be
-    off by its own size either way."""
-    est_pct = 100.0 * blend_mm3 / design_mm3 if design_mm3 else 0.0
-    c = design_volume_check(design_mm3 + blend_mm3, ntop_mm3, tol_pct + est_pct)
+    """design_volume_check for a part nTop builds with blended booleans: the expectation is the
+    unblended design plus the blends' estimate (tables' blend_volume_factor). While that factor
+    is not calibrated the tolerance widens by the estimate's share, since the estimate may then be
+    off by its own size either way; calibrated (2026-10-30), the estimate lands within 0.3 % of a
+    ring and the usual tolerance stands."""
+    est_pct = 100.0 * abs(blend_mm3) / design_mm3 if design_mm3 else 0.0
+    widen = est_pct if tables.TABLES["settings"]["blend_volume_factor"].get("status") != "calibrated" else 0.0
+    c = design_volume_check(design_mm3 + blend_mm3, ntop_mm3, tol_pct + widen)
     if blend_mm3 and c.status != gate.INCOMPLETE:
         c.detail += f" [incl. blend ≈ {blend_mm3:.2f} mm³, {est_pct:.1f} % of the design]"
     return c

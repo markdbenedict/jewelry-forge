@@ -8,14 +8,18 @@ inputs - the designed cross-section (outer/bore cylinders ∩ dome torus ∩ com
 opened by the edge round) revolved about Z - and for `ring_features` it unions the bead
 spheres, subtracts the groove torus and subtracts the cylindrically remapped engraving mesh
 (trimesh + manifold3d), so the mesh gate, the design-volume cross-check and the engraving
-pocket check all face the geometry they would face from nTop. Nothing here reads the Python
-specs; the section is rebuilt from the notebook inputs alone, as nTop would.
+pocket check all face the geometry they would face from nTop. The heads and the solitaire are
+built by the same builders the independent model uses, but with tests/pseudo_blend.py's blended
+booleans, which put the tables' blend volume into the mesh along every junction the notebook
+blends. Nothing here reads the Python specs; the section is rebuilt from the notebook inputs
+alone, as nTop would.
 
 Knobs (environment variables) let a test make the fake misbehave the way a wrong notebook
 would, so the rejections are tested rather than assumed:
 
-  FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave (solitaire) | annulus : a flat rectangular section instead of the
-                      designed one (what a notebook that ignores the tori produces)
+  FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave (solitaire) | noblend (the blend radii ignored:
+                      sharp junctions) | annulus : a flat rectangular section instead of the designed one (what a
+                      notebook that ignores the tori produces)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
   FAKE_NTOPCL_VOLUME  mesh (default) | none : report no Volume output
   FAKE_NTOPCL_SLEEP   seconds to sleep before writing (default 0)
@@ -176,15 +180,19 @@ def main(argv: list[str]) -> int:
         time.sleep(sleep)
 
     outputs: list[dict] = []
+    shape = os.environ.get("FAKE_NTOPCL_SHAPE", "design")
+    if "solitaire" in nb.name or "head" in nb.name:
+        from ntopjewel import geom
+        from pseudo_blend import Blended
+        ops = geom.SHARP if shape == "noblend" else Blended()           # nTop blends where the radius says so
     if "solitaire" in nb.name:
         import trimesh
         from ntopjewel import solitaire
         if not Path(values["Seat Path"]).exists():
             fail("Seat Mesh: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
-        shape = os.environ.get("FAKE_NTOPCL_SHAPE", "design")
         mesh = solitaire.ring_mesh(values, envelope, cut_seat=shape != "noseat", beads=shape != "nobeads",
-                                   engrave=shape != "noengrave")
+                                   engrave=shape != "noengrave", ops=ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Band", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Ring", "Mesh", "Export Mesh"):
@@ -200,7 +208,7 @@ def main(argv: list[str]) -> int:
                 fail(f"{key}: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
         windows = trimesh.load(str(values["Windows Path"]), force="mesh")
-        mesh = heads.bezel_mesh(values, envelope, windows, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        mesh = heads.bezel_mesh(values, envelope, windows, cut_seat=shape != "noseat", ops=ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Bezel Grown", "Bezel Cup", "Windows", "Seated", "Mesh", "Export Mesh", "Volume Integral"):
@@ -216,7 +224,7 @@ def main(argv: list[str]) -> int:
                 fail(f"{key}: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
         prongs = trimesh.load(str(values["Prongs Path"]), force="mesh")
-        mesh = heads.outline_head_mesh(values, envelope, prongs, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        mesh = heads.outline_head_mesh(values, envelope, prongs, cut_seat=shape != "noseat", ops=ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Prongs", "Upper Rail", "Lower Rail", "Basket", "Seated", "Mesh", "Export Mesh", "Volume Integral"):
@@ -230,7 +238,7 @@ def main(argv: list[str]) -> int:
         if not Path(values["Seat Path"]).exists():
             fail("Seat Mesh: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
-        mesh = heads.head_mesh(values, envelope, cut_seat=os.environ.get("FAKE_NTOPCL_SHAPE", "design") != "noseat")
+        mesh = heads.head_mesh(values, envelope, cut_seat=shape != "noseat", ops=ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Prong Rod", "Prongs", "Basket", "Seat", "Seated", "Mesh", "Export Mesh", "Volume Integral"):
@@ -253,7 +261,6 @@ def main(argv: list[str]) -> int:
     elif "band" in nb.name or "features" in nb.name:
         if "Bead Count" in values and not Path(values["Engraving Path"]).exists():
             fail("Engraving Mesh: file not found")
-        shape = os.environ.get("FAKE_NTOPCL_SHAPE", "design")
         mesh = build_mesh(values, shape)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])

@@ -28,7 +28,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import gems, tables
+from . import gems, geom, tables
 
 PRONG_TIP_FLOOR = tables.FLOORS["prong_tip_dia"]        # 0.8 mm: what is left of a prong above the girdle
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
@@ -130,13 +130,13 @@ class HeadSpec:
         d["inputs"] = self.notebook_inputs("")
         return d
 
+    def blend_junctions(self) -> dict:
+        """{"union": segments the blend fills, "intersect": segments it rounds away} (head frame)."""
+        return blend_junctions(self.notebook_inputs(""))
+
     def blend_volume_mm3(self) -> float:
-        """The metal the blended prongs-to-rails union is expected to add (0 for a sharp union)."""
-        from . import geom
-        if self.blend <= 0:
-            return 0.0
-        prongs, rails = head_parts(self.notebook_inputs(""))
-        return geom.blend_volume_mm3(self.blend, geom.junction_length(prongs, rails))
+        """The metal the blends are expected to add (negative: remove), from the junction lengths."""
+        return blend_estimate(self.notebook_inputs(""))
 
     @property
     def stem(self) -> str:
@@ -218,17 +218,21 @@ def blend_problems(blend: float, feature_radius: float) -> list[str]:
     return p
 
 
-def head_mesh(v: dict, seat_mesh=None, cut_seat: bool = True):
-    """The head from the notebook's input numbers (trimesh + manifold3d), without the blend (an
-    implicit operation the independent model estimates by volume instead). `seat_mesh` is the
-    seat envelope (stone + drop path); it is offset by Clearance (exact for a convex body) and
-    subtracted."""
-    import trimesh
+def head_blend_radius(v: dict) -> float:
+    """The head block's blend radius from its inputs: `Blend Radius` on the harness, `Head Blend`
+    on a solitaire notebook (which gives the shank join its own `Shank Blend`)."""
+    return float(v.get("Blend Radius", v.get("Head Blend", 0.0)))
+
+
+def head_mesh(v: dict, seat_mesh=None, cut_seat: bool = True, ops: geom.Booleans = geom.SHARP):
+    """The head from the notebook's input numbers (trimesh + manifold3d) in the block's order:
+    prongs ∪ rails (blended in nTop; `ops` decides - the independent model stays sharp and
+    estimates the blend by volume), then the seat cut. `seat_mesh` is the seat envelope (stone +
+    drop path); it is offset by Clearance (exact for a convex body) and subtracted."""
     prongs, rails = head_parts(v)
-    head = trimesh.boolean.union([prongs, rails], engine="manifold")
+    head = ops.union([prongs, rails], head_blend_radius(v))
     if cut_seat and seat_mesh is not None:
-        cutter = _offset_convex(seat_mesh, float(v["Clearance"]))
-        head = trimesh.boolean.difference([head, cutter], engine="manifold")
+        head = ops.difference(head, [_offset_convex(seat_mesh, float(v["Clearance"]))])
     return head
 
 
@@ -248,8 +252,8 @@ def _offset_convex(mesh, c: float):
     return trimesh.convex.convex_hull(pts)
 
 
-def design_mesh(spec: HeadSpec):
-    return head_mesh(spec.notebook_inputs(""), spec.seat.envelope())
+def design_mesh(spec: HeadSpec, ops: geom.Booleans = geom.SHARP):
+    return head_mesh(spec.notebook_inputs(""), spec.seat.envelope(), ops=ops)
 
 
 # ---- the gate for a head ----------------------------------------------------------------------
@@ -625,14 +629,12 @@ class OutlineHeadSpec:
         d["prong_axes"] = [[[round(float(c), 4) for c in p] for p in axis] for axis in self.prong_axes()]
         return d
 
+    def blend_junctions(self) -> dict:
+        """The prongs-into-rails junction (filled) and the rails' slab edges (rounded away), head frame."""
+        return blend_junctions(self.notebook_inputs(""), self.seat.envelope(), self.prongs_mesh())
+
     def blend_volume_mm3(self) -> float:
-        """What the blended prongs-to-rails union adds (the rails' rounded edges, which take a
-        little away, are not counted)."""
-        from . import geom
-        if self.blend <= 0:
-            return 0.0
-        prongs, rails = outline_head_parts(self.notebook_inputs(""), self.seat.envelope(), self.prongs_mesh())
-        return geom.blend_volume_mm3(self.blend, geom.junction_length(prongs, rails))
+        return blend_estimate(self.notebook_inputs(""), self.seat.envelope(), self.prongs_mesh())
 
     @property
     def stem(self) -> str:
@@ -689,38 +691,47 @@ class OutlineHeadSpec:
                 f"blend {self.blend:g} mm")
 
 
-def outline_head_parts(v: dict, envelope, prongs):
-    """(prongs, rails) from the block's numbers: the two bodies its blended union joins."""
+def _slab(z0: float, z1: float, around=None, margin: float = 2.0, cell: float = 0.6):
+    """The horizontal slab z0..z1 a rail or a bezel cup is cut from: a box reaching `margin`
+    beyond `around` (a mesh; default 30 mm) in x and y, its faces subdivided to about `cell`
+    (an intersection with a 12-triangle box fans each flat face from the rim into mm-long
+    needles, and the simulated nTop's blends push vertices: a needle folds, a small triangle
+    does not)."""
+    import math
     import trimesh
-    from . import geom
+    half = 30.0 if around is None else float(abs(around.bounds[:, :2]).max()) + margin
+    slab = trimesh.creation.box(extents=(2 * half, 2 * half, z1 - z0))
+    for _ in range(max(0, math.ceil(math.log2(2 * half / cell)))):
+        slab = slab.subdivide()
+    slab.apply_translation((0.0, 0.0, (z0 + z1) / 2))
+    return slab
+
+
+def outline_head_parts(v: dict, envelope, prongs, ops: geom.Booleans = geom.SHARP):
+    """(prongs, rails) from the block's numbers: the two bodies its blended union joins. Each rail
+    is the grown outline ∩ its slab, a blended intersection in the block (`ops` decides)."""
     c, off = float(v["Clearance"]), float(v["Rail Offset"])
     grown = _offset_convex(envelope, c + off)
     if not prongs.is_volume:                                     # read back from STL
         prongs = geom.clean(prongs)
     rails = []
     for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top")):
-        z0, z1 = float(v[lo]), float(v[hi])
-        slab = trimesh.creation.box(extents=(60.0, 60.0, z1 - z0))
-        slab.apply_translation((0.0, 0.0, (z0 + z1) / 2))
-        rails.append(trimesh.boolean.intersection([grown, slab], engine="manifold"))
-    return prongs, trimesh.boolean.union(rails, engine="manifold")
+        rails.append(ops.intersect(grown, _slab(float(v[lo]), float(v[hi]), grown), head_blend_radius(v)))
+    return prongs, ops.union(rails)                               # the rails never touch: no blend to fill
 
 
-def outline_head_mesh(v: dict, envelope, prongs, cut_seat: bool = True):
-    """The outline head from the block's input numbers, the seat envelope and the prong mesh
-    (unblended: the blend is estimated by volume)."""
-    import trimesh
-    from . import geom
-    c = float(v["Clearance"])
-    prongs, rails = outline_head_parts(v, envelope, prongs)
-    head = trimesh.boolean.union([prongs, rails], engine="manifold")
+def outline_head_mesh(v: dict, envelope, prongs, cut_seat: bool = True, ops: geom.Booleans = geom.SHARP):
+    """The outline head from the block's input numbers, the seat envelope and the prong mesh, in
+    the block's order: rails, prongs ∪ rails (blended; `ops`), then the seat cut."""
+    prongs, rails = outline_head_parts(v, envelope, prongs, ops)
+    head = ops.union([prongs, rails], head_blend_radius(v))
     if cut_seat:
-        head = trimesh.boolean.difference([head, _offset_convex(envelope, c)], engine="manifold")
-    return geom.clean(head)
+        head = ops.difference(head, [_offset_convex(envelope, float(v["Clearance"]))])
+    return ops.clean(head)
 
 
-def outline_design_mesh(spec: OutlineHeadSpec):
-    return outline_head_mesh(spec.notebook_inputs(""), spec.seat.envelope(), spec.prongs_mesh())
+def outline_design_mesh(spec: OutlineHeadSpec, ops: geom.Booleans = geom.SHARP):
+    return outline_head_mesh(spec.notebook_inputs(""), spec.seat.envelope(), spec.prongs_mesh(), ops=ops)
 
 
 def outline_count(mesh, z: float, region) -> int:
@@ -974,9 +985,12 @@ class BezelSpec:
         d["window_zone"] = [round(v, 4) for v in self.window_zone()]
         return d
 
+    def blend_junctions(self) -> dict:
+        """The cup's slab edges (rim and lip), rounded away; a bezel fills no union."""
+        return blend_junctions(self.notebook_inputs(""), self.seat.envelope())
+
     def blend_volume_mm3(self) -> float:
-        """A bezel blends only an intersection (its edges rounded): nothing is added."""
-        return 0.0
+        return blend_estimate(self.notebook_inputs(""), self.seat.envelope())
 
     @property
     def stem(self) -> str:
@@ -1014,24 +1028,20 @@ class BezelSpec:
                 f"{self.z_bottom:.2f}, bearing {self.bearing} mm under the girdle; {win}; clearance {self.clearance} mm; "
                 f"edges blended {self.blend:g} mm")
 
-    def design_mesh(self):
-        return bezel_mesh(self.notebook_inputs(""), self.seat.envelope(), self.windows_mesh())
+    def design_mesh(self, ops: geom.Booleans = geom.SHARP):
+        return bezel_mesh(self.notebook_inputs(""), self.seat.envelope(), self.windows_mesh(), ops=ops)
 
 
-def bezel_mesh(v: dict, envelope, windows, cut_seat: bool = True):
-    """The bezel from the block's numbers, the seat envelope and the windows mesh (as nTop builds it)."""
-    import trimesh
-    from . import geom
+def bezel_mesh(v: dict, envelope, windows, cut_seat: bool = True, ops: geom.Booleans = geom.SHARP):
+    """The bezel from the block's numbers, the seat envelope and the windows mesh, in the block's
+    order: grown outline ∩ slab (blended; `ops`), then the windows and the seat cut."""
     c, wall = float(v["Clearance"]), float(v["Wall"])
-    z0, z1 = float(v["Bezel Bottom"]), float(v["Bezel Top"])
     grown = _offset_convex(envelope, c + wall)
-    slab = trimesh.creation.box(extents=(80.0, 80.0, z1 - z0))
-    slab.apply_translation((0.0, 0.0, (z0 + z1) / 2))
-    cup = trimesh.boolean.intersection([grown, slab], engine="manifold")
+    cup = ops.intersect(grown, _slab(float(v["Bezel Bottom"]), float(v["Bezel Top"]), grown), head_blend_radius(v))
     if not windows.is_volume:
         windows = geom.clean(windows)
     cuts = [windows] + ([_offset_convex(envelope, c)] if cut_seat else [])
-    return geom.clean(trimesh.boolean.difference([cup] + cuts, engine="manifold"))
+    return ops.clean(ops.difference(cup, cuts))
 
 
 def bezel_wall_check(spec: BezelSpec, mesh, frame=None):
@@ -1086,7 +1096,7 @@ def check_bezel(spec: BezelSpec, stl: Path, ntop_vol: float | None):
     rep.checks.append(gate.Check("seated", seated >= 1, f"{seated} piece(s) of the cup under the girdle"))
     rep.checks.append(gate.Check("drop-in clear", blocking == 0, f"{blocking} pieces inside the girdle line above the girdle"))
     rep.checks.append(bezel_wall_check(spec, head))
-    rep.checks.append(band.design_volume_check(float(spec.design_mesh().volume), ntop_vol, 3.0))
+    rep.checks.append(band.blended_design_volume_check(float(spec.design_mesh().volume), spec.blend_volume_mm3(), ntop_vol, 3.0))
     return rep
 
 
@@ -1124,3 +1134,42 @@ def build_bezel(spec: BezelSpec, out_dir: Path | None = None, *, notebook: Path 
         "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notebook": runs.notebook_identity(nb),
         "environment": runs.environment(ntopcl.version()), "notes": res.notes}, indent=2, default=str), encoding="utf-8")
     return res
+
+
+# ---- blends, from the notebook's numbers (the specs, the gate and the simulated nTop share this) --
+def head_kind(v: dict) -> str:
+    return "outline" if "Prongs Path" in v else ("bezel" if "Windows Path" in v else "round")
+
+
+def blend_junctions(v: dict, envelope=None, prongs=None) -> dict:
+    """{"union": segments the head's blended union fills, "intersect": segments its blended
+    intersections round away}, head frame, from a head block's input numbers (any kind)."""
+    import numpy as np
+    from . import geom
+    none = {"union": np.zeros((0, 2, 3)), "intersect": np.zeros((0, 2, 3))}
+    if head_blend_radius(v) <= 0:
+        return none
+    kind = head_kind(v)
+    if kind == "round":
+        prongs_m, rails = head_parts(v)
+        return {"union": geom.junction_segments(prongs_m, rails), "intersect": none["intersect"]}
+    c = float(v["Clearance"])
+    if kind == "outline":
+        prongs_m, rails = outline_head_parts(v, envelope, prongs)
+        grown = _offset_convex(envelope, c + float(v["Rail Offset"]))
+        edges = [geom.junction_segments(grown, _slab(float(v[lo]), float(v[hi]), grown), "intersect")
+                 for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top"))]
+        return {"union": geom.junction_segments(prongs_m, rails), "intersect": np.vstack(edges)}
+    grown = _offset_convex(envelope, c + float(v["Wall"]))
+    return {"union": none["union"],
+            "intersect": geom.junction_segments(grown, _slab(float(v["Bezel Bottom"]), float(v["Bezel Top"]), grown), "intersect")}
+
+
+def blend_estimate(v: dict, envelope=None, prongs=None, junctions: dict | None = None) -> float:
+    """What a head block's blends add (negative: remove), mm³: the tables' factor x radius² x
+    (filled junction length - rounded edge length)."""
+    r = head_blend_radius(v)
+    if r <= 0:
+        return 0.0
+    j = junctions if junctions is not None else blend_junctions(v, envelope, prongs)
+    return geom.blend_volume_mm3(r, geom.segments_length(j["union"]) - geom.segments_length(j["intersect"]))

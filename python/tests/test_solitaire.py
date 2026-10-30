@@ -1,9 +1,16 @@
 import pytest
 
 from ntopjewel import band, catalog, gems, heads, solitaire
+from .pseudo_blend import Blended
 
 
 def spec(size=6, **kw):
+    """The round solitaire the offline tests build. Its shank join is sharp: the simulated nTop's
+    blend fill is square-cornered, and where a foot of the round head meets the hollow under the
+    arches that square stands 0.05 mm into the bore, which nTop's smooth fill did not (Mark's
+    blended US6 run passed its bore check, 2026-10-30). The head's own blend, and the shank join
+    of the pear and bezel rings, run blended through the fake."""
+    kw.setdefault("shank_blend_mm", 0.0)
     return solitaire.SolitaireSpec(band.BandSpec(size=size, profile="court", mesh_tolerance_mm=0.05),
                                    heads.HeadSpec(gems.StoneSpec("round", 6.5), prongs=6), **kw)
 
@@ -44,7 +51,7 @@ def test_beads_run_from_the_tangent_point_and_stop_clear_of_the_head():
 @pytest.mark.parametrize("size", [5, 7])
 def test_design_ring_passes_its_gate(size, tmp_path):
     s = spec(size)
-    m = solitaire.design_mesh(s)
+    m = solitaire.design_mesh(s, ops=Blended())            # as nTop builds it
     m.export(tmp_path / "r.stl")
     rep = solitaire.check_solitaire(s, tmp_path / "r.stl", float(m.volume))
     assert rep.status == "passed", rep.text()

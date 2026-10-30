@@ -187,7 +187,10 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   `nj.wire_blend`); the Blend Type enum stays at nTop's default. A smooth union fills every corner two
   surfaces make within its radius, so **the seat and the engraving are subtracted after the blended
   join**, never before. The independent model is unblended; the gate expects design + `blend_volume_factor`
-  x r² x junction length and widens its tolerance by that estimate until the factor is calibrated.
+  x r² x exposed junction length (calibrated 2026-10-30: 0.32; a blended intersection's edges count
+  against), and a blended intersection may shrink a part's extents by the blend radius. The builders in
+  `heads` / `solitaire` take a `geom.Booleans` (sharp by default); the simulated nTop passes
+  `tests/pseudo_blend.Blended`, which lays the blend's volume along the junctions as geometry.
 - Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
   (`e_FAILED` carries `error`); do not trust a call that returned without raising.
 - `new_notebook()` discards the open notebook; `save_notebook_as` / `export_as_recipe`
@@ -209,7 +212,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
 | `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
 | `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`), shared independent geometry (`geom.py`), CLI |
-| `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
+| `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry with `pseudo_blend.py`'s blended booleans, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
 | `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
 | `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
 | `blender/` | `jewelry_kit.py`, `photo.py`, `forge_paths.py` (repo-relative paths, `JEWELRY_OUT`), the organic projects (pear rose ring; monstera band with its pure `leaf_design.py`) |

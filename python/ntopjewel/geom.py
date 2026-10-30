@@ -99,12 +99,16 @@ def _manifold(mesh):
     return mf.Manifold(mf.Mesh(vert_properties=np.asarray(mesh.vertices, np.float32), tri_verts=np.asarray(mesh.faces, np.uint32)))
 
 
-def junction_length(a, b) -> float:
-    """Length (mm) of the curves where the surfaces of a and b meet in a ∪ b: the edges of the
-    union whose two faces came from different inputs (manifold3d keeps each face's origin). A
-    blended union fills these corners, so this bounds the metal a blend adds."""
+def junction_edges(a, b, op: str = "union"):
+    """The curves where the surfaces of a and b meet in a ∪ b (or a ∩ b): the edges of the result
+    whose two faces came from different inputs (manifold3d keeps each face's origin). Returns
+    (result manifold, edges (N, 2) vertex ids, vertices, n_a (N, 3), n_b (N, 3)) with the outward
+    normal of the a-face and the b-face at each edge. A blended union fills these concave corners;
+    a blended intersection rounds these convex edges away."""
     import numpy as np
-    u = _manifold(a).as_original() + _manifold(b).as_original()
+    ma, mb = _manifold(a).as_original(), _manifold(b).as_original()
+    ida = ma.original_id()
+    u = ma + mb if op == "union" else ma ^ mb
     g = u.to_mesh()
     tris = np.asarray(g.tri_verts).reshape(-1, 3)
     verts = np.asarray(g.vert_properties)[:, :3]
@@ -115,15 +119,93 @@ def junction_length(a, b) -> float:
     e = np.vstack([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]])
     e.sort(axis=1)
     owner = np.tile(src, 3)
+    tri_of = np.tile(np.arange(len(tris)), 3)
     order = np.lexsort((e[:, 1], e[:, 0]))
-    e, owner = e[order], owner[order]
+    e, owner, tri_of = e[order], owner[order], tri_of[order]
     same = (e[1:] == e[:-1]).all(axis=1)
     cross = same & (owner[1:] != owner[:-1])
-    seg = e[:-1][cross]
-    return float(np.linalg.norm(verts[seg[:, 0]] - verts[seg[:, 1]], axis=1).sum())
+    idx = np.nonzero(cross)[0]
+    if not len(idx):
+        z = np.zeros((0, 3))
+        return u, np.zeros((0, 2), dtype=int), verts, z, z
+    p = verts[tris]
+    normals = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+    normals /= np.maximum(np.linalg.norm(normals, axis=1), 1e-12)[:, None]
+    t0, t1 = tri_of[idx], tri_of[idx + 1]
+    first_is_a = (owner[idx] == ida)[:, None]
+    na = np.where(first_is_a, normals[t0], normals[t1])
+    nb = np.where(first_is_a, normals[t1], normals[t0])
+    return u, e[idx], verts, na, nb
+
+
+def junction_segments(a, b, op: str = "union"):
+    """The meeting curves of a and b (see junction_edges) as an (N, 2, 3) array of segment end points."""
+    import numpy as np
+    _, edges, verts, _, _ = junction_edges(a, b, op)
+    return np.stack([verts[edges[:, 0]], verts[edges[:, 1]]], axis=1) if len(edges) else np.zeros((0, 2, 3))
+
+
+def segments_length(segs) -> float:
+    import numpy as np
+    return float(np.linalg.norm(segs[:, 1] - segs[:, 0], axis=1).sum()) if len(segs) else 0.0
+
+
+def junction_length(a, b, op: str = "union") -> float:
+    """Length (mm) of the meeting curves of a and b (see junction_segments)."""
+    return segments_length(junction_segments(a, b, op))
+
+
+def transform_segments(segs, matrix):
+    import numpy as np
+    pts = segs.reshape(-1, 3)
+    out = (matrix[:3, :3] @ pts.T).T + matrix[:3, 3]
+    return out.reshape(segs.shape)
+
+
+def exposed_segments(segs, *inside_of):
+    """Keep the segments whose mid points lie outside every mesh in `inside_of`: a junction buried
+    in other metal is not blended, and one inside a later cut is cut away."""
+    import numpy as np
+    if not len(segs):
+        return segs
+    keep = np.ones(len(segs), dtype=bool)
+    mid = segs.mean(axis=1)
+    for m in inside_of:
+        keep &= ~m.contains(mid)
+    return segs[keep]
 
 
 def blend_volume_mm3(radius_mm: float, junction_mm: float) -> float:
-    """What a blended union of the given radius adds along that much junction (tables' factor)."""
+    """What a blended union of the given radius adds along that much junction (tables' factor);
+    a blended intersection removes the same along its edges, so pass that length negative."""
     from . import tables
     return tables.SETTINGS["blend_volume_factor"] * radius_mm ** 2 * junction_mm
+
+
+# ---- the boolean operations the independent model is built with ---------------------------------
+class Booleans:
+    """Sharp union / intersection / difference (trimesh + manifold3d). The builders in heads and
+    solitaire take one of these so that the simulated nTop in the tests can substitute blended
+    operations; the blend radii are passed through and ignored here, because the independent
+    model stays unblended and estimates the blends by volume (blend_volume_mm3)."""
+
+    def union(self, parts, blend_mm: float = 0.0):
+        import trimesh
+        parts = [m for m in parts if m is not None]
+        return parts[0] if len(parts) == 1 else trimesh.boolean.union(parts, engine="manifold")
+
+    def intersect(self, a, b, blend_mm: float = 0.0):
+        import trimesh
+        return trimesh.boolean.intersection([a, b], engine="manifold")
+
+    def difference(self, body, cuts):
+        import trimesh
+        cuts = [m for m in cuts if m is not None]
+        return body if not cuts else trimesh.boolean.difference([body, *cuts], engine="manifold")
+
+    def clean(self, mesh):
+        """The finished body, fit to be written as STL (see clean)."""
+        return clean(mesh)
+
+
+SHARP = Booleans()

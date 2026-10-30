@@ -2,6 +2,7 @@
 import pytest
 
 from ntopjewel import band, catalog, gems, heads, solitaire, tables
+from .pseudo_blend import Blended
 
 
 def round_bezel(**kw):
@@ -23,7 +24,7 @@ def test_bezel_numbers_come_from_the_tables():
 @pytest.mark.parametrize("shape,L,W", [("round", 6.5, None), ("pear", 12.3, 8.9), ("emerald", 8.0, 6.0)])
 def test_design_bezels_pass_their_gate(shape, L, W, tmp_path):
     b = heads.BezelSpec(gems.StoneSpec(shape, L, W))
-    m = b.design_mesh()
+    m = b.design_mesh(ops=Blended())                      # as nTop builds it: the rim rounded by the blend
     m.export(tmp_path / "b.stl")
     rep = heads.check_bezel(b, tmp_path / "b.stl", float(m.volume))
     assert rep.status == "passed", rep.text()

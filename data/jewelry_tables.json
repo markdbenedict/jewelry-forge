@@ -68,9 +68,12 @@
     "bezel_lip_mm":      {"value": 0.5,  "status": "default", "source": "bezel wall height above the girdle top, pushed over the crown when setting: 0.3-0.5 mm (jewelry-design-rules)"},
     "bezel_bearing_mm":  {"value": 0.55, "status": "default", "source": "solid band of the bezel cup kept under the girdle (the stone's bearing); the light windows start below it"},
     "blend_radius_mm":   {"value": 0.3,  "status": "default", "source": "nTop Boolean blend radius at metal-to-metal junctions (prongs into rails, head into shank, rail and bezel edges): a castable fillet; 0 = sharp. Mark tried 0.1 mm and a range of values with the default Blend Type in the GUI (2026-10-30): all built; 0.3 is the visible fillet of the reference rings"},
-    "blend_volume_factor": {"value": 0.17, "status": "default", "source": "metal a blended union adds ~ factor x radius^2 x junction length: 0.167 for the usual polynomial smooth union in a right-angle corner (cubic 0.084, rolling-ball fillet 0.215); until calibrated the gate widens its volume tolerance by the estimate; calibrate against nTop's volume on the first blended build"}
+    "blend_volume_factor": {"value": 0.32, "status": "calibrated", "source": "metal a blended union adds factor x radius^2 x exposed junction length, and a blended intersection removes the same along its edges (geom.junction_segments; junctions buried in other metal or inside a later cut do not count). Calibrated 2026-10-30 on nTop 6.3.3, default Blend Type, 0.3 mm: see calibration_log"}
   },
-  "calibration_log": [],
+  "calibration_log": [
+    {"date": "2026-10-30", "entry": "settings.blend_volume_factor", "from": 0.17, "to": 0.32, "status": "calibrated",
+     "evidence": "nTop 6.3.3, default Blend Type, 0.3 mm on every junction. Blended minus unblended nTop volume: 6-prong round head +2.06 mm3 (70.6 mm of prong-rail junction, predicted 2.02 at 0.32); US6 round solitaire +1.16 (predicted 1.90); US4.5 Makena pear solitaire +0.11 (predicted 0.57: the rails' rounded edges cancel the fills); US6 bezel solitaire -0.17 (predicted -0.17). The rings are over-predicted by < 0.3 % of their volume."}
+  ],
   "notes": [
     "Change a number here, never in a notebook, a skill or a script; add a dated calibration_log entry and set the entry's status.",
     "Python reads this file through ntopjewel.tables; Blender's jewelry_kit.py reads it when it can find the repo (JEWELRY_FORGE_ROOT, its own path, or a 'jewelry_tables.json' text block) and otherwise uses an embedded copy that python/tests/test_blender_scripts.py keeps identical to this file."

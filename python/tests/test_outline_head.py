@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from ntopjewel import gems, heads
+from .pseudo_blend import Blended
 
 
 def pear():
@@ -34,7 +35,7 @@ def test_floor_raises_the_feet_and_lower_rail():
 
 def test_design_head_passes_its_gate(tmp_path):
     s = heads.OutlineHeadSpec(pear())
-    m = heads.outline_design_mesh(s)
+    m = heads.outline_design_mesh(s, ops=Blended())        # as nTop builds it
     m.export(tmp_path / "h.stl")
     rep = heads.check_outline_head(s, tmp_path / "h.stl", float(m.volume))
     assert rep.status == "passed", rep.text()
@@ -60,7 +61,7 @@ def test_other_outlines_put_every_prong_on_its_own_ray(shape, L, W):
 @pytest.mark.parametrize("shape,L,W", [("oval", 8.0, 6.0), ("emerald", 8.0, 6.0)])
 def test_four_prong_heads_pass_their_gate(shape, L, W, tmp_path):
     s = heads.OutlineHeadSpec(gems.StoneSpec(shape, L, W))
-    m = heads.outline_design_mesh(s)
+    m = heads.outline_design_mesh(s, ops=Blended())
     m.export(tmp_path / "h.stl")
     rep = heads.check_outline_head(s, tmp_path / "h.stl", float(m.volume))
     assert rep.status == "passed", rep.text()
@@ -121,7 +122,7 @@ def test_v_prong_wraps_the_point_and_the_head_still_seats(tmp_path):
     """The V covers the point (metal ahead of it, past the clearance) and leaves it its ledge and drop-in."""
     import numpy as np
     s = heads.OutlineHeadSpec(gems.StoneSpec("marquise", 10.0, 5.0))
-    m = heads.outline_design_mesh(s)
+    m = heads.outline_design_mesh(s, ops=Blended())
     m.export(tmp_path / "h.stl")
     rep = heads.check_outline_head(s, tmp_path / "h.stl", float(m.volume))
     assert rep.status == "passed", rep.text()
