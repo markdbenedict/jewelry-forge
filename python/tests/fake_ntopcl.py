@@ -18,8 +18,8 @@ Knobs (environment variables) let a test make the fake misbehave the way a wrong
 would, so the rejections are tested rather than assumed:
 
   FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave (solitaire) | noblend (the blend radii ignored:
-                      sharp junctions) | annulus : a flat rectangular section instead of the designed one (what a
-                      notebook that ignores the tori produces)
+                      sharp junctions) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
+                      rectangular section instead of the designed one (what a notebook that ignores the tori produces)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
   FAKE_NTOPCL_VOLUME  mesh (default) | none : report no Volume output
   FAKE_NTOPCL_SLEEP   seconds to sleep before writing (default 0)
@@ -56,10 +56,11 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "head" in nb.name or "solitaire" in nb.name:
+    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name:
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
-        name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else "prong_head_harness")
+        name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
+                                                                        "ring_shank" if "shank" in nb.name else "prong_head_harness")
         cat = yaml.safe_load((cat_dir / f"{name}.yaml").read_text())
         for name, e in cat["inputs"].items():
             t = {"scalar": "real", "integer": "integer", "text": "text"}[e["type"]]
@@ -254,6 +255,44 @@ def main(argv: list[str]) -> int:
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Seat Mesh", "Seat Body", "Stone Seat", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "shank" in nb.name:
+        import numpy as np
+        import trimesh
+        from ntopjewel.geom import remap_cylindrical
+        if not Path(values["Shank Path"]).exists():
+            fail("Shank Mesh: file not found")
+        bar = trimesh.load(str(values["Shank Path"]), force="mesh")
+        L = float(values["Wrap Length"])
+        if shape == "nowrap":                                 # a notebook that exports the bar itself
+            mesh = bar
+        else:
+            # one turn of the bar, cut half a station before Y = 0 and half a station before Y = L
+            # (between stations, never through one), wrapped vertex-wise; the two cut faces then
+            # coincide at the same angle: merge them and drop both caps, the sides close the ring
+            ys = np.unique(np.round(bar.vertices[:, 1], 6))
+            step = float(np.diff(ys).min())
+            y0, y1 = -step / 2, L - step / 2
+            one = trimesh.intersections.slice_mesh_plane(bar, [0, 1, 0], [0, y0, 0], cap=True)
+            one = trimesh.intersections.slice_mesh_plane(one, [0, -1, 0], [0, y1, 0], cap=True)
+            side0 = np.abs(one.vertices[:, 1] - y0) < 1e-6
+            side1 = np.abs(one.vertices[:, 1] - y1) < 1e-6
+            mesh = remap_cylindrical(one, L)
+            mesh.update_faces(~(side0 | side1)[mesh.faces].all(axis=1))
+            from scipy.spatial import cKDTree                 # join the seam: each side-1 vertex to its twin on side 0
+            i0, i1 = np.nonzero(side0)[0], np.nonzero(side1)[0]
+            _, twin = cKDTree(mesh.vertices[i0]).query(mesh.vertices[i1])
+            remap = np.arange(len(mesh.vertices))
+            remap[i1] = i0[twin]
+            mesh = trimesh.Trimesh(mesh.vertices, remap[mesh.faces], process=False)
+            mesh.update_faces(mesh.nondegenerate_faces())
+            mesh.remove_unreferenced_vertices()
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Shank Mesh", "Shank Bar", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

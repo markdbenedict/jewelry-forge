@@ -27,7 +27,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct, `ring_features.ntop` committed; print + cast waits for the kit (printer/resin being bought) |
 | 2 — custom-block library | `ntop/blocks/`: stone seat, prong heads (round, outline, V-prongs), bezel; gem bodies (round, oval, pear, cushion, emerald, marquise); the solitaire assembly (cathedral arches, milgrain, engraving) | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | software half PASSED 29 Oct (round US 5-7, every fancy shape, pear and marquise with V-prongs, bezels offline); the print is what remains (band profile / bead / groove / wrap as library blocks deferred to Phase 3 step 1) |
-| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1 (shank shaping) next |
+| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`) written, real build pending |
 | 4 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
 | 5 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–3 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
 | 6 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
@@ -143,11 +143,20 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    (nTop's did not: the US6 run passed the bore check), so the round-ring tests keep that one
    join sharp. *Next real check:* measure the min vertex radius under the head in the blended
    US6 STL to see what nTop's fill does there.
-1. **Shank shaping.** Tapered section (field-driven offset; the gate's wall check given the local
-   design thickness); non-circular centrelines (chevron dips, contour curves, double bands bridged);
-   split and twisted shanks (strands swept along splines: nTop `spline_through_points`,
-   `sweep_along_one_rail`, `twisted_sweep`, or Python-written meshes); Celtic knotwork last. Carry the
-   band profile, bead row, groove and engraving wrap into library blocks on the way.
+1. **Shank shaping.** *(1a written 30 Oct, offline green, real build pending)* Every shaped shank
+   is made one way: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
+   axial; a cross-section every 2.5°), nTop imports it and wraps it round Z with Remap Cylindrical
+   Body (`ring_shank.ntop`; r, z and the angle are exact under that map, as the engraving showed),
+   the independent model sweeps the same sections round the axis directly, and the gate measures
+   the built section against the design at twelve angles. 1a **tapered section** (`shank`:
+   `ShankSpec`, width and thickness at the bottom, the taper's start angle, a cosine ease; the
+   thin end validated as a band; walls gated against the thinnest station). Next: 1b
+   **non-circular centrelines** (chevron dips, contour curves, double bands bridged: the bar's
+   stations shift in z); 1c **split and twisted shanks** (two strands in the bar frame, separating
+   or helical; or nTop `spline_through_points` / `sweep_along_one_rail` / `twisted_sweep`); 1d
+   **the solitaire on a shaped shank** (its shank a bar too: the arches and beads move into the bar
+   frame or stay in nTop); Celtic knotwork last. The band profile, bead row, groove and engraving
+   wrap become library blocks on the way.
 2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.

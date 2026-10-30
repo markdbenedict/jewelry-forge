@@ -26,7 +26,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, solitaire, tables
+from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, shank, solitaire, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -187,6 +187,32 @@ def cmd_ring(a: argparse.Namespace) -> int:
                          cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
         print(f"ring failed: {e}")
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        return 2
+    print(res.text())
+    return 0 if res.ok else 1
+
+
+def cmd_shank(a: argparse.Namespace) -> int:
+    spec = shank.ShankSpec(_band_spec(a), width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
+                           taper_from_deg=a.taper_from, stations=a.stations)
+    if a.dry_run:
+        probs = spec.validate()
+        print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+        for w in spec.warnings():
+            print("  warning: " + w)
+        if not probs:
+            for t in (0, 45, 90, 135, 180):
+                print(f"    {t:3d}°: width {spec.width_at(t):.3f}  thickness {spec.thickness_at(t):.3f}")
+            for k, v in spec.notebook_inputs("<bar path>", "<output path>").items():
+                print(f"    {k}: {v}")
+        return 1 if probs else 0
+    try:
+        res = shank.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                          catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
+    except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
+        print(f"shank failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
         return 2
@@ -514,6 +540,21 @@ def main(argv: list[str] | None = None) -> int:
                          "saves out/api/preview/<stem>.ntop, gates the exported mesh, runs no nTopCL")
     rg.add_argument("--timeout", type=float, default=900, help="--show: seconds to wait for nTop")
     rg.set_defaults(fn=cmd_ring)
+
+    sk = sub.add_parser("shank", help="a shaped shank: the band tapering in width and thickness towards the bottom (ring_shank.ntop)")
+    _add_band_args(sk)
+    sk.add_argument("--width-bottom", type=float, help="width at the bottom of the finger, mm (default: no width taper)")
+    sk.add_argument("--thickness-bottom", type=float, help="thickness at the bottom, mm (default: no thickness taper)")
+    sk.add_argument("--taper-from", type=float, default=60.0, help="full section this far from the head (degrees), then the ease to the bottom")
+    sk.add_argument("--stations", type=int, default=144, help="cross-sections round the ring")
+    sk.add_argument("--catalog", default="ring_shank")
+    sk.add_argument("--out")
+    sk.add_argument("--notebook")
+    sk.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
+    sk.add_argument("--project", default="Bands")
+    sk.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
+    sk.add_argument("--dry-run", action="store_true")
+    sk.set_defaults(fn=cmd_shank)
 
     gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald) as STL")
     gm.add_argument("--shape", default="round", choices=gems.SHAPES)

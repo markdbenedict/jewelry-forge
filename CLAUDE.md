@@ -211,7 +211,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
 | `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`), shared independent geometry (`geom.py`), CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`), shaped shanks (`shank.py`: the ring unrolled as a bar for nTop to wrap), shared independent geometry (`geom.py`), CLI |
 | `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry with `pseudo_blend.py`'s blended booleans, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
 | `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
 | `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
@@ -238,12 +238,14 @@ python -m ntopjewel api build outline_head                           # ntop\bloc
 python -m ntopjewel api build solitaire_outline                      # ntop\notebooks\solitaire_outline.ntop: the solitaire with the outline head (pear ...)
 python -m ntopjewel api build bezel_head                             # ntop\blocks\bezel_head.ntop (wall + cup round any outline, light windows) + its harness
 python -m ntopjewel api build solitaire_bezel                        # ntop\notebooks\solitaire_bezel.ntop: the solitaire with the bezel
+python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bar Python writes (prepare() writes the test bar)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
 python -m ntopjewel templates ntop\notebooks\ring_band_profile.ntop --catalog ring_band_profile
 python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round; files land in out\band\<stem>\<run id>\
 python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
+python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.2 --thickness-bottom 1.2   # a tapered shank: the ring unrolled as a bar, wrapped by nTop (out\shank)
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring   # --deliver copies a PASSED part + evidence to the Jewelry folder
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
@@ -275,7 +277,7 @@ pytest python\tests -q -m slow                  # tests that run nTop
 - `ntop-automate` — anything that runs a notebook, builds input JSON, reads a log, or
   authors a notebook through the Notebook API.
 - `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers.
-- `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1).
+- `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1, shaped shanks from Phase 3).
 - `ring-features` — milgrain, channel groove and wrapped engraving on a band (`ring` command).
 - `gem-library` — stone bodies, seats, prong heads and the solitaire (`gem`, `seat`, `head`, `solitaire`).
 - `blender-jewelry-render` (synced from claude.ai) — the silver product shot.

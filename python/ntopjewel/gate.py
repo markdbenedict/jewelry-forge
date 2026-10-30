@@ -164,11 +164,14 @@ def ring_axis(mesh: trimesh.Trimesh) -> int:
     return open_axes[0] if len(open_axes) == 1 else int(np.argmin(ext))
 
 
-def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None) -> tuple[str, float, float, float]:
-    """(axis, inner diameter, outer diameter, width). Axis: given, else `ring_axis`."""
+def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None, centre: str = "bbox") -> tuple[str, float, float, float]:
+    """(axis, inner diameter, outer diameter, width). Axis: given, else `ring_axis`. The diameters
+    are measured about the bounding box's centre, or about the origin (`centre="origin"`) for a
+    part the pipeline built round the origin whose outside is not symmetric - a shank thicker at
+    the head than at the bottom has its box centre 0.2 mm off the axis (2026-10-30)."""
     ext = mesh.bounding_box.extents
     ai = AXES.index(axis) if axis else ring_axis(mesh)
-    center = mesh.bounding_box.centroid
+    center = np.zeros(3) if centre == "origin" else mesh.bounding_box.centroid
     others = [i for i in range(3) if i != ai]
     v = mesh.vertices
     r = np.hypot(v[:, others[0]] - center[others[0]], v[:, others[1]] - center[others[1]])
@@ -283,7 +286,8 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
           tol_mm: float = 0.05, tol_volume_pct: float = 2.0, shells: int = 1,
           wall_floor: float = tables.FLOORS["wall_marginal"], wall_samples: int = 4000,
           axis: str | None = None, metals=tables.DEFAULT_WEIGHT_METALS,
-          write_report: bool = True, wall_abs_axis_max: float | None = None, wall_ray_filter=None) -> GateReport:
+          write_report: bool = True, wall_abs_axis_max: float | None = None, wall_ray_filter=None,
+          centre: str = "bbox") -> GateReport:
     path = Path(path)
     mesh = load_mesh(path)
     rep = GateReport(path=str(path), triangles=int(len(mesh.faces)), vertices=int(len(mesh.vertices)))
@@ -299,7 +303,7 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     rep.area_mm2 = float(mesh.area)
     rep.extents_mm = [float(x) for x in mesh.bounding_box.extents]
 
-    rep.axis, rep.inner_diameter_mm, rep.outer_diameter_mm, rep.width_mm = ring_metrics(mesh, axis)
+    rep.axis, rep.inner_diameter_mm, rep.outer_diameter_mm, rep.width_mm = ring_metrics(mesh, axis, centre)
     ax = "xyz".index(rep.axis) if rep.axis in "xyz" else None
     zone = (ax, wall_abs_axis_max) if (wall_abs_axis_max is not None and ax is not None) else None
     rep.thickness = (wall_thickness(mesh, wall_samples, wall_floor, zone=zone, axis=ax, ray_filter=wall_ray_filter)

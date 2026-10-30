@@ -1,0 +1,33 @@
+# Phase 3 step 1: a shaped shank. Python writes the ring unrolled as a bar (X radial, Y along the
+# ring, Z axial; one cross-section every few degrees at that angle's width and thickness,
+# ntopjewel.shank.ShankSpec.bar_mesh); the notebook imports it and wraps it round Z with Remap
+# Cylindrical Body (Y mapping length = Wrap Length, one turn). Built by ntop/recipes/ring_shank.py
+# through the Notebook API. Verify names: python -m ntopjewel templates ntop/notebooks/ring_shank.ntop --catalog ring_shank
+notebook: ring_shank.ntop
+version: 0.1.0
+title: Shaped shank (tapered width and thickness) from a wrapped bar
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the wrapped shank, cross-checked by the gate against the design sweep.
+inputs:
+  Shank Path:
+    type: text
+    doc: Absolute path of the bar STL (ntopjewel.shank writes it into the run directory).
+  Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 200.0
+    doc: Remap Cylindrical's Y mapping length, one turn of the bar (the mid-wall circumference, 2π(bore + thickness/2)).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Output Path:
+    type: text
+    doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop).
