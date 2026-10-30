@@ -195,8 +195,11 @@ def cmd_ring(a: argparse.Namespace) -> int:
 
 
 def cmd_shank(a: argparse.Namespace) -> int:
+    bridges = tuple(float(x) for x in a.bridges.split(",")) if a.bridges else (180.0,)
     spec = shank.ShankSpec(_band_spec(a), width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
-                           taper_from_deg=a.taper_from, stations=a.stations)
+                           taper_from_deg=a.taper_from, stations=a.stations, dip_mm=a.dip, dip_span_deg=a.dip_span,
+                           dip_shape=a.dip_shape, strands=2 if a.double else 1, gap_mm=a.gap, mirror=a.mirror,
+                           bridges_deg=bridges, bridge_mm=a.bridge)
     if a.dry_run:
         probs = spec.validate()
         print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
@@ -204,7 +207,8 @@ def cmd_shank(a: argparse.Namespace) -> int:
             print("  warning: " + w)
         if not probs:
             for t in (0, 45, 90, 135, 180):
-                print(f"    {t:3d}°: width {spec.width_at(t):.3f}  thickness {spec.thickness_at(t):.3f}")
+                print(f"    {t:3d}°: width {spec.width_at(t):.3f}  thickness {spec.thickness_at(t):.3f}  centre z "
+                      + " / ".join(f"{spec.z_offset(t, k):+.3f}" for k in range(spec.strands)))
             for k, v in spec.notebook_inputs("<bar path>", "<output path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
@@ -547,6 +551,14 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--thickness-bottom", type=float, help="thickness at the bottom, mm (default: no thickness taper)")
     sk.add_argument("--taper-from", type=float, default=60.0, help="full section this far from the head (degrees), then the ease to the bottom")
     sk.add_argument("--stations", type=int, default=144, help="cross-sections round the ring")
+    sk.add_argument("--dip", type=float, default=0.0, help="the band's centre leaves the mid-plane by this at the head, mm (+ towards +Z)")
+    sk.add_argument("--dip-span", type=float, default=60.0, help="the dip reaches this far either side of the head, degrees")
+    sk.add_argument("--dip-shape", default="contour", choices=["contour", "chevron"], help="a smooth bump or a V")
+    sk.add_argument("--double", action="store_true", help="two strands of the band, stacked along the axis")
+    sk.add_argument("--gap", type=float, default=0.6, help="--double: clear gap between the strands, mm")
+    sk.add_argument("--mirror", action="store_true", help="--double: the second strand dips the other way (a wishbone)")
+    sk.add_argument("--bridges", help="--double: angles where bars join the strands, e.g. 180,100,-100 (default 180)")
+    sk.add_argument("--bridge", type=float, default=1.2, help="--double: a bridge's length round the ring, mm")
     sk.add_argument("--catalog", default="ring_shank")
     sk.add_argument("--out")
     sk.add_argument("--notebook")

@@ -89,7 +89,21 @@ ring_shank`, then the commands below).
 python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.2 --thickness-bottom 1.2
 python -m ntopjewel shank --size 6 --profile court --width 5 --width-bottom 2.5 --taper-from 45   # the taper starts 45° from the head
 python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.2 --thickness-bottom 1.2 --dry-run
+python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 1.5 --dip-span 70                 # a contoured band: a smooth 1.5 mm bump at the head
+python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron             # a V (chevron) band
+python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron --double --gap 0.6 --bridges 180,100,-100   # ring 04's double chevron
+python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 1.2 --dip-span 80 --double --gap 0.4 --mirror   # a wishbone: the strands meet at the head
 ```
+
+The centreline (step 1b): `--dip` moves the band's centre off the mid-plane at the head (+ towards
++Z), as a smooth cosine bump (`contour`, rings 08-style) or a V (`chevron`, its point at the
+head) over `--dip-span` either side of the head. `--double` stacks two strands of the band
+`--gap` apart (the second dips the same way - nested chevrons - or the other way with
+`--mirror`, a wishbone), joined by full-thickness bridges `--bridge` long at `--bridges` angles
+(default 180°, the bottom; two strands without a bridge are two rings and are refused, as are
+mirrored strands that would cross). Taper, dip and strands combine. The gate's section-profile
+check compares the section's z and r bounds at each angle, so a lost dip or a missing strand
+fails it, and the width check uses the ring's overall width.
 
 How it is made: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
 axial; one cross-section every 2.5°, the band profile at that angle's width and thickness,

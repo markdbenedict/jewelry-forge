@@ -246,6 +246,7 @@ python -m ntopjewel templates ntop\notebooks\ring_band_profile.ntop --catalog ri
 python -m ntopjewel band --size 6 --profile court --out out\band      # profiles: flat, comfort-flat, court, d-shape, half-round; files land in out\band\<stem>\<run id>\
 python -m ntopjewel band --size 6 --profile court --dry-run           # the numbers the notebook will get
 python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.2 --thickness-bottom 1.2   # a tapered shank: the ring unrolled as a bar, wrapped by nTop (out\shank)
+python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron --double --gap 0.6 --bridges 180,100,-100   # a double chevron band (contour | chevron dips, --mirror for a wishbone)
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring   # --deliver copies a PASSED part + evidence to the Jewelry folder
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)

@@ -270,12 +270,12 @@ def main(argv: list[str]) -> int:
         if shape == "nowrap":                                 # a notebook that exports the bar itself
             mesh = bar
         else:
-            # one turn of the bar, cut half a station before Y = 0 and half a station before Y = L
-            # (between stations, never through one), wrapped vertex-wise; the two cut faces then
-            # coincide at the same angle: merge them and drop both caps, the sides close the ring
-            ys = np.unique(np.round(bar.vertices[:, 1], 6))
-            step = float(np.diff(ys).min())
-            y0, y1 = -step / 2, L - step / 2
+            # one turn of the bar, cut a little before Y = 0 and a turn further on (L/730 back:
+            # between stations, never through one, for any station count up to 720), wrapped
+            # vertex-wise; the two cut faces then coincide at the same angle: join them and drop
+            # both caps, the sides close the ring
+            y0 = -L / 730.0
+            y1 = y0 + L
             one = trimesh.intersections.slice_mesh_plane(bar, [0, 1, 0], [0, y0, 0], cap=True)
             one = trimesh.intersections.slice_mesh_plane(one, [0, -1, 0], [0, y1, 0], cap=True)
             side0 = np.abs(one.vertices[:, 1] - y0) < 1e-6
