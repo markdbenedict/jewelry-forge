@@ -27,7 +27,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct, `ring_features.ntop` committed; print + cast waits for the kit (printer/resin being bought) |
 | 2 — custom-block library | `ntop/blocks/`: stone seat, prong heads (round, outline, V-prongs), bezel; gem bodies (round, oval, pear, cushion, emerald, marquise); the solitaire assembly (cathedral arches, milgrain, engraving) | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | software half PASSED 29 Oct (round US 5-7, every fancy shape, pear and marquise with V-prongs, bezels offline); the print is what remains (band profile / bead / groove / wrap as library blocks deferred to Phase 3 step 1) |
-| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands) and 1c (split and rope shanks, the opening after the wrap) written, real build pending |
+| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands) and 1c (split and rope shanks) written; tapered shank and rope PASSED in nTop 30 Oct; the edge-round opening found never to have built, fixed in every notebook (rebuild pending) |
 | 4 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
 | 5 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–3 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
 | 6 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
@@ -48,7 +48,9 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
   not measured. The design-volume cross-check catches a wrong section, not a locally thin one.
 - The simulated nTop proves the pipeline's logic, not nTop's behaviour: Import Mesh's unit
   handling and voxel effects are only seen in real runs; its blends carry nTop's calibrated
-  volume but not nTop's shape (square-cornered fill pieces, not a smooth bump).
+  volume but not nTop's shape (square-cornered fill pieces, not a smooth bump); it does not run
+  the opening, so a design whose fillets are not in Python's geometry (a bridge's ends) is only
+  rounded for real. The opening in nTop was a no-op until 30 Oct (see Phase 3 step 1).
 - Blender scripts run only on the laptops (bpy); the offline suite imports them with stubs.
 - nTop runs on the main laptop only (32 GB); casting trees may need the 128 GB machine.
 
@@ -143,7 +145,8 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    (nTop's did not: the US6 run passed the bore check), so the round-ring tests keep that one
    join sharp. *Next real check:* measure the min vertex radius under the head in the blended
    US6 STL to see what nTop's fill does there.
-1. **Shank shaping.** *(1a written 30 Oct, offline green, real build pending)* Every shaped shank
+1. **Shank shaping.** *(1a and the rope PASSED in nTop 30 Oct; 1b and the split rebuilt, real run
+   pending)* Every shaped shank
    is made one way: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
    axial; a cross-section every 2.5°), nTop imports it and wraps it round Z with Remap Cylindrical
    Body (`ring_shank.ntop`; r, z and the angle are exact under that map, as the engraving showed),
@@ -156,20 +159,40 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    (`--double`: two strands of the band stacked with a gap, nested or mirrored into a wishbone,
    joined by full-thickness bridges at chosen angles); strands and bridges are united in the bar
    and, independently, in the ring frame; the gate's section check compares z and r bounds per
-   angle. Same notebook. 1c *(written 30 Oct, offline green)* **split and rope shanks**: `--split`
-   cuts a slot that opens at the head and closes towards the bottom (contour or chevron, round
-   ends, each half at least 1 mm) out of the bar and, independently, out of the ring; `--rope`
-   makes the band two or three round strands twisted a whole number of turns round the ring
-   (tubes round helices, the innermost just touching the bore, overlapping into one solid - the
-   gate's section check reads the design mesh for those). The notebook now **opens the wrapped
-   body by the band's edge round** (two Offset Body blocks, `Edge Round Inward` / `Edge Round`;
-   catalog 0.2.0): a no-op on the band's own edges, it rounds the edges a slot or a bridge leaves
-   sharp, and the gate's expected volume takes off e²(tan(δ/2) − δ/2) per mm of every convex edge
-   turning more than 30° in the design mesh (0.7 % on a split, 0.1 % on a double; the simulated
-   nTop does not round and sits inside the 2 % tolerance). Next: 1d **the solitaire on a shaped
-   shank** (its shank a bar too: the arches and beads move into the bar frame or stay in nTop);
-   Celtic knotwork last. The band profile, bead row, groove and engraving wrap become library
-   blocks on the way.
+   angle. Same notebook. 1c *(30 Oct)* **split and rope shanks**: `--split` cuts a slot that
+   opens at the head and closes towards the bottom (contour or chevron, round ends, each half at
+   least 1 mm); the halves are lofted the whole way round from the 2-D opened sections, so the
+   slot's fillets are in the bar (they overlap where the slot is closed, each drawn a wedge inside
+   the other so no faces coincide; the bar is that union unrolled). `--rope` makes the band two or
+   three round strands twisted a whole number of turns round the ring (tubes round helices in a
+   fixed-up frame, the innermost just touching the bore, overlapping into one solid). The notebook
+   **opens the bar by the band's edge round** before the wrap (`Edge Round Inward` / `Edge Round`;
+   catalog 0.2.0) for whatever a union left sharp (a bridge's ends), and the gate's expected volume
+   takes off e²(tan(δ/2) − δ/2) per mm of every convex edge turning more than 30° in the design
+   mesh. **Real runs 30 Oct:** the tapered shank PASSED (sections within 0.004 mm, volume +0.00 %),
+   the 2 x 10 rope PASSED (−0.02 %); the split failed its section check at the head - the model
+   had ignored the slot's effect on the bore and dome extents (fixed) - and its slot edges came
+   back **sharp**, which exposed the finding below. Next: 1d **the solitaire on a shaped shank**
+   (its shank a bar too: the arches and beads move into the bar frame or stay in nTop); Celtic
+   knotwork last. The band profile, bead row, groove and engraving wrap become library blocks on
+   the way.
+
+   **The opening never built (found 30 Oct).** nTop's Offset Body adds a constant to the field,
+   so the two offsets every band notebook ran since Phase 1 (−e, +e) cancelled: all five real
+   profiles match their *unopened* sections to 0.05 % (court 4 x 1.3: 245.60 mm³ vs 245.55
+   unopened, 243.99 opened), every solitaire sits +0.4..0.6 % above its design by the same
+   1.5 mm³, and every part built so far has sharp band edges. It passed because the design-volume
+   tolerance was 2 %. Fixed by re-distancing between the offsets (`nj.add_opening`: Mesh from
+   Implicit → Implicit from Mesh; in `add_profiled_band` and `ring_shank`), the band's
+   design-volume tolerance is 0.5 %, the Pappus model is exact on the section polygon, and the
+   gate gained a **section shape** check (the built outline at 12 angles against the designed 2-D
+   section, Hausdorff within 0.03 mm or half the mesh tolerance: the real court band reads 0.049
+   against its opened section and 0.020 against the unopened one; a wrapped shank 0.004; a rope
+   0.034 at its strands' crease, which nTop's mesher rounds by a voxel). The blend factor stands
+   (it was calibrated on blended-minus-unblended nTop volumes). *Real check pending:* rebuild
+   `band_profile`, `ring_features`, `solitaire`, `solitaire_outline`, `solitaire_bezel`,
+   `ring_shank`; a court band must then match 243.99 within 0.5 % and pass the shape check; the
+   split's slot edges must come back rounded.
 2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.
@@ -209,7 +232,7 @@ laptop whenever a notebook, a build script or the gate changes:
 | --- | --- | --- |
 | GUI build | `python -m ntopjewel api build <recipe>` (nTop open, console open) | every block `e_OK`, notebook saved, recipe exported |
 | Template | `python -m ntopjewel templates ntop\notebooks\<nb>.ntop --catalog <name>` | "catalog matches the notebook" |
-| Headless run + gate | `python -m ntopjewel band …` / `ring …` | `status: PASSED`, design volume within tolerance |
+| Headless run + gate | `python -m ntopjewel band …` / `ring …` / `shank …` | `status: PASSED`, design volume within tolerance, section shape within 0.03 mm (an edge left sharp fails here, 30 Oct) |
 | Visual | `python -m ntopjewel ring … --show`; eyes on the ring in nTop | beads, groove, text where designed |
 | Blender | `blender -b -P blender\monstera\test_ring.py -- 6`; the product shot (skill `blender-jewelry-render`) | check_model report and renders written under `out\blender\` |
 | Physical | print, measure, cast, weigh (above) | the Phase 1 gate |

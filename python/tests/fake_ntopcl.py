@@ -260,41 +260,24 @@ def main(argv: list[str]) -> int:
             outputs = [{"name": "Volume", "type": "real", "components": [],
                         "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
     elif "shank" in nb.name:
-        import numpy as np
         import trimesh
-        from ntopjewel.geom import remap_cylindrical
         if not Path(values["Shank Path"]).exists():
             fail("Shank Mesh: file not found")
         bar = trimesh.load(str(values["Shank Path"]), force="mesh")
         L = float(values["Wrap Length"])
-        # the notebook's opening (Edge Round / Edge Round Inward) is not simulated: it rounds only
-        # the edges a slot or a bridge leaves sharp, under 1 % of the volume, inside the gate's 2 %
+        # the notebook's opening (Edge Round / Edge Round Inward) is not simulated: a slot's or a
+        # bridge's edges stay sharp here, which the gate's section-shape check then reports (as it
+        # would for nTop); tests of those designs run with the edge round at 0
         if shape == "nowrap":                                 # a notebook that exports the bar itself
             mesh = bar
         else:
-            # one turn of the bar, cut a little before Y = 0 and a turn further on (L/730 back:
-            # between stations, never through one, for any station count up to 720), wrapped
-            # vertex-wise; the two cut faces then coincide at the same angle: join them and drop
-            # both caps, the sides close the ring
-            y0 = -L / 730.0
-            y1 = y0 + L
-            one = trimesh.intersections.slice_mesh_plane(bar, [0, 1, 0], [0, y0, 0], cap=True)
-            one = trimesh.intersections.slice_mesh_plane(one, [0, -1, 0], [0, y1, 0], cap=True)
-            side0 = np.abs(one.vertices[:, 1] - y0) < 1e-6
-            side1 = np.abs(one.vertices[:, 1] - y1) < 1e-6
-            mesh = remap_cylindrical(one, L)
-            mesh.update_faces(~(side0 | side1)[mesh.faces].all(axis=1))
-            from scipy.spatial import cKDTree                 # join the seam: each side-1 vertex to its twin on side 0
-            i0, i1 = np.nonzero(side0)[0], np.nonzero(side1)[0]
-            _, twin = cKDTree(mesh.vertices[i0]).query(mesh.vertices[i1])
-            remap = np.arange(len(mesh.vertices))
-            remap[i1] = i0[twin]
-            mesh = trimesh.Trimesh(mesh.vertices, remap[mesh.faces], process=False)
-            mesh.update_faces(mesh.nondegenerate_faces())
-            mesh.remove_unreferenced_vertices()
+            # one turn of the bar wrapped vertex-wise, cut between stations, the seam joined
+            # (shank.wrap_bar: Remap Cylindrical Body is exactly that in r, z and angle)
+            from ntopjewel.shank import wrap_bar
+            mesh = wrap_bar(bar, L)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Mesh", "Shank Bar", "Wrapped", "Shrunk", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
+        for name in ("Shank Mesh", "Shank Bar", "Shrunk", "Shrunk Body Mesh", "Shrunk Body", "Opened", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

@@ -41,6 +41,15 @@ JSON rules, resolves identifiers, checks build states and runs the mesh gate.
   warns about it), and records what it used. When
   a lookup misses, run `api build discover` (dumps all identifiers and the input names of
   the families we use) and put the real one in the script; never fix it in the GUI.
+- **Offset Body adds a constant to the field it is given** - it does not re-distance. Two
+  offsets back to back (-e then +e: the opening that rounds every convex edge) cancel exactly:
+  five band profiles built that way matched their UNopened sections to 0.05 % (2026-10-30),
+  so no edge round had ever been built. Put a mesh round trip between them - Mesh from Implicit
+  Body at the notebook's tolerance, then Implicit Body from Mesh (`nj.add_redistance`,
+  `nj.add_opening`): the eroded body gets a true distance field and the +e offset dilates it.
+  A single offset of a true distance field (an Implicit from Mesh, a primitive) is exact; a
+  single offset of a boolean's field is exact as a level set only one way (erosion of an
+  intersection, dilation of a union).
 - Typed variables are blocks: `core.var<real>`, `core.var<text>`, `core.var<file_path>` …
   (input `Input`); `add_variable(name)` gives a `core.var_any<any>` with input `x`. A
   `file_path` parameter cannot be set through the API (6.3.3), so file inputs are

@@ -13,7 +13,7 @@ engraving is placed:
 
 The independent model never sees the bar: it sweeps the same sections round the axis directly
 (`design_mesh`), and the gate measures the finished STL's section at twelve angles against the
-design's (`check_shank`: "section profile") as well as the usual band checks and the design
+design's (`check_shank`: "section shape") as well as the usual band checks and the design
 volume. A notebook that forgot to wrap, or wrapped with the wrong length, fails there.
 
 Every number comes from `ShankSpec`: the head section is a `BandSpec` (profile, width, thickness,
@@ -46,6 +46,9 @@ CHECK_ANGLES_DEG = tuple(range(0, 360, 30))   # where the gate measures the buil
 SECTION_TOL_MM = 0.06       # width / thickness at a station: the mesh tolerance plus a little
 SPLIT_STRAND_MIN_MM = 1.0   # each half of a split shank keeps at least this width at the head
 SLOT_END_MM = 0.4           # a split closes into a round end this wide (a cast slot cannot end in a crack)
+SPLIT_OVERLAP_MM = 0.1      # a split's two halves, lofted the whole way round, overlap this much where the slot is closed
+SPLIT_INSET_MM = 0.01       # ... each half's surface drawn this far inside the other's across the overlap, so no faces coincide
+BRIDGE_INSET_MM = 0.1       # a bridge runs this far into each strand it joins
 SHARP_EDGE_DEG = 30.0       # a convex edge whose faces turn more than this is one the opening rounds
 ROPE_STRAND_MIN_MM = 0.8    # a rope's strand diameter: a prong-tip-sized rod casts; thinner does not
 ROPE_POINTS = 48            # points round a rope strand's section (a 48-gon is 0.1 % under the circle)
@@ -185,6 +188,74 @@ class ShankSpec:
         """The finished meridian section at this angle, a shapely polygon in (r, z)."""
         return geom.section_polygon(self.section_spec(theta_deg).notebook_inputs(""))
 
+    def slot_half_at(self, theta_deg: float) -> float:
+        """The slot's actual half width at an angle: the law (split_at), but never narrower than the
+        round end's radius inside the span, and a quarter-round end of SLOT_END_MM diameter (a cast
+        slot ends in a drill-sized round, not a crack tip)."""
+        if self.split_mm <= 0.0:
+            return 0.0
+        span, r_end = self.split_span_deg, SLOT_END_MM / 2
+        end_deg = r_end / (self.wrap_length_mm / 360.0)
+        a = abs((float(theta_deg) + 180.0) % 360.0 - 180.0)
+        if a >= span:
+            return 0.0
+        h = max(self.split_at(a) / 2, r_end)
+        c = span - end_deg
+        if a <= c:
+            return h
+        cos_phi = (a - c) / end_deg
+        return h * math.sqrt(max(0.0, 1.0 - cos_phi * cos_phi))
+
+    def bridge_half_deg(self) -> float:
+        """Half a bridge's length round the ring, in degrees."""
+        return (self.bridge_mm / 2) / (self.wrap_length_mm / 360.0)
+
+    def shape_check_skips(self, theta_deg: float) -> bool:
+        """Angles where the 2-D section model is not the body: within the edge round (plus a
+        margin) of a slot's end or a bridge's end, whose faces look along the ring and whose
+        rounding the section cannot show."""
+        e_deg = (self.edge_round + 0.15) / (self.wrap_length_mm / 360.0)
+        if self.split_mm:
+            end_deg = (SLOT_END_MM / 2) / (self.wrap_length_mm / 360.0)
+            a = abs((float(theta_deg) + 180.0) % 360.0 - 180.0)
+            if self.split_span_deg - 2 * end_deg - e_deg <= a <= self.split_span_deg + e_deg:
+                return True
+        half = self.bridge_half_deg()
+        for b, *_ in self.bridge_spans():
+            d = abs((theta_deg - b + 180.0) % 360.0 - 180.0)
+            if half - e_deg <= d <= half + e_deg:
+                return True
+        return False
+
+    def section_shape(self, theta_deg: float, skip: bool = True):
+        """The designed cross-section at an angle as a shapely geometry in (r, z): every strand's
+        band section at its centreline, a bridge where one spans the angle, the slot taken out,
+        and the whole opened by the edge round the way the notebook opens the bar - so a slot's
+        and a bridge's fresh edges carry their fillets (the band's own are in the section already).
+        A rope's comes from the bar wrapped. None at an angle the model cannot show
+        (shape_check_skips), unless `skip` is off (the lofts sample it everywhere)."""
+        from shapely.affinity import translate
+        from shapely.geometry import box
+        from shapely.ops import unary_union
+        if self.rope:
+            return gate.section_geometry(self.wrapped_ring(), theta_deg)
+        if skip and self.shape_check_skips(theta_deg):
+            return None
+        parts = [translate(self.section_polygon(theta_deg), 0.0, self.z_offset(theta_deg, k)) for k in range(self.strands)]
+        half = self.bridge_half_deg()
+        for b, r_in, r_out, z_lo, z_hi in self.bridge_spans():
+            if abs((theta_deg - b + 180.0) % 360.0 - 180.0) <= half:
+                parts.append(box(r_in, z_lo, r_out, z_hi))
+        sec = unary_union(parts)
+        h = self.slot_half_at(theta_deg)
+        if h > 0:
+            zc = self.z_offset(theta_deg)
+            sec = sec.difference(box(self.band.bore_radius_mm - 1.0, zc - h, self.band.outer_radius_mm + 1.0, zc + h))
+        e = self.edge_round
+        if e > 0:
+            sec = sec.buffer(-e, quad_segs=16).buffer(e, quad_segs=16)
+        return sec
+
     def section_outline(self, theta_deg: float, phase: float = 0.0):
         """(SECTION_POINTS, 2) array of (r, z) round the section: counter-clockwise from the bore's
         mid-plane point, equally spaced along the outline, so stations loft vertex to vertex.
@@ -192,17 +263,58 @@ class ShankSpec:
         half a step off the first, so where the two cross their vertices do not coincide."""
         return outline_points(self.section_polygon(theta_deg), SECTION_POINTS, start=(self.band.bore_radius_mm, 0.0), phase=phase)
 
+    @property
+    def lofts(self) -> int:
+        """How many bodies are lofted station to station: the strands, or a split's two halves."""
+        return 2 if self.split_mm else self.strands
+
+    def loft_outline(self, k: int, theta_deg: float, phase: float = 0.0):
+        """(SECTION_POINTS, 2) outline of loft `k` at an angle: a strand's section at its centreline,
+        or a split's lower (0) / upper (1) half - the opened 2-D section's part on that side where
+        the slot is open (its fillets included); where it is closed, the section cut
+        SPLIT_OVERLAP_MM past the centreline, so the halves overlap and unite, each half's surface
+        drawn inward across the overlap, from nothing at the centreline to SPLIT_INSET_MM at its
+        cut (a wedge, by scaling the points there about the section's middle): the ring's surface
+        is exact, each half's surface beyond the centreline lies inside the other half, and no two
+        faces coincide (coincident faces united in slivers that an STL round trip opened, and two
+        exact surfaces over the same strip did the same, 2026-10-30)."""
+        import numpy as np
+        from shapely.geometry import box
+        if not self.split_mm:
+            return self.section_outline(theta_deg, phase) + [0.0, self.z_offset(theta_deg, k)]
+        sec = self.section_shape(theta_deg, skip=False)
+        zc = self.z_offset(theta_deg)
+        parts = list(getattr(sec, "geoms", [sec]))
+        if len(parts) >= 2:
+            parts.sort(key=lambda q: q.centroid.y)
+            half = parts[0] if k == 0 else parts[-1]
+            return outline_points(half, SECTION_POINTS, start=(self.band.bore_radius_mm, zc), phase=phase)
+        b = self.band
+        lo, hi = b.bore_radius_mm - 2.0, b.outer_radius_mm + 2.0
+        d = SPLIT_OVERLAP_MM
+        half = sec.intersection(box(lo, zc - 10.0, hi, zc + d) if k == 0 else box(lo, zc - d, hi, zc + 10.0))
+        if hasattr(half, "geoms"):
+            half = max(half.geoms, key=lambda q: q.area)
+        pts = outline_points(half, SECTION_POINTS, start=(self.band.bore_radius_mm, zc), phase=phase)
+        beyond = (pts[:, 1] - zc) if k == 0 else (zc - pts[:, 1])        # how far past the centreline, into the other half
+        frac = np.clip(beyond / d, 0.0, 1.0)
+        centre = np.array([(b.bore_radius_mm + b.outer_radius_mm) / 2, zc + (d / 2 if k == 0 else -d / 2)])
+        scale = 1.0 - frac * SPLIT_INSET_MM / (b.thickness_mm / 2)
+        return centre + (pts - centre) * scale[:, None]
+
     def outlines(self, strand: int = 0):
-        """Every station's outline for a strand, shifted to its centreline."""
+        """Every station's outline for a loft (a strand, or a split's half)."""
         key = ("outlines", strand)
         if key not in self._cache:
             phase = 0.5 * strand
-            self._cache[key] = [self.section_outline(t, phase) + [0.0, self.z_offset(t, strand)] for t in self.station_angles(strand)]
+            self._cache[key] = [self.loft_outline(strand, t, phase) for t in self.station_angles(strand)]
         return self._cache[key]
 
     def bridge_spans(self) -> list[tuple[float, float, float, float, float]]:
-        """Each bridge as (angle, r_in, r_out, z_lo, z_hi): full thickness at that angle, from a
-        little inside the lower strand to a little inside the upper one."""
+        """Each bridge as (angle, r_in, r_out, z_lo, z_hi): from BRIDGE_INSET_MM inside the lower
+        strand to as far inside the upper one, between the strands' bore and outer surfaces where
+        the bridge enters them (the comfort relief and the dome have fallen off there), so it
+        continues the strands' edge surfaces across the gap instead of standing proud of them."""
         if self.strands < 2:
             return []
         out = []
@@ -210,7 +322,8 @@ class ShankSpec:
             w = self.width_at(a)
             lo, hi = sorted(self.z_offset(a, k) for k in range(2))
             sec = self.section_spec(a)
-            out.append((float(a), sec.bore_radius_mm, sec.outer_radius_mm, lo + w / 2 - 0.1, hi - w / 2 + 0.1))
+            z_in = w / 2 - BRIDGE_INSET_MM                          # where the bridge enters a strand, off its centre
+            out.append((float(a), sec.bore_radius_at(z_in), sec.outer_radius_at(z_in), lo + z_in, hi - z_in))
         return out
 
     @property
@@ -260,84 +373,6 @@ class ShankSpec:
             mesh.invert()
         return mesh
 
-    def slot_sections(self):
-        """The split as (angle, half width) stations from -span to +span: the slot's law, closing
-        into a round end of SLOT_END_MM diameter at each end (a cast slot ends in a drill-sized
-        round, not a crack tip), sampled densely round the ends."""
-        import numpy as np
-        if self.split_mm <= 0.0:
-            return []
-        span = self.split_span_deg
-        r_end = SLOT_END_MM / 2
-        arc_per_deg = self.wrap_length_mm / 360.0                 # mm of arc per degree at the wrap radius
-        end_deg = r_end / arc_per_deg                             # the round end's radius, in degrees
-        inner = np.linspace(-span + end_deg, span - end_deg, max(int(math.ceil(2 * span / (360.0 / self.stations))), 8) + 1)
-        out = []
-        for sgn in (-1.0,):                                       # the start end: a quarter round opening up
-            for q in np.linspace(0.0, 1.0, 7)[:-1]:
-                a = -span + end_deg * (1.0 - math.cos(q * math.pi / 2))
-                h = max(self.split_at(a) / 2, r_end) * math.sin(q * math.pi / 2) if q > 0 else 0.01
-                out.append((float(a), float(max(h, 0.01))))
-        for a in inner:
-            out.append((float(a), float(max(self.split_at(a) / 2, r_end))))
-        for q in np.linspace(1.0, 0.0, 7)[1:]:
-            a = span - end_deg * (1.0 - math.cos(q * math.pi / 2))
-            h = max(self.split_at(a) / 2, r_end) * math.sin(q * math.pi / 2) if q > 0 else 0.01
-            out.append((float(a), float(max(h, 0.01))))
-        return out
-
-    def _slot_sweep(self, place):
-        """The slot cutter swept through its stations: rectangles r_in..r_out x ±h placed by
-        `place(angle, r, z) -> (x, y, z)`, capped at both ends."""
-        import numpy as np
-        import trimesh
-        secs = self.slot_sections()
-        if not secs:
-            return None
-        r_in, r_out = self.band.bore_radius_mm - 1.0, self.band.outer_radius_mm + 1.0
-        V = []
-        for a, h in secs:
-            for r, z in ((r_in, -h), (r_out, -h), (r_out, h), (r_in, h)):
-                V.append(place(a, r, z))
-        V = np.asarray(V, float)
-        F = []
-        n = len(secs)
-        for i in range(n - 1):
-            a0 = 4 * i + np.arange(4)
-            b0 = a0 + 4
-            an, bn = np.roll(a0, -1), np.roll(b0, -1)
-            F.append(np.column_stack([a0, an, bn]))
-            F.append(np.column_stack([a0, bn, b0]))
-        F = np.vstack(F + [np.array([[0, 2, 1], [0, 3, 2]]), 4 * (n - 1) + np.array([[0, 1, 2], [0, 2, 3]])])
-        mesh = trimesh.Trimesh(V, F, process=False)
-        trimesh.repair.fix_winding(mesh)
-        if mesh.volume < 0:
-            mesh.invert()
-        return mesh
-
-    def slot_cutter_bar(self):
-        """The split's cutter in the bar frame (X = r, Y along, Z axial), one copy per head the
-        bar covers, united."""
-        import trimesh
-        if self.split_mm <= 0.0:
-            return None
-        L = self.wrap_length_mm
-        step, ks = self._bar_range()
-        y_lo, y_hi = ks[0] * step, ks[-1] * step
-        parts = []
-        for turn in (-1, 0, 1):
-            y_head = turn * L
-            if y_head + self.split_span_deg / 360.0 * L < y_lo or y_head - self.split_span_deg / 360.0 * L > y_hi:
-                continue
-            parts.append(self._slot_sweep(lambda a, r, z, y0=y_head: (r, y0 + a / 360.0 * L, z)))
-        return parts[0] if len(parts) == 1 else trimesh.boolean.union(parts, engine="manifold")
-
-    def slot_cutter_ring(self):
-        """The split's cutter in the ring frame: the same stations placed round the axis."""
-        if self.split_mm <= 0.0:
-            return None
-        return self._slot_sweep(lambda a, r, z: (r * math.cos(math.radians(a)), r * math.sin(math.radians(a)), z))
-
     def rope_station_fraction(self, strand: int) -> float:
         """Each strand's path samples sit this fraction of a station step on from the first strand's:
         strands sampled on the same meridians (and closed at the same one) left a 0.003 mm³ void
@@ -371,12 +406,16 @@ class ShankSpec:
 
     def bar_mesh(self):
         """The unrolled shank for the notebook: every strand's bar and, for two strands, the
-        bridges (boxes along Y, one copy per turn the bar covers), united; a split cut out; a
-        rope's strands united."""
+        bridges (boxes along Y, one copy per turn the bar covers), united; a rope's strands
+        united; a split's halves united in the ring frame and unrolled (unwrap_ring: where the
+        halves cross, the bar frame's straight intersection line came out of the union as one
+        28 mm edge, which a wrap turns into a chord through the ring - 2026-10-30)."""
         import trimesh
         if self.rope:
             return drop_specks(trimesh.boolean.union([self.rope_tube_bar(k) for k in range(self.rope)], engine="manifold"))
-        parts = [self.strand_bar(k) for k in range(self.strands)]
+        if self.split_mm:
+            return unwrap_ring(self.design_mesh(), self.wrap_length_mm)
+        parts = [self.strand_bar(k) for k in range(self.lofts)]
         L = self.wrap_length_mm
         step, ks = self._bar_range()
         y_lo, y_hi = ks[0] * step, ks[-1] * step
@@ -389,9 +428,7 @@ class ShankSpec:
                     parts.append(box)
         # raw: geom.clean would merge the bar's coplanar facets into mm-long ones, which a vertex-wise
         # wrap (the simulated nTop) would then turn into chords
-        body = parts[0] if len(parts) == 1 else drop_specks(trimesh.boolean.union(parts, engine="manifold"))
-        cutter = self.slot_cutter_bar()
-        return body if cutter is None else drop_specks(trimesh.boolean.difference([body, cutter], engine="manifold"))
+        return parts[0] if len(parts) == 1 else drop_specks(trimesh.boolean.union(parts, engine="manifold"))
 
     def strand_ring(self, strand: int = 0):
         """One strand swept round the axis (Z) directly: no bar, no wrap."""
@@ -437,27 +474,34 @@ class ShankSpec:
             if self.rope:
                 body = drop_specks(trimesh.boolean.union([self.rope_tube_ring(k) for k in range(self.rope)], engine="manifold"))
             else:
-                parts = [self.strand_ring(k) for k in range(self.strands)]
+                parts = [self.strand_ring(k) for k in range(self.lofts)]
                 parts += [self.bridge_sector(*b) for b in self.bridge_spans()]
                 body = parts[0] if len(parts) == 1 else drop_specks(trimesh.boolean.union(parts, engine="manifold"))
-                cutter = self.slot_cutter_ring()
-                if cutter is not None:
-                    body = drop_specks(trimesh.boolean.difference([body, cutter], engine="manifold"))
             self._cache["design_mesh"] = body
         return self._cache["design_mesh"]
 
     def design_volume_mm3(self) -> float:
         return float(self.design_mesh().volume)
 
+    def wrapped_ring(self):
+        """One turn of the bar wrapped round the axis vertex-wise (wrap_bar): what Remap Cylindrical
+        makes of it, as a mesh. A rope's strands cross the meridian obliquely, so their wrapped
+        sections are not the ring-built tubes' (0.03 mm apart on a 1.2 mm strand, 2026-10-30): the
+        section-shape check compares nTop's with this."""
+        if "wrapped_ring" not in self._cache:
+            self._cache["wrapped_ring"] = wrap_bar(self.bar_mesh(), self.wrap_length_mm)
+        return self._cache["wrapped_ring"]
+
     def section_bounds(self, theta_deg: float) -> tuple[float, float, float, float]:
-        """(z_lo, z_hi, r_lo, r_hi) of the designed section at an angle, every strand together:
-        from the outlines for a band, from the independent mesh for a rope (its strands cross the
-        meridian obliquely)."""
+        """(z_lo, z_hi, r_lo, r_hi) of the designed section at an angle, every loft together (a
+        split's halves carry the slot and its fillets: inside the span the bore and the dome are
+        first reached beyond the slot's edge - nTop measured r 8.312..9.687 against a full outline's
+        8.253..9.753 at the head of a 1.6 mm split, 2026-10-30); from the independent mesh for a
+        rope (its strands cross the meridian obliquely)."""
         import numpy as np
         if self.rope:
             return section_bounds(self.design_mesh(), theta_deg)
-        rz = self.section_outline(theta_deg)
-        pts = np.vstack([rz + [0.0, self.z_offset(theta_deg, k)] for k in range(self.strands)])
+        pts = np.vstack([self.loft_outline(k, theta_deg) for k in range(self.lofts)])
         return float(pts[:, 1].min()), float(pts[:, 1].max()), float(pts[:, 0].min()), float(pts[:, 0].max())
 
     def section_extents(self, theta_deg: float) -> tuple[float, float]:
@@ -608,7 +652,7 @@ class ShankSpec:
                 if probs:
                     p.append(f"at {t:g}° (width {self.width_at(t):.2f}, thickness {self.thickness_at(t):.2f}): " + "; ".join(probs))
                     break
-        if not p and self.strands == 2:
+        if not p and self.lofts == 2:
             m = self.design_mesh()
             if m.body_count != 1:
                 p.append(f"the strands and bridges make {m.body_count} bodies, not one ring")
@@ -703,6 +747,81 @@ def _outline_triangles(rz):
     from scipy.spatial import cKDTree
     _, idx = cKDTree(rz).query(v)
     return idx[np.asarray(f)]
+
+
+def unwrap_ring(ring, wrap_length: float):
+    """A ring mesh unrolled into a bar (the inverse of wrap_bar: X = r, Y = angle x L / 2π, Z = z)
+    running from -3L/4 to 5L/4, so it covers the turn and a half plus margins a bar needs. The
+    ring is cut into two halves by the plane through the axis (turned a little first, so the cut
+    runs between stations), each half unrolled, and the halves with their shifted copies welded
+    at the cuts vertex to twin - no boolean: a union of overlapping lofts in the bar frame, where
+    the facets are coplanar, came out in slivers (2026-10-30)."""
+    import numpy as np
+    import trimesh
+    L = float(wrap_length)
+    nudge = 360.0 / 730.0
+    m = ring.copy()
+    m.apply_transform(trimesh.transformations.rotation_matrix(math.radians(-nudge), [0, 0, 1]))
+    pieces = []
+    for sign, lo_deg in ((1.0, -90.0), (-1.0, 90.0)):
+        half = trimesh.intersections.slice_mesh_plane(m, [sign, 0.0, 0.0], [0.0, 0.0, 0.0], cap=True)
+        v = half.vertices
+        r = np.hypot(v[:, 0], v[:, 1])
+        th = np.degrees(np.arctan2(v[:, 1], v[:, 0]))
+        th = np.where(th < lo_deg - 1e-9, th + 360.0, th)                 # the far half: 90 .. 270
+        th = np.clip(th, lo_deg, lo_deg + 180.0)
+        y = (th + nudge) / 360.0 * L                                        # the angle origin restored
+        pieces.append(trimesh.Trimesh(np.column_stack([r, y, v[:, 2]]), half.faces, process=False))
+    a, b = pieces
+    parts = []
+    for piece, shift in ((b, -1), (a, 0), (b, 0), (a, 1)):                    # -3L/4 .. -L/4 .. L/4 .. 3L/4 .. 5L/4
+        q = piece.copy()
+        q.vertices = q.vertices + np.array([0.0, shift * L, 0.0])
+        parts.append(q)
+    bar = trimesh.util.concatenate(parts)
+    bar.merge_vertices()                                                   # the twins on a shared cut are identical
+    y_nudge = nudge / 360.0 * L
+    cuts = [-L / 4 + y_nudge + k * L / 2 for k in range(3)]                # the interior cuts; the ends keep their caps
+    V = bar.vertices
+    on_cut = np.zeros(len(V), bool)
+    for y_cut in cuts:
+        on_cut |= np.abs(V[:, 1] - y_cut) < 1e-6
+    bar.update_faces(~on_cut[bar.faces].all(axis=1))                       # both caps at every interior cut go
+    bar.remove_unreferenced_vertices()
+    if bar.volume < 0:
+        bar.invert()
+    assert bar.is_watertight, "unwrap_ring: the welded bar is not closed"
+    y_lo, y_hi = -3 * L / 4 + y_nudge, 5 * L / 4 + y_nudge
+    assert abs(bar.bounds[0][1] - y_lo) < 1e-6 and abs(bar.bounds[1][1] - y_hi) < 1e-6
+    return bar
+
+
+def wrap_bar(bar, wrap_length: float):
+    """One turn of a bar wrapped round Z the way Remap Cylindrical Body does it (geom.remap_cylindrical,
+    vertex-wise): the bar is cut a little before Y = 0 and a turn further on (wrap_length / 730 back -
+    between stations, never through one, for any station count up to 720), the two cut faces then
+    coincide at the same angle, so they are dropped and the seam joined vertex to twin. The
+    simulated nTop does exactly this."""
+    import numpy as np
+    import trimesh
+    from scipy.spatial import cKDTree
+    L = float(wrap_length)
+    y0 = -L / 730.0
+    y1 = y0 + L
+    one = trimesh.intersections.slice_mesh_plane(bar, [0, 1, 0], [0, y0, 0], cap=True)
+    one = trimesh.intersections.slice_mesh_plane(one, [0, -1, 0], [0, y1, 0], cap=True)
+    side0 = np.abs(one.vertices[:, 1] - y0) < 1e-6
+    side1 = np.abs(one.vertices[:, 1] - y1) < 1e-6
+    mesh = geom.remap_cylindrical(one, L)
+    mesh.update_faces(~(side0 | side1)[mesh.faces].all(axis=1))
+    i0, i1 = np.nonzero(side0)[0], np.nonzero(side1)[0]
+    _, twin = cKDTree(mesh.vertices[i0]).query(mesh.vertices[i1])
+    remap = np.arange(len(mesh.vertices))
+    remap[i1] = i0[twin]
+    mesh = trimesh.Trimesh(mesh.vertices, remap[mesh.faces], process=False)
+    mesh.update_faces(mesh.nondegenerate_faces())
+    mesh.remove_unreferenced_vertices()
+    return mesh
 
 
 def drop_specks(mesh, min_volume_mm3: float = 1e-6):
@@ -812,35 +931,15 @@ def section_profile(mesh, theta_deg: float):
 
 def check_shank(spec: ShankSpec, stl: Path, ntop_vol: float | None) -> gate.GateReport:
     """The band gate (bore, the widest width, the largest outer diameter, walls, volume vs nTop)
-    plus the two checks only the design can add: the section profile at CHECK_ANGLES_DEG (the
-    built section's z and r bounds against the designed ones, so a lost dip or a missing strand
-    shows as well as a notebook that did not wrap, or wrapped with the wrong length) and the
-    design volume."""
+    plus the two checks only the design can add: the section shape at the gate's angles (the
+    built outline against the designed one, ShankSpec.section_shape: a lost dip, a missing
+    strand, a slot's edge left sharp, a notebook that did not wrap or wrapped with the wrong
+    length all show) and the design volume."""
     b = spec.band
     rep = gate.check(stl, expect_inner=b.inner_diameter_mm, expect_outer=2 * spec.outer_radius_mm,
                      expect_width=spec.overall_width_mm, expect_volume=ntop_vol, wall_floor=spec.wall_floor(),
-                     centre="origin")                      # the box centre sits off the axis on a tapered ring
-    mesh = gate.load_mesh(stl)
-    worst, where, detail = 0.0, None, []
-    ok = True
-    for t in CHECK_ANGLES_DEG:
-        got = section_bounds(mesh, t)
-        want = spec.section_bounds(t)
-        if math.isnan(got[0]):
-            ok = False
-            detail.append(f"{t:g}°: no section")
-            continue
-        err = max(abs(g - w) for g, w in zip(got, want))
-        if err > worst:
-            worst, where = err, (t, got, want)
-        if err > SECTION_TOL_MM:
-            ok = False
-    if where:
-        t, got, want = where
-        detail.append(f"worst at {t:g}°: z {got[0]:.3f}..{got[1]:.3f} vs {want[0]:.3f}..{want[1]:.3f}, "
-                      f"r {got[2]:.3f}..{got[3]:.3f} vs {want[2]:.3f}..{want[3]:.3f} mm")
-    rep.checks.append(gate.Check("section profile", ok, f"{len(CHECK_ANGLES_DEG)} angles within ±{SECTION_TOL_MM:g} mm; " + "; ".join(detail)
-                                 + ("" if ok else " - the bar was not wrapped as designed (wrap length, units or an unwrapped export?)")))
+                     centre="origin",                      # the box centre sits off the axis on a tapered ring
+                     section_design=spec.section_shape, section_tol_mm=band.section_shape_tolerance(b.mesh_tolerance_mm))
     c = band.design_volume_check(spec.expected_volume_mm3(), ntop_vol, 2.0)
     rounded = spec.sharp_edge_round_mm3()
     if rounded and c.status != gate.INCOMPLETE:

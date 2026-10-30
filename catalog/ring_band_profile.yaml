@@ -4,7 +4,7 @@
 # Input names must match the notebook exactly (verify: python -m ntopjewel templates
 # ntop/notebooks/ring_band_profile.ntop --catalog ring_band_profile).
 notebook: ring_band_profile.ntop
-version: 0.2.0
+version: 0.2.1   # .1: the edge-round opening re-distanced (nj.add_opening, 2026-10-30); same inputs, rebuild the notebook
 title: Profiled band (dome, comfort bore, rounded edges)
 output:
   name: Volume

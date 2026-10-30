@@ -195,6 +195,22 @@ Windows 11 laptops, Python per nTop's bundled console.
 - Workaround: a typed `core.var<real>` Output; the runner treats the missing output template
   as a note and checks the type on the first run.
 
+### 2026-10-30 — Offset Body does not re-distance: two offsets in a row cancel
+- Call: `offset_implicit<implicit,real_field>` with Distance -e wired, then a second one with
+  +e on its result (the usual "opening" that rounds every convex edge by e), on a band built
+  from a Cylinder minus a Cylinder intersected with two Tori, and on an Implicit Body from Mesh.
+- Happened: the pair is an identity. The exported bodies have sharp edges, and the Volume
+  Integral matches the UNopened design to 0.05 % on five band profiles (court 4 x 1.3 mm,
+  e = 0.25: 245.60 mm³ against 245.55 unopened, 243.99 opened); a 1.6 mm slot's edges on an
+  imported bar stayed sharp (the mesh measured 0.12 mm off the filleted section). Consistent
+  with Offset adding a constant to the field: f - (-e) - e = f.
+- Expected: the doc to say the field is not re-distanced, and a block that does (a true
+  morphological offset of an implicit), or an `exact` option on Offset Body.
+- Repro: `ntop/recipes/band_profile.py` at commit 97b895a (before `nj.add_opening`).
+- Workaround: re-distance between the offsets with Mesh from Implicit Body -> Implicit Body
+  from Mesh (`nb_jewel.add_opening`): the eroded body meshed at the notebook's tolerance gets a
+  true distance field, and the second offset then dilates it. One extra mesh per opening.
+
 Template:
 
 ```

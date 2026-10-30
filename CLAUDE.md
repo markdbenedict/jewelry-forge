@@ -56,8 +56,9 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   nTop run succeeded and every hard check PASSED; INCOMPLETE is not a pass. The mandatory
   checks for a band or ring: watertight, winding, one shell, wall thickness, inner/outer Ø,
   width, volume (mesh vs nTop), **design volume (nTop vs the independent arithmetic in
-  Python - the only check that catches a notebook building the wrong section)** and, when
-  engraved, the pocket. The wall check casts rays only along radial/axial directions (letter
+  Python - the check that catches a notebook building the wrong section)**, **section shape
+  (the built outline against the designed section at 12 angles: an edge left sharp, a missing
+  strand, a wrong wrap)** and, when engraved, the pocket. The wall check casts rays only along radial/axial directions (letter
   walls and bead seams measure ribs and slivers, not walls), only between the bead rows, and
   not axially inside an engraving's span, and drops a ray that leaves through a face at a grazing angle (a sharp edge's corner, not a wall); fewer than 1000 usable rays is INCOMPLETE (p1 of a
   few hundred rays is not a measurement). The ring axis is the one whose centre line passes
@@ -191,6 +192,14 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   against), and a blended intersection may shrink a part's extents by the blend radius. The builders in
   `heads` / `solitaire` take a `geom.Booleans` (sharp by default); the simulated nTop passes
   `tests/pseudo_blend.Blended`, which lays the blend's volume along the junctions as geometry.
+- **Offset Body adds a constant to the field; it does not re-distance.** Two offsets back to
+  back (-e then +e, the opening that rounds every convex edge) cancel exactly - five band
+  profiles matched their UNopened sections to 0.05 % (2026-10-30): no edge round was ever built
+  before that date. `nj.add_opening` re-distances between them with a mesh round trip (Mesh from
+  Implicit Body at the notebook's tolerance -> Implicit Body from Mesh); every band, solitaire
+  and shank notebook now carries it (rebuild them). The gate's **section shape** check (the built
+  outline at 12 angles against the designed 2-D section, Hausdorff within 0.03 mm or half the
+  mesh tolerance) is what catches an edge left sharp; a design-volume tolerance did not.
 - Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
   (`e_FAILED` carries `error`); do not trust a call that returned without raising.
 - `new_notebook()` discards the open notebook; `save_notebook_as` / `export_as_recipe`

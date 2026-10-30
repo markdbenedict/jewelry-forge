@@ -2,7 +2,7 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --bezel ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_bezel.ntop
-version: 0.2.0
+version: 0.2.1   # .1: the edge-round opening re-distanced (nj.add_opening, 2026-10-30); same inputs, rebuild the notebook
 title: 'Solitaire (any stone, bezel_head): gothic cathedral arches, arch milgrain,
   optional engraving'
 output:

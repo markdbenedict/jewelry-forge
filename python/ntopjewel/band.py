@@ -26,7 +26,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import catalog, config, gate, ntopcl, runs, tables
+from . import catalog, config, gate, geom, ntopcl, runs, tables
 
 # dome / comfort as a fraction of thickness unless given as "abs"; edge round absolute (mm)
 PROFILES: dict[str, dict] = {
@@ -140,8 +140,10 @@ class BandSpec:
         import numpy as np
         from scipy import ndimage
         pad = pad + self.edge_round + 0.2
-        r = np.arange(self.bore_radius_mm - pad, self.outer_radius_mm + pad, step)
-        z = np.arange(-self.width_mm / 2 - pad, self.width_mm / 2 + pad, step)
+        # pixel centres half a step off the round coordinates, so an edge at the bore radius or at
+        # ±W/2 falls between two pixels instead of on a row that is then counted on both sides
+        r = np.arange(self.bore_radius_mm - pad + step / 2, self.outer_radius_mm + pad, step)
+        z = np.arange(-self.width_mm / 2 - pad + step / 2, self.width_mm / 2 + pad, step)
         R, Z = np.meshgrid(r, z)
         mask = self.section_mask(R, Z)
         if self.edge_round > 0:
@@ -153,11 +155,11 @@ class BandSpec:
 
     def design_volume_mm3(self, step: float = 0.005) -> float:
         """Volume the notebook should produce, from the design alone: Pappus over the opened
-        section, V = 2π ∫∫ r dA. Agrees with nTop to < 1 %."""
-        import numpy as np
-        r, z, mask = self.opened_section(step)
-        R, _ = np.meshgrid(r, z)
-        return float(2 * math.pi * (R[mask] * step * step).sum())
+        section, V = 2π ∫∫ r dA, exactly on the section polygon (geom.section_polygon: the band's
+        booleans and its opening in 2-D). nTop's Volume Integral agreed with the UNopened section
+        to 0.05 % on five profiles while its opening was a no-op (2026-10-30); `step` is kept for
+        callers and ignored."""
+        return float(geom.polygon_revolved_volume(geom.section_polygon(self.notebook_inputs(""))))
 
     def thickness_at(self, z_mm: float) -> float:
         """Radial thickness of the designed section (before edge rounding) at height z."""
@@ -294,6 +296,19 @@ class BandResult:
         return "\n".join(lines)
 
 
+DESIGN_VOLUME_TOL_PCT = 0.5     # a plain band: nTop's integral and Pappus on the section agree to 0.1 %; the edge
+                                # round left unbuilt is 0.3-0.7 % (every real band until 2026-10-30, inside the old 2 %)
+
+
+def section_shape_tolerance(mesh_tolerance_mm: float) -> float:
+    """How far a built section may stray from the design: nTop's mesh sits within a few µm of its
+    field on smooth surfaces (a wrapped shank read 0.004 mm at 0.1 mm tolerance) but rounds a
+    sharp concave crease by about a voxel, half the Mesh Tolerance (a rope's two strands met
+    0.034 mm fuller than the model at 0.1 mm, 2026-10-30): that, or the gate's SHAPE_TOL_MM.
+    A 0.25 mm round left sharp on a court band reads 0.065 mm, so it is caught at 0.1 mm."""
+    return max(gate.SHAPE_TOL_MM, 0.5 * float(mesh_tolerance_mm))
+
+
 def design_volume_check(design_mm3: float, ntop_mm3: float | None, tol_pct: float) -> gate.Check:
     """nTop's volume against the independent design arithmetic: a hard check (a notebook that
     builds the wrong section passes every dimension check and fails only here) and INCOMPLETE
@@ -351,9 +366,11 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
     # ray-cast thickness check is the smaller of the material floor and the designed edge
     floor = tables.FLOORS["wall_marginal"] if wall_floor is None else wall_floor
     floor = min(floor, 0.8 * spec.edge_thickness_mm)
+    section = geom.section_polygon(spec.notebook_inputs(""))
     rep = gate.check(stl, expect_inner=spec.inner_diameter_mm, expect_outer=2 * spec.outer_radius_mm,
-                     expect_width=spec.width_mm, expect_volume=ntop_vol, wall_floor=floor)
-    rep.checks.append(design_volume_check(spec.design_volume_mm3(), ntop_vol, 2.0))
+                     expect_width=spec.width_mm, expect_volume=ntop_vol, wall_floor=floor,
+                     section_design=lambda a: section, section_tol_mm=section_shape_tolerance(spec.mesh_tolerance_mm))
+    rep.checks.append(design_volume_check(spec.design_volume_mm3(), ntop_vol, DESIGN_VOLUME_TOL_PCT))
     gate.save(rep)
     result = BandResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
     result.notes += spec.warnings()

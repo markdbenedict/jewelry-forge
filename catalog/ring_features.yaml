@@ -5,7 +5,7 @@
 # outside, a speck of an engraving mesh far away) - one notebook, no conditionals.
 # Verify names: python -m ntopjewel templates ntop/notebooks/ring_features.ntop --catalog ring_features
 notebook: ring_features.ntop
-version: 0.1.0
+version: 0.1.1   # .1: the edge-round opening re-distanced (nj.add_opening, 2026-10-30); same inputs, rebuild the notebook
 title: Band with milgrain, groove and engraving
 output:
   name: Volume

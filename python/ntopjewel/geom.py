@@ -28,6 +28,24 @@ def section_polygon(v: dict, shape: str = "design"):
     return sec
 
 
+def polygon_revolved_volume(sec) -> float:
+    """Pappus for a shapely polygon in (r, z) revolved about the z axis: V = 2π ∫∫ r dA, the
+    polygon's first moment about the axis, exactly (holes subtracted)."""
+    import numpy as np
+
+    def moment(coords):
+        xy = np.asarray(coords, float)
+        x, y = xy[:, 0], xy[:, 1]
+        cross = x[:-1] * y[1:] - x[1:] * y[:-1]
+        return abs(((x[:-1] + x[1:]) * cross).sum() / 6.0)
+
+    polys = list(sec.geoms) if hasattr(sec, "geoms") else [sec]
+    total = 0.0
+    for poly in polys:
+        total += moment(poly.exterior.coords) - sum(moment(h.coords) for h in poly.interiors)
+    return float(2 * math.pi * total)
+
+
 def revolve_section(sec, sections: int = 180):
     """Surface of revolution of the section about the ring axis, which is Z (nTop convention)."""
     import numpy as np

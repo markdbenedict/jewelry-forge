@@ -164,9 +164,41 @@ def add_band_inputs(h: NotebookHelper, values: dict) -> None:
         h.real_var(name, float(values[name]), "mm")
 
 
+def add_redistance(h: NotebookHelper, name: str, body: str, tolerance_var: str) -> str:
+    """Mesh from Implicit Body (at the notebook's Mesh Tolerance) -> Implicit Body from Mesh: the
+    same body with a true distance field. nTop's Offset Body adds a constant to the field it is
+    given, so two offsets in a row (-e then +e, the opening that rounds every convex edge) cancel
+    exactly unless the field is re-distanced between them: five band profiles built with the
+    offsets back to back matched their UNopened sections to 0.05 % (2026-10-30, nTop 6.3.3). No
+    block re-distances an implicit; a mesh round trip does (the mesh is as fine as the export).
+    Returns the id of the re-distanced implicit."""
+    mesh = h.add(f"{name} Mesh", mask="mesh", must=MESH)
+    h.wire(body, mesh, ["Body"])
+    h.wire(tolerance_var, mesh, ["Tolerance"])
+    out = h.add(name, mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
+    h.wire(mesh, out, ["Mesh"])
+    return out
+
+
+def add_opening(h: NotebookHelper, body: str, inward_var: str, outward_var: str, tolerance_var: str,
+                name: str = "Opened", shrunk_name: str = "Shrunk") -> str:
+    """The morphological opening of a body by the edge round: Offset Body (-e) -> re-distance
+    (add_redistance) -> Offset Body (+e). Rounds every convex edge sharper than the radius and
+    leaves everything else exactly where it was; returns the id of the +e offset block."""
+    shrunk = h.add(shrunk_name, mask="offset", must=OFFSET)
+    h.wire(body, shrunk, ["Body"])
+    h.wire(inward_var, shrunk, ["Distance", "Offset"])
+    exact = add_redistance(h, f"{shrunk_name} Body", shrunk, tolerance_var)
+    opened = h.add(name, mask="offset", must=OFFSET)
+    h.wire(exact, opened, ["Body"])
+    h.wire(outward_var, opened, ["Distance", "Offset"])
+    return opened
+
+
 def add_profiled_band(h: NotebookHelper, extra=None) -> str:
-    """Outer/Bore cylinders -> subtract -> ∩ dome torus ∩ comfort torus -> offset -e -> offset +e.
-    Expects the BAND_INPUTS variables to exist. Returns the id of the "Band Body" variable.
+    """Outer/Bore cylinders -> subtract -> ∩ dome torus ∩ comfort torus -> the opening by the edge
+    round (offset -e, re-distance, offset +e: add_opening). Expects the BAND_INPUTS variables
+    (Mesh Tolerance included) to exist. Returns the id of the "Band Body" variable.
 
     `extra(h) -> body id`: a body united with the shaped band BEFORE the edge-round offsets, so
     one rounding runs over both (the solitaire's arches: a seamless band-to-arch transition).
@@ -210,12 +242,8 @@ def add_profiled_band(h: NotebookHelper, extra=None) -> str:
         h.to_list(shaped, joined, ["Bodies"])
         h.to_list(extra(h), joined, ["Bodies"])
         shaped = joined
-    shrunk = h.add("Shrunk", mask="offset", must=OFFSET)
-    h.wire(shaped, shrunk, ["Body"])
-    h.wire(h.blocks["Edge Round Inward"], shrunk, ["Distance", "Offset"])
-    profile = h.add("Band Profile", mask="offset", must=OFFSET)
-    h.wire(shrunk, profile, ["Body"])
-    h.wire(h.blocks["Edge Round"], profile, ["Distance", "Offset"])
+    profile = add_opening(h, shaped, h.blocks["Edge Round Inward"], h.blocks["Edge Round"], h.blocks["Mesh Tolerance"],
+                          name="Band Profile")
     return h.wrap_var("Band Body", profile)      # a variable: the body is consumed by more than one block
 
 

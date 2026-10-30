@@ -67,7 +67,7 @@ def test_design_shank_passes_its_gate(tmp_path):
     m.export(tmp_path / "s.stl")
     rep = shank.check_shank(s, tmp_path / "s.stl", float(m.volume))
     assert rep.status == "passed", rep.text()
-    assert {"section profile", "design volume", "inner diameter", "width"} <= {c.name for c in rep.checks}
+    assert {"section shape", "design volume", "inner diameter", "width"} <= {c.name for c in rep.checks}
 
 
 def test_an_unwrapped_or_untapered_export_is_caught(tmp_path):
@@ -75,7 +75,7 @@ def test_an_unwrapped_or_untapered_export_is_caught(tmp_path):
     plain = shank.ShankSpec(s.band).design_mesh()                                   # the right band, no taper
     plain.export(tmp_path / "p.stl")
     rep = shank.check_shank(s, tmp_path / "p.stl", float(plain.volume))
-    assert rep.status == "failed" and {"section profile", "design volume"} <= {c.name for c in rep.failures()}
+    assert rep.status == "failed" and {"section shape", "design volume"} <= {c.name for c in rep.failures()}
 
 
 def test_inputs_match_the_catalog_and_identity():
@@ -96,7 +96,7 @@ def test_shank_end_to_end_and_an_unwrapped_notebook_is_caught(fake_ntopcl, tmp_p
     assert res.delivered and (res.delivered.parent / f"{res.spec.stem}.bar.stl").exists()
     monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nowrap")
     bad = shank.build(spec(), tmp_path / "out", notebook=nb)
-    assert bad.status == "failed" and "section profile" in {c.name for c in bad.gate.failures()}
+    assert bad.status == "failed" and "section shape" in {c.name for c in bad.gate.failures()}
 
 
 def test_cli_dry_run(capsys):
@@ -117,12 +117,15 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
     res = mod.build(nb, params)
     b = res["blocks"]
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
-    assert nb.blocks[b["Wrapped"]]["wired"]["Body"][0] == b["Shank Bar"]
-    assert nb.blocks[b["Wrapped"]]["wired"]["Y Mapping Length"][0] == b["Wrap Length"]
-    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Wrapped"]                  # the opening after the wrap
+    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bar"]                 # the opening on the bar ...
     assert nb.blocks[b["Shrunk"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
-    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Shrunk"]
-    assert nb.blocks[b["Shank"]]["wired"]["Distance"][0] == b["Edge Round"]
+    assert nb.blocks[b["Shrunk Body Mesh"]]["wired"]["Body"][0] == b["Shrunk"]          # ... re-distanced through a mesh
+    assert nb.blocks[b["Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == b["Mesh Tolerance"]
+    assert nb.blocks[b["Shrunk Body"]]["wired"]["Mesh"][0] == b["Shrunk Body Mesh"]
+    assert nb.blocks[b["Opened"]]["wired"]["Body"][0] == b["Shrunk Body"]
+    assert nb.blocks[b["Opened"]]["wired"]["Distance"][0] == b["Edge Round"]
+    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Opened"]                     # ... then the wrap
+    assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == b["Wrap Length"]
 
 
 # ---- step 1b: the centreline and double bands ----------------------------------------------------
@@ -182,7 +185,7 @@ def test_shaped_designs_pass_their_gate_and_the_bar_agrees(kind, tmp_path):
     assert geom.remap_cylindrical(one, L).volume == pytest.approx(m.volume, rel=2e-3)
     plain = shank.ShankSpec(s.band).design_mesh()                                                     # the same band, unshaped: caught
     plain.export(tmp_path / "p.stl")
-    assert "section profile" in {c.name for c in shank.check_shank(s, tmp_path / "p.stl", float(plain.volume)).failures()}
+    assert "section shape" in {c.name for c in shank.check_shank(s, tmp_path / "p.stl", float(plain.volume)).failures()}
 
 
 def test_double_chevron_end_to_end(fake_ntopcl, tmp_path):
@@ -219,7 +222,14 @@ def test_the_split_law_and_its_limits():
     assert ring.is_watertight and ring.body_count == 1
     assert ring.volume < shank.ShankSpec(court(width=4.0)).design_mesh().volume                      # the slot takes metal out
     z0, z1, r0, r1 = s.section_bounds(0)
-    assert (z1 - z0, r1 - r0) == pytest.approx((4.0, 1.5), abs=0.01)                                 # the outside is the band's
+    b = s.band
+    assert (z0, z1) == pytest.approx((-2.0, 2.0), abs=0.01)                                          # the outside is the band's ...
+    assert (r0, r1) == pytest.approx((b.bore_radius_at(1.05), b.outer_radius_at(1.05)), abs=0.01)   # ... reached 0.8 + 0.25 off the mid-plane: the slot and its fillets
+    assert s.section_bounds(180)[2:] == pytest.approx((b.bore_radius_mm, b.outer_radius_mm), abs=0.01)
+    two = s.section_shape(0)
+    assert len(two.geoms) == 2 and s.section_shape(180).geom_type == "Polygon"
+    assert s.slot_half_at(0) == 0.8 and s.slot_half_at(89) > 0 == s.slot_half_at(90) and s.slot_half_at(271) > 0
+    assert s.slot_half_at(85) == pytest.approx(0.2)                                                   # never narrower than the round end
 
 
 def test_the_opening_and_what_it_takes_off_sharp_edges():
@@ -229,13 +239,20 @@ def test_the_opening_and_what_it_takes_off_sharp_edges():
     assert plain.edge_round == 0.25 and plain.sharp_edge_round_mm3() == 0.0
     assert plain.notebook_inputs("B", "O")["Edge Round Inward"] == -0.25
     s = shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=90)
-    off = s.sharp_edge_round_mm3()
+    sharp = shank.ShankSpec(band.BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.5, edge_round_mm=0.0),
+                            split_mm=1.6, split_span_deg=90)
     r_mid = s.band.bore_radius_mm + 0.75
     edges = 4 * math.radians(180) * r_mid                                                             # two walls x bore + outside, over 180°
-    assert off == pytest.approx(0.25 ** 2 * (1 - math.pi / 4) * edges, rel=0.25)                    # a square corner: e² (1 - π/4) per mm
-    assert s.expected_volume_mm3() == pytest.approx(s.design_volume_mm3() - off)
+    fillets = 0.25 ** 2 * (1 - math.pi / 4) * edges                                                  # a square corner: e² (1 - π/4) per mm
+    plain, plain_sharp = shank.ShankSpec(court(width=4.0)), shank.ShankSpec(sharp.band)
+    slot_fillets = (plain.design_volume_mm3() - s.design_volume_mm3()) - (plain_sharp.design_volume_mm3() - sharp.design_volume_mm3())
+    assert 1.0 < slot_fillets / fillets < 1.45                                                        # the lofted halves carry them: 2.0 mm³ (the comfort relief and the
+                                                                                                      # dome tilt the corners past 90°, so more than the square-corner figure)
+    assert s.sharp_edge_round_mm3() < 0.3                                                             # so hardly a sharp edge is left to the notebook
+    assert s.expected_volume_mm3() == pytest.approx(s.design_volume_mm3() - s.sharp_edge_round_mm3())
     d = shank.ShankSpec(court(), strands=2, gap_mm=0.6, bridges_deg=(180.0, 100.0, -100.0))
-    assert 0 < d.sharp_edge_round_mm3() < off
+    assert 0 < d.sharp_edge_round_mm3() < 1.0                                                         # the bridges' end faces
+    assert d.bridge_spans()[0][1] > d.band.bore_radius_mm and d.bridge_spans()[0][2] < d.band.outer_radius_mm   # flush with the strands' edges
     rope = shank.ShankSpec(court(), rope=2)
     assert rope.edge_round == 0.0 and rope.notebook_inputs("B", "O")["Edge Round Inward"] == 0.0
     assert shank.ShankSpec(court(), strands=2, bridge_mm=0.5).validate()                             # 2 x 0.25 would open a 0.5 mm bridge away

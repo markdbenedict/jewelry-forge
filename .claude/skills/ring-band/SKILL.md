@@ -49,10 +49,15 @@ Python: inner diameter from `tables.inner_diameter_mm(size, system)` + allowance
 z = ±W/2, both torus radii, edge offsets, the stem
 `ring_band_<profile>_<label>_w<width>_t<thickness>_<spec id>` (the spec id hashes every
 input, so a different dome, edge round, allowance or tolerance is a different file), the
-design volume (Pappus over the opened section), gate expectations (inner/outer Ø and width
-± 0.05 mm, volume ± 2 % vs nTop, **design volume ± 2 % vs nTop**, wall floor = min(0.5 mm,
-0.8 x designed edge thickness)). Notebook: one intersect (band, dome torus, comfort torus),
-two offsets, Volume Integral, mesh, export. Inputs are listed in `catalog/ring_band_profile.yaml`.
+design volume (Pappus over the opened section polygon, exact), gate expectations (inner/outer
+Ø and width ± 0.05 mm, volume ± 2 % vs nTop, **design volume ± 0.5 % vs nTop**, **section shape
+within 0.03 mm** - the STL's outline at 12 angles against the opened section by Hausdorff
+distance, which is what catches an edge left sharp (0.065 mm on a court band's 0.25 mm round) -
+wall floor = min(0.5 mm, 0.8 x designed edge thickness)). Notebook: one intersect (band, dome
+torus, comfort torus), the opening (offset −e, a mesh round trip to re-distance, offset +e:
+`nj.add_opening` - an Offset pair on its own cancels in nTop, and until 2026-10-30 no band had
+its edges rounded), Volume Integral, mesh, export. Inputs are listed in
+`catalog/ring_band_profile.yaml`.
 
 ## Where the files go
 
@@ -82,8 +87,8 @@ from `data/jewelry_tables.json`). Wide bands (> 6 mm) get +¼ size; see `jewelry
 
 A band whose section changes round the ring: full width and thickness at the head (angle 0,
 +X), easing to a narrower, thinner section at the bottom of the finger (reference rings 02,
-03, 05). Written 2026-10-30; the first real build is pending (`python -m ntopjewel api build
-ring_shank`, then the commands below).
+03, 05). Written 2026-10-30; the tapered shank and the rope PASSED in nTop the same day
+(`python -m ntopjewel api build ring_shank`, then the commands below).
 
 ```powershell
 python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.2 --thickness-bottom 1.2
@@ -105,9 +110,9 @@ head) over `--dip-span` either side of the head. `--double` stacks two strands o
 `--gap` apart (the second dips the same way - nested chevrons - or the other way with
 `--mirror`, a wishbone), joined by full-thickness bridges `--bridge` long at `--bridges` angles
 (default 180°, the bottom; two strands without a bridge are two rings and are refused, as are
-mirrored strands that would cross). Taper, dip and strands combine. The gate's section-profile
-check compares the section's z and r bounds at each angle, so a lost dip or a missing strand
-fails it, and the width check uses the ring's overall width.
+mirrored strands that would cross). Taper, dip and strands combine. The gate's section-shape
+check compares the built outline with the designed section at each angle, so a lost dip or a
+missing strand fails it, and the width check uses the ring's overall width.
 
 Split and rope shanks (step 1c): `--split` cuts a slot `--split` wide at the head that closes
 towards the bottom over `--split-span` either side (`contour`: a cosine; `chevron`: linear),
@@ -116,17 +121,34 @@ wide at the head, and a split combines with taper and dip but not with `--double
 replaces the profile altogether: 2 or 3 round strands of `--rope-strand` diameter, their centres
 `--rope-offset` strand radii off the rope's centreline (< 1 so they overlap into one solid; the
 innermost strand just touches the bore), twisted `--rope-turns` (a whole number) times round
-the ring. No taper, dip, double or split on a rope. The gate reads a rope's section bounds off
-the independent mesh (the strands cross a meridian obliquely) and gates walls at 0.8 × the
+the ring. No taper, dip, double or split on a rope. The gate reads a rope's designed sections
+off the bar wrapped (the strands cross a meridian obliquely) and gates walls at 0.8 × the
 strand diameter.
 
-The opening: after the wrap, `ring_shank.ntop` offsets the body by `Edge Round Inward` (−e)
-then `Edge Round` (+e), e = the band's edge round (0 for a rope). The band's own edges are
-rounded that much in the section already, so it changes nothing on a plain, tapered or
-contoured band; it rounds the edges a slot or a bridge leaves sharp (a cast part should not
-have them), and the gate's expected volume takes that off: e²(tan(δ/2) − δ/2) per mm of every
-convex edge turning more than 30° in the design mesh (0.7 % on a 1.6 mm split over 180°, 0.1 %
-on a bridged double). A bridge must be ≥ 2e + 0.1 mm long or the opening removes it.
+The fillets: a split's halves are lofted from the 2-D opened sections, so the slot's four
+fillets (radius e, the band's edge round) are in the bar itself; a bridge's long faces sit flush
+with the strands' edge surfaces (it runs 0.1 mm into each strand at the strands' relieved bore
+and fallen-off dome), so only its two end faces have sharp edges. Before the wrap,
+`ring_shank.ntop` opens the bar by `Edge Round Inward` (−e) / `Edge Round` (+e) with a mesh
+round trip between (`nj.add_opening`: an Offset pair on its own cancels in nTop - see
+`ntop-automate`), which rounds whatever is left sharp; the gate's expected volume takes that
+off: e²(tan(δ/2) − δ/2) per mm of every convex edge turning more than 30° in the design mesh
+(0.1 % on a bridged double, nothing on a plain or split shank). A bridge must be ≥ 2e + 0.1 mm
+long or the opening removes it; a rope passes e = 0.
+
+The section-shape check: the gate slices the STL at 12 angles (1.37° off the 30° marks, never a
+station) and compares each outline with the designed 2-D section (`ShankSpec.section_shape`:
+strands at their centrelines, a bridge where one spans the angle, the slot and its fillets,
+all opened by e; a rope's from the bar wrapped) by Hausdorff distance, within 0.03 mm or half
+the mesh tolerance (0.05 at the default 0.1: nTop's mesher rounds a sharp concave crease by a
+voxel - a rope's strands met 0.034 mm fuller than the model). Angles within e of a slot's end
+or a bridge's end are skipped (their faces look along the ring). An unwrapped export, a wrong
+wrap length, a lost dip, a missing strand or a slot edge left sharp all fail here.
+
+Real runs (30 Oct): the tapered court shank PASSED (outlines within 0.004 mm, volume +0.00 %),
+the 2 x 10 rope PASSED (−0.02 %); the first split came back with sharp slot edges (0.12 mm
+off the filleted section) because nTop's Offset pair was a no-op - fixed in the notebook, the
+rebuild is the next real check.
 
 How it is made: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
 axial; one cross-section every 2.5°, the band profile at that angle's width and thickness,
@@ -139,10 +161,8 @@ bottom (no crease at the shoulders or the bottom). The thin end must itself be a
 (floors, edge round): a 1.0 mm court bottom needs `--edge-round 0.15`.
 
 The gate: the band checks measured about the axis (bore Ø, the widest width, the largest
-outer Ø, walls against the thinnest station's edge), volume vs nTop, **section profile** (the
-built width and thickness at 12 angles against the design, ± 0.06 mm: an unwrapped export or
-a wrong wrap length fails here) and the design volume against the independent sweep of the
-same sections (no bar, no wrap). Files: `out\shank\<stem>\<run id>\` with the bar
+outer Ø, walls against the thinnest station's edge), volume vs nTop, **section shape** (above)
+and the design volume against the independent sweep of the same sections (no bar, no wrap). Files: `out\shank\<stem>\<run id>\` with the bar
 (`<stem>.bar.stl`) beside the STL; stem
 `ring_shank_<profile>_<label>_w<head>-<bottom>_t<head>-<bottom>[_contour1.5|_chevron2][_x2|_x2m][_split1.6]_<spec id>`,
 a rope `ring_shank_rope<strands>x<turns>_<label>_d<strand>_<spec id>`.

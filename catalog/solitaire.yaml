@@ -2,7 +2,7 @@
 # Built by ntop/recipes/solitaire.py; run by `python -m ntopjewel solitaire ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire.ntop
-version: 0.6.0
+version: 0.6.1   # .1: the edge-round opening re-distanced (nj.add_opening, 2026-10-30); same inputs, rebuild the notebook
 title: 'Solitaire (round stone, prong_head): gothic cathedral arches, arch milgrain,
   optional engraving'
 output:

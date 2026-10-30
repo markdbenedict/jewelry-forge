@@ -4,7 +4,7 @@
 # Cylindrical Body (Y mapping length = Wrap Length, one turn). Built by ntop/recipes/ring_shank.py
 # through the Notebook API. Verify names: python -m ntopjewel templates ntop/notebooks/ring_shank.ntop --catalog ring_shank
 notebook: ring_shank.ntop
-version: 0.2.0
+version: 0.2.1   # .1: the edge-round opening re-distanced (nj.add_opening, 2026-10-30); same inputs, rebuild the notebook
 title: Shaped shank (tapered width and thickness) from a wrapped bar
 output:
   name: Volume

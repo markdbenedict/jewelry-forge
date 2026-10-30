@@ -111,6 +111,11 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     prof = res["blocks"]["Band Profile"]
     assert b[prof]["wired"]["Distance"][0] == "Edge Round"
     assert b[res["blocks"]["Shrunk"]]["wired"]["Distance"][0] == "Edge Round Inward"
+    # the opening re-distances between its offsets (a mesh round trip): offsets back to back cancel in nTop
+    assert b[res["blocks"]["Shrunk Body Mesh"]]["wired"]["Body"][0] == res["blocks"]["Shrunk"]
+    assert b[res["blocks"]["Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
+    assert b[res["blocks"]["Shrunk Body"]]["wired"]["Mesh"][0] == res["blocks"]["Shrunk Body Mesh"]
+    assert b[prof]["wired"]["Body"][0] == res["blocks"]["Shrunk Body"]
     # tail: Volume = ∫ 1 dV over the body (no density, no units), the Output wraps that block
     integ = res["blocks"]["Volume Integral"]
     assert b[integ]["wired"]["Body"][0] == "Band Body" and b[integ]["wired"]["Integrand"][0] == "One"

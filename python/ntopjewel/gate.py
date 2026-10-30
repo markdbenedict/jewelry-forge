@@ -301,7 +301,10 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
           wall_floor: float = tables.FLOORS["wall_marginal"], wall_samples: int = 4000,
           axis: str | None = None, metals=tables.DEFAULT_WEIGHT_METALS,
           write_report: bool = True, wall_abs_axis_max: float | None = None, wall_ray_filter=None,
-          centre: str = "bbox") -> GateReport:
+          centre: str = "bbox", section_design=None, section_tol_mm: float | None = None) -> GateReport:
+    """The generic gate. `section_design(theta_deg)` -> the designed cross-section at that angle as
+    a shapely geometry in (r, z) (None to skip the angle) adds the section-shape check
+    (section_shape_check) at SHAPE_ANGLES_DEG, within `section_tol_mm` (default SHAPE_TOL_MM)."""
     path = Path(path)
     mesh = load_mesh(path)
     rep = GateReport(path=str(path), triangles=int(len(mesh.faces)), vertices=int(len(mesh.vertices)))
@@ -359,10 +362,81 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     if expect_volume:
         pct = 100.0 * (rep.volume_mm3 - expect_volume) / expect_volume
         c.append(Check("volume", abs(pct) <= tol_volume_pct, f"{rep.volume_mm3:.2f} vs {expect_volume:.2f} mm³ ({pct:+.2f}%)"))
+    if section_design is not None and ax is not None:
+        c.append(section_shape_check(mesh, section_design, tol_mm=section_tol_mm or SHAPE_TOL_MM, axis=ax))
 
     if write_report:
         path.with_suffix(".gate.json").write_text(json.dumps(rep.to_dict(), indent=2), encoding="utf-8")
     return rep
+
+
+# ---- section shape --------------------------------------------------------------------------------
+SHAPE_ANGLES_DEG = tuple(30 * k + 1.37 for k in range(12))   # never a station of any loft or revolve (<= 720)
+SHAPE_TOL_MM = 0.03          # nTop's meshes sit within 0.005 mm of the field; a 0.25 mm round left sharp reads 0.065
+
+
+def section_geometry(mesh: trimesh.Trimesh, theta_deg: float, axis: int = 2):
+    """The ring's cross-section at an angle as a shapely geometry in (r, z): the loops the plane
+    through the axis cuts on the +angle side, combined even-odd (a loop inside a loop is a hole).
+    None when the plane cuts nothing there."""
+    from shapely.geometry import Polygon
+    t = math.radians(theta_deg)
+    # the plane holds the axis and the direction (cos t, sin t) in the plane normal to the axis
+    i, j = [k for k in range(3) if k != axis]
+    normal = np.zeros(3)
+    normal[i], normal[j] = -math.sin(t), math.cos(t)
+    sec = mesh.section(plane_origin=[0.0, 0.0, 0.0], plane_normal=normal)
+    if sec is None:
+        return None
+    geom = None
+    for loop in sec.discrete:
+        pts = np.asarray(loop, float)
+        r = pts[:, i] * math.cos(t) + pts[:, j] * math.sin(t)
+        if r.mean() <= 0 or len(pts) < 4:
+            continue
+        poly = Polygon(np.column_stack([r, pts[:, axis]]))
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        if poly.is_empty:
+            continue
+        geom = poly if geom is None else geom.symmetric_difference(poly)
+    return geom
+
+
+def section_shape_check(mesh: trimesh.Trimesh, design, angles=SHAPE_ANGLES_DEG, tol_mm: float = SHAPE_TOL_MM,
+                        axis: int = 2, name: str = "section shape") -> Check:
+    """The built section against the designed one at several angles: the Hausdorff distance
+    between the two outlines (shapely, densified), at most `tol_mm` everywhere. `design(theta)`
+    returns the designed section as a shapely geometry in (r, z), or None to skip that angle. A
+    corner the notebook left sharp where a round was designed stands off the fillet (0.065 mm on
+    a court band's 0.25 mm round: the real court band built while nTop's opening was a no-op read
+    0.049 against its opened section and 0.020 against the unopened one, 2026-10-30), a missing
+    strand or a filled slot far more; a wrong wrap length stretches every section."""
+    import shapely
+    worst = (-1.0, None, "")
+    checked = 0
+    for a in angles:
+        want = design(a)
+        if want is None or want.is_empty:
+            continue
+        got = section_geometry(mesh, a, axis)
+        if got is None or got.is_empty:
+            return incomplete(name, f"no section at {a:.0f}°: the cut through the axis met nothing there")
+        d = float(shapely.hausdorff_distance(got.boundary, want.boundary, densify=0.1))
+        checked += 1
+        if d > worst[0]:
+            parts = len(getattr(got, "geoms", [got])), len(getattr(want, "geoms", [want]))
+            worst = (d, a, f"{parts[0]} part{'s' if parts[0] != 1 else ''} built vs {parts[1]} designed" if parts[0] != parts[1] else "")
+    if not checked:
+        return incomplete(name, "no angle to check")
+    d, a, extra = worst
+    ok = d <= tol_mm
+    detail = f"{checked} angles, outlines within {d:.3f} mm of the design (tolerance {tol_mm:.2f}); worst at {a:.0f}°"
+    if extra:
+        detail += f" ({extra})"
+    if not ok:
+        detail += " - the built section is not the designed one (an edge left sharp, a feature missing, a wrong wrap?)"
+    return Check(name, ok, detail)
 
 
 def save(rep: "GateReport") -> None:
