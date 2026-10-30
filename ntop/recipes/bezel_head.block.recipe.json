@@ -1,0 +1,272 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
+        "id": "inst137",
+        "inputs": [
+          {
+            "type": "blend_enum",
+            "value": {
+              "enum": 0
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {
+                "length": 1
+              },
+              "val": 0.0
+            }
+          },
+          {
+            "func": "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]",
+            "id": "inst130",
+            "inputs": [
+              {
+                "type": "blend_enum",
+                "value": {
+                  "enum": 0
+                }
+              },
+              {
+                "type": "real",
+                "value": {
+                  "isFinite": true,
+                  "units": {
+                    "length": 1
+                  },
+                  "val": 0.0
+                }
+              },
+              {
+                "func": "core.list<implicit>",
+                "id": "inst129",
+                "inputs": [
+                  {
+                    "func": "offset_implicit<implicit,real_field>",
+                    "id": "inst111",
+                    "inputs": [
+                      {
+                        "input": 0,
+                        "props": []
+                      },
+                      {
+                        "input": 2,
+                        "props": []
+                      }
+                    ],
+                    "name": "Implicit Body_0",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "box_from_corners<point,point>",
+                    "id": "inst126",
+                    "inputs": [
+                      {
+                        "func": "point<real,real,real>",
+                        "id": "inst115",
+                        "inputs": [
+                          {
+                            "type": "real",
+                            "value": {
+                              "isFinite": true,
+                              "units": {
+                                "length": 1
+                              },
+                              "val": -0.04
+                            }
+                          },
+                          {
+                            "type": "real",
+                            "value": {
+                              "isFinite": true,
+                              "units": {
+                                "length": 1
+                              },
+                              "val": -0.04
+                            }
+                          },
+                          {
+                            "input": 3,
+                            "props": []
+                          }
+                        ],
+                        "name": "Point_0",
+                        "type": "point"
+                      },
+                      {
+                        "func": "point<real,real,real>",
+                        "id": "inst121",
+                        "inputs": [
+                          {
+                            "type": "real",
+                            "value": {
+                              "isFinite": true,
+                              "units": {
+                                "length": 1
+                              },
+                              "val": 0.04
+                            }
+                          },
+                          {
+                            "type": "real",
+                            "value": {
+                              "isFinite": true,
+                              "units": {
+                                "length": 1
+                              },
+                              "val": 0.04
+                            }
+                          },
+                          {
+                            "input": 4,
+                            "props": []
+                          }
+                        ],
+                        "name": "Point_1",
+                        "type": "point"
+                      }
+                    ],
+                    "name": "Box_0",
+                    "type": "box"
+                  }
+                ],
+                "name": "Implicit Body List_0",
+                "type": "list<implicit>"
+              }
+            ],
+            "name": "Implicit Body_1",
+            "type": "implicit"
+          },
+          {
+            "func": "core.list<implicit>",
+            "id": "inst136",
+            "inputs": [
+              {
+                "input": 0,
+                "props": []
+              },
+              {
+                "func": "implicit_from_mesh<mesh>",
+                "id": "inst133",
+                "inputs": [
+                  {
+                    "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                    "id": "inst132",
+                    "inputs": [
+                      {
+                        "input": 1,
+                        "props": []
+                      },
+                      {
+                        "type": "unit_length_enum",
+                        "value": {
+                          "id": "mm"
+                        }
+                      }
+                    ],
+                    "name": "Mesh_0",
+                    "type": "mesh"
+                  }
+                ],
+                "name": "Implicit Body_2",
+                "type": "implicit"
+              }
+            ],
+            "name": "Implicit Body List_1",
+            "type": "list<implicit>"
+          }
+        ],
+        "name": "Implicit Body_3",
+        "type": "implicit"
+      },
+      "id": "inst138",
+      "name": "Head",
+      "type": "implicit",
+      "variable": true
+    }
+  ],
+  "description": "",
+  "displayname": "bezel_head",
+  "inputs": [
+    {
+      "description": "",
+      "dimension": {},
+      "name": "Seat Cutter",
+      "type": "implicit"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\bezel_head_test_windows.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Windows Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0006500000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Wall",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0019142999999999999
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bezel Bottom",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0005975
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bezel Top",
+      "type": "real"
+    }
+  ],
+  "name": "user_func_81e94e93_59a6_46ef_8e6f_b256f2c36aee",
+  "output": {
+    "id": "inst138"
+  }
+}

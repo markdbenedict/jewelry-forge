@@ -1,0 +1,281 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "user_func_81e94e93_59a6_46ef_8e6f_b256f2c36aee<implicit,text,real,real,real>",
+        "id": "inst127",
+        "inputs": [
+          {
+            "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
+            "id": "inst122",
+            "inputs": [
+              {
+                "input": 0,
+                "props": []
+              },
+              {
+                "input": 1,
+                "props": []
+              }
+            ],
+            "name": "Implicit Body_0",
+            "type": "implicit"
+          },
+          {
+            "input": 2,
+            "props": []
+          },
+          {
+            "input": 3,
+            "props": []
+          },
+          {
+            "input": 4,
+            "props": []
+          },
+          {
+            "input": 5,
+            "props": []
+          }
+        ],
+        "name": "Implicit Body_1",
+        "type": "implicit"
+      },
+      "id": "inst128",
+      "name": "Result",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "volume_integral<implicit,real_field,real>",
+        "id": "inst130",
+        "inputs": [
+          {
+            "props": [],
+            "ref": {
+              "id": "inst128"
+            }
+          },
+          {
+            "props": [],
+            "ref": {
+              "id": "inst131"
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {},
+              "val": 0.01
+            }
+          }
+        ],
+        "name": "Scalar_0",
+        "type": "real"
+      },
+      "id": "inst138",
+      "name": "Volume",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {},
+          "val": 1.0
+        }
+      },
+      "id": "inst131",
+      "name": "One",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "func": "export_mesh<file_path,mesh,unit_length_enum>",
+      "id": "inst137",
+      "inputs": [
+        {
+          "input": 7,
+          "props": []
+        },
+        {
+          "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+          "id": "inst135",
+          "inputs": [
+            {
+              "props": [],
+              "ref": {
+                "id": "inst128"
+              }
+            },
+            {
+              "input": 6,
+              "props": []
+            },
+            null,
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            },
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            }
+          ],
+          "name": "Mesh_0",
+          "type": "mesh"
+        },
+        {
+          "type": "unit_length_enum",
+          "value": {
+            "id": "mm"
+          }
+        }
+      ],
+      "name": "Mesh File Data_0",
+      "type": "mesh_file_data"
+    }
+  ],
+  "description": "",
+  "displayname": "bezel_head_harness",
+  "inputs": [
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\bezel_head_test_envelope.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Seat Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Clearance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\bezel_head_test_windows.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Windows Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0006500000000000001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Wall",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0019142999999999999
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bezel Bottom",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0005975
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Bezel Top",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Mesh Tolerance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\bezel_head_test.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Output Path",
+      "type": "text"
+    }
+  ],
+  "name": "user_func_3f599187_2347_496a_82d1_a708ff372cfc",
+  "output": {
+    "id": "inst138"
+  }
+}
