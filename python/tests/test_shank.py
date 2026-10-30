@@ -117,8 +117,12 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
     res = mod.build(nb, params)
     b = res["blocks"]
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
-    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Shank Bar"]
-    assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == b["Wrap Length"]
+    assert nb.blocks[b["Wrapped"]]["wired"]["Body"][0] == b["Shank Bar"]
+    assert nb.blocks[b["Wrapped"]]["wired"]["Y Mapping Length"][0] == b["Wrap Length"]
+    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Wrapped"]                  # the opening after the wrap
+    assert nb.blocks[b["Shrunk"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
+    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Shrunk"]
+    assert nb.blocks[b["Shank"]]["wired"]["Distance"][0] == b["Edge Round"]
 
 
 # ---- step 1b: the centreline and double bands ----------------------------------------------------
@@ -197,3 +201,110 @@ def test_cli_shape_flags(capsys):
     assert "chevron2_x2_" in out and "bridged at 180°, 100°, -100°" in out
     assert "  0°: width 3.000  thickness 1.500  centre z +0.200 / +3.800" in out            # the dip at the head
     assert "180°: width 3.000  thickness 1.500  centre z -1.800 / +1.800" in out            # none at the bottom
+
+
+# ---- step 1c: split shanks and ropes -------------------------------------------------------------
+def test_the_split_law_and_its_limits():
+    s = shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=90)
+    assert s.validate() == [] and s.split_at(0) == 1.6 and s.split_at(45) == pytest.approx(0.8) and s.split_at(90) == 0.0
+    assert s.split_at(-45) == s.split_at(45) and s.split_at(180) == 0.0
+    v = shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=90, split_shape="chevron")
+    assert v.split_at(45) == pytest.approx(0.8) and v.split_at(30) == pytest.approx(1.6 * 2 / 3)       # linear
+    assert "split1.6" in s.stem and v.stem != s.stem
+    assert shank.ShankSpec(court(width=3.0), split_mm=1.6).validate()                                # 0.7 mm halves: refused
+    assert shank.ShankSpec(court(width=4.0), split_mm=1.6, strands=2).validate()                     # not with --double
+    assert shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=5).validate()
+    assert shank.ShankSpec(court(width=4.0), split_mm=1.6, split_shape="wave").validate()
+    ring = s.design_mesh()
+    assert ring.is_watertight and ring.body_count == 1
+    assert ring.volume < shank.ShankSpec(court(width=4.0)).design_mesh().volume                      # the slot takes metal out
+    z0, z1, r0, r1 = s.section_bounds(0)
+    assert (z1 - z0, r1 - r0) == pytest.approx((4.0, 1.5), abs=0.01)                                 # the outside is the band's
+
+
+def test_the_opening_and_what_it_takes_off_sharp_edges():
+    """The notebook opens the wrapped body by the band's edge round: nothing on a plain band (its
+    section is rounded that much already), a slot's four edges on a split, a bridge's on a double."""
+    plain = shank.ShankSpec(court(width=4.0))
+    assert plain.edge_round == 0.25 and plain.sharp_edge_round_mm3() == 0.0
+    assert plain.notebook_inputs("B", "O")["Edge Round Inward"] == -0.25
+    s = shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=90)
+    off = s.sharp_edge_round_mm3()
+    r_mid = s.band.bore_radius_mm + 0.75
+    edges = 4 * math.radians(180) * r_mid                                                             # two walls x bore + outside, over 180°
+    assert off == pytest.approx(0.25 ** 2 * (1 - math.pi / 4) * edges, rel=0.25)                    # a square corner: e² (1 - π/4) per mm
+    assert s.expected_volume_mm3() == pytest.approx(s.design_volume_mm3() - off)
+    d = shank.ShankSpec(court(), strands=2, gap_mm=0.6, bridges_deg=(180.0, 100.0, -100.0))
+    assert 0 < d.sharp_edge_round_mm3() < off
+    rope = shank.ShankSpec(court(), rope=2)
+    assert rope.edge_round == 0.0 and rope.notebook_inputs("B", "O")["Edge Round Inward"] == 0.0
+    assert shank.ShankSpec(court(), strands=2, bridge_mm=0.5).validate()                             # 2 x 0.25 would open a 0.5 mm bridge away
+
+
+def test_the_rope():
+    r = shank.ShankSpec(court(), rope=2, rope_turns=10, rope_strand_mm=1.2)
+    assert r.validate() == [] and r.rope_radius == 0.6 and r.rope_offset == pytest.approx(0.42)
+    assert r.rope_centre_radius == pytest.approx(court().bore_radius_mm + 1.02)                        # the inner strand touches the bore
+    c0, c1 = r.rope_centre(0, 0), r.rope_centre(0, 1)
+    assert c0 == pytest.approx((r.rope_centre_radius + 0.42, 0.0)) and c1 == pytest.approx((r.rope_centre_radius - 0.42, 0.0), abs=1e-9)
+    assert r.rope_centre(9, 0)[1] == pytest.approx(0.42 * math.sin(math.radians(90)))                 # a quarter twist 9° on, at 10 turns
+    assert r.rope_stations == 360 and r.wrap_length_mm == pytest.approx(2 * math.pi * r.rope_centre_radius)
+    assert r.stem.startswith("ring_shank_rope2x10_US6_d1.2_")
+    ring = r.design_mesh()
+    assert ring.is_watertight and ring.body_count == 1
+    two = sum(r.rope_tube_ring(k).volume for k in range(2))
+    assert 0.8 * two < ring.volume < two                                                              # overlapping strands
+    assert r.overall_width_mm == pytest.approx(2.04) and r.outer_radius_mm == pytest.approx(r.rope_centre_radius + 1.02)
+    three = shank.ShankSpec(court(), rope=3, rope_turns=8, rope_strand_mm=1.0, rope_offset_frac=0.7)
+    assert three.validate() == [] and three.design_mesh().body_count == 1                             # staggered stations: no void at the seam
+    assert shank.ShankSpec(court(), rope=4).validate()
+    assert shank.ShankSpec(court(), rope=2, rope_strand_mm=0.6).validate()
+    assert shank.ShankSpec(court(), rope=2, rope_offset_frac=1.2).validate()
+    assert shank.ShankSpec(court(), rope=2, width_bottom_mm=2.0).validate()                           # a rope takes no taper
+
+
+@pytest.mark.parametrize("kind", ["split", "split-chevron-taper", "rope2", "rope3"])
+def test_split_and_rope_designs_pass_their_gate_and_the_bar_agrees(kind, tmp_path):
+    import trimesh
+    s = {"split": shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=90),
+         "split-chevron-taper": shank.ShankSpec(court(width=4.0), width_bottom_mm=2.4, thickness_bottom_mm=1.2, split_mm=1.4,
+                                                split_span_deg=70, split_shape="chevron"),
+         "rope2": shank.ShankSpec(court(), rope=2, rope_turns=10, rope_strand_mm=1.2),
+         "rope3": shank.ShankSpec(court(), rope=3, rope_turns=8, rope_strand_mm=1.0, rope_offset_frac=0.7)}[kind]
+    assert s.validate() == []
+    m = s.design_mesh()
+    m.export(tmp_path / "s.stl")
+    rep = shank.check_shank(s, tmp_path / "s.stl", s.expected_volume_mm3())
+    assert rep.status == "passed", rep.text()
+    bar = s.bar_mesh()
+    assert bar.is_watertight and bar.body_count == 1
+    L = s.wrap_length_mm
+    one = trimesh.intersections.slice_mesh_plane(bar, [0, 1, 0], [0, -L / 730, 0], cap=True)
+    one = trimesh.intersections.slice_mesh_plane(one, [0, -1, 0], [0, L - L / 730, 0], cap=True)
+    assert geom.remap_cylindrical(one, L).volume == pytest.approx(m.volume, rel=3e-3)
+    if not s.rope:
+        plain = shank.ShankSpec(s.band).design_mesh()                                                 # the same band, no slot: caught
+        plain.export(tmp_path / "p.stl")
+        assert "design volume" in {c.name for c in shank.check_shank(s, tmp_path / "p.stl", float(plain.volume)).failures()}
+
+
+@pytest.mark.parametrize("kind", ["split", "rope"])
+def test_split_and_rope_end_to_end(kind, fake_ntopcl, tmp_path):
+    nb = tmp_path / "ring_shank.ntop"
+    nb.write_bytes(b"fake")
+    s = (shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=90) if kind == "split"
+         else shank.ShankSpec(court(), rope=2, rope_turns=10, rope_strand_mm=1.2))
+    res = shank.build(s, tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+    assert res.spec.notebook_inputs("B", "O")["Edge Round"] == (0.25 if kind == "split" else 0.0)
+
+
+def test_cli_split_and_rope_flags(capsys):
+    from ntopjewel import cli
+    assert cli.main(["shank", "--size", "6", "--width", "4", "--thickness", "1.5", "--split", "1.6", "--split-span", "90", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "_split1.6_" in out and "  0°: width 4.000  thickness 1.500  centre z +0.000  split 1.600" in out
+    assert cli.main(["shank", "--size", "6", "--rope", "2", "--rope-turns", "10", "--rope-strand", "1.2", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "ring_shank_rope2x10_US6_d1.2_" in out and "Edge Round: 0.0" in out
+    assert cli.main(["shank", "--size", "6", "--width", "3", "--split", "1.6", "--dry-run"]) == 1

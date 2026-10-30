@@ -199,16 +199,20 @@ def cmd_shank(a: argparse.Namespace) -> int:
     spec = shank.ShankSpec(_band_spec(a), width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
                            taper_from_deg=a.taper_from, stations=a.stations, dip_mm=a.dip, dip_span_deg=a.dip_span,
                            dip_shape=a.dip_shape, strands=2 if a.double else 1, gap_mm=a.gap, mirror=a.mirror,
-                           bridges_deg=bridges, bridge_mm=a.bridge)
+                           bridges_deg=bridges, bridge_mm=a.bridge, split_mm=a.split, split_span_deg=a.split_span,
+                           split_shape=a.split_shape, rope=a.rope, rope_turns=a.rope_turns, rope_strand_mm=a.rope_strand,
+                           rope_offset_frac=a.rope_offset)
     if a.dry_run:
         probs = spec.validate()
         print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
         for w in spec.warnings():
             print("  warning: " + w)
-        if not probs:
+        if not probs and not spec.rope:
             for t in (0, 45, 90, 135, 180):
                 print(f"    {t:3d}°: width {spec.width_at(t):.3f}  thickness {spec.thickness_at(t):.3f}  centre z "
-                      + " / ".join(f"{spec.z_offset(t, k):+.3f}" for k in range(spec.strands)))
+                      + " / ".join(f"{spec.z_offset(t, k):+.3f}" for k in range(spec.strands))
+                      + (f"  split {spec.split_at(t):.3f}" if spec.split_mm else ""))
+        if not probs:
             for k, v in spec.notebook_inputs("<bar path>", "<output path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
@@ -559,6 +563,13 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--mirror", action="store_true", help="--double: the second strand dips the other way (a wishbone)")
     sk.add_argument("--bridges", help="--double: angles where bars join the strands, e.g. 180,100,-100 (default 180)")
     sk.add_argument("--bridge", type=float, default=1.2, help="--double: a bridge's length round the ring, mm")
+    sk.add_argument("--split", type=float, default=0.0, help="a slot this wide splits the band at the head, closing towards the bottom, mm")
+    sk.add_argument("--split-span", type=float, default=90.0, help="--split: the slot reaches this far either side of the head, degrees")
+    sk.add_argument("--split-shape", default="contour", choices=["contour", "chevron"], help="--split: the slot closes smoothly or in a V")
+    sk.add_argument("--rope", type=int, default=0, help="a rope band: this many round strands (2 or 3) twisted round the ring instead of a profile")
+    sk.add_argument("--rope-turns", type=int, default=10, help="--rope: twists round the ring (a whole number)")
+    sk.add_argument("--rope-strand", type=float, default=1.2, help="--rope: a strand's diameter, mm")
+    sk.add_argument("--rope-offset", type=float, default=0.7, help="--rope: a strand centre's distance off the rope's centreline, in strand radii")
     sk.add_argument("--catalog", default="ring_shank")
     sk.add_argument("--out")
     sk.add_argument("--notebook")

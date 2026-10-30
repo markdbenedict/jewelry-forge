@@ -267,6 +267,8 @@ def main(argv: list[str]) -> int:
             fail("Shank Mesh: file not found")
         bar = trimesh.load(str(values["Shank Path"]), force="mesh")
         L = float(values["Wrap Length"])
+        # the notebook's opening (Edge Round / Edge Round Inward) is not simulated: it rounds only
+        # the edges a slot or a bridge leaves sharp, under 1 % of the volume, inside the gate's 2 %
         if shape == "nowrap":                                 # a notebook that exports the bar itself
             mesh = bar
         else:
@@ -292,7 +294,7 @@ def main(argv: list[str]) -> int:
             mesh.remove_unreferenced_vertices()
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Mesh", "Shank Bar", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
+        for name in ("Shank Mesh", "Shank Bar", "Wrapped", "Shrunk", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

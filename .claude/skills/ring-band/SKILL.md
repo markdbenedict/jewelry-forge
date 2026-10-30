@@ -93,6 +93,10 @@ python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 1.5 --dip-spa
 python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron             # a V (chevron) band
 python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron --double --gap 0.6 --bridges 180,100,-100   # ring 04's double chevron
 python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 1.2 --dip-span 80 --double --gap 0.4 --mirror   # a wishbone: the strands meet at the head
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.5 --split 1.6 --split-span 90                 # a split shank: a 1.6 mm slot at the head closing by 90° either side
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.5 --width-bottom 2.4 --thickness-bottom 1.2 --split 1.4 --split-span 70 --split-shape chevron   # split and tapered, the slot a V
+python -m ntopjewel shank --size 6 --rope 2 --rope-turns 10 --rope-strand 1.2                            # a rope: two 1.2 mm strands twisted 10 times round the ring
+python -m ntopjewel shank --size 6 --rope 3 --rope-turns 8 --rope-strand 1.0 --rope-offset 0.7           # three strands; --rope-offset sets how far off the centreline (in strand radii)
 ```
 
 The centreline (step 1b): `--dip` moves the band's centre off the mid-plane at the head (+ towards
@@ -104,6 +108,25 @@ head) over `--dip-span` either side of the head. `--double` stacks two strands o
 mirrored strands that would cross). Taper, dip and strands combine. The gate's section-profile
 check compares the section's z and r bounds at each angle, so a lost dip or a missing strand
 fails it, and the width check uses the ring's overall width.
+
+Split and rope shanks (step 1c): `--split` cuts a slot `--split` wide at the head that closes
+towards the bottom over `--split-span` either side (`contour`: a cosine; `chevron`: linear),
+ending in a round end (0.4 mm: a cast slot cannot end in a crack); each half must stay ≥ 1 mm
+wide at the head, and a split combines with taper and dip but not with `--double`. `--rope`
+replaces the profile altogether: 2 or 3 round strands of `--rope-strand` diameter, their centres
+`--rope-offset` strand radii off the rope's centreline (< 1 so they overlap into one solid; the
+innermost strand just touches the bore), twisted `--rope-turns` (a whole number) times round
+the ring. No taper, dip, double or split on a rope. The gate reads a rope's section bounds off
+the independent mesh (the strands cross a meridian obliquely) and gates walls at 0.8 × the
+strand diameter.
+
+The opening: after the wrap, `ring_shank.ntop` offsets the body by `Edge Round Inward` (−e)
+then `Edge Round` (+e), e = the band's edge round (0 for a rope). The band's own edges are
+rounded that much in the section already, so it changes nothing on a plain, tapered or
+contoured band; it rounds the edges a slot or a bridge leaves sharp (a cast part should not
+have them), and the gate's expected volume takes that off: e²(tan(δ/2) − δ/2) per mm of every
+convex edge turning more than 30° in the design mesh (0.7 % on a 1.6 mm split over 180°, 0.1 %
+on a bridged double). A bridge must be ≥ 2e + 0.1 mm long or the opening removes it.
 
 How it is made: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
 axial; one cross-section every 2.5°, the band profile at that angle's width and thickness,
@@ -121,10 +144,10 @@ built width and thickness at 12 angles against the design, ± 0.06 mm: an unwrap
 a wrong wrap length fails here) and the design volume against the independent sweep of the
 same sections (no bar, no wrap). Files: `out\shank\<stem>\<run id>\` with the bar
 (`<stem>.bar.stl`) beside the STL; stem
-`ring_shank_<profile>_<label>_w<head>-<bottom>_t<head>-<bottom>_<spec id>`.
+`ring_shank_<profile>_<label>_w<head>-<bottom>_t<head>-<bottom>[_contour1.5|_chevron2][_x2|_x2m][_split1.6]_<spec id>`,
+a rope `ring_shank_rope<strands>x<turns>_<label>_d<strand>_<spec id>`.
 
 ## Next in this family
 
-Non-circular centrelines (chevron dips, contoured bands, double bands bridged), split and
-twisted shanks, knotwork - all built as bars and wrapped the same way; then the solitaire's
-shank becomes a bar too, so a head can sit on a tapered shank.
+The solitaire's shank becomes a bar too (step 1d), so a head can sit on a tapered, split or
+contoured shank; Celtic knotwork last. All built as bars and wrapped the same way.

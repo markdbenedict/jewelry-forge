@@ -180,7 +180,7 @@ def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None, centre: str = "
 
 def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.5,
                    seed: int = 7, zone: tuple[int, float] | None = None, axis: int | None = None,
-                   min_alignment: float = 0.5, ray_filter=None) -> dict:
+                   min_alignment: float = 0.5, ray_filter=None, min_exit_cos: float = 0.3) -> dict:
     """Ray-cast thickness: from points on the surface, shoot inward and measure to the exit.
 
     `zone` = (axis index, abs max): sample only surface points with |coord[axis]| <= abs max.
@@ -197,7 +197,11 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
 
     `ray_filter(points, normals) -> bool array`: the product's own exclusions, applied last
     (an engraved ring drops the axial rays inside its text span: a letter's top wall measures
-    the rib to the next stroke, not a wall - seen on the simulated ring, p1 0.25 mm)."""
+    the rib to the next stroke, not a wall - seen on the simulated ring, p1 0.25 mm).
+
+    A ray that exits through a face it crosses at a grazing angle (|ray · exit normal| below
+    `min_exit_cos`, 72° off the normal) started next to a sharp convex edge and skimmed out
+    through the neighbouring face: it is dropped (counted as `grazing_exit`)."""
     if samples <= 0:
         return {}
     fast = ray_backend(mesh) == "embree"
@@ -244,13 +248,21 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
     origins = pts - normals * eps
     dirs = -normals
     dists = []
+    grazing = 0
     batch = samples if fast else 50
     try:
         for s in range(0, samples, batch):
-            locs, ray_idx, _ = mesh.ray.intersects_location(origins[s:s + batch], dirs[s:s + batch],
-                                                            multiple_hits=False)
+            locs, ray_idx, tri = mesh.ray.intersects_location(origins[s:s + batch], dirs[s:s + batch],
+                                                              multiple_hits=False)
             if len(ray_idx):
-                dists.append(np.linalg.norm(locs - origins[s:s + batch][ray_idx], axis=1))
+                dd = np.linalg.norm(locs - origins[s:s + batch][ray_idx], axis=1)
+                # a ray that leaves through a face it barely crosses (|ray · exit normal| small) started a
+                # hair from a sharp convex edge and skimmed out through the adjacent face: a corner, not
+                # a wall (a split shank's slot edges read 0.3 mm on a 1.2 mm strand, 2026-10-30)
+                exit_cos = np.abs(np.einsum("ij,ij->i", dirs[s:s + batch][ray_idx], mesh.face_normals[tri]))
+                keep = exit_cos >= min_exit_cos
+                grazing += int((~keep).sum())
+                dists.append(dd[keep])
     except BaseException:          # a ray backend hiccup must not kill the gate
         return {}
     if not dists:
@@ -259,6 +271,8 @@ def wall_thickness(mesh: trimesh.Trimesh, samples: int = 4000, floor: float = 0.
     d = d[d > 10 * eps]
     if d.size == 0:
         return {}
+    if grazing:
+        excluded["grazing_exit"] = grazing
     out = {
         "min": float(d.min()),
         "p01": float(np.percentile(d, 1)),

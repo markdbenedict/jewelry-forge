@@ -3,6 +3,9 @@ Phase 3, step 1 (ntopjewel.shank).
 
     Shank Path (text)  -> Import Mesh -> Implicit from Mesh
                        -> Remap Cylindrical Body (Y mapping length = Wrap Length)   the bar wrapped round Z
+                       -> Offset Body (Edge Round Inward, -e) -> Offset Body (Edge Round, +e)   the opening that
+                          rounds every edge a cut or a union left sharp (a split's slot, a bridge); the band's
+                          own edges are rounded that much in the section already
                        -> Shank Body -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance),
                           Export Mesh (Output Path)
 
@@ -26,7 +29,7 @@ HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
 TEST_BAR = REPO / "out" / "api" / "ring_shank_test_bar.stl"
 
-INPUT_ORDER = ["Shank Path", "Wrap Length", "Mesh Tolerance", "Output Path"]
+INPUT_ORDER = ["Shank Path", "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance", "Output Path"]
 
 
 def _spec():
@@ -36,7 +39,7 @@ def _spec():
 
 
 DEFAULTS = {
-    "values": {"Shank Path": str(TEST_BAR), "Wrap Length": 56.884, "Mesh Tolerance": 0.1},
+    "values": {"Shank Path": str(TEST_BAR), "Wrap Length": 56.884, "Edge Round": 0.25, "Edge Round Inward": -0.25, "Mesh Tolerance": 0.1},
     "input_order": INPUT_ORDER,
     "test_output": str(REPO / "out" / "api" / "ring_shank_test.stl"),
     "save_to": str(REPO / "ntop" / "notebooks" / "ring_shank.ntop"),
@@ -62,19 +65,25 @@ def prepare(params: dict, work_dir: Path) -> dict:
 
 def _body(h, p, values, test_output):
     bar_path = nj.path_variable(h, "Shank Path", nj.absolute(values["Shank Path"], h, "Shank Path"))
-    h.real_var("Wrap Length", float(values["Wrap Length"]), "mm")
-    h.real_var("Mesh Tolerance", float(values["Mesh Tolerance"]), "mm")
+    for name in ("Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance"):
+        h.real_var(name, float(values[name]), "mm")
     out_var = nj.path_variable(h, "Output Path", test_output)
 
     imp = h.add("Shank Mesh", mask="import_mesh", must=nj.IMPORT_MESH)
     h.wire(bar_path, imp, ["Path", "File Path", "File", "Filename"])
     body = h.add("Shank Bar", mask="implicit_from_mesh", must=nj.IMPLICIT_FROM_MESH)
     h.wire(imp, body, ["Mesh"])
-    wrapped = h.add("Shank", mask="remap_cylindrical", must=nj.REMAP_CYLINDRICAL)
+    wrapped = h.add("Wrapped", mask="remap_cylindrical", must=nj.REMAP_CYLINDRICAL)
     h.wire(body, wrapped, ["Body"])
     h.wire(h.blocks["Wrap Length"], wrapped, ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"])
+    shrunk = h.add("Shrunk", mask="offset", must=nj.OFFSET)
+    h.wire(wrapped, shrunk, ["Body"])
+    h.wire(h.blocks["Edge Round Inward"], shrunk, ["Distance", "Offset"])
+    rounded = h.add("Shank", mask="offset", must=nj.OFFSET)
+    h.wire(shrunk, rounded, ["Body"])
+    h.wire(h.blocks["Edge Round"], rounded, ["Distance", "Offset"])
 
-    ring = h.wrap_var("Shank Body", wrapped)
+    ring = h.wrap_var("Shank Body", rounded)
     integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, h.blocks["Mesh Tolerance"])
     return integ, export
 
