@@ -135,31 +135,39 @@ class BandSpec:
         return in_band & in_dome & in_comfort
 
     def opened_section(self, step: float = 0.005, pad: float = 0.0):
-        """(r, z, mask) of the finished meridian section: band ∩ both tori, opened by the edge
-        round (offsetting a body of revolution in 3D is the 2D offset of its section)."""
+        """(r, z, mask) of the finished meridian section on a grid: design_section (the opened
+        polygon with the mesher's chamfer) rasterised at pixel centres - the one section model,
+        for the features' bead and groove arithmetic."""
         import numpy as np
-        from scipy import ndimage
+        import shapely
         pad = pad + self.edge_round + 0.2
         # pixel centres half a step off the round coordinates, so an edge at the bore radius or at
         # ±W/2 falls between two pixels instead of on a row that is then counted on both sides
         r = np.arange(self.bore_radius_mm - pad + step / 2, self.outer_radius_mm + pad, step)
         z = np.arange(-self.width_mm / 2 - pad + step / 2, self.width_mm / 2 + pad, step)
         R, Z = np.meshgrid(r, z)
-        mask = self.section_mask(R, Z)
-        if self.edge_round > 0:
-            # pixel centres sit half a step inside the true edge: edt == 1 at the first inside pixel
-            px = self.edge_round / step + 0.5
-            eroded = ndimage.distance_transform_edt(mask) >= px
-            mask = ndimage.distance_transform_edt(~eroded) <= px
+        mask = shapely.contains_xy(self.design_section(), R, Z)
         return r, z, mask
+
+    @property
+    def opening_chamfer_mm(self) -> float:
+        """The chamfer nTop's re-distanced opening puts on the eroded corners before rounding them
+        (about a voxel at this band's Mesh Tolerance; tables.opening_chamfer_mm)."""
+        return tables.opening_chamfer_mm(self.mesh_tolerance_mm)
+
+    def design_section(self):
+        """The section nTop should build: the opened polygon with the mesher's chamfer emulated
+        (geom.section_polygon with opening_chamfer_mm) - the gate's shape model and the design volume."""
+        return geom.section_polygon(self.notebook_inputs(""), chamfer_mm=self.opening_chamfer_mm)
 
     def design_volume_mm3(self, step: float = 0.005) -> float:
         """Volume the notebook should produce, from the design alone: Pappus over the opened
-        section, V = 2π ∫∫ r dA, exactly on the section polygon (geom.section_polygon: the band's
-        booleans and its opening in 2-D). nTop's Volume Integral agreed with the UNopened section
-        to 0.05 % on five profiles while its opening was a no-op (2026-10-30); `step` is kept for
-        callers and ignored."""
-        return float(geom.polygon_revolved_volume(geom.section_polygon(self.notebook_inputs(""))))
+        section, V = 2π ∫∫ r dA, exactly on the section polygon (design_section: the band's
+        booleans, its opening in 2-D and the chamfer nTop's re-distance mesh adds). nTop's Volume
+        Integral agreed with the UNopened section to 0.05 % on five profiles while its opening was
+        a no-op (2026-10-30), and with this model to 0.00 % once it worked (court US6 4 x 1.3,
+        2026-10-31); `step` is kept for callers and ignored."""
+        return float(geom.polygon_revolved_volume(self.design_section()))
 
     def thickness_at(self, z_mm: float) -> float:
         """Radial thickness of the designed section (before edge rounding) at height z."""
@@ -296,8 +304,9 @@ class BandResult:
         return "\n".join(lines)
 
 
-DESIGN_VOLUME_TOL_PCT = 0.5     # a plain band: nTop's integral and Pappus on the section agree to 0.1 %; the edge
-                                # round left unbuilt is 0.3-0.7 % (every real band until 2026-10-30, inside the old 2 %)
+DESIGN_VOLUME_TOL_PCT = 0.5     # a plain band: nTop's integral and Pappus on the section agree to 0.1 % (2026-10-31, the
+                                # mesher's chamfer modelled); the edge round left unbuilt is 0.3-0.7 % (every real band until
+                                # 2026-10-30, inside the old 2 %)
 
 
 def section_shape_tolerance(mesh_tolerance_mm: float) -> float:
@@ -366,7 +375,7 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
     # ray-cast thickness check is the smaller of the material floor and the designed edge
     floor = tables.FLOORS["wall_marginal"] if wall_floor is None else wall_floor
     floor = min(floor, 0.8 * spec.edge_thickness_mm)
-    section = geom.section_polygon(spec.notebook_inputs(""))
+    section = spec.design_section()
     rep = gate.check(stl, expect_inner=spec.inner_diameter_mm, expect_outer=2 * spec.outer_radius_mm,
                      expect_width=spec.width_mm, expect_volume=ntop_vol, wall_floor=floor,
                      section_design=lambda a: section, section_tol_mm=section_shape_tolerance(spec.mesh_tolerance_mm))

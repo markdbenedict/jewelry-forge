@@ -431,8 +431,7 @@ def arch_mesh(v: dict, inner: float):
     zb, zt, e = float(v["Z Bottom"]), float(v["Z Top"]), float(v.get("Edge Round", 0.0))
     R, dr, dt = float(v["Arch Radius"]), float(v["Arch Dome Ring Radius"]), float(v["Dome Tube Radius"])
     sec = box(inner, zb, R, zt).intersection(Point(dr, 0.0).buffer(dt, quad_segs=256))
-    if e > 0:
-        sec = sec.buffer(-e, quad_segs=16).buffer(e, quad_segs=16)
+    sec = geom.open_polygon(sec, e, tables.opening_chamfer_mm(float(v.get("Mesh Tolerance", 0.1))))
     parts = []
     for cy in (float(v["Arch Centre Y"]), float(v["Arch Centre Y Minus"])):
         m = geom.revolve_section(sec, sections=720)

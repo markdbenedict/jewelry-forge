@@ -211,6 +211,21 @@ Windows 11 laptops, Python per nTop's bundled console.
   from Mesh (`nb_jewel.add_opening`): the eroded body meshed at the notebook's tolerance gets a
   true distance field, and the second offset then dilates it. One extra mesh per opening.
 
+### 2026-10-31 — the re-distanced opening: a voxel's chamfer on the rounds, and a bulge over a union
+- Call: `nb_jewel.add_opening` (Offset -e -> Mesh from Implicit Body at the notebook's Mesh
+  Tolerance -> Implicit Body from Mesh -> Offset +e), on the band and on the band united with
+  its cathedral arches.
+- Happened: the rounds build now, a little fuller than e - the mesh chamfers the eroded body's
+  sharp corners by about a voxel (half the tolerance): a court band at 0.1 mm measures 243.06 mm³
+  against 244.07 for the exact opening and 243.05 with a 0.05 mm chamfer emulated. On the band
+  united with the arches, the opening grew a 0.07 mm layer over the arch feet (where the arch's
+  dome lies on the band's dome, two near-coincident surfaces in the union) across the whole
+  width, fading where the arch rises clear; +1.1 mm³ on a 289 mm³ ring. Each body opened alone
+  is clean.
+- Expected: a true morphological offset would need neither the mesh nor the workaround.
+- Workaround: the models emulate the chamfer (`tables.opening_chamfer_voxels`, calibrated 1.0);
+  bodies are opened one at a time and united afterwards.
+
 Template:
 
 ```

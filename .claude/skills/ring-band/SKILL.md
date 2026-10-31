@@ -56,8 +56,11 @@ distance, which is what catches an edge left sharp (0.065 mm on a court band's 0
 wall floor = min(0.5 mm, 0.8 x designed edge thickness)). Notebook: one intersect (band, dome
 torus, comfort torus), the opening (offset −e, a mesh round trip to re-distance, offset +e:
 `nj.add_opening` - an Offset pair on its own cancels in nTop, and until 2026-10-30 no band had
-its edges rounded), Volume Integral, mesh, export. Inputs are listed in
-`catalog/ring_band_profile.yaml`.
+its edges rounded), Volume Integral, mesh, export. The re-distance mesh chamfers the eroded
+corners by about a voxel (Mesh Tolerance / 2), so nTop's round is a little fuller than e; the
+design section emulates that (`geom.open_polygon`, `tables.opening_chamfer_mm`; calibrated
+31 Oct: the court band then matches to 0.00 %, where the exact opening sat 0.4 % high). Inputs
+are listed in `catalog/ring_band_profile.yaml`.
 
 ## Where the files go
 
@@ -145,10 +148,12 @@ voxel - a rope's strands met 0.034 mm fuller than the model). Angles within e of
 or a bridge's end are skipped (their faces look along the ring). An unwrapped export, a wrong
 wrap length, a lost dip, a missing strand or a slot edge left sharp all fail here.
 
-Real runs (30 Oct): the tapered court shank PASSED (outlines within 0.004 mm, volume +0.00 %),
-the 2 x 10 rope PASSED (−0.02 %); the first split came back with sharp slot edges (0.12 mm
-off the filleted section) because nTop's Offset pair was a no-op - fixed in the notebook, the
-rebuild is the next real check.
+Real runs: the tapered court shank PASSED (outlines within 0.004 mm, volume +0.00 %) and the
+2 x 10 rope PASSED (−0.02 %) on 30 Oct; the first split came back with sharp slot edges (0.12 mm
+off the filleted section) because nTop's Offset pair was a no-op; rebuilt with the re-distanced
+opening it PASSED on 31 Oct (outlines within 0.031 mm, volume +0.3 % of the expectation once
+the mesher's chamfer on the rounds is counted: `ShankSpec.opening_overcut_mm3`, 2.2 mm³ on
+that split, 0.8 on the tapered shank).
 
 How it is made: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
 axial; one cross-section every 2.5°, the band profile at that angle's width and thickness,

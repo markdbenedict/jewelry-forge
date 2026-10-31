@@ -249,7 +249,9 @@ def test_the_opening_and_what_it_takes_off_sharp_edges():
     assert 1.0 < slot_fillets / fillets < 1.45                                                        # the lofted halves carry them: 2.0 mm³ (the comfort relief and the
                                                                                                       # dome tilt the corners past 90°, so more than the square-corner figure)
     assert s.sharp_edge_round_mm3() < 0.3                                                             # so hardly a sharp edge is left to the notebook
-    assert s.expected_volume_mm3() == pytest.approx(s.design_volume_mm3() - s.sharp_edge_round_mm3())
+    assert s.expected_volume_mm3() == pytest.approx(s.design_volume_mm3() - s.sharp_edge_round_mm3() - s.opening_overcut_mm3())
+    assert 0.5 < s.opening_overcut_mm3() < 1.5 and plain.opening_overcut_mm3() < s.opening_overcut_mm3()   # the mesher's chamfer on every round (mesh tolerance 0.05 here)
+    assert shank.ShankSpec(court(), rope=2).opening_overcut_mm3() == 0.0
     d = shank.ShankSpec(court(), strands=2, gap_mm=0.6, bridges_deg=(180.0, 100.0, -100.0))
     assert 0 < d.sharp_edge_round_mm3() < 1.0                                                         # the bridges' end faces
     assert d.bridge_spans()[0][1] > d.band.bore_radius_mm and d.bridge_spans()[0][2] < d.band.outer_radius_mm   # flush with the strands' edges

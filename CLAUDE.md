@@ -132,7 +132,9 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   before each run; without that an edited helper is not what runs.
 - `set_block_input` cannot set a `file_path` parameter (6.3.3: "only real, vector, point,
   bool, integer and text"); a file input is a **`core.var<text>`** connected to the Export
-  block's `Path`, which builds and which nTopCL types `text`.
+  block's `Path`, which builds and which nTopCL types `text` (`nj.path_variable` makes the text
+  variable directly; it no longer probes `core.var<file_path>` first, which printed a fallback
+  per path on every build).
 - **Blocks build lazily.** A block nothing displays or consumes stays `e_DIRTY` forever and
   `block_state` cannot tell that from "queued"; the API has no build/evaluate call and
   `set_block_visibility` does not force one. What does make a measurement block build: a
@@ -197,9 +199,14 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   profiles matched their UNopened sections to 0.05 % (2026-10-30): no edge round was ever built
   before that date. `nj.add_opening` re-distances between them with a mesh round trip (Mesh from
   Implicit Body at the notebook's tolerance -> Implicit Body from Mesh); every band, solitaire
-  and shank notebook now carries it (rebuild them). The gate's **section shape** check (the built
-  outline at 12 angles against the designed 2-D section, Hausdorff within 0.03 mm or half the
-  mesh tolerance) is what catches an edge left sharp; a design-volume tolerance did not.
+  and shank notebook now carries it. The re-distance mesh chamfers the eroded body's sharp
+  corners by about a voxel (half the Mesh Tolerance), so the round comes out fuller than e: the
+  models emulate it (`geom.open_polygon`, `tables.opening_chamfer_mm`, calibrated 2026-10-31:
+  the court band then matches to 0.00 %). **Open each body on its own and unite afterwards**:
+  opening the union of the band and its arches grew a 0.07 mm layer over the arch feet, where
+  the arch dome lies on the band's dome. The gate's **section shape** check (the built outline
+  at 12 angles against the designed 2-D section, Hausdorff within 0.03 mm or half the mesh
+  tolerance) is what catches an edge left sharp; a design-volume tolerance did not.
 - Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
   (`e_FAILED` carries `error`); do not trust a call that returned without raising.
 - `new_notebook()` discards the open notebook; `save_notebook_as` / `export_as_recipe`

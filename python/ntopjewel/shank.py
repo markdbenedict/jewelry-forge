@@ -227,13 +227,20 @@ class ShankSpec:
                 return True
         return False
 
-    def section_shape(self, theta_deg: float, skip: bool = True):
+    @property
+    def opening_chamfer_mm(self) -> float:
+        """The chamfer nTop's re-distanced opening puts on the eroded corners (tables.opening_chamfer_mm)."""
+        return 0.0 if self.rope else tables.opening_chamfer_mm(self.band.mesh_tolerance_mm)
+
+    def section_shape(self, theta_deg: float, skip: bool = True, chamfer_mm: float = 0.0):
         """The designed cross-section at an angle as a shapely geometry in (r, z): every strand's
         band section at its centreline, a bridge where one spans the angle, the slot taken out,
         and the whole opened by the edge round the way the notebook opens the bar - so a slot's
         and a bridge's fresh edges carry their fillets (the band's own are in the section already).
         A rope's comes from the bar wrapped. None at an angle the model cannot show
-        (shape_check_skips), unless `skip` is off (the lofts sample it everywhere)."""
+        (shape_check_skips), unless `skip` is off (the lofts sample it everywhere). `chamfer_mm`
+        emulates nTop's re-distanced opening (geom.open_polygon): the gate's model passes
+        opening_chamfer_mm, the lofts stay exact."""
         from shapely.affinity import translate
         from shapely.geometry import box
         from shapely.ops import unary_union
@@ -251,10 +258,30 @@ class ShankSpec:
         if h > 0:
             zc = self.z_offset(theta_deg)
             sec = sec.difference(box(self.band.bore_radius_mm - 1.0, zc - h, self.band.outer_radius_mm + 1.0, zc + h))
-        e = self.edge_round
-        if e > 0:
-            sec = sec.buffer(-e, quad_segs=16).buffer(e, quad_segs=16)
-        return sec
+        return geom.open_polygon(sec, self.edge_round, chamfer_mm)
+
+    def gate_section(self, theta_deg: float):
+        """The section the gate expects nTop to have built at an angle (section_shape with the
+        mesher's chamfer)."""
+        return self.section_shape(theta_deg, chamfer_mm=self.opening_chamfer_mm)
+
+    def opening_overcut_mm3(self) -> float:
+        """What nTop's opening takes off beyond the design's rounds: the exact sections' volume
+        less the chamfer-emulated sections' (Pappus station by station) - 1.0 mm³ on a court band,
+        2 on a split, at 0.1 mm Mesh Tolerance (2026-10-31)."""
+        if "overcut" not in self._cache:
+            a = self.opening_chamfer_mm
+            if a <= 0:
+                self._cache["overcut"] = 0.0
+            else:
+                n = self.stations
+                exact = chamfered = 0.0
+                for k in range(n):
+                    th = 360.0 * (k + 0.5) / n
+                    exact += geom.polygon_revolved_volume(self.section_shape(th, skip=False)) / n
+                    chamfered += geom.polygon_revolved_volume(self.section_shape(th, skip=False, chamfer_mm=a)) / n
+                self._cache["overcut"] = max(0.0, exact - chamfered)
+        return self._cache["overcut"]
 
     def section_outline(self, theta_deg: float, phase: float = 0.0):
         """(SECTION_POINTS, 2) array of (r, z) round the section: counter-clockwise from the bore's
@@ -599,8 +626,9 @@ class ShankSpec:
         return float((e * e * (np.tan(d / 2) - d / 2) * length).sum())
 
     def expected_volume_mm3(self) -> float:
-        """What nTop should report: the design sweep less the opening's rounding of its sharp edges."""
-        return self.design_volume_mm3() - self.sharp_edge_round_mm3()
+        """What nTop should report: the design sweep less the opening's rounding of its sharp edges,
+        less the mesher's chamfer on every round (opening_overcut_mm3)."""
+        return self.design_volume_mm3() - self.sharp_edge_round_mm3() - self.opening_overcut_mm3()
 
     def validate(self) -> list[str]:
         if self.rope:
@@ -711,9 +739,11 @@ class ShankSpec:
             line += f"\n  split: a {self.split_shape} slot {self.split_mm:g} mm wide at the head, closing by ±{self.split_span_deg:g}°"
         line += (f"\n  {self.stations} stations x {SECTION_POINTS} points; wrap length {self.wrap_length_mm:.3f} mm; "
                  f"overall width {self.overall_width_mm:.2f} mm; design volume {self.design_volume_mm3():.2f} mm³")
-        rounded = self.sharp_edge_round_mm3()
-        if rounded:
-            line += f"; the {self.edge_round:g} mm opening rounds {rounded:.2f} mm³ off the sharp edges (expect {self.expected_volume_mm3():.2f})"
+        rounded, overcut = self.sharp_edge_round_mm3(), self.opening_overcut_mm3()
+        if rounded or overcut:
+            line += (f"; nTop's {self.edge_round:g} mm opening takes off " + (f"{rounded:.2f} mm³ at the sharp edges" if rounded else "")
+                     + (" and " if rounded and overcut else "") + (f"{overcut:.2f} mm³ with its mesher's chamfer on the rounds" if overcut else "")
+                     + f" (expect {self.expected_volume_mm3():.2f})")
         return line
 
 
@@ -939,11 +969,12 @@ def check_shank(spec: ShankSpec, stl: Path, ntop_vol: float | None) -> gate.Gate
     rep = gate.check(stl, expect_inner=b.inner_diameter_mm, expect_outer=2 * spec.outer_radius_mm,
                      expect_width=spec.overall_width_mm, expect_volume=ntop_vol, wall_floor=spec.wall_floor(),
                      centre="origin",                      # the box centre sits off the axis on a tapered ring
-                     section_design=spec.section_shape, section_tol_mm=band.section_shape_tolerance(b.mesh_tolerance_mm))
+                     section_design=spec.gate_section, section_tol_mm=band.section_shape_tolerance(b.mesh_tolerance_mm))
     c = band.design_volume_check(spec.expected_volume_mm3(), ntop_vol, 2.0)
-    rounded = spec.sharp_edge_round_mm3()
-    if rounded and c.status != gate.INCOMPLETE:
-        c.detail += f" [design {spec.design_volume_mm3():.2f} less {rounded:.2f} mm³ of edge rounding]"
+    rounded, overcut = spec.sharp_edge_round_mm3(), spec.opening_overcut_mm3()
+    if (rounded or overcut) and c.status != gate.INCOMPLETE:
+        c.detail += (f" [design {spec.design_volume_mm3():.2f}" + (f" less {rounded:.2f} mm³ of edge rounding" if rounded else "")
+                     + (f" less {overcut:.2f} mm³ the mesher's chamfer takes off the rounds" if overcut else "") + "]")
     rep.checks.append(c)
     return rep
 
@@ -1011,7 +1042,7 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
         "band": asdict(spec.band), "shank": {k: v for k, v in asdict(spec).items() if k not in ("band", "_cache")},
         "design": spec.design(), "inputs": spec.notebook_inputs(str(bar), str(stl)), "stl": str(stl), "bar": str(bar),
         "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(),
-        "expected_volume_mm3": spec.expected_volume_mm3(), "gate": rep.to_dict(),
+        "expected_volume_mm3": spec.expected_volume_mm3(), "opening_overcut_mm3": spec.opening_overcut_mm3(), "gate": rep.to_dict(),
         "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
         "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()),
     }

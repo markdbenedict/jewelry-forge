@@ -27,7 +27,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct, `ring_features.ntop` committed; print + cast waits for the kit (printer/resin being bought) |
 | 2 — custom-block library | `ntop/blocks/`: stone seat, prong heads (round, outline, V-prongs), bezel; gem bodies (round, oval, pear, cushion, emerald, marquise); the solitaire assembly (cathedral arches, milgrain, engraving) | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | software half PASSED 29 Oct (round US 5-7, every fancy shape, pear and marquise with V-prongs, bezels offline); the print is what remains (band profile / bead / groove / wrap as library blocks deferred to Phase 3 step 1) |
-| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands) and 1c (split and rope shanks) written; tapered shank and rope PASSED in nTop 30 Oct; the edge-round opening found never to have built, fixed in every notebook (rebuild pending) |
+| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands) and 1c (split and rope shanks) written; tapered shank, rope and split PASSED in nTop (30-31 Oct); the edge-round opening found never to have built, fixed in every notebook and calibrated on the band (31 Oct); solitaires to rebuild with the arches opened apart |
 | 4 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
 | 5 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–3 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
 | 6 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
@@ -189,10 +189,16 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    section, Hausdorff within 0.03 mm or half the mesh tolerance: the real court band reads 0.049
    against its opened section and 0.020 against the unopened one; a wrapped shank 0.004; a rope
    0.034 at its strands' crease, which nTop's mesher rounds by a voxel). The blend factor stands
-   (it was calibrated on blended-minus-unblended nTop volumes). *Real check pending:* rebuild
-   `band_profile`, `ring_features`, `solitaire`, `solitaire_outline`, `solitaire_bezel`,
-   `ring_shank`; a court band must then match 243.99 within 0.5 % and pass the shape check; the
-   split's slot edges must come back rounded.
+   (it was calibrated on blended-minus-unblended nTop volumes). **Rebuilt and run 31 Oct:** the
+   court band's edges are rounded (shape 0.019; volume 243.06 against 243.99 for the exact
+   opening: the re-distance mesh chamfers the eroded corners by about a voxel, so the round is
+   fuller than e - modelled as `opening_chamfer_voxels` = 1.0, calibrated, after which the band
+   matches to 0.00 % and the split to +0.3 %); the split PASSED with rounded slot edges (shape
+   0.031); the solitaire's band edges are rounded too (0.009 at the bottom), but opening the
+   band *united with the arches* grew a 0.07 mm layer over the arch feet, where the arch dome lies
+   on the band's dome (+1.1 mm³; the re-distance mesh of two near-coincident surfaces) - the
+   arches are now opened on their own and united afterwards. *Real check pending:* rebuild the
+   three solitaires and rerun; the US6 round should then read within ~0.3 % of its design + blend.
 2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.

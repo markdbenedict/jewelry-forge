@@ -129,7 +129,7 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert b[res["blocks"]["Export Mesh"]]["wired"]["Path"][0] == "Output Path"
     # file_path variables cannot be given a value through the API (2026-10-26), so the path is a text variable
     assert nb.variables["Output Path"]["funcId"] == "core.var<text>" and nb.variables["Output Path"]["value"] == str(tmp_path / "t.stl")
-    assert any("cannot be set yet" in ln for ln in res["log"])
+    assert not any("fallback" in ln for ln in res["log"])                            # the text variable is the route, not a fallback
     assert res["warnings"] == [] and nb.variables["Volume"]["wraps"] in nb.built
     assert res["volume"] == pytest.approx(287.4)
     assert set(res["states"]) == set(res["blocks"])
@@ -139,9 +139,10 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert ids["Shaped"] == "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]"
     assert ids["Shrunk"] == "offset_implicit<implicit,real_field>"
     assert ids["Volume Integral"] == "volume_integral<implicit,real_field,real>"
-    # what nTopCL complained about on 2026-10-27: an unset leftover Path_0 (and, before, an unset Density)
+    # what nTopCL complained about on 2026-10-27: an unset leftover Path_0 (and, before, an unset Density);
+    # since 2026-10-31 no file_path variable is tried, so none is left behind to remove
     assert nb.lint() == []
-    assert "Path_0" not in nb.variables and any("removed Path_0" in ln for ln in res["log"])
+    assert "Path_0" not in nb.variables and not any("removed Path_0" in ln for ln in res["log"])
     assert "One" not in nb.inputs                                                      # body variables, not notebook inputs
     assert ids["Mesh"] == "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]"
     assert ids["Export Mesh"] == "export_mesh<file_path,mesh,unit_length_enum>"
@@ -152,14 +153,14 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
 
 
 def test_band_profile_path_variable_needs_a_text_variable(tmp_path):
-    """Without core.var<text> (and file_path variables unsettable) the script stops with a clear reason."""
+    """Without core.var<text> the script stops with a clear reason (file_path variables cannot be set on 6.3.3)."""
     mod = load_recipe("band_profile")
     avail = [i for i in FakeNotebook().available_ids if i != "core.var<text>"]
     nb = FakeNotebook(available=avail)
     with pytest.raises(ConsoleError, match="no variable type could hold the Output Path input") as e:
         mod.build(nb, {"save_to": str(tmp_path / "rb.ntop"), "recipe_to": str(tmp_path / "rb.json"),
                        "test_output": str(tmp_path / "t.stl")})
-    assert "cannot be set yet" in str(e.value) and "core.var<text>: not available" in str(e.value)
+    assert "core.var<text>: not available" in str(e.value)
 
 
 def test_band_profile_tolerates_lazy_mass_properties(tmp_path):

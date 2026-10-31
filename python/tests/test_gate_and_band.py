@@ -259,3 +259,21 @@ def test_print_file_is_scaled_for_casting_shrink(fake_ntopcl, profile_notebook, 
     man = json.loads((folder / "manifest.json").read_text())
     assert man["print"]["scale"] == pytest.approx(k) and any("default" in w for w in man["print"]["warnings"])
     assert any("uncalibrated" in w for w in man["print"]["warnings"])
+
+
+def test_the_design_section_carries_the_meshers_chamfer():
+    """nTop's re-distanced opening rounds a little fuller than e (the mesh between the offsets
+    chamfers the eroded corners by about a voxel): the design section emulates it, calibrated on
+    the real court band (243.06 mm³ at 0.1 mm, 2026-10-31), and the simulated nTop builds the same."""
+    from ntopjewel import geom, tables
+    from ntopjewel.band import BandSpec
+    b = BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.3, mesh_tolerance_mm=0.1)
+    assert b.opening_chamfer_mm == pytest.approx(0.05) and tables.SETTINGS["opening_chamfer_voxels"] == 1.0
+    exact = geom.polygon_revolved_volume(geom.section_polygon(b.notebook_inputs("")))
+    assert exact == pytest.approx(244.07, abs=0.05)                                   # the exact opening
+    assert b.design_volume_mm3() == pytest.approx(243.05, abs=0.05)                   # what nTop built: 243.06
+    assert geom.band_mesh(b.notebook_inputs("")).volume == pytest.approx(b.design_volume_mm3(), rel=5e-4)
+    fine = BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.3, mesh_tolerance_mm=0.05)
+    assert b.design_volume_mm3() < fine.design_volume_mm3() < exact                   # a finer mesh, a smaller chamfer
+    assert geom.open_polygon(geom.section_polygon(b.notebook_inputs("")), 0.0, 0.05).area == pytest.approx(
+        geom.section_polygon(b.notebook_inputs("")).area)                              # no round, no chamfer

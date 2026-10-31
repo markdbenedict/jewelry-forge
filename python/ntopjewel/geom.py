@@ -7,9 +7,26 @@ from __future__ import annotations
 import math
 
 
-def section_polygon(v: dict, shape: str = "design"):
+def open_polygon(sec, e: float, chamfer_mm: float = 0.0):
+    """The morphological opening of a section by e in 2-D (buffer -e, +e): every convex corner
+    sharper than e rounded, nothing else moved. With `chamfer_mm`, what nTop's opening makes of
+    it: between its offsets the body is re-distanced through a mesh (nb_jewel.add_opening) whose
+    mesher chamfers the eroded body's sharp convex corners by about a voxel
+    (tables.opening_chamfer_mm), so the round comes out a little fuller - emulated by an opening
+    of that size with bevelled joins on the eroded polygon."""
+    if e <= 0:
+        return sec
+    eroded = sec.buffer(-e, quad_segs=16)
+    if chamfer_mm > 0:
+        eroded = eroded.buffer(-chamfer_mm, join_style="mitre").buffer(chamfer_mm, join_style="bevel")
+    return eroded.buffer(e, quad_segs=16)
+
+
+def section_polygon(v: dict, shape: str = "design", chamfer_mm: float = 0.0):
     """The meridian section as a shapely polygon in (r, z), built the way the notebook builds
-    it: band ∩ dome torus ∩ comfort torus, then Offset -e / +e (an opening = buffer in 2-D)."""
+    it: band ∩ dome torus ∩ comfort torus, then the opening by the edge round (open_polygon;
+    `chamfer_mm` > 0 emulates nTop's re-distanced opening - the design models pass
+    tables.opening_chamfer_mm(Mesh Tolerance), the shank's bar stays exact)."""
     from shapely.geometry import Point, box
     ro, ri = float(v["Outer Radius"]), float(v["Bore Radius"])
     if "Width" in v:                                            # the Phase 0 hello band: z = 0 .. W
@@ -22,10 +39,7 @@ def section_polygon(v: dict, shape: str = "design"):
     dome = Point(float(v["Dome Ring Radius"]), 0.0).buffer(float(v["Dome Tube Radius"]), quad_segs=128)
     comfort = Point(float(v["Comfort Ring Radius"]), 0.0).buffer(float(v["Comfort Tube Radius"]), quad_segs=128)
     sec = sec.intersection(dome).intersection(comfort)
-    e = float(v.get("Edge Round", 0.0))
-    if e > 0:
-        sec = sec.buffer(-e, quad_segs=16).buffer(e, quad_segs=16)
-    return sec
+    return open_polygon(sec, float(v.get("Edge Round", 0.0)), chamfer_mm)
 
 
 def polygon_revolved_volume(sec) -> float:
@@ -62,9 +76,14 @@ def revolve_section(sec, sections: int = 180):
     return mesh
 
 
-def band_mesh(v: dict, shape: str = "design"):
-    """The profiled band from ring_band_profile's inputs."""
-    return revolve_section(section_polygon(v, shape))
+def band_mesh(v: dict, shape: str = "design", chamfer_mm: float | None = None):
+    """The profiled band from ring_band_profile's inputs, as nTop builds it: its opening
+    re-distanced, so the rounds carry the mesher's chamfer (tables.opening_chamfer_mm of the
+    inputs' Mesh Tolerance unless `chamfer_mm` is given)."""
+    from . import tables
+    if chamfer_mm is None:
+        chamfer_mm = tables.opening_chamfer_mm(float(v.get("Mesh Tolerance", 0.1)))
+    return revolve_section(section_polygon(v, shape, chamfer_mm))
 
 
 def offset_convex(mesh, c: float):

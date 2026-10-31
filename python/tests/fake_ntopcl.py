@@ -105,7 +105,8 @@ def build_mesh(v: dict, shape: str):
     """The notebook's body from its inputs: band, then (ring_features) beads, groove, engraving."""
     import numpy as np
     import trimesh
-    body = revolve_section(section_polygon(v, shape))
+    from ntopjewel import tables
+    body = revolve_section(section_polygon(v, shape, tables.opening_chamfer_mm(float(v.get("Mesh Tolerance", 0.1)))))
     if "Bead Count" not in v:
         return body
     # milgrain: two spheres unioned, polar-arrayed about Z, unioned with the band

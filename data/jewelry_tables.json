@@ -12,67 +12,326 @@
     "uncalibrated": "a placeholder that must be measured before it is trusted (zero or a range)"
   },
   "metals": {
-    "resin":       {"name": "castable resin (print)",  "density_g_cm3": 1.15,  "linear_shrink_pct": 0.0, "min_wall_mm": 0.5, "status": "default", "source": "typical castable-resin datasheet density"},
-    "sterling":    {"name": "sterling silver 925",     "density_g_cm3": 10.36, "linear_shrink_pct": 1.7, "min_wall_mm": 0.6, "status": "default", "source": "jewelers' specific-gravity tables; alloys vary by supplier"},
-    "fine_silver": {"name": "fine silver 999",         "density_g_cm3": 10.49, "linear_shrink_pct": 1.7, "min_wall_mm": 0.6, "status": "default", "source": "jewelers' specific-gravity tables"},
-    "10k_yellow":  {"name": "10k yellow gold",         "density_g_cm3": 11.6,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
-    "14k_yellow":  {"name": "14k yellow gold",         "density_g_cm3": 13.1,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; 13.0-13.4 depending on alloy"},
-    "14k_white":   {"name": "14k white gold",          "density_g_cm3": 12.6,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
-    "18k_yellow":  {"name": "18k yellow gold",         "density_g_cm3": 15.6,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; 15.5-15.9 depending on alloy"},
-    "18k_white":   {"name": "18k white gold",          "density_g_cm3": 14.9,  "linear_shrink_pct": 1.4, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables; alloy-dependent"},
-    "platinum":    {"name": "platinum 950",            "density_g_cm3": 20.7,  "linear_shrink_pct": 1.0, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables"},
-    "palladium":   {"name": "palladium 950",           "density_g_cm3": 12.0,  "linear_shrink_pct": 1.2, "min_wall_mm": 0.5, "status": "default", "source": "jewelers' specific-gravity tables"},
-    "bronze":      {"name": "jewelers bronze",         "density_g_cm3": 8.8,   "linear_shrink_pct": 1.5, "min_wall_mm": 0.7, "status": "default", "source": "jewelers' specific-gravity tables"},
-    "brass":       {"name": "brass",                   "density_g_cm3": 8.5,   "linear_shrink_pct": 1.5, "min_wall_mm": 0.7, "status": "default", "source": "cast yellow brass 8.4-8.7; 8.5 chosen 2026-10-27 to end the 8.4 (Blender) vs 8.5 (Python) split"}
+    "resin": {
+      "name": "castable resin (print)",
+      "density_g_cm3": 1.15,
+      "linear_shrink_pct": 0.0,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "typical castable-resin datasheet density"
+    },
+    "sterling": {
+      "name": "sterling silver 925",
+      "density_g_cm3": 10.36,
+      "linear_shrink_pct": 1.7,
+      "min_wall_mm": 0.6,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables; alloys vary by supplier"
+    },
+    "fine_silver": {
+      "name": "fine silver 999",
+      "density_g_cm3": 10.49,
+      "linear_shrink_pct": 1.7,
+      "min_wall_mm": 0.6,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables"
+    },
+    "10k_yellow": {
+      "name": "10k yellow gold",
+      "density_g_cm3": 11.6,
+      "linear_shrink_pct": 1.4,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables; alloy-dependent"
+    },
+    "14k_yellow": {
+      "name": "14k yellow gold",
+      "density_g_cm3": 13.1,
+      "linear_shrink_pct": 1.4,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables; 13.0-13.4 depending on alloy"
+    },
+    "14k_white": {
+      "name": "14k white gold",
+      "density_g_cm3": 12.6,
+      "linear_shrink_pct": 1.4,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables; alloy-dependent"
+    },
+    "18k_yellow": {
+      "name": "18k yellow gold",
+      "density_g_cm3": 15.6,
+      "linear_shrink_pct": 1.4,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables; 15.5-15.9 depending on alloy"
+    },
+    "18k_white": {
+      "name": "18k white gold",
+      "density_g_cm3": 14.9,
+      "linear_shrink_pct": 1.4,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables; alloy-dependent"
+    },
+    "platinum": {
+      "name": "platinum 950",
+      "density_g_cm3": 20.7,
+      "linear_shrink_pct": 1.0,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables"
+    },
+    "palladium": {
+      "name": "palladium 950",
+      "density_g_cm3": 12.0,
+      "linear_shrink_pct": 1.2,
+      "min_wall_mm": 0.5,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables"
+    },
+    "bronze": {
+      "name": "jewelers bronze",
+      "density_g_cm3": 8.8,
+      "linear_shrink_pct": 1.5,
+      "min_wall_mm": 0.7,
+      "status": "default",
+      "source": "jewelers' specific-gravity tables"
+    },
+    "brass": {
+      "name": "brass",
+      "density_g_cm3": 8.5,
+      "linear_shrink_pct": 1.5,
+      "min_wall_mm": 0.7,
+      "status": "default",
+      "source": "cast yellow brass 8.4-8.7; 8.5 chosen 2026-10-27 to end the 8.4 (Blender) vs 8.5 (Python) split"
+    }
   },
   "stones": {
-    "diamond":     {"name": "diamond",                  "density_g_cm3": 3.52, "status": "default", "source": "gemmological tables (SG 3.52)"},
-    "moissanite":  {"name": "moissanite",               "density_g_cm3": 3.22, "status": "default", "source": "gemmological tables (SG 3.21-3.22)"},
-    "cz":          {"name": "cubic zirconia",           "density_g_cm3": 5.80, "status": "default", "source": "gemmological tables (SG 5.6-6.0)"},
-    "sapphire":    {"name": "sapphire / ruby (corundum)", "density_g_cm3": 4.00, "status": "default", "source": "gemmological tables (SG 3.99-4.05)"},
-    "emerald":     {"name": "emerald (beryl)",          "density_g_cm3": 2.72, "status": "default", "source": "gemmological tables (SG 2.67-2.78)"},
-    "quartz":      {"name": "quartz (amethyst, citrine)", "density_g_cm3": 2.65, "status": "default", "source": "gemmological tables"},
-    "glass":       {"name": "glass (costume stone)",    "density_g_cm3": 2.60, "status": "default", "source": "soda-lime 2.5; lead crystal up to 3.1 - weigh one"}
+    "diamond": {
+      "name": "diamond",
+      "density_g_cm3": 3.52,
+      "status": "default",
+      "source": "gemmological tables (SG 3.52)"
+    },
+    "moissanite": {
+      "name": "moissanite",
+      "density_g_cm3": 3.22,
+      "status": "default",
+      "source": "gemmological tables (SG 3.21-3.22)"
+    },
+    "cz": {
+      "name": "cubic zirconia",
+      "density_g_cm3": 5.8,
+      "status": "default",
+      "source": "gemmological tables (SG 5.6-6.0)"
+    },
+    "sapphire": {
+      "name": "sapphire / ruby (corundum)",
+      "density_g_cm3": 4.0,
+      "status": "default",
+      "source": "gemmological tables (SG 3.99-4.05)"
+    },
+    "emerald": {
+      "name": "emerald (beryl)",
+      "density_g_cm3": 2.72,
+      "status": "default",
+      "source": "gemmological tables (SG 2.67-2.78)"
+    },
+    "quartz": {
+      "name": "quartz (amethyst, citrine)",
+      "density_g_cm3": 2.65,
+      "status": "default",
+      "source": "gemmological tables"
+    },
+    "glass": {
+      "name": "glass (costume stone)",
+      "density_g_cm3": 2.6,
+      "status": "default",
+      "source": "soda-lime 2.5; lead crystal up to 3.1 - weigh one"
+    }
   },
   "default_stone": "diamond",
-  "default_weight_metals": ["sterling", "14k_yellow", "18k_yellow", "platinum"],
+  "default_weight_metals": [
+    "sterling",
+    "14k_yellow",
+    "18k_yellow",
+    "platinum"
+  ],
   "weight": {
-    "sprue_allowance_fraction": {"value": 0.20, "status": "default", "source": "jewelers cite 15-25 % extra metal for sprue and button"}
+    "sprue_allowance_fraction": {
+      "value": 0.2,
+      "status": "default",
+      "source": "jewelers cite 15-25 % extra metal for sprue and button"
+    }
   },
   "floors": {
-    "wall_marginal":       {"mm": 0.50, "status": "default", "source": "Formlabs 'Jewelry 3D printing: basic design parameters': 0.5 mm walls cast but may distort"},
-    "wall_good":           {"mm": 0.75, "status": "default", "source": "Formlabs: 0.75 mm worked well in cast sterling/gold"},
-    "prong_tip_dia":       {"mm": 0.80, "status": "default", "source": "bench practice"},
-    "bead_dia":            {"mm": 0.50, "status": "default", "source": "bench practice (milgrain / bead-set beads)"},
-    "engrave_depth":       {"mm": 0.25, "status": "default", "source": "bench practice; shallower polishes away"},
-    "engrave_stroke":      {"mm": 0.30, "status": "default", "source": "bench practice; thinner does not fill in casting"},
-    "link_clearance":      {"mm": 0.35, "status": "default", "source": "printed-assembled chain links; resin printer guidance"},
-    "band_min_thickness":  {"mm": 1.0,  "status": "default", "source": "a thinner band distorts in finishing"},
-    "band_min_width":      {"mm": 1.5,  "status": "default", "source": "bench practice"}
+    "wall_marginal": {
+      "mm": 0.5,
+      "status": "default",
+      "source": "Formlabs 'Jewelry 3D printing: basic design parameters': 0.5 mm walls cast but may distort"
+    },
+    "wall_good": {
+      "mm": 0.75,
+      "status": "default",
+      "source": "Formlabs: 0.75 mm worked well in cast sterling/gold"
+    },
+    "prong_tip_dia": {
+      "mm": 0.8,
+      "status": "default",
+      "source": "bench practice"
+    },
+    "bead_dia": {
+      "mm": 0.5,
+      "status": "default",
+      "source": "bench practice (milgrain / bead-set beads)"
+    },
+    "engrave_depth": {
+      "mm": 0.25,
+      "status": "default",
+      "source": "bench practice; shallower polishes away"
+    },
+    "engrave_stroke": {
+      "mm": 0.3,
+      "status": "default",
+      "source": "bench practice; thinner does not fill in casting"
+    },
+    "link_clearance": {
+      "mm": 0.35,
+      "status": "default",
+      "source": "printed-assembled chain links; resin printer guidance"
+    },
+    "band_min_thickness": {
+      "mm": 1.0,
+      "status": "default",
+      "source": "a thinner band distorts in finishing"
+    },
+    "band_min_width": {
+      "mm": 1.5,
+      "status": "default",
+      "source": "bench practice"
+    }
   },
   "casting": {
-    "ring_sprue_dia_mm":          {"value": [2.5, 3.5], "status": "default", "source": "casting handbooks"},
-    "main_sprue_dia_mm":          {"value": [6.0, 10.0], "status": "default", "source": "casting handbooks"},
-    "feed_angle_deg":             {"value": [45.0, 60.0], "status": "default", "source": "casting handbooks"},
-    "part_spacing_mm":            {"value": 6.0, "status": "default", "source": "casting handbooks"},
-    "flask_wall_clearance_mm":    {"value": 6.0, "status": "default", "source": "casting handbooks"},
-    "investment_above_top_mm":    {"value": 12.0, "status": "default", "source": "casting handbooks"},
-    "neck_blend_mm":              {"value": [0.5, 1.0], "status": "default", "source": "casting handbooks"},
-    "cast_ring_size_offset":      {"value": 0.0, "status": "uncalibrated", "source": "measure on the first cast: cast size - model size"}
+    "ring_sprue_dia_mm": {
+      "value": [
+        2.5,
+        3.5
+      ],
+      "status": "default",
+      "source": "casting handbooks"
+    },
+    "main_sprue_dia_mm": {
+      "value": [
+        6.0,
+        10.0
+      ],
+      "status": "default",
+      "source": "casting handbooks"
+    },
+    "feed_angle_deg": {
+      "value": [
+        45.0,
+        60.0
+      ],
+      "status": "default",
+      "source": "casting handbooks"
+    },
+    "part_spacing_mm": {
+      "value": 6.0,
+      "status": "default",
+      "source": "casting handbooks"
+    },
+    "flask_wall_clearance_mm": {
+      "value": 6.0,
+      "status": "default",
+      "source": "casting handbooks"
+    },
+    "investment_above_top_mm": {
+      "value": 12.0,
+      "status": "default",
+      "source": "casting handbooks"
+    },
+    "neck_blend_mm": {
+      "value": [
+        0.5,
+        1.0
+      ],
+      "status": "default",
+      "source": "casting handbooks"
+    },
+    "cast_ring_size_offset": {
+      "value": 0.0,
+      "status": "uncalibrated",
+      "source": "measure on the first cast: cast size - model size"
+    }
   },
   "settings": {
-    "seat_clearance_mm": {"value": 0.05, "status": "default", "source": "stone-to-seat gap for a resin-printed, cast seat; the metal is burnished over the stone afterwards"},
-    "resin_shrink_pct":  {"value": 0.0,  "status": "uncalibrated", "source": "castable resin post-cure + burnout shrink, model -> pattern; measure on the first print"},
-    "seat_drop_mm":      {"value": 8.0,  "status": "default", "source": "height of the straight drop-in path above the girdle: clears any head we make"},
-    "bezel_wall_mm":     {"value": 0.65, "status": "default", "source": "bezel wall round the girdle: 0.5-0.8 mm (jewelry-design-rules); thin enough to burnish over the stone, above the 0.5 mm marginal wall floor"},
-    "bezel_lip_mm":      {"value": 0.5,  "status": "default", "source": "bezel wall height above the girdle top, pushed over the crown when setting: 0.3-0.5 mm (jewelry-design-rules)"},
-    "bezel_bearing_mm":  {"value": 0.55, "status": "default", "source": "solid band of the bezel cup kept under the girdle (the stone's bearing); the light windows start below it"},
-    "blend_radius_mm":   {"value": 0.3,  "status": "default", "source": "nTop Boolean blend radius at metal-to-metal junctions (prongs into rails, head into shank, rail and bezel edges): a castable fillet; 0 = sharp. Mark tried 0.1 mm and a range of values with the default Blend Type in the GUI (2026-10-30): all built; 0.3 is the visible fillet of the reference rings"},
-    "blend_volume_factor": {"value": 0.32, "status": "calibrated", "source": "metal a blended union adds factor x radius^2 x exposed junction length, and a blended intersection removes the same along its edges (geom.junction_segments; junctions buried in other metal or inside a later cut do not count). Calibrated 2026-10-30 on nTop 6.3.3, default Blend Type, 0.3 mm: see calibration_log"}
+    "seat_clearance_mm": {
+      "value": 0.05,
+      "status": "default",
+      "source": "stone-to-seat gap for a resin-printed, cast seat; the metal is burnished over the stone afterwards"
+    },
+    "resin_shrink_pct": {
+      "value": 0.0,
+      "status": "uncalibrated",
+      "source": "castable resin post-cure + burnout shrink, model -> pattern; measure on the first print"
+    },
+    "seat_drop_mm": {
+      "value": 8.0,
+      "status": "default",
+      "source": "height of the straight drop-in path above the girdle: clears any head we make"
+    },
+    "bezel_wall_mm": {
+      "value": 0.65,
+      "status": "default",
+      "source": "bezel wall round the girdle: 0.5-0.8 mm (jewelry-design-rules); thin enough to burnish over the stone, above the 0.5 mm marginal wall floor"
+    },
+    "bezel_lip_mm": {
+      "value": 0.5,
+      "status": "default",
+      "source": "bezel wall height above the girdle top, pushed over the crown when setting: 0.3-0.5 mm (jewelry-design-rules)"
+    },
+    "bezel_bearing_mm": {
+      "value": 0.55,
+      "status": "default",
+      "source": "solid band of the bezel cup kept under the girdle (the stone's bearing); the light windows start below it"
+    },
+    "blend_radius_mm": {
+      "value": 0.3,
+      "status": "default",
+      "source": "nTop Boolean blend radius at metal-to-metal junctions (prongs into rails, head into shank, rail and bezel edges): a castable fillet; 0 = sharp. Mark tried 0.1 mm and a range of values with the default Blend Type in the GUI (2026-10-30): all built; 0.3 is the visible fillet of the reference rings"
+    },
+    "blend_volume_factor": {
+      "value": 0.32,
+      "status": "calibrated",
+      "source": "metal a blended union adds factor x radius^2 x exposed junction length, and a blended intersection removes the same along its edges (geom.junction_segments; junctions buried in other metal or inside a later cut do not count). Calibrated 2026-10-30 on nTop 6.3.3, default Blend Type, 0.3 mm: see calibration_log"
+    },
+    "opening_chamfer_voxels": {
+      "value": 1.0,
+      "status": "calibrated",
+      "source": "nTop's edge-round opening re-distances through Mesh from Implicit Body (nb_jewel.add_opening); that mesh chamfers the eroded body's sharp convex corners by about one voxel (half the Mesh Tolerance), so the +e offset rounds a little more than the design's e. The models emulate it in 2-D (geom.open_polygon). Calibrated 2026-10-31: see calibration_log"
+    }
   },
   "calibration_log": [
-    {"date": "2026-10-30", "entry": "settings.blend_volume_factor", "from": 0.17, "to": 0.32, "status": "calibrated",
-     "evidence": "nTop 6.3.3, default Blend Type, 0.3 mm on every junction. Blended minus unblended nTop volume: 6-prong round head +2.06 mm3 (70.6 mm of prong-rail junction, predicted 2.02 at 0.32); US6 round solitaire +1.16 (predicted 1.90); US4.5 Makena pear solitaire +0.11 (predicted 0.57: the rails' rounded edges cancel the fills); US6 bezel solitaire -0.17 (predicted -0.17). The rings are over-predicted by < 0.3 % of their volume."}
+    {
+      "date": "2026-10-30",
+      "entry": "settings.blend_volume_factor",
+      "from": 0.17,
+      "to": 0.32,
+      "status": "calibrated",
+      "evidence": "nTop 6.3.3, default Blend Type, 0.3 mm on every junction. Blended minus unblended nTop volume: 6-prong round head +2.06 mm3 (70.6 mm of prong-rail junction, predicted 2.02 at 0.32); US6 round solitaire +1.16 (predicted 1.90); US4.5 Makena pear solitaire +0.11 (predicted 0.57: the rails' rounded edges cancel the fills); US6 bezel solitaire -0.17 (predicted -0.17). The rings are over-predicted by < 0.3 % of their volume."
+    },
+    {
+      "date": "2026-10-31",
+      "entry": "settings.opening_chamfer_voxels",
+      "from": null,
+      "to": 1.0,
+      "status": "calibrated",
+      "evidence": "nTop 6.3.3, the opening re-distanced (first builds with a working edge round). Court band US6 4 x 1.3, Mesh Tolerance 0.1: nTop 243.06 mm3 against 244.07 for the exact opening and 243.05 with the eroded corners chamfered by 1.0 voxel (0.05 mm); the split shank (two more rounded edge lines) 244.75 against 244.57 at 0.8 voxel and 244.07 at 1.0. The exact opening over-predicts by 0.4 % on a band and 0.65 % on a split; one voxel predicts both within 0.3 %."
+    }
   ],
   "notes": [
     "Change a number here, never in a notebook, a skill or a script; add a dated calibration_log entry and set the entry's status.",

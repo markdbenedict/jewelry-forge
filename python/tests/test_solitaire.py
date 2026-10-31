@@ -96,10 +96,12 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     b = res["blocks"]
     assert nb.blocks[b["Prong Head"]]["wired"]["Seat Cutter"][0] == "Seat Local"
     assert nb.blocks[b["Placed Head"]]["wired"]["Transformation"][0] == "Placement"
-    # the arches join the band before its edge-round offsets; the milgrain rows join after them
-    assert b["Shoulders"] in nb.blocks[b["Band + Extra"]]["lists"]["Bodies"]
-    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Band + Extra"]
-    assert {b["Milgrain+"], b["Milgrain-"]} <= set(nb.blocks[b["Shank"]]["lists"]["Bodies"])
+    # the band and the arches are each opened on their own (re-distanced), then united sharp with the milgrain rows
+    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shaped"] and "Band + Extra" not in b
+    assert nb.blocks[b["Arches Shrunk"]]["wired"]["Body"][0] == b["Shoulders"]
+    assert nb.blocks[b["Arches Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
+    assert nb.blocks[b["Arches"]]["wired"]["Body"][0] == b["Arches Shrunk Body"] and nb.blocks[b["Arches"]]["wired"]["Distance"][0] == "Edge Round"
+    assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Band Body"} <= set(nb.blocks[b["Shank"]]["lists"]["Bodies"])
     assert nb.blocks[b["Milgrain+"]]["wired"]["Axis"][0] == b["Beads+ Axis"]
     assert nb.inputs == mod.INPUT_ORDER and nb.output == "Volume" and nb.lint() == [] and res["warnings"] == []
 

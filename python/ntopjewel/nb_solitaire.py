@@ -156,7 +156,13 @@ def body(kind: str):
     def _body(h, p, values, test_output):
         ids = nj.add_typed_inputs(h, specs(kind), values)
         out_var = nj.path_variable(h, "Output Path", test_output)
-        band = nj.add_profiled_band(h, extra=arches(ids))            # band + arches, one edge rounding
+        band = nj.add_profiled_band(h)                               # the band, its edges rounded
+        # the arches rounded on their own and united sharp: opening the union (band + arches)
+        # grew a 0.07 mm layer over the arch feet, where the arch dome lies on the band's dome
+        # (2026-10-31: the re-distance mesh of two near-coincident surfaces); apart, each is plain
+        shoulders = arches(ids)(h)
+        arch_body = nj.add_opening(h, shoulders, h.blocks["Edge Round Inward"], h.blocks["Edge Round"], ids["Mesh Tolerance"],
+                                   name="Arches", shrunk_name="Arches Shrunk")
 
         seat = h.add("Stone Seat", h.embed_block(p["seat_block"]))
         h.wire(ids["Seat Path"], seat, ["Seat Path"])
@@ -183,6 +189,7 @@ def body(kind: str):
 
         shank = h.add("Shank", mask="union", must=nj.UNION)
         h.to_list(band, shank, ["Bodies"])
+        h.to_list(arch_body, shank, ["Bodies"])
         for row in milgrain(h, ids):
             h.to_list(row, shank, ["Bodies"])
         # the head melts into the shank (blended), THEN the seat and the engraving are cut, sharp:

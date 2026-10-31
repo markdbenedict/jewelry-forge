@@ -125,6 +125,13 @@ CARAT_G = 0.2
 SETTINGS: dict[str, float] = {k: float(v["value"]) for k, v in TABLES["settings"].items()}
 
 
+def opening_chamfer_mm(mesh_tolerance_mm: float) -> float:
+    """What nTop's re-distanced opening takes off beyond the design's round: the Mesh from
+    Implicit Body between the two offsets chamfers the eroded body's sharp convex corners by
+    `opening_chamfer_voxels` voxels, a voxel being half the Mesh Tolerance (calibrated 2026-10-31)."""
+    return SETTINGS["opening_chamfer_voxels"] * float(mesh_tolerance_mm) / 2.0
+
+
 def carats(volume_mm3: float, stone: str = DEFAULT_STONE) -> float:
     """Carat weight of a stone of this volume (1 ct = 0.2 g)."""
     return float(volume_mm3) * STONE_DENSITY_G_CM3[stone] / 1000.0 / CARAT_G

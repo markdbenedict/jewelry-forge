@@ -36,7 +36,7 @@ REMAP_CYLINDRICAL = [["remap_cylindrical_implicit"], ["remap_cylindrical", "impl
 ROTATION_TRANSFORM = [["rotation_transform<point,vector,real>"], ["rotation_transform"]]
 TRANSFORM_OBJECT = [["transform_object", "transformation"], ["transform_object"]]
 BOX_FROM_CORNERS = [["box_from_corners<point,point>"], ["box_from_corners"]]
-PATH_VARS = ("core.var<file_path>", "core.var<text>")      # file inputs: the text route is the one that works
+PATH_VARS = ("core.var<text>",)      # file inputs: 6.3.3 cannot set a file_path variable, and a text one serves (nTopCL types it text)
 INTEGER_VARS = ("core.var<integer>", "core.var<int>")
 
 # the profiled band's inputs, in catalog order (ring_band_profile.yaml); Output Path follows
@@ -49,7 +49,8 @@ def path_variable(h: NotebookHelper, name: str, value: str) -> str:
     """A file-path notebook input: a typed variable renamed to `name`. nTop 6.3.3's API cannot
     set a `file_path` parameter ("only real, vector, point, bool, integer and text"), so this is
     a `core.var<text>`, which Export/Import blocks accept on their file_path input and which
-    nTopCL's template spells `text`. The file_path route is still tried first for later APIs."""
+    nTopCL's template spells `text`. The file_path variable is not probed any more (it was, and
+    every build printed a fallback per path for nothing; a text input loses nothing)."""
     nb = h.nb
     avail = h.available()
     errors = []
@@ -67,8 +68,7 @@ def path_variable(h: NotebookHelper, name: str, value: str) -> str:
             h.log.append(f"var {name} = {value!r} via {ident} (id {var_id})")
             return var_id
         except Exception as e:
-            h.log.append(f"fallback: {ident} cannot hold {name} through this API (expected on 6.3.3), trying the next "
-                         f"variable type - nTop said: {e}")
+            h.log.append(f"fallback: {ident} cannot hold {name} through this API, trying the next variable type - nTop said: {e}")
             errors.append(f"{ident}: {e}")
             if info:                              # an unset block left behind fails the nTopCL run
                 h.remove(info["id"])
@@ -200,8 +200,10 @@ def add_profiled_band(h: NotebookHelper, extra=None) -> str:
     round (offset -e, re-distance, offset +e: add_opening). Expects the BAND_INPUTS variables
     (Mesh Tolerance included) to exist. Returns the id of the "Band Body" variable.
 
-    `extra(h) -> body id`: a body united with the shaped band BEFORE the edge-round offsets, so
-    one rounding runs over both (the solitaire's arches: a seamless band-to-arch transition).
+    `extra(h) -> body id`: a body united with the shaped band BEFORE the opening, so one rounding
+    runs over both. Not for a body whose surface lies on the band's (the solitaire's arches did,
+    and the re-distanced opening grew a 0.07 mm layer over their feet, 2026-10-31): open such a
+    body on its own (add_opening) and unite it afterwards.
 
     Both tori are INTERSECTED: the dome torus (tube centred inside the outer surface) keeps the
     domed outside, the comfort torus (tube centred outside the bore) keeps the barrel bore.
