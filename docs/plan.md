@@ -243,9 +243,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    itself is no manifold (two pieces sharing one ring and cap); overlaps drawn a hair apart left
    needle faces at every junction (bodies now meet in one identical face); a strand station in a
    loft's cap plane, and a pad station at the wrap's cut angle, broke the STL round trip
-   (stations kept off those planes; the fake's weld merges within 0.01 µm). Offline: the knot
-   shank and the ring-01 solitaire (US 6, 10 x 5 marquise) pass their gates through the simulated
-   nTop. *Real check:* `shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3
+   (stations kept off those planes; the fake's weld merges within 0.01 µm). **Real run 1 Nov:** nTop
+   merged the bar's "very close vertices" on import (edges of 1.5 µm the union had left where an
+   intersection curve passes a vertex), called it self-intersecting and built it in five shells
+   with a stray part at the head (volume still −0.08 %); the split and rope bars it had built
+   cleanly had no edge under 75 µm. Every union's result now has its edges under 0.2 mm/1000
+   collapsed (`geom.collapse_short_edges`, in `shank.united`): no two vertices of any bar lie
+   closer than that. Offline: the knot shank and the ring-01 solitaire (US 6, 10 x 5 marquise)
+   pass their gates through the simulated nTop. *Real check:* `shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3
    --knot-repeats 4` and `shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 100
    --knot trinity` (no rebuild: the same `ring_shank.ntop`), then `solitaire --size 6 --shape
    marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity` (no rebuild:

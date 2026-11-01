@@ -64,6 +64,9 @@ KNOT_NOSE_CLEAR_MM = 0.25   # the knot's inner passes stay this clear of the nos
 # A knot's strand is swept in two pieces (a sweep crossing itself is no manifold) that share one section ring
 # bit for bit, and the halves' lofts end in the strands' first and last rings the same way: bodies that meet in
 # one identical face unite cleanly, where overlaps drawn a hair apart left needle faces (2026-11-01).
+MIN_EDGE_MM = 2e-4          # every union's result has its shorter edges collapsed (geom.collapse_short_edges): nTop merges
+                            # "very close vertices" on import, and did so into a self-intersecting bar (the trinity shank,
+                            # edges of 1.5 µm, 2026-11-01); the split and rope bars it built cleanly had none under 75 µm
 KNOT_LIFT_MM = 0.1          # a trinity knot's ribbon runs this far above the bore (buried clear of the pad's bore where it enters it)
 KNOT_TAPER_MM = 1.5         # the tail narrows from the half's section to the knot's ribbon over this run
 PAD_STEP_DEG = 1.0          # stations along the pad a knot's lobes run into
@@ -100,7 +103,7 @@ class ShankSpec:
     knot: str = ""                                  # "" or "plait": Celtic knotwork - strands interlaced round the ring instead of a profile
     knot_strands: int = 3                           # plait: strands (2..4)
     knot_repeats: int = 4                           # plait: the weave repeats this many times round the ring
-    knot_strand_mm: float = 1.2                     # a ribbon's width across the surface (a round wire takes its thickness)
+    knot_strand_mm: float = 0.0                     # a ribbon's width across the surface: 0 = the pattern's own (plait 1.2, trinity 0.9)
     knot_profile: str = "flat"                      # flat: a ribbon (thickness (T + fuse) / 2) | round: a wire of that diameter
     knot_mm: float = 0.0                            # trinity: the knot's width across the band, lobe edge to lobe edge; 0 = band width + 1.2
     knot_thickness_mm: float = 0.0                  # trinity: the knot's ribbon thickness (radial); 0 = 0.7 x the band's
@@ -194,8 +197,8 @@ class ShankSpec:
 
     @property
     def knot_width(self) -> float:
-        """A strand's width across the surface (a round wire: its diameter = its thickness)."""
-        return self.knot_thickness if self.knot_profile == "round" else self.knot_strand_mm
+        """A plait strand's width across the surface (a round wire: its diameter = its thickness)."""
+        return self.knot_thickness if self.knot_profile == "round" else (float(self.knot_strand_mm) or 1.2)
 
     @property
     def knot_rise(self) -> float:
@@ -285,7 +288,7 @@ class ShankSpec:
     @property
     def trinity_ribbon(self) -> float:
         """The knot's ribbon width across the surface (the tails narrow the halves to it)."""
-        return float(self.knot_strand_mm)
+        return float(self.knot_strand_mm) or 0.9
 
     @property
     def trinity_thickness_max(self) -> float:
@@ -868,9 +871,9 @@ class ShankSpec:
         28 mm edge, which a wrap turns into a chord through the ring - 2026-10-30)."""
         import trimesh
         if self.rope:
-            return drop_specks(trimesh.boolean.union([self.rope_tube_bar(k) for k in range(self.rope)], engine="manifold"))
+            return united([self.rope_tube_bar(k) for k in range(self.rope)])
         if self.knot == "plait":
-            return drop_specks(trimesh.boolean.union([self.knot_strand_bar(k) for k in range(self.knot_strands)], engine="manifold"))
+            return united([self.knot_strand_bar(k) for k in range(self.knot_strands)])
         if self.split_mm:                                                   # a trinity shank is a split shank too
             return unwrap_ring(self.design_mesh(), self.wrap_length_mm)
         parts = [self.strand_bar(k) for k in range(self.lofts)]
@@ -886,7 +889,7 @@ class ShankSpec:
                     parts.append(box)
         # raw: geom.clean would merge the bar's coplanar facets into mm-long ones, which a vertex-wise
         # wrap (the simulated nTop) would then turn into chords
-        return parts[0] if len(parts) == 1 else drop_specks(trimesh.boolean.union(parts, engine="manifold"))
+        return parts[0] if len(parts) == 1 else united(parts)
 
     def strand_ring(self, strand: int = 0):
         """One strand swept round the axis (Z) directly: no bar, no wrap."""
@@ -930,17 +933,17 @@ class ShankSpec:
         if "design_mesh" not in self._cache:
             import trimesh
             if self.rope:
-                body = drop_specks(trimesh.boolean.union([self.rope_tube_ring(k) for k in range(self.rope)], engine="manifold"))
+                body = united([self.rope_tube_ring(k) for k in range(self.rope)])
             elif self.knot == "plait":
-                body = drop_specks(trimesh.boolean.union([self.knot_strand_ring(k) for k in range(self.knot_strands)], engine="manifold"))
+                body = united([self.knot_strand_ring(k) for k in range(self.knot_strands)])
             elif self.trinity:
                 # the lofts, sweeps and pad meet along many near-grazing lines; manifold3d leaves needle
-                # faces there that float32 STL cannot hold (2026-11-01): merged within 0.1 µm
-                body = geom.clean(drop_specks(trimesh.boolean.union(self.trinity_parts(), engine="manifold")), 1e-4)
+                # faces there that float32 STL cannot hold (2026-11-01): merged within 0.1 µm, then united()'s collapse
+                body = united(self.trinity_parts(), clean_mm=1e-4)
             else:
                 parts = [self.strand_ring(k) for k in range(self.lofts)]
                 parts += [self.bridge_sector(*b) for b in self.bridge_spans()]
-                body = parts[0] if len(parts) == 1 else drop_specks(trimesh.boolean.union(parts, engine="manifold"))
+                body = parts[0] if len(parts) == 1 else united(parts)
             self._cache["design_mesh"] = body
         return self._cache["design_mesh"]
 
@@ -1014,7 +1017,8 @@ class ShankSpec:
                   "rope_strand": self.rope_strand_mm if self.rope else 0.0,
                   "rope_offset_frac": self.rope_offset_frac if self.rope else 0.0,
                   "knot": self.knot, "knot_strands": self.knot_strands if self.knot else 0,
-                  "knot_repeats": self.knot_repeats if self.knot else 0, "knot_strand": self.knot_strand_mm if self.knot else 0.0,
+                  "knot_repeats": self.knot_repeats if self.knot else 0,
+                  "knot_strand": (self.trinity_ribbon if self.trinity else self.knot_width) if self.knot else 0.0,
                   "knot_profile": self.knot_profile if self.knot else "", "knot_fuse": knotwork.KNOT_FUSE_MM if self.knot else 0.0,
                   "knot_width": self.trinity_width if self.trinity else 0.0, "knot_ratio": self.knot_ratio if self.trinity else 0.0,
                   "knot_pad_deg": self.knot_pad_deg if self.trinity else 0.0, "knot_tail": self.knot_tail_mm if self.trinity else 0.0})
@@ -1487,6 +1491,17 @@ def wrap_bar(bar, wrap_length: float):
         mesh.update_faces(mesh.nondegenerate_faces(height=1e-7))
         mesh.remove_unreferenced_vertices()
     return mesh
+
+
+def united(parts, clean_mm: float = 0.0):
+    """manifold3d's union of `parts`, its zero-volume specks dropped (drop_specks), optionally
+    tidied within `clean_mm` (geom.clean), and every edge shorter than MIN_EDGE_MM collapsed
+    (geom.collapse_short_edges) - the mesh every bar and every design body comes from."""
+    import trimesh
+    body = drop_specks(trimesh.boolean.union(parts, engine="manifold"))
+    if clean_mm > 0:
+        body = geom.clean(body, clean_mm)
+    return geom.collapse_short_edges(body, MIN_EDGE_MM)
 
 
 def drop_specks(mesh, min_volume_mm3: float = 1e-6):

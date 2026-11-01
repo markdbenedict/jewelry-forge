@@ -191,7 +191,9 @@ too steeply for the ribbon's thickness, 2026-11-01) and is swept in two pieces t
 section ring and cap (a sweep that passes over itself is no manifold); the halves' lofts end in
 the strands' first and last rings the same way - bodies that meet in one identical face unite
 cleanly, where overlaps drawn a hair apart left needle faces. No opening (e = 0: every round is
-in the bar); the union is tidied by manifold3d within 0.1 µm. The gate reads its sections off the
+in the bar); the union is tidied by manifold3d within 0.1 µm and, as every bar's union, has its
+edges under 0.2 µm collapsed (`geom.collapse_short_edges`; nTop merges "very close vertices" on
+import and made a self-intersecting, five-shell bar of 1.5 µm edges, 2026-11-01). The gate reads its sections off the
 design itself inside the knots and the band under the head (|θ| to the tails' end + 0.5 mm) and
 off the 2-D model elsewhere. Stem `..._split1.6_trinity5.6_<id>`.
 

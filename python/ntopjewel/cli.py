@@ -182,7 +182,7 @@ def _add_knot_args(p: argparse.ArgumentParser, solitaire: bool = False) -> None:
 
 
 def _knot_kwargs(a: argparse.Namespace) -> dict:
-    kw = dict(knot=a.knot or "", knot_strand_mm=a.strand_width if a.strand_width is not None else (0.9 if a.knot == "trinity" else 1.2),
+    kw = dict(knot=a.knot or "", knot_strand_mm=a.strand_width or 0.0,
               knot_mm=a.knot_width, knot_thickness_mm=a.knot_thickness, knot_ratio=a.knot_ratio, knot_tail_mm=a.knot_tail)
     if hasattr(a, "knot_strands"):
         kw.update(knot_strands=a.knot_strands, knot_repeats=a.knot_repeats, knot_profile=a.knot_profile,

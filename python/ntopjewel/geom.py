@@ -137,6 +137,48 @@ def clean(mesh, tolerance_mm: float = 1e-4):
     return trimesh.Trimesh(np.asarray(out.vert_properties[:, :3], float), np.asarray(out.tri_verts), process=True)
 
 
+def collapse_short_edges(mesh, min_length_mm: float = 5e-5, passes: int = 8):
+    """The mesh with every edge shorter than `min_length_mm` collapsed into one of its ends (the
+    other end's faces re-pointed, the two faces on the edge dropped). manifold3d's booleans
+    leave a few micron-short edges where an intersection curve passes a vertex; its own
+    simplification keeps them (they sit on curved features), and nTop's importer merges "very
+    close vertices" on its own terms - after which it called the trinity shank's bar
+    self-intersecting and built it in five shells (2026-11-01). An edge whose ends share more
+    than two neighbours is left alone (collapsing it would fold the surface); the result must
+    stay watertight, else the input comes back unchanged."""
+    import numpy as np
+    import trimesh
+    V, F = np.array(mesh.vertices, float), np.array(mesh.faces, int)
+    for _ in range(passes):
+        edges = np.sort(F[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1)
+        edges = np.unique(edges, axis=0)
+        length = np.linalg.norm(V[edges[:, 0]] - V[edges[:, 1]], axis=1)
+        short = edges[length < min_length_mm]
+        if len(short) == 0:
+            break
+        neigh = [set() for _ in range(len(V))]
+        for a, b in edges:
+            neigh[a].add(b)
+            neigh[b].add(a)
+        remap = np.arange(len(V))
+        touched = set()
+        for a, b in short:
+            if a in touched or b in touched or len(neigh[a] & neigh[b]) > 2:
+                continue
+            remap[b] = a
+            touched.update((a, b))
+        if not touched:
+            break
+        F = remap[F]
+        F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 2] != F[:, 0])]
+        F = np.unique(F, axis=0) if len(F) != len(np.unique(np.sort(F, axis=1), axis=0)) else F
+    out = trimesh.Trimesh(V, F, process=False)
+    out.remove_unreferenced_vertices()
+    if not out.is_watertight or out.body_count != mesh.body_count:
+        return mesh
+    return out
+
+
 def remap_cylindrical(mesh, wrap_length: float):
     """nTop's Remap Cylindrical Body on a mesh: X -> radius, Y -> angle (Y = wrap length is one
     turn), Z unchanged. Vertex-wise; an engraving's facets are far smaller than the radius."""

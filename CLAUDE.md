@@ -100,6 +100,12 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   (metres, kilograms); `ntopcl.scalar_value` converts to mm / g.
 - **Mesh from Implicit Body `Tolerance` = 2 × voxel size**, triangle count ∝ 1/tolerance².
   Default 0.1 mm (50 µm voxels). 0.01 mm produced a 57 M-triangle, 2.7 GB band STL.
+- **Import Mesh merges "very close vertices"** (`[W] Mesh_0: Duplicate and/or very close vertices
+  have been merged`) and may then call the mesh self-intersecting; Implicit Body from such a mesh
+  built the trinity shank in five shells (2026-11-01: the bar had 1.5 µm edges where a boolean's
+  intersection curve passed a vertex; bars with no edge under 75 µm imported cleanly). Every bar
+  and design body therefore has its edges under 0.2 µm collapsed (`geom.collapse_short_edges`,
+  through `shank.united`); a `[W]` about merged vertices on a bar is a bug in the bar.
 
 ## Notebook API rules (doc Oct 2026; console, SSH and discovery verified 2026-10-26 on nTop 6.3.3)
 
