@@ -227,7 +227,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
 | `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`; its shank a bar from `shank.py`), shaped shanks (`shank.py`: the ring unrolled as a bar for nTop to wrap), shared independent geometry (`geom.py`), CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`; its shank a bar from `shank.py`), shaped shanks (`shank.py`: the ring unrolled as a bar for nTop to wrap), Celtic knotwork (`knotwork.py`: strands interlaced in the ring's surface - crossings incl. self-crossings, the alternating over/under, the radial laws, the trefoil motif, ribbon sweeps that share rings and caps), shared independent geometry (`geom.py`), CLI |
 | `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry with `pseudo_blend.py`'s blended booleans, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
 | `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
 | `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
@@ -265,6 +265,8 @@ python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-botto
 python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron --double --gap 0.6 --bridges 180,100,-100   # a double chevron band (contour | chevron dips, --mirror for a wishbone)
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.5 --split 1.6 --split-span 90       # a split shank: the slot opens at the head, closes towards the bottom
 python -m ntopjewel shank --size 6 --rope 2 --rope-turns 10 --rope-strand 1.2                   # a rope band: two round strands twisted round the ring (3 for a three-strand rope)
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3 --knot-repeats 4   # a Celtic plait: 2..4 ribbons (or --knot-profile round wires) interlaced round the ring
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 100 --knot trinity      # trinity knots woven from a split shank's halves on each shoulder (ring 01)
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring   # --deliver copies a PASSED part + evidence to the Jewelry folder
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
@@ -276,6 +278,7 @@ python -m ntopjewel solitaire --bezel --size 6 --length 6.5            # any sto
 python -m ntopjewel solitaire --size 6 --length 6.5 --blend 0 --shank-blend 0   # sharp junctions (default: the tables' blend_radius_mm on both)
 python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank: every solitaire's shank is a bar (Shank Path), plain unless shaped
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot under the head, through the arches (Slot Path)
+python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: the knots take the arches' place
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop

@@ -162,6 +162,34 @@ def _add_split_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--split-shape", default="contour", choices=["contour", "chevron"], help="--split: the slot closes smoothly or in a V")
 
 
+def _add_knot_args(p: argparse.ArgumentParser, solitaire: bool = False) -> None:
+    """Celtic knotwork flags (the `shank` command and the solitaire share the trinity ones)."""
+    choices = ["trinity"] if solitaire else ["plait", "trinity"]
+    p.add_argument("--knot", choices=choices,
+                   help="Celtic knotwork: trinity - a triquetra woven from a split shank's halves on each shoulder"
+                        + ("" if solitaire else "; plait - strands interlaced the whole way round instead of a profile"))
+    if not solitaire:
+        p.add_argument("--knot-strands", type=int, default=3, help="--knot plait: strands (2..4)")
+        p.add_argument("--knot-repeats", type=int, default=4, help="--knot plait: the weave repeats this many times round the ring")
+        p.add_argument("--knot-profile", default="flat", choices=["flat", "round"], help="--knot plait: ribbons, or round wires half the band's thickness")
+        p.add_argument("--knot-pad", type=float, default=30.0, help="--knot trinity: the band runs this far either side of the head before its nose, degrees")
+    p.add_argument("--strand-width", type=float, default=None,
+                   help="--knot: a ribbon's width across the surface, mm (plait: 1.2; trinity: 0.9, the tails narrow the halves to it)")
+    p.add_argument("--knot-width", type=float, default=0.0, help="--knot trinity: the knot's width across the band, lobe edge to lobe edge, mm (default: the band's + 1.2)")
+    p.add_argument("--knot-thickness", type=float, default=0.0, help="--knot trinity: the ribbon's radial thickness, mm (default 0.7 x the band's)")
+    p.add_argument("--knot-ratio", type=float, default=shank.knotwork.TREFOIL_RATIO, help="--knot trinity: the trefoil's radial swing (0.3..0.7)")
+    p.add_argument("--knot-tail", type=float, default=3.0, help="--knot trinity: the tails from the knot's crossings to the halves, mm")
+
+
+def _knot_kwargs(a: argparse.Namespace) -> dict:
+    kw = dict(knot=a.knot or "", knot_strand_mm=a.strand_width if a.strand_width is not None else (0.9 if a.knot == "trinity" else 1.2),
+              knot_mm=a.knot_width, knot_thickness_mm=a.knot_thickness, knot_ratio=a.knot_ratio, knot_tail_mm=a.knot_tail)
+    if hasattr(a, "knot_strands"):
+        kw.update(knot_strands=a.knot_strands, knot_repeats=a.knot_repeats, knot_profile=a.knot_profile,
+                  knot_pad_deg=a.knot_pad, knot_pad_set=True)
+    return kw
+
+
 def _band_spec(a: argparse.Namespace) -> band.BandSpec:
     return band.BandSpec(size=a.size, system=a.system, width_mm=a.width, thickness_mm=a.thickness,
                          profile=a.profile, dome_mm=a.dome, comfort_mm=a.comfort, edge_round_mm=a.edge_round,
@@ -216,13 +244,13 @@ def cmd_shank(a: argparse.Namespace) -> int:
                            dip_shape=a.dip_shape, strands=2 if a.double else 1, gap_mm=a.gap, mirror=a.mirror,
                            bridges_deg=bridges, bridge_mm=a.bridge, split_mm=a.split, split_span_deg=a.split_span,
                            split_shape=a.split_shape, rope=a.rope, rope_turns=a.rope_turns, rope_strand_mm=a.rope_strand,
-                           rope_offset_frac=a.rope_offset)
+                           rope_offset_frac=a.rope_offset, **_knot_kwargs(a))
     if a.dry_run:
         probs = spec.validate()
         print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
         for w in spec.warnings():
             print("  warning: " + w)
-        if not probs and not spec.rope:
+        if not probs and not (spec.rope or spec.knot == "plait"):
             for t in (0, 45, 90, 135, 180):
                 print(f"    {t:3d}°: width {spec.width_at(t):.3f}  thickness {spec.thickness_at(t):.3f}  centre z "
                       + " / ".join(f"{spec.z_offset(t, k):+.3f}" for k in range(spec.strands))
@@ -341,8 +369,9 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                               mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
     b = _band_spec(a)
     shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom, taper_from_deg=a.taper_from,
-                              stations=a.stations, split_mm=a.split, split_span_deg=a.split_span, split_shape=a.split_shape)
-              if (a.width_bottom is not None or a.thickness_bottom is not None or a.split) else None)
+                              stations=a.stations, split_mm=a.split, split_span_deg=a.split_span, split_shape=a.split_shape,
+                              **_knot_kwargs(a))
+              if (a.width_bottom is not None or a.thickness_bottom is not None or a.split or a.knot) else None)
     spec = solitaire.SolitaireSpec(b, head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder,
                                    milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
                                    text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
@@ -568,7 +597,7 @@ def main(argv: list[str] | None = None) -> int:
     rg.add_argument("--timeout", type=float, default=900, help="--show: seconds to wait for nTop")
     rg.set_defaults(fn=cmd_ring)
 
-    sk = sub.add_parser("shank", help="a shaped shank: the band tapering in width and thickness towards the bottom (ring_shank.ntop)")
+    sk = sub.add_parser("shank", help="a shaped shank: tapered, contoured, double, split, rope or Celtic plait (ring_shank.ntop)")
     _add_band_args(sk)
     _add_taper_args(sk)
     sk.add_argument("--dip", type=float, default=0.0, help="the band's centre leaves the mid-plane by this at the head, mm (+ towards +Z)")
@@ -584,6 +613,7 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--rope-turns", type=int, default=10, help="--rope: twists round the ring (a whole number)")
     sk.add_argument("--rope-strand", type=float, default=1.2, help="--rope: a strand's diameter, mm")
     sk.add_argument("--rope-offset", type=float, default=0.7, help="--rope: a strand centre's distance off the rope's centreline, in strand radii")
+    _add_knot_args(sk)
     sk.add_argument("--catalog", default="ring_shank")
     sk.add_argument("--out")
     sk.add_argument("--notebook")
@@ -679,6 +709,7 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--engrave-depth", type=float, default=0.3)
     _add_taper_args(so)                                           # a tapered and/or split shank under the head (Phase 3 step 1d)
     _add_split_args(so)
+    _add_knot_args(so, solitaire=True)                            # trinity knots on a split shank's shoulders (step 1e)
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

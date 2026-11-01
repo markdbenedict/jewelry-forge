@@ -327,3 +327,237 @@ def test_cli_split_and_rope_flags(capsys):
     out = capsys.readouterr().out
     assert "ring_shank_rope2x10_US6_d1.2_" in out and "Edge Round: 0.0" in out
     assert cli.main(["shank", "--size", "6", "--width", "3", "--split", "1.6", "--dry-run"]) == 1
+
+
+# ---- step 1e: Celtic knotwork ---------------------------------------------------------------------
+def test_the_interlace_rule():
+    """Crossings found once each, over and under solved to alternate along every strand with one
+    strand over at every crossing, the radial law ±1 at the crossings and 0 midway; a diagram that
+    cannot alternate is refused."""
+    import numpy as np
+    from ntopjewel import knotwork as kw
+    L = 55.0
+    for n, R in ((2, 1), (2, 4), (3, 4), (4, 3)):
+        st = kw.plait_strands(n, R, 1.4, L, 72 * R)
+        xs = kw.crossings(st)
+        lace = kw.interlace(st, xs)
+        assert lace.problems == [] and len(xs) == R * n * (n - 1)                                 # every pair crosses 2R times
+        assert all(lace.count(k) == 2 * R * (n - 1) for k in range(n))
+        for c in xs:
+            a, b = lace.params[c.i].index(c.s_i), lace.params[c.j].index(c.s_j)
+            assert lace.over[c.i][a] != lace.over[c.j][b]                                        # one over, one under
+        for k in range(n):
+            ov = lace.over[k]
+            assert all(ov[q] != ov[q + 1] for q in range(len(ov) - 1)) and ov[0] != ov[-1]        # alternating round the loop
+            cs = np.array(lace.params[k])
+            assert np.allclose(np.abs(lace.depth(k, cs)), 1.0)
+            assert np.allclose(lace.depth(k, (cs[:-1] + cs[1:]) / 2), 0.0, atol=1e-12)
+            assert np.abs(lace.depth(k, np.linspace(0, st[k].length, 500))).max() <= 1.0 + 1e-12
+    assert kw.plait_crossing_angle_deg(1.4, 4, L) == pytest.approx(65.2, abs=0.1)
+    assert kw.pair_openings(kw.plait_strands(3, 4, 1.4, L, 288))[(0, 1)] == pytest.approx(math.sqrt(3) * 1.4, abs=0.01)
+    # an open strand that crosses a closed one once leaves it with an odd count: no alternation
+    closed = kw.plait_strands(1, 1, 1.0, L, 72)[0]
+    straight = kw.Strand(np.array([[5.0, 0.0], [35.0, 0.0]]), closed=False)
+    lace = kw.interlace([closed, straight])
+    assert len(lace.crossings) == 1 and lace.problems and "odd" in lace.problems[0]
+    assert lace.depth(1, np.array([0.0, 30.0])).tolist() == [0.0, 0.0]                           # an open strand's ends at mid-depth
+    # a strand running along another is one touch, not a crossing storm
+    assert len(kw.crossings([straight, kw.Strand(np.array([[10.0, 0.0], [20.0, 0.0]]), closed=False)])) == 1
+
+
+def knot(**kw):
+    b = kw.pop("band", None) or band.BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.6, mesh_tolerance_mm=0.1)
+    kw.setdefault("knot", "plait")
+    return shank.ShankSpec(b, **kw)
+
+
+def test_the_plait():
+    from ntopjewel import knotwork as kw
+    s = knot(knot_strands=3, knot_repeats=4, knot_strand_mm=1.2)
+    assert s.validate() == [] and s.warnings() == []
+    b = s.band
+    assert s.knot_thickness == pytest.approx(0.85) and s.knot_rise == pytest.approx(0.375)       # two strands fused 0.1 make 1.6
+    assert s.knot_mid_radius == pytest.approx(b.bore_radius_mm + 0.8) and s.knot_amplitude == pytest.approx(1.4)
+    assert s.knot_points == 288 and s.edge_round == 0.0 and s.opening_chamfer_mm == 0.0
+    assert s.stem.startswith("ring_shank_plait3x4_US6_w1.2t0.85_")
+    v = s.notebook_inputs("B", "O")
+    assert v["Edge Round"] == 0.0 and v["Edge Round Inward"] == 0.0 and v["Wrap Length"] == pytest.approx(2 * math.pi * (b.bore_radius_mm + 0.8), abs=1e-3)
+    lace = s.knot_layout()
+    assert lace.problems == [] and len(lace.crossings) == 24
+    ring = s.design_mesh()
+    assert ring.is_watertight and ring.body_count == 1
+    import numpy as np
+    r = np.hypot(ring.vertices[:, 0], ring.vertices[:, 1])
+    assert r.min() == pytest.approx(b.bore_radius_mm, abs=1e-3)                                   # an under strand's inner face on the bore
+    assert r.max() == pytest.approx(b.outer_radius_mm, abs=3e-3)                                  # an over strand's outer face at the band's outside
+    assert ring.bounds[1][2] - ring.bounds[0][2] == pytest.approx(4.0, abs=1e-3) and s.overall_width_mm == 4.0
+    assert s.outer_radius_mm == b.outer_radius_mm and s.wall_floor() == 0.5
+    assert s.design()["knot"] == "plait" and s.design()["knot_fuse"] == kw.KNOT_FUSE_MM
+    wire = knot(knot_strands=4, knot_repeats=3, knot_profile="round")
+    assert wire.validate() == [] and wire.knot_width == pytest.approx(0.85) and wire.stem.startswith("ring_shank_plait4x3_US6_d0.85_")
+    assert knot(knot_strands=2, knot_repeats=1).validate() == [] and knot(knot_strands=2, knot_repeats=1).warnings() == []
+    # refusals
+    assert "2..4" in knot(knot_strands=5).validate()[0]
+    assert "whole number" in knot(knot_repeats=0).validate()[0]
+    assert "0.75" in knot(band=band.BandSpec(size=6, width_mm=4.0, thickness_mm=1.3)).validate()[0]        # a 0.7 mm strand
+    assert "part by only" in knot(band=band.BandSpec(size=6, width_mm=3.0, thickness_mm=1.6), knot_strands=4).validate()[0]
+    assert "do not weave" in knot(band=band.BandSpec(size=6, width_mm=4.0, thickness_mm=1.6), knot_strand_mm=2.2).validate()[0]
+    assert "no taper" in knot(width_bottom_mm=2.0).validate()[0]
+    assert knot(knot="celtic").validate()
+
+
+@pytest.mark.parametrize("kind", ["plait2", "plait3", "plait4-wire"])
+def test_plait_designs_pass_their_gate_and_the_bar_agrees(kind, tmp_path):
+    import trimesh
+    s = {"plait2": knot(knot_strands=2, knot_repeats=4, knot_strand_mm=1.2),
+         "plait3": knot(knot_strands=3, knot_repeats=4, knot_strand_mm=1.2),
+         "plait4-wire": knot(knot_strands=4, knot_repeats=3, knot_profile="round")}[kind]
+    assert s.validate() == []
+    m = s.design_mesh()
+    m.export(tmp_path / "s.stl")
+    rep = shank.check_shank(s, tmp_path / "s.stl", s.expected_volume_mm3())
+    assert rep.status == "passed", rep.text()
+    shape = next(c for c in rep.checks if c.name == "section shape")
+    assert "within 0.0" in shape.detail                                                             # ring sweep vs the bar wrapped: hundredths
+    bar = s.bar_mesh()
+    assert bar.is_watertight and bar.body_count == 1
+    assert bar.bounds[0][0] == pytest.approx(s.band.bore_radius_mm, abs=1e-3) and bar.bounds[1][0] == pytest.approx(s.band.outer_radius_mm, abs=1e-3)
+    L = s.wrap_length_mm
+    one = trimesh.intersections.slice_mesh_plane(bar, [0, 1, 0], [0, -L / 730, 0], cap=True)
+    one = trimesh.intersections.slice_mesh_plane(one, [0, -1, 0], [0, L - L / 730, 0], cap=True)
+    assert geom.remap_cylindrical(one, L).volume == pytest.approx(m.volume, rel=1e-3)
+    if kind == "plait3":
+        plain = shank.ShankSpec(s.band).design_mesh()                                                # the band itself in place of the weave: caught
+        plain.export(tmp_path / "p.stl")
+        failed = {c.name for c in shank.check_shank(s, tmp_path / "p.stl", float(plain.volume)).failures()}
+        assert "design volume" in failed and "section shape" in failed
+
+
+def test_plait_end_to_end(fake_ntopcl, tmp_path):
+    nb = tmp_path / "ring_shank.ntop"
+    nb.write_bytes(b"fake")
+    s = knot(knot_strands=3, knot_repeats=4, knot_strand_mm=1.2)
+    res = shank.build(s, tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+    assert (res.run_dir / f"{s.stem}.bar.stl").exists()
+    import json
+    report = json.loads((res.run_dir / f"{s.stem}.report.json").read_text())
+    assert report["design"]["knot_strands"] == 3 and report["shank"]["knot"] == "plait"
+
+
+def test_cli_plait_flags(capsys):
+    from ntopjewel import cli
+    assert cli.main(["shank", "--size", "6", "--width", "4", "--thickness", "1.6", "--knot", "plait", "--knot-strands", "3",
+                     "--knot-repeats", "4", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "ring_shank_plait3x4_US6_w1.2t0.85_" in out and "24 crossings, 16 on each strand" in out and "Edge Round: 0.0" in out
+    assert cli.main(["shank", "--size", "6", "--width", "4", "--thickness", "1.3", "--knot", "plait", "--dry-run"]) == 1
+    assert "at least 0.75 mm" in capsys.readouterr().out
+    assert cli.main(["shank", "--size", "6", "--width", "4", "--thickness", "1.6", "--knot", "plait", "--knot-profile", "round",
+                     "--knot-strands", "4", "--knot-repeats", "3", "--dry-run"]) == 0
+    assert "round wires 0.85 mm" in capsys.readouterr().out
+
+
+def trinity(**kw):
+    b = kw.pop("band", None) or band.BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.6, mesh_tolerance_mm=0.1)
+    kw.setdefault("split_mm", 1.6)
+    kw.setdefault("split_span_deg", 100.0)
+    kw.setdefault("knot", "trinity")
+    kw.setdefault("knot_strand_mm", 0.9)
+    kw.setdefault("knot_mm", 5.6)
+    return shank.ShankSpec(b, **kw)
+
+
+def test_the_trefoil_and_the_sweep_pieces():
+    """The opened trefoil: three self-crossings at radius R, alternating; a sweep in two pieces that
+    share a ring and its cap unites to one clean body."""
+    import numpy as np
+    import trimesh
+    from ntopjewel import knotwork as kw
+    st = kw.trefoil_motif((20.0, 0.0), 1.6, ((26.0, 1.3), (26.0, -1.3)), towards_tail=1.0)
+    xs = kw.crossings([st])
+    assert len(xs) == 3 and all(c.self_crossing for c in xs)
+    assert all(math.hypot(c.y - 20.0, c.z) == pytest.approx(1.6, abs=0.02) for c in xs)             # on the circle of radius R
+    assert all(70 < c.angle_deg < 80 for c in xs)                                                    # 2 atan(1.5 x 0.5) = 74°
+    lace = kw.interlace([st], xs)
+    assert lace.problems == [] and lace.over[0] == [True, False, True, False, True, False]
+    assert lace.depth(0, np.array([0.0, st.length]), law="mid").tolist() == [0.0, 0.0]               # the ends at mid-depth
+    assert lace.bore_law_problems(widths=[1.2]) == []
+    assert np.abs(lace.depth(0, np.linspace(0, st.length, 300), law="bore", widths=[0.9])).max() == pytest.approx(1.0)
+    assert kw.interlace([kw.Strand(np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 1.0], [0.0, 1.0], [0.0, 0.5], [12.0, 0.5]]), closed=False)]).problems == []
+    prof = kw.ribbon_profile(0.9, 1.1, 0.25)
+    inset = kw.offset_profile(prof, 0.05)
+    assert np.abs(inset).max() == pytest.approx(np.abs(prof).max() - 0.05, abs=1e-4)
+    # a path, swept in two pieces sharing ring k and its cap triangles: one body, no needle faces
+    path = np.column_stack([np.linspace(0, 10, 41), np.zeros(41), np.sin(np.linspace(0, 3, 41))])
+    rings, _ = kw.sweep_rings(path, profile=prof, closed=False, up=(0.0, 0.0, 1.0))
+    cap = kw.cap_triangles(prof)
+    a = kw.mesh_from_rings(rings[:21], end_cap=cap)
+    b = kw.mesh_from_rings(rings[20:], start_cap=cap)
+    whole = kw.mesh_from_rings(rings)
+    u = trimesh.boolean.union([a, b], engine="manifold")
+    assert u.is_watertight and u.body_count == 1 and u.volume == pytest.approx(whole.volume, rel=1e-6)
+    assert (u.area_faces < 1e-7).sum() == 0 and u.edges_unique_length.min() > 1e-3
+
+
+def test_the_trinity_shank(tmp_path):
+    import numpy as np
+    import trimesh
+    from ntopjewel import knotwork as kw
+    s = trinity()
+    assert s.validate() == [] and s.trinity and s.split_mm == 1.6
+    lay = s.trinity_layout()
+    assert lay["R"] == pytest.approx((2.8 - shank.KNOT_LOBE_MARGIN_MM - 0.45) / (math.sin(math.radians(60)) * 1.5), abs=1e-6)
+    assert lay["y_pad"] == pytest.approx(30.0 / s.deg_per_mm) and lay["y_c"] == pytest.approx(lay["y_pad"] - shank.KNOT_NOSE_JOIN_MM + lay["R"])
+    assert lay["theta_1"] == pytest.approx((lay["y_c"] + 0.5 * lay["R"] + 3.0) * s.deg_per_mm)
+    assert s.trinity_thickness == pytest.approx(1.12) and s.trinity_ribbon == 0.9 and s.trinity_width == 5.6
+    assert s.edge_round == 0.0 and s.opening_chamfer_mm == 0.0 and s.notebook_inputs("B", "O")["Edge Round"] == 0.0
+    assert "_split1.6_trinity5.6_" in s.stem and s.stem.startswith("ring_shank_court_US6_")
+    for side, lace in zip((1, -1), s.trinity_laces()):
+        assert len(lace.crossings) == 3 and lace.problems == []
+    flat, solid = s.trinity_bend_radii()
+    assert flat >= 0.45 + 0.1 and solid >= 0.56 + 0.1
+    m = s.design_mesh()
+    assert m.is_watertight and m.body_count == 1
+    r = np.hypot(m.vertices[:, 0], m.vertices[:, 1])
+    assert r.min() == pytest.approx(s.band.bore_radius_mm, abs=2e-3)                                 # the halves and the band under the head
+    assert r.max() == pytest.approx(s.band.bore_radius_mm + shank.KNOT_LIFT_MM + 2 * 1.12 - kw.KNOT_FUSE_MM, abs=0.02)   # a pass over
+    assert 5.6 - 2 * shank.KNOT_LOBE_MARGIN_MM <= s.overall_width_mm <= 5.6 + 0.1                    # the lobes (their ribbon tilts as it rises)
+    m.export(tmp_path / "t.stl")
+    assert trimesh.load(tmp_path / "t.stl").is_watertight                                            # survives float32
+    rep = shank.check_shank(s, tmp_path / "t.stl", s.expected_volume_mm3())
+    assert rep.status == "passed", rep.text()
+    bar = s.bar_mesh()
+    bar.export(tmp_path / "bar.stl")
+    back = shank.wrap_bar(trimesh.load(tmp_path / "bar.stl"), s.wrap_length_mm)
+    assert back.is_watertight and back.volume == pytest.approx(m.volume, rel=1e-3)
+    plain = shank.ShankSpec(s.band, split_mm=1.6, split_span_deg=100.0).design_mesh()               # the split without its knots: caught
+    plain.export(tmp_path / "p.stl")
+    failed = {c.name for c in shank.check_shank(s, tmp_path / "p.stl", float(plain.volume)).failures()}
+    assert "design volume" in failed and ("section shape" in failed or "width" in failed)
+    # refusals
+    assert "--split" in trinity(split_mm=0.0).validate()[0]
+    assert "centre closes" in trinity(knot_mm=4.4).validate()[0]
+    assert "at most" in trinity(knot_thickness_mm=1.5).validate()[0]
+    assert "wider than a half" in trinity(knot_strand_mm=1.4).validate()[0]
+    assert "slot has closed" in trinity(split_span_deg=60.0).validate()[0]
+    assert "no dip" in trinity(dip_mm=1.0).validate()[0]
+    assert trinity(knot="celtic").validate()
+
+
+def test_trinity_end_to_end(fake_ntopcl, tmp_path):
+    nb = tmp_path / "ring_shank.ntop"
+    nb.write_bytes(b"fake")
+    s = trinity(knot_pad_deg=25.0, knot_mm=5.2, knot_strand_mm=0.8)
+    res = shank.build(s, tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+
+
+def test_cli_trinity_flags(capsys):
+    from ntopjewel import cli
+    assert cli.main(["shank", "--size", "6", "--width", "4", "--thickness", "1.6", "--split", "1.6", "--split-span", "100",
+                     "--knot", "trinity", "--knot-width", "5.6", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "_split1.6_trinity5.6_" in out and "trinity knots on the shoulders" in out and "ribbon 0.9 wide x 1.12 thick" in out
+    assert cli.main(["shank", "--size", "6", "--knot", "trinity", "--dry-run"]) == 1
+    assert "--split" in capsys.readouterr().out

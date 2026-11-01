@@ -2,7 +2,7 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --shape pear ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_outline.ntop
-version: 0.3.0   # 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
+version: 0.3.1   # 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
 title: 'Solitaire (pear / fancy stone, outline_head): gothic cathedral arches, arch
   milgrain, optional engraving'
 output:
@@ -26,14 +26,14 @@ inputs:
   Z Top:
     type: scalar
     units: mm
-    min: 0.75
+    min: 0.5
     max: 7.5
-    doc: +Width/2. The band is centred on the origin along Z.
+    doc: +Width/2 (the arches' extent along the axis; 0.5 for the buried stubs of a knot shank). The band is centred on the origin along Z.
   Z Bottom:
     type: scalar
     units: mm
     min: -7.5
-    max: -0.75
+    max: -0.5
     doc: -Width/2.
   Dome Tube Radius:
     type: scalar
@@ -44,14 +44,14 @@ inputs:
   Edge Round:
     type: scalar
     units: mm
-    min: 0.02
+    min: 0.0
     max: 1.0
-    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+    doc: Second Offset Body distance (+e); rounds every edge with this radius (0 for a knot shank, whose rounds are all in its bar).
   Edge Round Inward:
     type: scalar
     units: mm
     min: -1.0
-    max: -0.02
+    max: 0.0
     doc: First Offset Body distance (-e).
   Mesh Tolerance:
     type: scalar
@@ -126,8 +126,8 @@ inputs:
     type: scalar
     units: mm
     min: -40.0
-    max: 0.0
-    doc: 'Centre of the +y arch circle, x: -t cos(shoulder angle).'
+    max: 40.0
+    doc: 'Centre of the +y arch circle, x: -t cos(shoulder angle) (positive only for the stubs a knot shank buries under the head).'
   Arch Centre Y:
     type: scalar
     units: mm
@@ -144,14 +144,14 @@ inputs:
   Arch Radius:
     type: scalar
     units: mm
-    min: 10.0
+    min: 0.5
     max: 80.0
     doc: 'Outer radius of each arch about its centre: tangent to the band at ±shoulder
       angle, through the crest.'
   Arch Dome Ring Radius:
     type: scalar
     units: mm
-    min: 3.0
+    min: 0.5
     max: 70.0
     doc: 'Dome torus ring radius about the arch centre (the band''s + t): the arch
       keeps the band''s dome.'
@@ -165,14 +165,14 @@ inputs:
   Wedge Angle:
     type: scalar
     units: deg
-    min: 30.0
+    min: 5.0
     max: 80.0
-    doc: The arch is kept within ±this angle from the head (shoulder angle + 2°).
+    doc: The arch is kept within ±this angle from the head (shoulder angle + 2°; 10° for a knot shank's buried stubs).
   Wedge Angle Minus:
     type: scalar
     units: deg
     min: -80.0
-    max: -30.0
+    max: -5.0
     doc: = -Wedge Angle.
   Bead Radius:
     type: scalar

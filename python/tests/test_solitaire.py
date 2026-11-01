@@ -213,6 +213,7 @@ def test_a_shaped_shank_under_the_head():
     with pytest.raises(ValueError):
         solitaire.SolitaireSpec(b, s.head, shank=shank.ShankSpec(band.BandSpec(size=7, profile="court", mesh_tolerance_mm=0.05)))
     assert spec(6, shank=shank.ShankSpec(b, split_mm=1.6)).validate() == []                      # a split: allowed (its own test)
+    assert any("plait shank under a head" in p for p in spec(6, shank=shank.ShankSpec(b, knot="plait")).validate())
     assert spec(6, shank=shank.ShankSpec(b, dip_mm=1.0)).validate()
     assert spec(6, shank=shank.ShankSpec(b, rope=2)).validate()
     ring = solitaire.design_mesh(s)
@@ -276,3 +277,61 @@ def test_cli_split_solitaire_dry_run(capsys):
     from ntopjewel import cli
     assert cli.main(["solitaire", "--size", "6", "--split", "1.6", "--split-span", "80", "--dry-run"]) == 0
     assert "_split1.6_" in capsys.readouterr().out
+
+
+def knotted(**kw):
+    """Reference ring 01 in the pipeline's terms: a marquise with V-prongs on a split shank whose
+    halves weave a trinity knot on each shoulder."""
+    from ntopjewel import shank
+    b = band.BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.6, mesh_tolerance_mm=0.1)
+    stone = gems.StoneSpec(shape="marquise", length_mm=10.0, width_mm=5.0)
+    head = heads.OutlineHeadSpec(stone, mesh_tolerance_mm=0.1)
+    kw.setdefault("shank", shank.ShankSpec(b, split_mm=1.6, split_span_deg=100.0, knot="trinity", knot_strand_mm=0.9, knot_mm=5.6))
+    return solitaire.SolitaireSpec(b, head, **kw)
+
+
+def test_a_knot_shank_under_the_head():
+    import math
+    from ntopjewel import shank
+    s = knotted()
+    assert s.validate() == [] and s.shaped and s.knot == "trinity" and not s.arches and not s.milgrain
+    assert s.shank.knot_pad_deg == s.knot_pad_deg_needed() == pytest.approx(math.degrees((s.head_half_length() + solitaire.KNOT_PAD_CLEAR_MM)
+                                                                                           / (s.band.bore_radius_mm + 0.8)), abs=0.01)
+    assert s.head_half_length() == pytest.approx(3.03, abs=0.05)                                     # the marquise head along the ring
+    v = s.notebook_inputs("E", "O", prongs_path="P", engraving_path="T", shank_path="B", slot_path="S")
+    assert list(v) == list(catalog.load("solitaire_outline").inputs)
+    assert v["Edge Round"] == 0.0 and v["Z Top"] == 0.5 and v["Dome Tube Radius"] == 2.0            # the buried stubs' numbers
+    assert v["Arch Radius"] == solitaire.BURIED_ARCH_RADIUS_MM and v["Arch Centre X"] > 0 and v["Wedge Angle"] == 10.0
+    assert v["Bead Count"] == 1 and v["Bead Radius"] == 0.05                                        # milgrain off: the buried bead
+    catalog.load("solitaire_outline").build_inputs(v)                                               # inside the catalog's ranges
+    assert s.slot_mesh().bounds[0][0] > s.band.outer_radius_mm + 5                                   # a speck: the band under the head is whole
+    assert all(not s.shank.trinity_section(a) for a in s.free_angles()) and 181.37 in s.free_angles()
+    assert "_split1.6_trinity5.6_" in s.stem
+    # a knot shank keeps its own pad when it is wider than the head needs; a plait is refused
+    wide = knotted(shank=shank.ShankSpec(s.band, split_mm=1.6, split_span_deg=100.0, knot="trinity", knot_strand_mm=0.9, knot_mm=5.6,
+                                         knot_pad_deg=40.0, knot_pad_set=True))
+    assert wide.shank.knot_pad_deg == 40.0 and wide.validate() == []
+    b6 = spec(6).band
+    assert any("plait shank under a head" in p for p in spec(6, shank=shank.ShankSpec(b6, knot="plait")).validate())
+    ring = solitaire.design_mesh(s)
+    assert ring.is_watertight and ring.body_count == 1
+    import numpy as np
+    assert np.hypot(ring.vertices[:, 0], ring.vertices[:, 1]).min() == pytest.approx(s.band.bore_radius_mm, abs=2e-3)
+
+
+def test_knot_solitaire_end_to_end(fake_ntopcl, tmp_path):
+    nb = tmp_path / "solitaire_outline.ntop"
+    nb.write_bytes(b"fake")
+    s = knotted()
+    res = solitaire.build(s, tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+    assert {c.name for c in res.gate.checks} >= {"section shape", "bore", "extents", "stone fits", "design volume"}
+
+
+def test_cli_knot_solitaire_dry_run(capsys):
+    from ntopjewel import cli
+    assert cli.main(["solitaire", "--size", "6", "--shape", "marquise", "--length", "10", "--stone-width", "5",
+                     "--split", "1.6", "--split-span", "100", "--knot", "trinity", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "_split1.6_trinity5.2_" in out and "arches and milgrain: off" in out and "Slot Path: <slot path>" not in out
+    assert "Arch Radius: 0.7" in out

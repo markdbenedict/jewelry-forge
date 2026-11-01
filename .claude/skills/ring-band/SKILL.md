@@ -105,6 +105,9 @@ python -m ntopjewel shank --size 6 --width 4 --thickness 1.5 --split 1.6 --split
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.5 --width-bottom 2.4 --thickness-bottom 1.2 --split 1.4 --split-span 70 --split-shape chevron   # split and tapered, the slot a V
 python -m ntopjewel shank --size 6 --rope 2 --rope-turns 10 --rope-strand 1.2                            # a rope: two 1.2 mm strands twisted 10 times round the ring
 python -m ntopjewel shank --size 6 --rope 3 --rope-turns 8 --rope-strand 1.0 --rope-offset 0.7           # three strands; --rope-offset sets how far off the centreline (in strand radii)
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3 --knot-repeats 4   # Celtic plait: three 1.2 mm ribbons woven round the ring
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 4 --knot-repeats 3 --knot-profile round   # four round wires
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 100 --knot trinity --knot-width 5.6   # trinity knots on a split shank's shoulders
 ```
 
 The centreline (step 1b): `--dip` moves the band's centre off the mid-plane at the head (+ towards
@@ -155,6 +158,43 @@ opening it PASSED on 31 Oct (outlines within 0.031 mm, volume +0.3 % of the expe
 the mesher's chamfer on the rounds is counted: `ShankSpec.opening_overcut_mm3`, 2.2 mm³ on
 that split, 0.8 on the tapered shank).
 
+Celtic knotwork (step 1e, `knotwork.py`): `--knot plait` replaces the profile with 2..4 strands
+woven the whole way round - strand k the sinusoid z = A sin(R·2πy/L + 2πk/n) in the ring's
+developed surface, A reaching the band's edges, R = `--knot-repeats` - as ribbons `--strand-width`
+wide (`--knot-profile flat`, corners rounded by the band's edge round) or round wires
+(`round`). Every crossing has one strand over and one under, alternating along each strand (the
+over/under of each strand's first crossing is solved so every crossing is consistent; a diagram
+that cannot alternate is refused). The interlace is radial: a strand's centre sits at mid-depth
+between crossings and rises or sinks by h = (t − 0.1)/2 at each, a cosine from crossing to
+crossing, so the over strand's inner face lies 0.1 mm inside the under strand's outer face and
+the two fuse into one casting there; a strand's thickness t = (T + 0.1)/2, so two stacked at a
+crossing make the band's thickness T (an under strand's inner face on the bore, an over strand's
+outer face at r_bore + T: the bore and outer Ø checks hold). Floors: t ≥ 0.75 mm (a 1.4 mm band or
+thicker), ribbons ≥ 0.75 wide, each pair of strands parting ≥ w + 0.3 mm between crossings (a
+pierced weave, not a slab), one body; a crossing angle under 12° is warned. No opening (e = 0),
+no taper, dip, double or split; the gate reads the designed sections off the bar wrapped (as a
+rope) and gates walls at 0.8 t. Stem `ring_shank_plait<strands>x<repeats>_<label>_w<width>t<t>_<id>`
+(wires `_d<t>_`). Not under a head yet (the solitaire refuses it).
+
+`--knot trinity` (reference ring 01) weaves a triquetra from a split shank's two halves on each
+shoulder: the trefoil φ = 2t, ρ = R(1 + c cos 3t) (three lobes, three self-crossings at radius R,
+`--knot-ratio` c = 0.5 gives 74° crossings) with the lobe that points down the shank opened and
+its two ends led out as the halves (cubic tails, `--knot-tail` 3 mm long, which narrow and thin
+the half's section into the knot's ribbon - `--strand-width` 0.9 x `--knot-thickness` 0.7 T, a
+rounded rectangle); the other two lobes flank the band under the head, which runs out to a nose
+(1.2 mm long, ribbon + 0.6 wide) that enters the knot's head-side crossing. `--knot-width` sets
+the knot across the band (default W + 1.2; its three inner passes must stay a ribbon + 0.3 apart,
+so a 4 mm band takes a 0.9 ribbon at 5.2 mm or more); `--knot-pad` where the nose tip lies (30°;
+a solitaire sizes it from its head). The strand rides the mid law about a line 0.1 mm above the
+bore (a pass under stays off the finger by that much; the bore law's full lift came back down
+too steeply for the ribbon's thickness, 2026-11-01) and is swept in two pieces that share one
+section ring and cap (a sweep that passes over itself is no manifold); the halves' lofts end in
+the strands' first and last rings the same way - bodies that meet in one identical face unite
+cleanly, where overlaps drawn a hair apart left needle faces. No opening (e = 0: every round is
+in the bar); the union is tidied by manifold3d within 0.1 µm. The gate reads its sections off the
+design itself inside the knots and the band under the head (|θ| to the tails' end + 0.5 mm) and
+off the 2-D model elsewhere. Stem `..._split1.6_trinity5.6_<id>`.
+
 How it is made: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
 axial; one cross-section every 2.5°, the band profile at that angle's width and thickness,
 lofted; a turn and a half plus a margin so the seam lies inside material) into the run
@@ -175,5 +215,5 @@ a rope `ring_shank_rope<strands>x<turns>_<label>_d<strand>_<spec id>`.
 ## Next in this family
 
 The solitaire's shank is a bar too since step 1d (`solitaire --width-bottom ... --thickness-bottom
-...`, `--split ...`; `gem-library`); contoured, double and rope shanks under a head, then Celtic
-knotwork, come next - all built as bars and wrapped the same way.
+...`, `--split ...`, `--split ... --knot trinity`; `gem-library`). Next: contoured, double, rope
+and plait shanks under a head - all built as bars and wrapped the same way.

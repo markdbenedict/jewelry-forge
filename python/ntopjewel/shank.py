@@ -29,6 +29,12 @@ them, the second strand's dip the same way (nested chevrons) or mirrored (a wish
 bridges at `bridges_deg` (full-thickness bars `bridge_mm` long round the ring). Strands and
 bridges are united in the bar before it is written, and the independent sweep unites them in
 the ring frame (a bridge there is the sector the wrapped bar makes of it).
+
+Step 1c: a split (`split_mm`: the halves lofted the whole way round, the slot's fillets in the
+bar) and a rope (`rope`: round strands twisted round the ring). Step 1e, Celtic knotwork
+(`knot`, knotwork.py): strands interlaced in the ring's surface - a plait of two to four ribbons
+(or round wires) weaving the whole way round, each strand rising over and sinking under the
+others at its crossings, the band's width and thickness its envelope.
 """
 from __future__ import annotations
 
@@ -38,7 +44,7 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
-from . import band, catalog, config, gate, geom, ntopcl, runs, tables
+from . import band, catalog, config, gate, geom, knotwork, ntopcl, runs, tables
 
 BAR_OVERLAP_MM = 1.0        # the bar runs this far past the turn at both ends: the seam is inside material
 SECTION_POINTS = 256        # every station's outline resampled to this many points (lofted vertex to vertex)
@@ -51,6 +57,16 @@ SPLIT_INSET_MM = 0.01       # ... each half's surface drawn this far inside the 
 BRIDGE_INSET_MM = 0.1       # a bridge runs this far into each strand it joins
 ROPE_STRAND_MIN_MM = 0.8    # a rope's strand diameter: a prong-tip-sized rod casts; thinner does not
 ROPE_POINTS = 48            # points round a rope strand's section (a 48-gon is 0.1 % under the circle)
+KNOT_LOBE_MARGIN_MM = 0.3   # (the knot's width is measured to its lobes' outer edges, this much inside --knot-width / 2)
+KNOT_NOSE_MM = 1.2          # the band under the head ends in a nose this long, narrowing between a knot's lobes
+KNOT_NOSE_JOIN_MM = 0.3     # the knot's head-side crossing lies this far inside the nose's tip
+KNOT_NOSE_CLEAR_MM = 0.25   # the knot's inner passes stay this clear of the nose's tip
+# A knot's strand is swept in two pieces (a sweep crossing itself is no manifold) that share one section ring
+# bit for bit, and the halves' lofts end in the strands' first and last rings the same way: bodies that meet in
+# one identical face unite cleanly, where overlaps drawn a hair apart left needle faces (2026-11-01).
+KNOT_LIFT_MM = 0.1          # a trinity knot's ribbon runs this far above the bore (buried clear of the pad's bore where it enters it)
+KNOT_TAPER_MM = 1.5         # the tail narrows from the half's section to the knot's ribbon over this run
+PAD_STEP_DEG = 1.0          # stations along the pad a knot's lobes run into
 
 
 def ease(frac: float) -> float:
@@ -81,6 +97,17 @@ class ShankSpec:
     rope_turns: float = 10.0                        # rope: full twists per ring
     rope_strand_mm: float = 1.2                     # rope: a strand's diameter
     rope_offset_frac: float = 0.7                   # rope: strand centre off the rope's centreline, in strand radii (< 1: they overlap into one solid)
+    knot: str = ""                                  # "" or "plait": Celtic knotwork - strands interlaced round the ring instead of a profile
+    knot_strands: int = 3                           # plait: strands (2..4)
+    knot_repeats: int = 4                           # plait: the weave repeats this many times round the ring
+    knot_strand_mm: float = 1.2                     # a ribbon's width across the surface (a round wire takes its thickness)
+    knot_profile: str = "flat"                      # flat: a ribbon (thickness (T + fuse) / 2) | round: a wire of that diameter
+    knot_mm: float = 0.0                            # trinity: the knot's width across the band, lobe edge to lobe edge; 0 = band width + 1.2
+    knot_thickness_mm: float = 0.0                  # trinity: the knot's ribbon thickness (radial); 0 = 0.7 x the band's
+    knot_ratio: float = knotwork.TREFOIL_RATIO      # trinity: the trefoil's radial swing (crossing angle 2 atan(1.5 x ratio))
+    knot_pad_deg: float = 30.0                      # trinity: the band under the head reaches this far either side of it (its nose's tip)
+    knot_pad_set: bool = False                      # trinity: knot_pad_deg was asked for (else a solitaire sizes it from its head)
+    knot_tail_mm: float = 3.0                       # trinity: the tails from the knot's crossings to where the halves' lofts begin
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     # ---- the law -------------------------------------------------------------------------
@@ -158,6 +185,369 @@ class ShankSpec:
         phi = math.radians(self.rope_turns * theta_deg) + 2 * math.pi * strand / self.rope
         return self.rope_centre_radius + self.rope_offset * math.cos(phi), self.rope_offset * math.sin(phi)
 
+    # ---- knotwork: strands interlaced in the ring's surface (knotwork.py) -------------------
+    @property
+    def knot_thickness(self) -> float:
+        """A knot strand's radial thickness: two strands stacked at a crossing, fused KNOT_FUSE_MM
+        into each other, make the band's thickness."""
+        return (self.band.thickness_mm + knotwork.KNOT_FUSE_MM) / 2
+
+    @property
+    def knot_width(self) -> float:
+        """A strand's width across the surface (a round wire: its diameter = its thickness)."""
+        return self.knot_thickness if self.knot_profile == "round" else self.knot_strand_mm
+
+    @property
+    def knot_rise(self) -> float:
+        """How far a strand's centre rises over (sinks under) the mid-depth at a crossing."""
+        return (self.knot_thickness - knotwork.KNOT_FUSE_MM) / 2
+
+    @property
+    def knot_mid_radius(self) -> float:
+        """A strand centre's radius between crossings: an under strand's inner face then lies on
+        the bore, an over strand's outer face on the band's outer radius."""
+        return self.band.bore_radius_mm + self.knot_thickness / 2 + self.knot_rise
+
+    @property
+    def knot_amplitude(self) -> float:
+        """The sinusoids' amplitude: the strands' outer edges reach the band's edges."""
+        return (self.band.width_mm - self.knot_width) / 2
+
+    @property
+    def knot_points(self) -> int:
+        """Centreline samples per strand per turn."""
+        return max(self.stations, knotwork.KNOT_POINTS_PER_REPEAT * self.knot_repeats)
+
+    def knot_strand_set(self) -> list[knotwork.Strand]:
+        """The strands' centrelines in the developed surface (y along the ring, z axial)."""
+        if "knot_strands" not in self._cache:
+            self._cache["knot_strands"] = knotwork.plait_strands(self.knot_strands, self.knot_repeats, self.knot_amplitude,
+                                                                 self.wrap_length_mm, self.knot_points)
+        return self._cache["knot_strands"]
+
+    def knot_layout(self) -> knotwork.Interlace:
+        """The solved weave (knotwork.interlace): every crossing's over strand, the radial law."""
+        if "knot_layout" not in self._cache:
+            self._cache["knot_layout"] = knotwork.interlace(self.knot_strand_set())
+        return self._cache["knot_layout"]
+
+    def knot_section_profile(self):
+        """The strand's section in the sweep's frame: a ribbon with the band's edge round on its
+        corners, or a round wire."""
+        if self.knot_profile == "round":
+            return knotwork.wire_profile(self.knot_thickness)
+        return knotwork.ribbon_profile(self.knot_width, self.knot_thickness, self.band.edge_round)
+
+    def knot_strand_bar(self, strand: int):
+        """One strand in the bar frame: its centreline over a turn and a half plus the overlap
+        (x = mid radius + rise x the interlace depth, y along, z the weave), swept with the
+        section, the radial direction +X, capped at the bar's ends."""
+        import numpy as np
+        st, lace = self.knot_strand_set()[strand], self.knot_layout()
+        m = len(st.points)
+        L = self.wrap_length_mm
+        step = L / m
+        k0 = -(m // 2) - int(math.ceil(BAR_OVERLAP_MM / step))
+        k1 = m + int(math.ceil(BAR_OVERLAP_MM / step))
+        q = np.arange(k0, k1 + 1)
+        idx = q % m
+        u = lace.depth(strand, st.params[idx])
+        x = self.knot_mid_radius + self.knot_rise * u
+        y = st.points[idx, 0] + (q // m) * L
+        path = np.column_stack([x, y, st.points[idx, 1]])
+        return knotwork.sweep_along(path, self.knot_section_profile(), closed=False, up=(1.0, 0.0, 0.0))
+
+    def knot_strand_ring(self, strand: int):
+        """The same strand in the ring frame: the centreline wrapped round the axis (y -> angle, x
+        -> r), swept closed with the local radial direction up."""
+        import numpy as np
+        st, lace = self.knot_strand_set()[strand], self.knot_layout()
+        u = lace.depth(strand, st.params)
+        r = self.knot_mid_radius + self.knot_rise * u
+        t = 2 * math.pi * st.points[:, 0] / self.wrap_length_mm
+        path = np.column_stack([r * np.cos(t), r * np.sin(t), st.points[:, 1]])
+        up = np.column_stack([np.cos(t), np.sin(t), np.zeros_like(t)])
+        return knotwork.sweep_along(path, self.knot_section_profile(), closed=True, up=up)
+
+    # ---- trinity: the triquetra on each shoulder of a split shank (knotwork.trefoil_motif) -----
+    @property
+    def trinity(self) -> bool:
+        return self.knot == "trinity"
+
+    @property
+    def deg_per_mm(self) -> float:
+        return 360.0 / self.wrap_length_mm
+
+    @property
+    def trinity_width(self) -> float:
+        return float(self.knot_mm) if self.knot_mm else self.band.width_mm + 1.2
+
+    @property
+    def trinity_ribbon(self) -> float:
+        """The knot's ribbon width across the surface (the tails narrow the halves to it)."""
+        return float(self.knot_strand_mm)
+
+    @property
+    def trinity_thickness_max(self) -> float:
+        """The thickest ribbon the band takes: a pass under inside the band's nose keeps clear of the
+        nose's crown (the nose's end is rounded by the edge round)."""
+        return self.band.thickness_mm - max(self.band.edge_round, 0.2) - 0.1
+
+    @property
+    def trinity_thickness(self) -> float:
+        """The knot's ribbon thickness, radial (the tails thin the halves to it): 0.7 x the band's,
+        within trinity_thickness_max."""
+        return float(self.knot_thickness_mm) if self.knot_thickness_mm else min(0.7 * self.band.thickness_mm, self.trinity_thickness_max)
+
+    @property
+    def trinity_radius(self) -> float:
+        """The trefoil's R (its crossings' radius): the lobes' outer edges reach KNOT_LOBE_MARGIN_MM
+        inside ±knot width / 2."""
+        return (self.trinity_width / 2 - KNOT_LOBE_MARGIN_MM - self.trinity_ribbon / 2) / (math.sin(math.radians(60.0)) * (1 + self.knot_ratio))
+
+    def trinity_layout(self) -> dict:
+        """Where everything sits on the +θ shoulder (the other mirrors it), in mm along the ring
+        (y, the head at 0) and degrees: the nose's tip y_pad, the knot's centre y_c (its head-side
+        crossing KNOT_NOSE_JOIN_MM inside the nose), the tail crossings' y, the tails' end y_1 /
+        theta_1 (where the halves' lofts take over) and the upper half's outline there (its centre
+        r_c, z_c, its inner face r_in, its width and thickness, which the tails taper to the
+        ribbon's)."""
+        if "trinity" not in self._cache:
+            R, c = self.trinity_radius, self.knot_ratio
+            y_pad = self.knot_pad_deg / self.deg_per_mm
+            y_c = y_pad - KNOT_NOSE_JOIN_MM + R                            # the crossing on the axis: y_c - R
+            y_x = y_c + 0.5 * R                                            # the tail crossings (60° / 300° off +y)
+            y_1 = y_x + self.knot_tail_mm
+            theta_1 = y_1 * self.deg_per_mm
+            upper = self.loft_outline(1, theta_1, 0.5)
+            self._cache["trinity"] = dict(R=R, y_pad=y_pad, y_c=y_c, y_x=y_x, y_1=y_1, theta_1=theta_1,
+                                          r_c=float(upper[:, 0].mean()), z_c=float(upper[:, 1].mean()),
+                                          r_in=float(upper[:, 0].min()), upper=upper,
+                                          half_width=float(upper[:, 1].max() - upper[:, 1].min()),
+                                          half_thickness=float(upper[:, 0].max() - upper[:, 0].min()))
+        return self._cache["trinity"]
+
+    def trinity_strand(self, side: int) -> knotwork.Strand:
+        """The woven strand of one shoulder (side +1: +θ, -1: -θ) in the developed surface: from
+        the upper half's end at theta_1, its tail, the opened trefoil, the other tail, to the lower
+        half's end."""
+        lay = self.trinity_layout()
+        sgn = float(side)
+        return knotwork.trefoil_motif((sgn * lay["y_c"], 0.0), lay["R"], ((sgn * lay["y_1"], lay["z_c"]), (sgn * lay["y_1"], -lay["z_c"])),
+                                      towards_tail=sgn, ratio=self.knot_ratio)
+
+    def trinity_laces(self) -> list[knotwork.Interlace]:
+        """The two shoulders' weaves, each solved on its own (the strands never meet)."""
+        if "trinity_laces" not in self._cache:
+            self._cache["trinity_laces"] = [knotwork.interlace([self.trinity_strand(side)]) for side in (1, -1)]
+        return self._cache["trinity_laces"]
+
+    def trinity_widths(self) -> list[float]:
+        return [self.trinity_ribbon]
+
+    def trinity_profile(self, side: int):
+        """The sweep's section where it leaves the half: the upper half's outline about its centre
+        (n radial, b across); the -θ shoulder's strand runs the other way round the ring, so its b
+        is mirrored, which makes the section the lower half's where the strand starts - its tails
+        are swapped."""
+        import numpy as np
+        lay = self.trinity_layout()
+        prof = np.column_stack([lay["upper"][:, 0] - lay["r_c"], lay["upper"][:, 1] - lay["z_c"]])
+        return prof if side > 0 else prof * [1.0, -1.0]
+
+    def trinity_ribbon_profile(self, side: int):
+        """The knot's own section: a rounded rectangle, ribbon wide (across) x thickness (radial),
+        its corners the band's edge round, sampled like the half's outline (SECTION_POINTS,
+        counter-clockwise from the inner face's middle) so the tail can morph one into the other."""
+        from shapely.geometry import Polygon
+        t_k, w_k = self.trinity_thickness, self.trinity_ribbon
+        corner = min(self.band.edge_round, t_k / 2 - 0.05, w_k / 2 - 0.05)
+        rect = Polygon(knotwork.ribbon_profile(w_k, t_k, corner))
+        pts = outline_points(rect, SECTION_POINTS, start=(-t_k / 2, 0.0))
+        return pts if side > 0 else pts * [1.0, -1.0]
+
+    def trinity_path(self, side: int) -> dict:
+        """One shoulder's strand as a 3-D path in the ring frame with its section at every station:
+        the half's outline where it leaves the loft, morphing over KNOT_TAPER_MM into the knot's
+        ribbon (trinity_ribbon_profile), whose centre rides the mid law (knotwork.Interlace.depth:
+        mid-depth between crossings, up or down by h = (t - fuse) / 2 at each; the plait's law -
+        the bore law's full lift came back down too steeply for the ribbon's thickness, 2026-11-01)
+        about a line (t / 2 + h + KNOT_LIFT_MM) above the bore, so a pass under lies KNOT_LIFT_MM
+        clear of the bore. Returns the vertex rings too (knotwork.sweep_rings)."""
+        import numpy as np
+        lay = self.trinity_layout()
+        st = self.trinity_strand(side)
+        lace = self.trinity_laces()[0 if side > 0 else 1]
+        s = st.params
+        S = st.length
+        d_end = np.minimum(s, S - s)                                        # distance to the nearer end
+        prof = self.trinity_profile(side)
+        ribbon = self.trinity_ribbon_profile(side)
+        f = np.clip(d_end / KNOT_TAPER_MM, 0.0, 1.0)
+        f = 0.5 * (1 - np.cos(np.pi * f))                                   # 0 at the half, 1 past the taper
+        sections = prof[None, :, :] + (ribbon - prof)[None, :, :] * f[:, None, None]
+        t_k = self.trinity_thickness
+        h = (t_k - knotwork.KNOT_FUSE_MM) / 2
+        r_half = lay["r_c"]                                                 # the half's centre, on the loft
+        r_knot = self.band.bore_radius_mm + KNOT_LIFT_MM + t_k / 2 + h      # the knot's mid line
+        u = lace.depth(0, s, law="mid")
+        r = (1 - f) * r_half + f * (r_knot + h * u)
+        t = np.radians(st.points[:, 0] * self.deg_per_mm)
+        path = np.column_stack([r * np.cos(t), r * np.sin(t), st.points[:, 1]])
+        up = np.column_stack([np.cos(t), np.sin(t), np.zeros_like(t)])
+        rings, reversed_ = knotwork.sweep_rings(path, closed=False, up=up, profiles=sections)
+        return dict(path=path, up=up, sections=sections, s=s, params=lace.params[0], rings=rings, reversed=reversed_)
+
+    def trinity_strand_ring(self, side: int) -> list:
+        """One shoulder's strand swept in the ring frame (trinity_path), in two pieces that share one
+        section ring and its cap triangles: a sweep that passes over itself is no manifold
+        (manifold3d left slivers in the union, 2026-11-01), so the strand is cut between its third
+        and fourth crossing passes - each piece then holds one pass of every crossing. The strand's
+        first and last caps are the ones the halves' lofts end in (trinity_end)."""
+        import numpy as np
+        d = self.trinity_path(side)
+        s, cs = d["s"], d["params"]
+        half = len(cs) // 2
+        k = int(np.searchsorted(s, 0.5 * (cs[half - 1] + cs[half])))
+        cut = knotwork.cap_triangles(d["sections"][k] if not d["reversed"] else d["sections"][k][::-1])
+        first, last = self.trinity_end(side, "start"), self.trinity_end(side, "end")
+        return [knotwork.mesh_from_rings(d["rings"][:k + 1], start_cap=first["strand_cap"], end_cap=cut),
+                knotwork.mesh_from_rings(d["rings"][k:], start_cap=cut, end_cap=last["strand_cap"])]
+
+    def trinity_end(self, side: int, end: str) -> dict:
+        """Where a strand meets a half's loft: its first (`end` "start", the upper half) or last
+        ring put in the order the loft runs its outline (counter-clockwise in (r, z) from the
+        bore-side start: `ring`), the cap triangles over that ring (`cap`), and the same triangles
+        indexed in the strand's own order (`strand_cap`) - one identical face for both bodies."""
+        import numpy as np
+        key = ("trinity_end", side, end)
+        if key in self._cache:
+            return self._cache[key]
+        d = self.trinity_path(side)
+        k = 1 if end == "start" else 0
+        ring = d["rings"][0] if end == "start" else d["rings"][-1]
+        theta = self.trinity_layout()["theta_1"] * (1 if side > 0 else -1)
+        rz = self.loft_outline(k, theta, 0.5 * k)
+        c, s_ = math.cos(math.radians(theta)), math.sin(math.radians(theta))
+        target = np.column_stack([rz[:, 0] * c, rz[:, 0] * s_, rz[:, 1]])
+        m = len(ring)
+        best, best_err = None, float("inf")
+        for sign in (1, -1):
+            order = np.arange(m) if sign > 0 else np.arange(m)[::-1]
+            for roll in range(m):
+                perm = np.roll(order, roll)
+                err = float(np.abs(ring[perm] - target).max())
+                if err < best_err:
+                    best, best_err = perm, err
+                if best_err < 1e-9:
+                    break
+            if best_err < 1e-9:
+                break
+        if best_err > 0.05:
+            raise RuntimeError(f"trinity: the strand's {end} ring does not meet the half's outline at {theta:.2f}° (off by {best_err:.3f} mm)")
+        ordered = ring[best]
+        cap = knotwork.cap_triangles(_rz(ordered, theta))
+        out = dict(ring=ordered, cap=cap, strand_cap=best[cap], theta=theta)
+        self._cache[key] = out
+        return out
+
+    def trinity_bend_radii(self, side: int = 1) -> tuple[float, float]:
+        """(the strand's tightest bend in the surface, its tightest bend in 3-D), mm: a sweep whose
+        path bends tighter than its section reaches turns inside out."""
+        import numpy as np
+        st = self.trinity_strand(side)
+        d = self.trinity_path(side)
+
+        def min_radius(P):
+            P = np.asarray(P, float)
+            a, b, c = P[:-2], P[1:-1], P[2:]
+            ab, bc, ca = np.linalg.norm(b - a, axis=1), np.linalg.norm(c - b, axis=1), np.linalg.norm(c - a, axis=1)
+            if P.shape[1] == 2:
+                area2 = np.abs((b - a)[:, 0] * (c - a)[:, 1] - (b - a)[:, 1] * (c - a)[:, 0])
+            else:
+                area2 = np.linalg.norm(np.cross(b - a, c - a), axis=1)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                radius = np.where(area2 > 1e-12, ab * bc * ca / np.where(area2 > 1e-12, 2 * area2, 1.0), np.inf)
+            return float(np.nanmin(radius)) if len(radius) else float("inf")
+        return min_radius(st.points), min_radius(d["path"])
+
+    def trinity_half_angles(self, k: int) -> list[float]:
+        """Station angles of half k's loft: from just past the tails' end round the bottom to just
+        past the other shoulder's (the knots take over inside), the upper half's stations half a
+        step on from the lower's (station_angles: coincident meridians across the overlap wedge
+        came out of the union in slivers an STL round trip opened - seen again 2026-11-01). The
+        loft's end stations are the strands' end rings themselves (trinity_end_ring)."""
+        t1 = self.trinity_layout()["theta_1"]
+        step = 360.0 / self.stations
+        inner = [a for a in (step * (q + 0.5 * k) for q in range(self.stations + 1)) if t1 + 0.2 < a < 360.0 - t1 - 0.2]
+        return [t1] + inner + [360.0 - t1]
+
+    @property
+    def nose_width(self) -> float:
+        """The nose's width at its tip: the ribbon's two passes there and a little."""
+        return self.trinity_ribbon + 0.6
+
+    def pad_outline(self, theta_deg: float):
+        """The section under the head at an angle: the band's own section, narrowing over the last
+        KNOT_NOSE_MM of arc to a nose between the knot's lobes (the section clipped in z and
+        re-rounded by the edge round), eroded towards a round end over the last edge round of arc
+        (a cast end, not a step)."""
+        from shapely.geometry import box
+        sec = geom.section_polygon(self.band.notebook_inputs(""))
+        e = self.band.edge_round
+        a = abs(float(theta_deg))
+        nose_deg = KNOT_NOSE_MM * self.deg_per_mm
+        f = (a - (self.knot_pad_deg - nose_deg)) / nose_deg
+        if f > 0:
+            width = self.nose_width + (self.band.width_mm - self.nose_width) * 0.5 * (1 + math.cos(math.pi * min(f, 1.0)))
+            b = self.band
+            sec = geom.open_polygon(sec.intersection(box(b.bore_radius_mm - 1.0, -width / 2, b.outer_radius_mm + 1.0, width / 2)), e)
+        e_deg = e * self.deg_per_mm
+        over = a - (self.knot_pad_deg - e_deg)
+        if over > 0:
+            g = min(over / e_deg, 1.0)
+            d = e * (1.0 - math.sqrt(max(0.0, 1.0 - g * g)))
+            if d > 0:
+                sec = sec.buffer(-min(d, e - 0.02), join_style="round")
+        return outline_points(sec, SECTION_POINTS, start=(self.band.bore_radius_mm, 0.0))
+
+    def pad_angles(self) -> list[float]:
+        """Stations of the band under the head: the regular grid between the noses (never the
+        wrap's cut angle, which lies between grid stations) and PAD_STEP_DEG steps along each nose."""
+        tb = self.knot_pad_deg
+        nose = KNOT_NOSE_MM * self.deg_per_mm
+        step = 360.0 / self.stations
+        grid = [a for a in (step * q for q in range(-self.stations // 2, self.stations // 2 + 1)) if abs(a) < tb - nose]
+        n = max(int(math.ceil(nose / PAD_STEP_DEG)), 4)
+        fine = [tb - nose * q / n for q in range(n + 1)]                    # tb - nose .. tb
+        return sorted({-a for a in fine} | set(grid) | set(fine))
+
+    def pad_ring(self):
+        """The band under the head, lofted round the axis over ±knot_pad_deg, a nose at each end."""
+        return loft_ring([(float(a), self.pad_outline(a)) for a in self.pad_angles()])
+
+    def trinity_parts(self) -> list:
+        """The bodies of the trinity shank in the ring frame: the two halves' lofts (clear of the
+        knots), the two shoulders' strands and the pad."""
+        parts = []
+        for k in range(2):
+            angles = self.trinity_half_angles(k)
+            ends = ("start" if k == 1 else "end")                           # the strand starts in the upper half, ends in the lower
+            first, last = self.trinity_end(1, ends), self.trinity_end(-1, ends)
+            parts.append(loft_ring([(a, self.loft_outline(k, a, 0.5 * k)) for a in angles],
+                                   first_ring=first["ring"], last_ring=last["ring"], first_cap=first["cap"], last_cap=last["cap"]))
+        for side in (1, -1):
+            parts += self.trinity_strand_ring(side)
+        parts.append(self.pad_ring())
+        return parts
+
+    def trinity_section(self, theta_deg: float):
+        """Which model the gate's section comes from at an angle: the design itself inside the knots
+        and the pad (|θ| up to the tails' end plus half a millimetre), where the 2-D section model
+        is not the body."""
+        a = abs((float(theta_deg) + 180.0) % 360.0 - 180.0)
+        return a <= self.trinity_layout()["theta_1"] + 0.5 * self.deg_per_mm
+
     @property
     def strand_centres(self) -> list[float]:
         """Each strand's z offset away from the dip (strands stacked about the mid-plane)."""
@@ -229,21 +619,21 @@ class ShankSpec:
     @property
     def opening_chamfer_mm(self) -> float:
         """The chamfer nTop's re-distanced opening puts on the eroded corners (tables.opening_chamfer_mm)."""
-        return 0.0 if self.rope else tables.opening_chamfer_mm(self.band.mesh_tolerance_mm)
+        return 0.0 if (self.rope or self.knot) else tables.opening_chamfer_mm(self.band.mesh_tolerance_mm)
 
     def section_shape(self, theta_deg: float, skip: bool = True, chamfer_mm: float = 0.0):
         """The designed cross-section at an angle as a shapely geometry in (r, z): every strand's
         band section at its centreline, a bridge where one spans the angle, the slot taken out,
         and the whole opened by the edge round the way the notebook opens the bar - so a slot's
         and a bridge's fresh edges carry their fillets (the band's own are in the section already).
-        A rope's comes from the bar wrapped. None at an angle the model cannot show
+        A rope's or a knot's comes from the bar wrapped. None at an angle the model cannot show
         (shape_check_skips), unless `skip` is off (the lofts sample it everywhere). `chamfer_mm`
         emulates nTop's re-distanced opening (geom.open_polygon): the gate's model passes
         opening_chamfer_mm, the lofts stay exact."""
         from shapely.affinity import translate
         from shapely.geometry import box
         from shapely.ops import unary_union
-        if self.rope:
+        if self.rope or self.knot == "plait":
             return gate.section_geometry(self.wrapped_ring(), theta_deg)
         if skip and self.shape_check_skips(theta_deg):
             return None
@@ -261,7 +651,10 @@ class ShankSpec:
 
     def gate_section(self, theta_deg: float):
         """The section the gate expects nTop to have built at an angle (section_shape with the
-        mesher's chamfer)."""
+        mesher's chamfer); through a trinity shank's knots and pad, the design itself (the 2-D
+        section model is the halves' lofts, not the woven strands)."""
+        if self.trinity and self.trinity_section(theta_deg):
+            return gate.section_geometry(self.design_mesh(), theta_deg)
         return self.section_shape(theta_deg, chamfer_mm=self.opening_chamfer_mm)
 
     def opening_overcut_mm3(self) -> float:
@@ -359,7 +752,7 @@ class ShankSpec:
         in r, z and angle, and a rope's volume comes out the same to first order)."""
         if self.rope:
             return 2 * math.pi * self.rope_centre_radius
-        return 2 * math.pi * (self.band.bore_radius_mm + self.band.thickness_mm / 2)
+        return 2 * math.pi * (self.band.bore_radius_mm + self.band.thickness_mm / 2)   # a knot's strands weave about it
 
     def _bar_range(self) -> tuple[float, list[int]]:
         """(station step along Y, station indices): a turn and a half plus BAR_OVERLAP_MM at both
@@ -476,7 +869,9 @@ class ShankSpec:
         import trimesh
         if self.rope:
             return drop_specks(trimesh.boolean.union([self.rope_tube_bar(k) for k in range(self.rope)], engine="manifold"))
-        if self.split_mm:
+        if self.knot == "plait":
+            return drop_specks(trimesh.boolean.union([self.knot_strand_bar(k) for k in range(self.knot_strands)], engine="manifold"))
+        if self.split_mm:                                                   # a trinity shank is a split shank too
             return unwrap_ring(self.design_mesh(), self.wrap_length_mm)
         parts = [self.strand_bar(k) for k in range(self.lofts)]
         L = self.wrap_length_mm
@@ -531,11 +926,17 @@ class ShankSpec:
 
     def design_mesh(self):
         """The independent ring: every strand swept round the axis and, for two strands, the
-        bridges as sectors, united, a split cut out; a rope's strands united."""
+        bridges as sectors, united, a split cut out; a rope's or a knot's strands united."""
         if "design_mesh" not in self._cache:
             import trimesh
             if self.rope:
                 body = drop_specks(trimesh.boolean.union([self.rope_tube_ring(k) for k in range(self.rope)], engine="manifold"))
+            elif self.knot == "plait":
+                body = drop_specks(trimesh.boolean.union([self.knot_strand_ring(k) for k in range(self.knot_strands)], engine="manifold"))
+            elif self.trinity:
+                # the lofts, sweeps and pad meet along many near-grazing lines; manifold3d leaves needle
+                # faces there that float32 STL cannot hold (2026-11-01): merged within 0.1 µm
+                body = geom.clean(drop_specks(trimesh.boolean.union(self.trinity_parts(), engine="manifold")), 1e-4)
             else:
                 parts = [self.strand_ring(k) for k in range(self.lofts)]
                 parts += [self.bridge_sector(*b) for b in self.bridge_spans()]
@@ -560,9 +961,9 @@ class ShankSpec:
         split's halves carry the slot and its fillets: inside the span the bore and the dome are
         first reached beyond the slot's edge - nTop measured r 8.312..9.687 against a full outline's
         8.253..9.753 at the head of a 1.6 mm split, 2026-10-30); from the independent mesh for a
-        rope (its strands cross the meridian obliquely)."""
+        rope or a knot (their strands cross the meridian obliquely)."""
         import numpy as np
-        if self.rope:
+        if self.rope or self.knot:
             return section_bounds(self.design_mesh(), theta_deg)
         pts = np.vstack([self.loft_outline(k, theta_deg) for k in range(self.lofts)])
         return float(pts[:, 1].min()), float(pts[:, 1].max()), float(pts[:, 0].min()), float(pts[:, 0].max())
@@ -577,6 +978,11 @@ class ShankSpec:
         """The ring's extent along the axis: the widest station, dips and stacking included."""
         if self.rope:
             return 2 * (self.rope_offset + self.rope_radius)
+        if self.knot == "plait":
+            return 2 * self.knot_amplitude + self.knot_width                   # the band's width: the weave fills it
+        if self.trinity:
+            b = self.design_mesh().bounds
+            return float(b[1][2] - b[0][2])                                    # the knots reach past the band's edges
         lo = min(self.section_bounds(t)[0] for t in self.station_angles())
         hi = max(self.section_bounds(t)[1] for t in self.station_angles())
         return hi - lo
@@ -586,6 +992,10 @@ class ShankSpec:
         """The largest radius the ring reaches (at the head)."""
         if self.rope:
             return self.rope_centre_radius + self.rope_offset + self.rope_radius
+        if self.trinity:
+            import numpy as np
+            v = self.design_mesh().vertices
+            return float(np.hypot(v[:, 0], v[:, 1]).max())                    # a strand passing over stands proud
         return self.band.outer_radius_mm
 
     # ---- identity, inputs, checks ------------------------------------------------------------
@@ -602,7 +1012,12 @@ class ShankSpec:
                   "split_shape": self.split_shape if self.split_mm else "",
                   "rope": self.rope, "rope_turns": self.rope_turns if self.rope else 0.0,
                   "rope_strand": self.rope_strand_mm if self.rope else 0.0,
-                  "rope_offset_frac": self.rope_offset_frac if self.rope else 0.0})
+                  "rope_offset_frac": self.rope_offset_frac if self.rope else 0.0,
+                  "knot": self.knot, "knot_strands": self.knot_strands if self.knot else 0,
+                  "knot_repeats": self.knot_repeats if self.knot else 0, "knot_strand": self.knot_strand_mm if self.knot else 0.0,
+                  "knot_profile": self.knot_profile if self.knot else "", "knot_fuse": knotwork.KNOT_FUSE_MM if self.knot else 0.0,
+                  "knot_width": self.trinity_width if self.trinity else 0.0, "knot_ratio": self.knot_ratio if self.trinity else 0.0,
+                  "knot_pad_deg": self.knot_pad_deg if self.trinity else 0.0, "knot_tail": self.knot_tail_mm if self.trinity else 0.0})
         return d
 
     @property
@@ -612,10 +1027,14 @@ class ShankSpec:
     @property
     def shape_tag(self) -> str:
         """The shank's shape in a file stem: `w<head>-<bottom>_t<head>-<bottom>[_contour1.5|_chevron2][_x2|_x2m][_split1.6]`,
-        a rope `rope<strands>x<turns>_d<strand>`."""
+        a rope `rope<strands>x<turns>_d<strand>`, a knot `plait<strands>x<repeats>_w<strand>t<thickness>` (a wire
+        `_d<diameter>`)."""
         b = self.band
         if self.rope:
             return f"rope{self.rope}x{self.rope_turns:g}_d{self.rope_strand_mm:g}"
+        if self.knot == "plait":
+            section = f"d{self.knot_thickness:g}" if self.knot_profile == "round" else f"w{self.knot_width:g}t{self.knot_thickness:g}"
+            return f"{self.knot}{self.knot_strands}x{self.knot_repeats}_{section}"
         shape = ""
         if self.dip_mm:
             shape += f"_{self.dip_shape}{self.dip_mm:g}"
@@ -623,13 +1042,16 @@ class ShankSpec:
             shape += f"_x2{'m' if self.mirror else ''}"
         if self.split_mm:
             shape += f"_split{self.split_mm:g}"
+        if self.trinity:
+            shape += f"_trinity{self.trinity_width:g}"
         return f"w{b.width_mm:g}-{self.width_bottom:g}_t{b.thickness_mm:g}-{self.thickness_bottom:g}{shape}"
 
     @property
     def stem(self) -> str:
         b = self.band
-        if self.rope:
-            return f"ring_shank_{self.shape_tag[:self.shape_tag.index('_d')]}_{b.label}{self.shape_tag[self.shape_tag.index('_d'):]}_{self.spec_id}"
+        if self.rope or self.knot == "plait":
+            head, _, section = self.shape_tag.partition("_")                   # rope2x10_US6_d1.2, plait3x4_US6_w1.2t0.85
+            return f"ring_shank_{head}_{b.label}_{section}_{self.spec_id}"
         return f"ring_shank_{b.profile}_{b.label}_{self.shape_tag}_{self.spec_id}"
 
     @property
@@ -637,7 +1059,7 @@ class ShankSpec:
         """The opening (Offset -e, +e) the notebook runs over the wrapped body: the band's edge
         round. The band's own edges are rounded that much in the section already (a no-op for
         them); it rounds the edges the cuts and unions leave sharp - a split's slot, a bridge."""
-        return 0.0 if self.rope else self.band.edge_round
+        return 0.0 if (self.rope or self.knot) else self.band.edge_round
 
     def notebook_inputs(self, bar_path: str, output_path: str = "") -> dict:
         """Values for every input of ring_shank.ntop (names must match the catalog)."""
@@ -664,6 +1086,8 @@ class ShankSpec:
     def validate(self) -> list[str]:
         if self.rope:
             return self._validate_rope()
+        if self.knot == "plait":
+            return self._validate_knot()
         p = list(self.band.validate())
         if self.width_bottom > self.band.width_mm + 1e-9:
             p.append(f"bottom width {self.width_bottom:g} mm wider than the head's {self.band.width_mm:g} mm: a shank tapers towards the bottom")
@@ -711,10 +1135,72 @@ class ShankSpec:
                 if probs:
                     p.append(f"at {t:g}° (width {self.width_at(t):.2f}, thickness {self.thickness_at(t):.2f}): " + "; ".join(probs))
                     break
+        if not p and self.knot:
+            p += self._validate_trinity()
         if not p and self.lofts == 2:
             m = self.design_mesh()
             if m.body_count != 1:
                 p.append(f"the strands and bridges make {m.body_count} bodies, not one ring")
+        return p
+
+    def _validate_trinity(self) -> list[str]:
+        if self.knot != "trinity":
+            return [f"knot {self.knot!r}: plait (a band) or trinity (on a split shank)"]
+        p = []
+        if not self.split_mm:
+            p.append("trinity knots are woven from a split shank's two halves: --split")
+        floor = tables.FLOORS["wall_good"]
+        if self.trinity_ribbon < floor or self.trinity_thickness < floor:
+            p.append(f"the knot's ribbon ({self.trinity_ribbon:g} wide x {self.trinity_thickness:.2f} thick): at least {floor:g} mm each way")
+        if self.split_mm and self.trinity_ribbon > (self.band.width_mm - self.split_mm) / 2 + 1e-9:
+            p.append(f"the knot's ribbon ({self.trinity_ribbon:g} mm) is wider than a half of the split ({(self.band.width_mm - self.split_mm) / 2:g} mm)")
+        if self.trinity_thickness > self.trinity_thickness_max + 1e-9:
+            p.append(f"the knot's ribbon ({self.trinity_thickness:.2f} mm thick): at most {self.trinity_thickness_max:.2f} on a "
+                     f"{self.band.thickness_mm:g} mm band (a pass under the band's nose keeps clear of its crown)")
+        if self.dip_mm or self.strands > 1 or self.rope:
+            p.append("trinity knots take no dip, double or rope")
+        if not 0.3 <= self.knot_ratio <= 0.7:
+            p.append(f"knot ratio {self.knot_ratio:g}: 0.3..0.7")
+        if not 5.0 <= self.knot_pad_deg <= 80.0:
+            p.append(f"pad {self.knot_pad_deg:g}°: 5..80° either side of the head")
+        if not 0.5 <= self.knot_tail_mm <= 10.0:
+            p.append(f"tail {self.knot_tail_mm:g} mm: 0.5..10")
+        if self.trinity_width < self.band.width_mm:
+            p.append(f"knot width {self.trinity_width:g} mm: at least the band's {self.band.width_mm:g}")
+        if p:
+            return p
+        lay = self.trinity_layout()
+        R, c = lay["R"], self.knot_ratio
+        inner = math.sqrt(3.0) * R * (1 - c)                                # between the three inner passes
+        if inner < self.trinity_ribbon + knotwork.KNOT_GAP_MIN_MM:
+            p.append(f"the knot's centre closes: its three inner passes are {inner:.2f} mm apart for a {self.trinity_ribbon:g} mm "
+                     f"ribbon (needs {self.trinity_ribbon + knotwork.KNOT_GAP_MIN_MM:g}): a wider knot, a narrower ribbon or a smaller ratio")
+        clear = (lay["y_c"] - 0.5 * R * (1 - c) - self.trinity_ribbon / 2) - lay["y_pad"]   # the inner passes past the nose's tip
+        if clear < KNOT_NOSE_CLEAR_MM:
+            p.append(f"the knot's inner passes come within {clear:.2f} mm of the nose under the head (need {KNOT_NOSE_CLEAR_MM:g}): "
+                     f"a wider knot or a narrower ribbon")
+        if self.trinity_width > 2 * self.band.width_mm:
+            p.append(f"knot width {self.trinity_width:g} mm: at most twice the band's")
+        end_deg = (SLOT_END_MM / 2) * self.deg_per_mm
+        if lay["theta_1"] + 3.0 > self.split_span_deg - end_deg:
+            p.append(f"the tails end {lay['theta_1']:.1f}° from the head, where the slot has closed (span {self.split_span_deg:g}°): "
+                     f"a longer split span, a shorter tail or a smaller pad")
+        if self.tapered and self.taper_from_deg < lay["theta_1"] + 2.0:
+            p.append(f"the taper starts {self.taper_from_deg:g}° from the head, inside the knot (to {lay['theta_1']:.1f}°)")
+        if p:
+            return p
+        for side, lace in zip((1, -1), self.trinity_laces()):
+            if lace.problems:
+                p.append(f"{'+' if side > 0 else '-'}θ knot: " + "; ".join(lace.problems))
+                break
+        if not p:
+            flat, solid = self.trinity_bend_radii()
+            if flat < self.trinity_ribbon / 2 + 0.1:
+                p.append(f"the knot's strand bends to a {flat:.2f} mm radius in the surface, tighter than its {self.trinity_ribbon:g} mm "
+                         f"ribbon turns (needs {self.trinity_ribbon / 2 + 0.1:.2f}): a wider knot, a narrower ribbon or a smaller ratio")
+            if solid < self.trinity_thickness / 2 + 0.1:
+                p.append(f"the knot's strand rises and falls on a {solid:.2f} mm radius, tighter than its {self.trinity_thickness:.2f} mm "
+                         f"thickness turns (needs {self.trinity_thickness / 2 + 0.1:.2f}): a wider knot or a thinner ribbon")
         return p
 
     def _validate_rope(self) -> list[str]:
@@ -739,14 +1225,64 @@ class ShankSpec:
                 p.append(f"the {self.rope} strands make {m.body_count} bodies, not one ring: bring them closer (--rope-offset)")
         return p
 
+    def _validate_knot(self) -> list[str]:
+        p = []
+        if self.knot != "plait":
+            return [f"knot {self.knot!r}: plait is the pattern there is"]
+        if not 2 <= self.knot_strands <= 4:
+            p.append(f"plait of {self.knot_strands} strands: 2..4")
+        if not (1 <= self.knot_repeats <= 12 and self.knot_repeats == int(self.knot_repeats)):
+            p.append(f"plait repeats {self.knot_repeats!r}: a whole number, 1..12 round the ring")
+        if self.knot_profile not in ("flat", "round"):
+            p.append(f"knot profile {self.knot_profile!r}: flat or round")
+        t, w = self.knot_thickness, self.knot_width
+        floor = tables.FLOORS["wall_good"]
+        if t < floor:
+            p.append(f"a strand would be {t:.2f} mm thick (half the band's {self.band.thickness_mm:g} mm plus the "
+                     f"{knotwork.KNOT_FUSE_MM:g} mm fuse); at least {floor:g} mm: a band {2 * floor - knotwork.KNOT_FUSE_MM:g} mm thick or more")
+        if self.knot_profile == "flat" and w < floor:
+            p.append(f"strand width {w:g} mm: at least {floor:g} mm")
+        if 2 * self.knot_amplitude < w:
+            p.append(f"{self.knot_strands} strands {w:g} mm wide do not weave in a {self.band.width_mm:g} mm band: "
+                     f"at least {2 * w:g} mm wide")
+        if not 10.0 <= self.band.inner_diameter_mm <= 25.0:
+            p.append(f"inner diameter {self.band.inner_diameter_mm:.2f} mm is outside 10..25 mm")
+        if self.tapered or self.dip_mm or self.strands > 1 or self.split_mm:
+            p.append("a knot takes no taper, dip, double or split")
+        if p:
+            return p
+        lace = self.knot_layout()
+        p += lace.problems
+        least = w + knotwork.KNOT_GAP_MIN_MM
+        tight = [(k, d) for k, d in knotwork.pair_openings(self.knot_strand_set()).items() if d < least]
+        if tight:
+            k, d = min(tight, key=lambda kd: kd[1])
+            p.append(f"strands {k[0]} and {k[1]} part by only {d:.2f} mm between crossings; {least:g} mm "
+                     f"({knotwork.KNOT_GAP_MIN_MM:g} mm clear) keeps the weave open: a wider band, narrower strands or fewer of them")
+        if not p:
+            m = self.design_mesh()
+            if m.body_count != 1:
+                p.append(f"the {self.knot_strands} strands make {m.body_count} bodies, not one ring")
+        return p
+
     def warnings(self) -> list[str]:
-        return [] if self.rope else list(self.band.warnings())
+        if self.rope:
+            return []
+        if self.knot:
+            w = []
+            ang = knotwork.plait_crossing_angle_deg(self.knot_amplitude, self.knot_repeats, self.wrap_length_mm)
+            if ang < knotwork.KNOT_ANGLE_MIN_DEG:
+                w.append(f"the strands cross at {ang:.0f}°: a shallow weave fuses them over long runs (more repeats, or a wider band)")
+            return w
+        return list(self.band.warnings())
 
     def wall_floor(self) -> float:
         """The ray-cast thickness floor: the material floor, or 0.8 x the thinnest station's edge
         (a rope: 0.8 x a strand's diameter)."""
         if self.rope:
             return min(tables.FLOORS["wall_marginal"], 0.8 * self.rope_strand_mm)
+        if self.knot:
+            return min(tables.FLOORS["wall_marginal"], 0.8 * self.knot_thickness)
         thin = min(self.section_spec(t).edge_thickness_mm for t in (0.0, 180.0))
         return min(tables.FLOORS["wall_marginal"], 0.8 * thin)
 
@@ -758,6 +1294,17 @@ class ShankSpec:
                     f"centres {self.rope_offset:.2f} mm off the centreline (r {self.rope_centre_radius:.3f}); overall "
                     f"{self.overall_width_mm:.2f} wide, {2 * (self.rope_offset + self.rope_radius):.2f} thick\n"
                     f"  {self.rope_stations} stations; wrap length {self.wrap_length_mm:.3f} mm; design volume {self.design_volume_mm3():.2f} mm³")
+        if self.knot == "plait":
+            lace = self.knot_layout()
+            section = (f"round wires {self.knot_thickness:g} mm" if self.knot_profile == "round"
+                       else f"ribbons {self.knot_width:g} wide x {self.knot_thickness:g} thick (corners {min(b.edge_round, self.knot_thickness / 2):g})")
+            return (f"{self.stem}: {b.label}, inner Ø {b.inner_diameter_mm:.3f}\n"
+                    f"  {self.knot} of {self.knot_strands} {section}, {self.knot_repeats} repeat{'s' if self.knot_repeats != 1 else ''} round the ring: "
+                    f"{len(lace.crossings)} crossings, {lace.count(0)} on each strand, over and under in turn; "
+                    f"rise {self.knot_rise:.3f} mm either way about r {self.knot_mid_radius:.3f}, fused {knotwork.KNOT_FUSE_MM:g} mm; "
+                    f"crossing angle {knotwork.plait_crossing_angle_deg(self.knot_amplitude, self.knot_repeats, self.wrap_length_mm):.0f}°\n"
+                    f"  envelope {self.overall_width_mm:g} wide x {b.thickness_mm:g} thick (bore r {b.bore_radius_mm:.3f}, outer r {b.outer_radius_mm:.3f}); "
+                    f"{self.knot_points} samples per strand; wrap length {self.wrap_length_mm:.3f} mm; design volume {self.design_volume_mm3():.2f} mm³")
         line = (f"{self.stem}: {b.profile} {b.label}, inner Ø {b.inner_diameter_mm:.3f}\n"
                 f"  head: width {b.width_mm:g} thickness {b.thickness_mm:g}; bottom: width {self.width_bottom:g} "
                 f"thickness {self.thickness_bottom:g}; full section to {self.taper_from_deg:g}° then a cosine ease")
@@ -768,6 +1315,14 @@ class ShankSpec:
                      + ", ".join(f"{a:g}°" for a in self.bridges_deg) + f" ({self.bridge_mm:g} mm)")
         if self.split_mm:
             line += f"\n  split: a {self.split_shape} slot {self.split_mm:g} mm wide at the head, closing by ±{self.split_span_deg:g}°"
+        if self.trinity:
+            lay = self.trinity_layout()
+            lace = self.trinity_laces()[0]
+            line += (f"\n  trinity knots on the shoulders: trefoil R {lay['R']:.2f} (ratio {self.knot_ratio:g}) centred {lay['y_c'] * self.deg_per_mm:.1f}° from the head, "
+                     f"{len(lace.crossings)} self-crossings at {lace.crossings[0].angle_deg:.0f}°; ribbon {self.trinity_ribbon:g} wide x "
+                     f"{self.trinity_thickness:.2f} thick, lifting {self.trinity_thickness - knotwork.KNOT_FUSE_MM:.2f} mm to pass over itself; "
+                     f"lobes {self.trinity_width:g} mm across either side of the band's nose under the head (to ±{self.knot_pad_deg:g}°); "
+                     f"tails to {lay['theta_1']:.1f}°")
         line += (f"\n  {self.stations} stations x {SECTION_POINTS} points; wrap length {self.wrap_length_mm:.3f} mm; "
                  f"overall width {self.overall_width_mm:.2f} mm; design volume {self.design_volume_mm3():.2f} mm³")
         rounded, overcut = self.sharp_edge_round_mm3(), self.opening_overcut_mm3()
@@ -779,6 +1334,49 @@ class ShankSpec:
 
 
 # ---- outlines ----------------------------------------------------------------------------------
+def loft_ring(stations: list[tuple[float, "numpy.ndarray"]], first_ring=None, last_ring=None, first_cap=None, last_cap=None):
+    """An open loft round the axis: (angle, (SECTION_POINTS, 2) outline in (r, z)) stations joined
+    vertex to vertex, capped at both ends. `first_ring` / `last_ring` ((SECTION_POINTS, 3) vertices
+    in the outline's order) replace the end stations' vertices, `first_cap` / `last_cap` ((t, 3)
+    index triangles) the caps' triangulation: the exact ring and cap of the body that continues
+    the loft, so the two meet in one identical face."""
+    import numpy as np
+    import trimesh
+    m = SECTION_POINTS
+    verts = []
+    for a, rz in stations:
+        c, s_ = math.cos(math.radians(a)), math.sin(math.radians(a))
+        verts.append(np.column_stack([rz[:, 0] * c, rz[:, 0] * s_, rz[:, 1]]))
+    if first_ring is not None:
+        verts[0] = np.asarray(first_ring, float)
+    if last_ring is not None:
+        verts[-1] = np.asarray(last_ring, float)
+    V = np.vstack(verts)
+    faces = []
+    for i in range(len(stations) - 1):
+        a0 = i * m + np.arange(m)
+        b0 = a0 + m
+        an, bn = np.roll(a0, -1), np.roll(b0, -1)
+        faces.append(np.column_stack([a0, an, bn]))
+        faces.append(np.column_stack([a0, bn, b0]))
+    F = np.vstack(faces)
+    tri0 = np.asarray(first_cap, int) if first_cap is not None else _outline_triangles(_rz(verts[0], stations[0][0]))
+    tri1 = np.asarray(last_cap, int) if last_cap is not None else _outline_triangles(_rz(verts[-1], stations[-1][0]))
+    F = np.vstack([F, tri0[:, ::-1], tri1 + (len(stations) - 1) * m])
+    mesh = trimesh.Trimesh(V, F, process=False)
+    trimesh.repair.fix_winding(mesh)
+    if mesh.volume < 0:
+        mesh.invert()
+    return mesh
+
+
+def _rz(ring, angle_deg: float):
+    """(r, z) of a vertex ring at a meridian angle."""
+    import numpy as np
+    c, s_ = math.cos(math.radians(angle_deg)), math.sin(math.radians(angle_deg))
+    return np.column_stack([ring[:, 0] * c + ring[:, 1] * s_, ring[:, 2]])
+
+
 def outline_points(poly, n: int, start: tuple[float, float], phase: float = 0.0):
     """`n` points equally spaced along a shapely polygon's exterior, counter-clockwise, the first
     one `phase` steps past where the outline passes closest to `start`; (n, 2) array."""
@@ -882,6 +1480,12 @@ def wrap_bar(bar, wrap_length: float):
     mesh = trimesh.Trimesh(mesh.vertices, remap[mesh.faces], process=False)
     mesh.update_faces(mesh.nondegenerate_faces())
     mesh.remove_unreferenced_vertices()
+    if not mesh.is_watertight:
+        # a bar read back from float32 STL: a vertex a hair off its twin leaves a slit at the seam
+        # (a trinity shank, 2026-11-01); merging within 0.01 µm closes it without moving a surface
+        mesh.merge_vertices(digits_vertex=5)
+        mesh.update_faces(mesh.nondegenerate_faces(height=1e-7))
+        mesh.remove_unreferenced_vertices()
     return mesh
 
 
@@ -903,66 +1507,9 @@ def tube_along(path, radius: float, closed: bool, points: int = ROPE_POINTS, up=
     section's frame is parallel-transported (no twist of its own) or, with `up`, the direction
     `up` projected off the tangent - a frame that depends on the local tangent alone, so a
     periodic path gets a periodic tube (a rope strand: the ring's axis is `up`; parallel transport
-    comes back from a turn rotated, and the bar's two cuts no longer matched - 2026-10-30)."""
-    import numpy as np
-    import trimesh
-    P = np.asarray(path, float)
-    n = len(P)
-    if closed:
-        T = np.roll(P, -1, axis=0) - np.roll(P, 1, axis=0)
-    else:
-        T = np.gradient(P, axis=0)
-    T /= np.linalg.norm(T, axis=1)[:, None]
-    N = np.zeros_like(T)
-    if up is not None:
-        u = np.asarray(up, float) / np.linalg.norm(up)
-        N = u[None, :] - T * (T @ u)[:, None]
-        if (np.linalg.norm(N, axis=1) < 1e-6).any():
-            raise ValueError("tube_along: the path runs along `up`")
-        N /= np.linalg.norm(N, axis=1)[:, None]
-    else:
-        # parallel transport: start with any normal, rotate it along with the tangent
-        a = np.array([0.0, 0.0, 1.0]) if abs(T[0][2]) < 0.9 else np.array([1.0, 0.0, 0.0])
-        N[0] = a - T[0] * (a @ T[0])
-        N[0] /= np.linalg.norm(N[0])
-        for i in range(1, n):
-            b = np.cross(T[i - 1], T[i])
-            s = np.linalg.norm(b)
-            if s < 1e-12:
-                N[i] = N[i - 1]
-            else:
-                b /= s
-                c = float(np.clip(T[i - 1] @ T[i], -1.0, 1.0))
-                ang = math.atan2(s, c)
-                v = N[i - 1]
-                N[i] = v * math.cos(ang) + np.cross(b, v) * math.sin(ang) + b * (b @ v) * (1 - math.cos(ang))
-            N[i] -= T[i] * (N[i] @ T[i])
-            N[i] /= np.linalg.norm(N[i])
-    B = np.cross(T, N)
-    ang = np.arange(points) * 2 * math.pi / points
-    ring = np.cos(ang)[:, None, None] * N[None, :, :] + np.sin(ang)[:, None, None] * B[None, :, :]   # (points, n, 3)
-    V = (P[None, :, :] + radius * ring).transpose(1, 0, 2).reshape(-1, 3)                            # station-major
-    m = points
-    faces = []
-    last = n if closed else n - 1
-    for i in range(last):
-        a0 = i * m + np.arange(m)
-        b0 = ((i + 1) % n) * m + np.arange(m)
-        an, bn = np.roll(a0, -1), np.roll(b0, -1)
-        faces.append(np.column_stack([a0, bn, an]))
-        faces.append(np.column_stack([a0, b0, bn]))
-    F = np.vstack(faces)
-    if not closed:
-        c0, c1 = len(V), len(V) + 1
-        V = np.vstack([V, P[0], P[-1]])
-        idx = np.arange(m)
-        F = np.vstack([F, np.column_stack([np.full(m, c0), np.roll(idx, -1), idx]),
-                       np.column_stack([np.full(m, c1), (n - 1) * m + idx, (n - 1) * m + np.roll(idx, -1)])])
-    mesh = trimesh.Trimesh(V, F, process=False)
-    trimesh.repair.fix_winding(mesh)                      # the caps' sense against the sides'
-    if mesh.volume < 0:
-        mesh.invert()
-    return mesh
+    comes back from a turn rotated, and the bar's two cuts no longer matched - 2026-10-30).
+    knotwork.sweep_along with a round section."""
+    return knotwork.sweep_along(path, knotwork.wire_profile(2 * radius, points), closed, up)
 
 
 # ---- the gate ---------------------------------------------------------------------------------

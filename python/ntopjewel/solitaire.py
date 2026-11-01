@@ -42,6 +42,9 @@ from . import band as bandmod, gems, geom, heads, shank as shankmod, tables
 
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
 HEAD_ANGLE_DEG = 90.0
+KNOT_PAD_CLEAR_MM = 0.5          # a knot solitaire: the band's nose tip lies this far beyond the head's feet along the ring
+BURIED_ARCH_DEG = 4.0            # arches off: the stubs sit this far either side of the head ...
+BURIED_ARCH_RADIUS_MM = 0.7      # ... this fat (they must survive the opening's erosion), inside the band's thickness
 WEDGE_EXTRA_DEG = 2.0           # the arch is cut 2° past its tangent ray (it departs from the band by < 0.01 mm there)
 BEAD_CORNER_INSET = 0.15        # as features.py: bead centre this many radii inside the edge corner
 BEAD_PITCH = 2.2                # centre to centre, in bead radii
@@ -71,6 +74,32 @@ class SolitaireSpec:
     def __post_init__(self):
         if self.shank is not None and self.shank.band != self.band:
             raise ValueError("the shank's band must be the solitaire's band (its head section)")
+        if self.shank is not None and self.shank.knot == "trinity":
+            # the band under the head runs out to a nose between the knot's lobes: its tip must clear
+            # the head's feet along the ring; the arches and their milgrain give way to the knots
+            from dataclasses import fields
+            self.milgrain = False
+            need = self.knot_pad_deg_needed()
+            if self.shank.knot_pad_deg < need - 1e-6 or not self.shank.knot_pad_set:
+                kw = {f.name: getattr(self.shank, f.name) for f in fields(self.shank) if f.name != "_cache"}
+                kw["knot_pad_deg"], kw["knot_pad_set"] = need, True
+                self.shank = shankmod.ShankSpec(**kw)
+
+    @property
+    def knot(self) -> str:
+        return self.shank.knot if self.shank is not None else ""
+
+    @property
+    def arches(self) -> bool:
+        """Cathedral arches between the shank and the head: every solitaire but the knotwork one."""
+        return not self.knot
+
+    def knot_pad_deg_needed(self) -> float:
+        """How far the band must run either side of the head before a knot's nose: past everything
+        of the head along the ring by KNOT_PAD_CLEAR_MM, so the knots hug the head without touching
+        it (reference ring 01)."""
+        r_m = self.band.bore_radius_mm + self.band.thickness_mm / 2
+        return round(math.degrees((self.head_half_length() + KNOT_PAD_CLEAR_MM) / r_m), 2)
 
     @property
     def shank_blend(self) -> float:
@@ -88,7 +117,7 @@ class SolitaireSpec:
     @property
     def shaped(self) -> bool:
         return self.shank is not None and (self.shank.tapered or bool(self.shank.dip_mm) or self.shank.strands > 1
-                                           or bool(self.shank.split_mm) or bool(self.shank.rope))
+                                           or bool(self.shank.split_mm) or bool(self.shank.rope) or bool(self.shank.knot))
 
     @property
     def bead_head_gap(self) -> float:
@@ -290,7 +319,9 @@ class SolitaireSpec:
         sh = self.shank_spec.notebook_inputs(shank_path, "")
         ins = {"Shank Path": sh["Shank Path"], "Wrap Length": sh["Wrap Length"], "Slot Path": slot_path}
         ins.update({k: band_ins[k] for k in BAND_FOR_ARCHES})
-        ins["Edge Round"], ins["Edge Round Inward"] = sh["Edge Round"], sh["Edge Round Inward"]   # 0 for a rope
+        ins["Edge Round"], ins["Edge Round Inward"] = sh["Edge Round"], sh["Edge Round Inward"]   # 0 for a rope or a knot
+        if not self.arches:                                           # the buried stubs: short along the axis, in a fat torus
+            ins.update({"Z Top": 0.5, "Z Bottom": -0.5, "Dome Tube Radius": 2.0})
         if self.outline:                                              # Seat Path, Clearance, Prongs Path + the rail numbers
             head = self.placed_head.notebook_inputs(seat_path, prongs_path)
         elif self.bezel:                                              # Seat Path, Clearance, Windows Path, Wall, Bezel Bottom/Top
@@ -300,12 +331,8 @@ class SolitaireSpec:
         head["Head Blend"] = head.pop("Blend Radius")                 # the block's own blend, named for this notebook
         ins.update(head)
         px, pz = self.pivot
-        a = self.arch()
-        ins.update({"Pivot X": round(px, 4), "Pivot Z": round(pz, 4),
-                    "Arch Centre X": round(a["cx"], 4), "Arch Centre Y": round(a["cy"], 4),
-                    "Arch Centre Y Minus": round(-a["cy"], 4), "Arch Radius": round(a["R"], 4),
-                    "Arch Dome Ring Radius": round(a["dome_ring"], 4), "Arch Cut Radius": round(a["r_cut"], 4),
-                    "Wedge Angle": round(a["wedge_deg"], 4), "Wedge Angle Minus": round(-a["wedge_deg"], 4)})
+        ins.update({"Pivot X": round(px, 4), "Pivot Z": round(pz, 4)})
+        ins.update(self.arch_inputs())
         ins.update(self.bead_inputs())
         ins.update({"Engraving Path": engraving_path, "Engraving Wrap Length": round(self.engraving_wrap_length, 4),
                     "Shank Blend": round(self.shank_blend, 4)})
@@ -321,18 +348,34 @@ class SolitaireSpec:
         """The slot cutter the notebook subtracts from the arches (ring frame, from inside the bore
         to above the arches' crest), or the speck far outside the ring when the shank is not split."""
         from . import engrave
-        if not self.split:
+        if not self.split or self.knot:                                   # a knot shank: the band under the head is whole
             return engrave.dummy_mesh(self.band.outer_radius_mm)
         return self.shank.slot_cutter(self.band.bore_radius_mm - 1.0, self.arch()["crest"] + 2.0)
+
+    def _head_feet(self):
+        """The placed head's lowest metal: the vertices within 0.8 mm of its base, in the head frame."""
+        ph = self.placed_head
+        m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
+        low = m.vertices[:, 2] <= m.vertices[:, 2].min() + 0.8
+        return m.vertices[low]
 
     def head_foot_half_span(self) -> float:
         """How far the placed head's lowest metal reaches across the band (the head frame's x) within
         0.8 mm of its base: what a split's slot must stay narrower than for the head to bridge it."""
         import numpy as np
+        return float(np.abs(self._head_feet()[:, 0]).max())
+
+    def head_foot_half_length(self) -> float:
+        """How far the placed head's lowest metal reaches along the ring (the head frame's y)."""
+        import numpy as np
+        return float(np.abs(self._head_feet()[:, 1]).max())
+
+    def head_half_length(self) -> float:
+        """How far the placed head reaches along the ring at all (the head frame's y)."""
+        import numpy as np
         ph = self.placed_head
         m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
-        low = m.vertices[:, 2] <= m.vertices[:, 2].min() + 0.8
-        return float(np.abs(m.vertices[low, 0]).max())
+        return float(np.abs(m.vertices[:, 1]).max())
 
     @property
     def engraving_wrap_length(self) -> float:
@@ -355,6 +398,27 @@ class SolitaireSpec:
             return engrave.dummy_mesh(self.band.bore_radius_mm)
         g = self.engraving.engrave_geometry()
         return engrave.text_mesh(self.text, g["height"], self.engrave_depth_mm, g["radius"], g["side"], font=self.font)
+
+    def arch_inputs(self) -> dict:
+        """The arches' numbers - or, with the arches off (a knot shank), two stubs buried in the band
+        under the head: 0.7 mm cylinders about points 4° either side of the head at mid-thickness,
+        0.5 mm each way along the axis (Z Top / Z Bottom feed only the arches now), inside a fat
+        torus and a 10° wedge, cut by nothing (the cut radius inside the bore). The notebook needs
+        no conditional and its opening chain has a body to mesh; the independent model builds the
+        same stub (ring_parts hollows it to a 0.1 mm wall). Buried, it changes nothing."""
+        if self.arches:
+            a = self.arch()
+            return {"Arch Centre X": round(a["cx"], 4), "Arch Centre Y": round(a["cy"], 4),
+                    "Arch Centre Y Minus": round(-a["cy"], 4), "Arch Radius": round(a["R"], 4),
+                    "Arch Dome Ring Radius": round(a["dome_ring"], 4), "Arch Cut Radius": round(a["r_cut"], 4),
+                    "Wedge Angle": round(a["wedge_deg"], 4), "Wedge Angle Minus": round(-a["wedge_deg"], 4)}
+        b = self.band
+        r_m = b.bore_radius_mm + b.thickness_mm / 2
+        ang = math.radians(BURIED_ARCH_DEG)
+        return {"Arch Centre X": round(r_m * math.cos(ang), 4), "Arch Centre Y": round(-r_m * math.sin(ang), 4),
+                "Arch Centre Y Minus": round(r_m * math.sin(ang), 4), "Arch Radius": BURIED_ARCH_RADIUS_MM,
+                "Arch Dome Ring Radius": BURIED_ARCH_RADIUS_MM, "Arch Cut Radius": round(b.bore_radius_mm - 1.0, 4),
+                "Wedge Angle": 10.0, "Wedge Angle Minus": -10.0}
 
     def bead_inputs(self) -> dict:
         """Start beads for the two polar arrays (each runs counter-clockwise about its arch centre):
@@ -412,8 +476,8 @@ class SolitaireSpec:
         p = self.shank_spec.validate() + self.placed_head.validate()
         if self.shank is not None:
             sh = self.shank
-            if sh.rope:
-                p.append("a rope shank under a head: not yet (the head and the arches want a band to sit on)")
+            if sh.rope or sh.knot == "plait":
+                p.append(f"a {'rope' if sh.rope else 'plait'} shank under a head: not yet (the head and the arches want a band to sit on)")
             if sh.dip_mm or sh.strands > 1:
                 p.append("a contoured, chevron or double shank under a head: not yet (the head is placed on a band centred on the mid-plane)")
             if sh.split_mm and not p:
@@ -445,6 +509,8 @@ class SolitaireSpec:
         if self.has_engraving:
             p += [q for q in self.engraving.validate() if q not in p]
         p += heads.blend_problems(self.shank_blend, self.band.edge_thickness_mm)
+        if not self.arches:
+            return p
         if not 30 <= self.shoulder_deg <= 75:
             p.append("shoulder angle outside 30-75°")
             return p
@@ -478,6 +544,8 @@ class SolitaireSpec:
         for a in gate.SHAPE_ANGLES_DEG:
             d_head = abs((a + 180.0) % 360.0 - 180.0)
             d_text = abs(((a - ENGRAVING_TURN_DEG) + 180.0) % 360.0 - 180.0)
+            if self.knot and self.shank.trinity_section(a):                  # inside the knots and the band's nose
+                continue
             if d_head > wedge and d_text > text_half:
                 out.append(a)
         return out
@@ -490,10 +558,12 @@ class SolitaireSpec:
                 f"  placement: girdle at r {self.girdle_radius:.3f}, culet {self.finger_clear} mm above the bore, "
                 f"{'lowest metal' if self.floored else 'feet'} at r {self.girdle_radius + low:.3f}; "
                 f"quarter-turn about (x {px:.3f}, z {pz:.3f}) ∥ Y\n"
-                f"  arch: gothic, tangent to the band at ±{self.shoulder_deg:g}°, radius {a['R']:.3f} about "
-                f"({a['cx']:.3f}, ±{-a['cy']:.3f}); crest at r {a['crest']:.3f} ({a['rise']:.2f} mm above the band)"
-                + (f"\n  milgrain: {len(self.beads()['angles'])} beads of r {self.bead_radius_mm} mm per arch edge (x4), "
-                   f"{self.beads()['spacing']:.3f}° apart" if self.milgrain else "\n  milgrain: off")
+                + (f"  arch: gothic, tangent to the band at ±{self.shoulder_deg:g}°, radius {a['R']:.3f} about "
+                   f"({a['cx']:.3f}, ±{-a['cy']:.3f}); crest at r {a['crest']:.3f} ({a['rise']:.2f} mm above the band)"
+                   + (f"\n  milgrain: {len(self.beads()['angles'])} beads of r {self.bead_radius_mm} mm per arch edge (x4), "
+                      f"{self.beads()['spacing']:.3f}° apart" if self.milgrain else "\n  milgrain: off") if self.arches else
+                   f"  arches and milgrain: off - the band runs {self.shank.knot_pad_deg:g}° either side of the head (which reaches "
+                   f"{self.head_half_length():.2f} mm along the ring) into the knots' noses")
                 + (f"\n  engraving: {self.text!r} {self.engrave_side}, {self.engraving.engrave_geometry()['height']:.2f} mm high, "
                    f"{self.engrave_depth_mm} mm deep, centred opposite the head" if self.has_engraving else "")
                 + f"\n  blends: head {self.placed_head.blend:g} mm, head into shank {self.shank_blend:g} mm")
@@ -586,6 +656,7 @@ def ring_parts(v: dict, envelope, prongs=None, windows=None, beads: bool = True,
     t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
     lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
     inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2     # midway between the bounds SolitaireSpec.arch() computes
+    inner = min(inner, float(v["Arch Radius"]) - 0.1)                          # a buried stub (arches off): a 0.1 mm wall
     if shank_mesh is None:
         shank_mesh = shank_from_inputs(v)
     shank = ops.union([shank_mesh, arches_with_slot(v, inner, slot)] + ([bead_mesh(v)] if beads else []))
@@ -736,9 +807,9 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
                                      + (f"; {pocket['stray_area_mm2']:.1f} mm² stray" if pocket["stray_area_mm2"] > 0.05 else "")))
     from .band import blended_design_volume_check
     overcut = sh.opening_overcut_mm3() + sh.sharp_edge_round_mm3()           # the shank's rounds as nTop's opening cuts them
-    if spec.split:                                                           # and the arches' slot edges, which nTop rounds
+    if spec.split and spec.arches and sh.edge_round > 0:                     # and the arches' slot edges, which nTop rounds
         a = spec.arch()
-        overcut += geom.sharp_edge_round_mm3(arches_with_slot(spec.notebook_inputs(""), a["inner"], spec.slot_mesh()), b.edge_round)
+        overcut += geom.sharp_edge_round_mm3(arches_with_slot(spec.notebook_inputs(""), a["inner"], spec.slot_mesh()), sh.edge_round)
     c = blended_design_volume_check(float(design.volume) - overcut, spec.blend_volume_mm3(), ntop_vol, 3.0)
     if overcut and c.status != gate.INCOMPLETE:
         c.detail += f" [less {overcut:.2f} mm³ nTop's opening takes off the shank's rounds and the slot's edges]"

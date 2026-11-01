@@ -105,6 +105,7 @@ python -m ntopjewel api build solitaire_outline                        # once: t
 python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-width 8.9 --stone-depth 4.6 --material glass --engrave Makena
 python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank (Phase 3 step 1d)
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot runs under the head, through the arches
+python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: trinity knots on the shoulders
 ```
 
 The shank is always the bar Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
@@ -119,8 +120,19 @@ and its fillets in the bar, and the arches are cut by the same slot swept in the
 before their own opening rounds the cut; the head must bridge the slot (its lowest metal
 reaches `head_foot_half_span` either side of the centre - 2.07 mm for the round head's lower
 rail - so the slot may be at most that less 0.3 mm, twice), and the bore check runs beside the
-slot. Contoured, double and rope shanks under a head are refused for now (the arches and the
-head placement assume a band centred on the mid-plane).
+slot. `--knot trinity` on a split shank (reference ring 01; `ring-band` has the knot itself)
+replaces the arches: the band runs either side of the head out to a nose between the knot's
+lobes - as far as the head reaches along the ring plus 0.5 mm (`SolitaireSpec.knot_pad_deg_needed`,
+set on the `ShankSpec` unless `--knot-pad` asked for more) - and the arches and their milgrain
+are off: the notebook keeps no conditional, so the arch inputs become two 0.7 mm stubs buried
+in the band 4° either side of the head (`arch_inputs`: Z Top/Bottom ±0.5, a 2 mm dome tube, a
+10° wedge, the cut inside the bore; catalogs 0.7.1 / 0.3.1 widened their ranges for them, no
+rebuild), which the opening chain can mesh and which change nothing; the independent model
+builds the same stub with a 0.1 mm wall. Slot Path is a speck (the band under the head is
+whole), Edge Round 0 (the knot shank's rounds are all in its bar), the gate's section angles
+skip the knots, and the design volume takes no slot-edge term. Contoured, double, rope and
+plait shanks under a head are refused for now (the arches and the head placement assume a band
+centred on the mid-plane).
 
 A non-round `--shape` runs `solitaire_outline.ntop`. `--engrave TEXT` cuts it inside the shank
 (`--engrave-side outside` for the outside), centred opposite the head, 0.3 mm deep, letter height

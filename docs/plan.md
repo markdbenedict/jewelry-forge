@@ -27,7 +27,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct, `ring_features.ntop` committed; print + cast waits for the kit (printer/resin being bought) |
 | 2 — custom-block library | `ntop/blocks/`: stone seat, prong heads (round, outline, V-prongs), bezel; gem bodies (round, oval, pear, cushion, emerald, marquise); the solitaire assembly (cathedral arches, milgrain, engraving) | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | software half PASSED 29 Oct (round US 5-7, every fancy shape, pear and marquise with V-prongs, bezels offline); the print is what remains (band profile / bead / groove / wrap as library blocks deferred to Phase 3 step 1) |
-| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands) and 1c (split and rope shanks) written; tapered shank, rope and split PASSED in nTop (30-31 Oct); the edge-round opening found never to have built, fixed in every notebook and calibrated (31 Oct: band 0.00 %, solitaire −0.08 %); next 1d, the solitaire on a shaped shank |
+| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands), 1c (split and rope shanks) and 1d (the solitaire on a tapered or split shank) PASSED in nTop (30 Oct - 1 Nov); the edge-round opening found never to have built, fixed in every notebook and calibrated (31 Oct: band 0.00 %, solitaire −0.08 %); 1e Celtic knotwork written (1 Nov): the plait band and ring 01's trinity-knot shank and solitaire, offline green, real runs pending |
 | 4 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
 | 5 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–3 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
 | 6 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
@@ -212,9 +212,44 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    side for the round head's lower rail), and the bore check runs beside the slot. Contoured,
    double and rope shanks under a head are refused until the head placement and the arches
    follow them. Catalogs 0.7 / 0.3 (Shank Path, Wrap Length, Slot Path in; the five
-   primitive-band inputs out). *Real check:* rebuild the three solitaires; `solitaire --size 6
-   --length 6.5` (plain, now from a bar) must match as before, then `--width-bottom 2.4
-   --thickness-bottom 1.2`, then `--split 1.6 --split-span 80`.
+   primitive-band inputs out). **Real check 1 Nov: all three PASSED** (the plain round from a
+   bar, the tapered and the split solitaire). 1e *(written 1 Nov, offline green, real run
+   pending)* **Celtic knotwork** (`knotwork.py`): strands interlaced in the ring's developed
+   surface, with the one rule every Celtic knot obeys - at each crossing one strand over, one
+   under, alternating along every strand (the over/under of each strand's first crossing solved
+   so every crossing is consistent; a diagram that cannot alternate is refused). The interlace is
+   a radial law: a strand sits at mid-depth between crossings and rises or sinks by h at each
+   (a cosine from crossing to crossing), the over strand's inner face 0.1 mm inside the under
+   strand's outer face so they fuse into one casting; strands are ribbons (rounded rectangle,
+   `ribbon_profile`) or round wires swept along their centrelines (`sweep_along`; the rope's
+   `tube_along` is now a round case of it), in the bar frame for nTop and the ring frame for the
+   model. First pattern, the **plait band** (`shank --knot plait --knot-strands 2..4
+   --knot-repeats R [--strand-width w] [--knot-profile round]`): n sinusoids phased 2π/n, the
+   band's width and thickness its envelope (strand thickness (T + 0.1)/2, two stacked at a
+   crossing make T; bore and outer Ø exact). Gated as a rope is (sections off the bar wrapped,
+   e = 0, walls at 0.8 t); the three designs (2 and 3 ribbons, 4 wires) pass offline, the bar
+   wrapped matches the ring-frame model to 0.01 % and 0.013 mm. Second, the **trinity knot**
+   (reference ring 01): a triquetra woven from a split shank's two halves on each shoulder -
+   the trefoil curve (three lobes, three self-crossings at radius R) with its down-shank lobe
+   opened and led out as the halves by cubic tails that narrow the half's section into the
+   knot's ribbon (0.9 x 0.7 T), the other two lobes flanking the band under the head, which
+   ends in a nose that enters the knot's head-side crossing. `shank --split ... --knot trinity
+   [--knot-width --knot-thickness --knot-ratio --knot-tail --knot-pad]` builds it as a band;
+   `solitaire --split ... --knot trinity` puts a head on it: the arches and milgrain give way to
+   the knots (the arch inputs become stubs buried in the band under the head - no notebook
+   change, catalogs 0.7.1 / 0.3.1 only widen ranges), the band under the head is sized from the
+   head's reach along the ring, the gate skips the knots' angles. What it took (all 1 Nov): the
+   full-lift "bore" law bent the ribbon tighter than its thickness; a sweep that passes over
+   itself is no manifold (two pieces sharing one ring and cap); overlaps drawn a hair apart left
+   needle faces at every junction (bodies now meet in one identical face); a strand station in a
+   loft's cap plane, and a pad station at the wrap's cut angle, broke the STL round trip
+   (stations kept off those planes; the fake's weld merges within 0.01 µm). Offline: the knot
+   shank and the ring-01 solitaire (US 6, 10 x 5 marquise) pass their gates through the simulated
+   nTop. *Real check:* `shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3
+   --knot-repeats 4` and `shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 100
+   --knot trinity` (no rebuild: the same `ring_shank.ntop`), then `solitaire --size 6 --shape
+   marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity` (no rebuild:
+   `solitaire_outline.ntop` as built for 1d; the catalogs' wider ranges need none). Then step 2.
 2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.
