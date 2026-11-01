@@ -2,7 +2,7 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --bezel ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_bezel.ntop
-version: 0.2.2   # .1: the edge-round opening re-distanced (nj.add_opening, 2026-10-30); .2: the arches opened apart from the band (2026-10-31); same inputs, rebuild the notebook
+version: 0.3.0   # 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
 title: 'Solitaire (any stone, bezel_head): gothic cathedral arches, arch milgrain,
   optional engraving'
 output:
@@ -11,18 +11,18 @@ output:
   units: mm^3
   doc: Volume Integral of 1 over the ring; checked against the independent ring (solitaire.design_mesh).
 inputs:
-  Outer Radius:
+  Shank Path:
+    type: text
+    doc: Absolute path of the shank bar STL (ntopjewel.shank.ShankSpec.bar_mesh - the band unrolled, X radial, Y along the ring, Z axial; plain or shaped), written into the run directory.
+  Wrap Length:
     type: scalar
     units: mm
-    min: 5.0
-    max: 25.0
-    doc: Bore radius + thickness at the mid-plane.
-  Bore Radius:
-    type: scalar
-    units: mm
-    min: 5.0
-    max: 15.0
-    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+    min: 10.0
+    max: 200.0
+    doc: Remap Cylindrical's Y mapping length, one turn of the bar (the mid-wall circumference).
+  Slot Path:
+    type: text
+    doc: Absolute path of the split's slot cutter STL (ntopjewel.shank.ShankSpec.slot_cutter, the slot swept in the ring frame through the arches), or a speck far outside the ring when the shank is not split.
   Z Top:
     type: scalar
     units: mm
@@ -35,31 +35,12 @@ inputs:
     min: -7.5
     max: -0.75
     doc: -Width/2.
-  Dome Ring Radius:
-    type: scalar
-    units: mm
-    min: -200.0
-    max: 25.0
-    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be
-      small or negative for shallow domes.
   Dome Tube Radius:
     type: scalar
     units: mm
     min: 0.5
     max: 500.0
     doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
-  Comfort Ring Radius:
-    type: scalar
-    units: mm
-    min: 5.0
-    max: 600.0
-    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
-  Comfort Tube Radius:
-    type: scalar
-    units: mm
-    min: 0.5
-    max: 500.0
-    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
   Edge Round:
     type: scalar
     units: mm

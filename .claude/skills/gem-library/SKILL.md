@@ -103,7 +103,24 @@ python -m ntopjewel solitaire --size 6 --dry-run                       # placeme
 python -m ntopjewel solitaire --size 6 --deliver --metal sterling      # PASSED -> Jewelry\Solitaires\<stem>\ + print-scaled STL
 python -m ntopjewel api build solitaire_outline                        # once: the fancy-stone notebook (embeds stone_seat + outline_head)
 python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-width 8.9 --stone-depth 4.6 --material glass --engrave Makena
+python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank (Phase 3 step 1d)
+python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot runs under the head, through the arches
 ```
+
+The shank is always the bar Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
+`<stem>.bar.stl` in the run directory; `Shank Path` / `Wrap Length` inputs, catalogs 0.7 / 0.3):
+Import Mesh → Implicit from Mesh → opened by the edge round → Remap Cylindrical = Band Body; the
+arches are opened on their own and united with it. Plain by default; `--width-bottom`,
+`--thickness-bottom`, `--taper-from` (≥ the arches' wedge + 3°, i.e. 50° at the default
+shoulder) taper it towards the bottom of the finger (stem `..._w4-2.4_t1.3-1.2_...`). `--split`
+splits it (`--split-span`, `--split-shape` as the `shank` command): the halves carry the slot
+and its fillets in the bar, and the arches are cut by the same slot swept in the ring frame
+(`<stem>.slot.stl`, the `Slot Path` input; a speck far outside the ring when there is no split)
+before their own opening rounds the cut; the head must bridge the slot (its lowest metal
+reaches `head_foot_half_span` either side of the centre - 2.07 mm for the round head's lower
+rail - so the slot may be at most that less 0.3 mm, twice), and the bore check runs beside the
+slot. Contoured, double and rope shanks under a head are refused for now (the arches and the
+head placement assume a band centred on the mid-plane).
 
 A non-round `--shape` runs `solitaire_outline.ntop`. `--engrave TEXT` cuts it inside the shank
 (`--engrave-side outside` for the outside), centred opposite the head, 0.3 mm deep, letter height
@@ -118,9 +135,13 @@ between the bore and the culet; `--shoulder` (default 45°) is where the arch le
 to just short of the head: `--no-milgrain`, `--bead-radius` (0.3), `--bead-pitch` (2.2 radii).
 The head is the `prong_head` block turned a quarter about +Y so its axis points out along +X;
 the seat cutter goes through the shank as well. Gate: closed, one shell, walls on the band
-(x < -2), bore Ø, bore closed at the top (the culet/feet do not break into it), extents, stone
-fits / ledges / drop-in measured in the head frame, **arch milgrain** (every designed bead's apex
-found by a ray), volume vs nTop and vs the independent ring.
+(x < -2, the shank's floor), bore Ø, bore closed at the top (the culet/feet do not break into
+it), extents, stone fits / ledges / drop-in measured in the head frame, **arch milgrain** (every
+designed bead's apex found by a ray), **section shape** on the plain part of the shank (the
+gate's 12 angles less the arches' wedge about the head and the engraving's span opposite it,
+against `ShankSpec.gate_section`: a shank built plain where a taper was designed fails here),
+volume vs nTop and vs the independent ring (design + blend − the chamfer nTop's opening puts on
+the shank's rounds).
 
 ## Blends (every head and solitaire notebook)
 

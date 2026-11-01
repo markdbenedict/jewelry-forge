@@ -195,6 +195,23 @@ def add_opening(h: NotebookHelper, body: str, inward_var: str, outward_var: str,
     return opened
 
 
+def add_wrapped_shank(h: NotebookHelper, path_var: str, wrap_var: str, inward_var: str, outward_var: str,
+                      tolerance_var: str, label: str = "Shank") -> str:
+    """The shank Python wrote as a bar (ntopjewel.shank.ShankSpec.bar_mesh: X radial, Y along the
+    ring, Z axial): Import Mesh -> Implicit from Mesh -> the opening by the edge round (add_opening,
+    on the bar, where the field is exact) -> Remap Cylindrical Body (Y mapping length = wrap_var).
+    Returns the id of the remap block, the ring-shaped shank."""
+    imp = h.add(f"{label} Mesh", mask="import_mesh", must=IMPORT_MESH)
+    h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
+    body = h.add(f"{label} Bar", mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
+    h.wire(imp, body, ["Mesh"])
+    opened = add_opening(h, body, inward_var, outward_var, tolerance_var)
+    wrapped = h.add(label, mask="remap_cylindrical", must=REMAP_CYLINDRICAL)
+    h.wire(opened, wrapped, ["Body"])
+    h.wire(wrap_var, wrapped, ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"])
+    return wrapped
+
+
 def add_profiled_band(h: NotebookHelper, extra=None) -> str:
     """Outer/Bore cylinders -> subtract -> ∩ dome torus ∩ comfort torus -> the opening by the edge
     round (offset -e, re-distance, offset +e: add_opening). Expects the BAND_INPUTS variables

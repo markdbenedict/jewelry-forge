@@ -70,15 +70,8 @@ def _body(h, p, values, test_output):
         h.real_var(name, float(values[name]), "mm")
     out_var = nj.path_variable(h, "Output Path", test_output)
 
-    imp = h.add("Shank Mesh", mask="import_mesh", must=nj.IMPORT_MESH)
-    h.wire(bar_path, imp, ["Path", "File Path", "File", "Filename"])
-    body = h.add("Shank Bar", mask="implicit_from_mesh", must=nj.IMPLICIT_FROM_MESH)
-    h.wire(imp, body, ["Mesh"])
-    opened = nj.add_opening(h, body, h.blocks["Edge Round Inward"], h.blocks["Edge Round"], h.blocks["Mesh Tolerance"])
-    wrapped = h.add("Shank", mask="remap_cylindrical", must=nj.REMAP_CYLINDRICAL)
-    h.wire(opened, wrapped, ["Body"])
-    h.wire(h.blocks["Wrap Length"], wrapped, ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"])
-
+    wrapped = nj.add_wrapped_shank(h, bar_path, h.blocks["Wrap Length"], h.blocks["Edge Round Inward"], h.blocks["Edge Round"],
+                                   h.blocks["Mesh Tolerance"])
     ring = h.wrap_var("Shank Body", wrapped)
     integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, h.blocks["Mesh Tolerance"])
     return integ, export

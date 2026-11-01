@@ -38,7 +38,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import band as bandmod, gems, geom, heads, tables
+from . import band as bandmod, gems, geom, heads, shank as shankmod, tables
 
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
 HEAD_ANGLE_DEG = 90.0
@@ -65,11 +65,30 @@ class SolitaireSpec:
     engrave_depth_mm: float = 0.3
     font: dict | None = None
     shank_blend_mm: float | None = None     # nTop blend radius where the head meets the shank; default tables, 0 = sharp
+    shank: "shankmod.ShankSpec | None" = None   # the shank's shape (taper ...); None = the band all round
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        if self.shank is not None and self.shank.band != self.band:
+            raise ValueError("the shank's band must be the solitaire's band (its head section)")
 
     @property
     def shank_blend(self) -> float:
         return tables.SETTINGS["blend_radius_mm"] if self.shank_blend_mm is None else float(self.shank_blend_mm)
+
+    @property
+    def shank_spec(self) -> "shankmod.ShankSpec":
+        """The shank Python writes as a bar for the notebook: the given shape, or the band all round."""
+        if self.shank is not None:
+            return self.shank
+        if "plain_shank" not in self._cache:
+            self._cache["plain_shank"] = shankmod.ShankSpec(self.band)
+        return self._cache["plain_shank"]
+
+    @property
+    def shaped(self) -> bool:
+        return self.shank is not None and (self.shank.tapered or bool(self.shank.dip_mm) or self.shank.strands > 1
+                                           or bool(self.shank.split_mm) or bool(self.shank.rope))
 
     @property
     def bead_head_gap(self) -> float:
@@ -265,9 +284,13 @@ class SolitaireSpec:
 
     # ---- the notebook's numbers ----------------------------------------------------------------
     def notebook_inputs(self, seat_path: str, output_path: str | None = None, *, prongs_path: str = "",
-                        engraving_path: str = "", windows_path: str = "") -> dict:
-        ins = self.band.notebook_inputs("")
-        ins.pop("Output Path")
+                        engraving_path: str = "", windows_path: str = "", shank_path: str = "", slot_path: str = "") -> dict:
+        from .nb_solitaire import BAND_FOR_ARCHES
+        band_ins = self.band.notebook_inputs("")
+        sh = self.shank_spec.notebook_inputs(shank_path, "")
+        ins = {"Shank Path": sh["Shank Path"], "Wrap Length": sh["Wrap Length"], "Slot Path": slot_path}
+        ins.update({k: band_ins[k] for k in BAND_FOR_ARCHES})
+        ins["Edge Round"], ins["Edge Round Inward"] = sh["Edge Round"], sh["Edge Round Inward"]   # 0 for a rope
         if self.outline:                                              # Seat Path, Clearance, Prongs Path + the rail numbers
             head = self.placed_head.notebook_inputs(seat_path, prongs_path)
         elif self.bezel:                                              # Seat Path, Clearance, Windows Path, Wall, Bezel Bottom/Top
@@ -289,6 +312,27 @@ class SolitaireSpec:
         if output_path is not None:
             ins["Output Path"] = output_path
         return ins
+
+    @property
+    def split(self) -> bool:
+        return self.shank is not None and bool(self.shank.split_mm)
+
+    def slot_mesh(self):
+        """The slot cutter the notebook subtracts from the arches (ring frame, from inside the bore
+        to above the arches' crest), or the speck far outside the ring when the shank is not split."""
+        from . import engrave
+        if not self.split:
+            return engrave.dummy_mesh(self.band.outer_radius_mm)
+        return self.shank.slot_cutter(self.band.bore_radius_mm - 1.0, self.arch()["crest"] + 2.0)
+
+    def head_foot_half_span(self) -> float:
+        """How far the placed head's lowest metal reaches across the band (the head frame's x) within
+        0.8 mm of its base: what a split's slot must stay narrower than for the head to bridge it."""
+        import numpy as np
+        ph = self.placed_head
+        m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
+        low = m.vertices[:, 2] <= m.vertices[:, 2].min() + 0.8
+        return float(np.abs(m.vertices[low, 0]).max())
 
     @property
     def engraving_wrap_length(self) -> float:
@@ -334,7 +378,8 @@ class SolitaireSpec:
                 "Bead Start X Minus": round(xm, 4), "Bead Start Y Minus": round(ym, 4)}
 
     def design(self) -> dict:
-        return {"band": self.band.design(), "head": self.placed_head.design(), "finger_clear_mm": self.finger_clear,
+        return {"band": self.band.design(), "shank": self.shank_spec.design(), "head": self.placed_head.design(),
+                "finger_clear_mm": self.finger_clear,
                 "shoulder_deg": self.shoulder_deg, "crown_below_girdle_mm": self.crown_below_girdle_mm,
                 "arch": "gothic-tangent", "milgrain": self.milgrain,
                 "bead_radius_mm": self.bead_radius_mm if self.milgrain else None,
@@ -349,7 +394,8 @@ class SolitaireSpec:
         if "blend_volume" not in self._cache:
             self._cache["blend_volume"] = blend_estimate(self.notebook_inputs(""), self.head.seat.envelope(),
                                                          prongs=self.placed_head.prongs_mesh() if self.outline else None,
-                                                         windows=self.placed_head.windows_mesh() if self.bezel else None)
+                                                         windows=self.placed_head.windows_mesh() if self.bezel else None,
+                                                         shank_mesh=self.shank_spec.design_mesh(), slot=self.slot_mesh())
         return self._cache["blend_volume"]
 
     @property
@@ -357,12 +403,28 @@ class SolitaireSpec:
         from . import runs
         b, s = self.band, self.head.stone
         setting = "bezel" if self.bezel else f"{self.prong_count}prong"
-        return (f"solitaire_{b.profile}_{b.label}_{setting}_{s.stem[len('stone_'):]}_"
+        shape = f"_{self.shank_spec.shape_tag}" if self.shaped else ""
+        return (f"solitaire_{b.profile}_{b.label}{shape}_{setting}_{s.stem[len('stone_'):]}_"
                 f"{runs.spec_id(self.design())}")
 
     # ---- checks on the design ---------------------------------------------------------------
     def validate(self) -> list[str]:
-        p = self.band.validate() + self.placed_head.validate()
+        p = self.shank_spec.validate() + self.placed_head.validate()
+        if self.shank is not None:
+            sh = self.shank
+            if sh.rope:
+                p.append("a rope shank under a head: not yet (the head and the arches want a band to sit on)")
+            if sh.dip_mm or sh.strands > 1:
+                p.append("a contoured, chevron or double shank under a head: not yet (the head is placed on a band centred on the mid-plane)")
+            if sh.split_mm and not p:
+                span = self.head_foot_half_span()
+                if sh.split_mm / 2 + 0.3 > span:
+                    p.append(f"the slot ({sh.split_mm:g} mm) is too wide for the head to bridge: its foot reaches "
+                             f"{span:.2f} mm either side of the centre, the slot may be {max(2 * (span - 0.3), 0):.1f} mm at most")
+            wedge = self.shoulder_deg + WEDGE_EXTRA_DEG
+            if sh.tapered and sh.taper_from_deg < wedge + 3.0:
+                p.append(f"the taper starts {sh.taper_from_deg:g}° from the head, inside the arches (to ±{wedge:g}°): "
+                         f"--taper-from at least {wedge + 3:g}")
         if self.finger_clear < WALL_FLOOR:
             p.append(f"{self.finger_clear} mm of metal under the culet is below the wall floor {WALL_FLOOR} mm")
         if self.floored:
@@ -403,11 +465,28 @@ class SolitaireSpec:
                 p.append(f"only {len(bd['angles'])} beads fit on each arch edge before the head: smaller beads or a lower shoulder angle")
         return p
 
+    def free_angles(self) -> list[float]:
+        """The gate's section-shape angles (gate.SHAPE_ANGLES_DEG) that see the plain shank: clear of
+        the arches' wedge (and the head at 0°), and of the engraving opposite the head."""
+        from . import gate
+        wedge = self.shoulder_deg + WEDGE_EXTRA_DEG + 5.0
+        text_half = 0.0
+        if self.has_engraving:
+            m = self.engraving_mesh()                                        # the text unwrapped: Y is along the ring
+            text_half = math.degrees((m.bounds[1][1] - m.bounds[0][1]) / 2 / self.engraving.engrave_geometry()["wrap_radius"]) + 5.0
+        out = []
+        for a in gate.SHAPE_ANGLES_DEG:
+            d_head = abs((a + 180.0) % 360.0 - 180.0)
+            d_text = abs(((a - ENGRAVING_TURN_DEG) + 180.0) % 360.0 - 180.0)
+            if d_head > wedge and d_text > text_half:
+                out.append(a)
+        return out
+
     def describe(self) -> str:
         a = self.arch()
         px, pz = self.pivot
         low = self.placed_head.lowest_z() if self.floored else self.placed_head.layout()["z_base"]
-        return (f"{self.stem}\n  {self.band.describe()}\n  {self.placed_head.describe()}\n"
+        return (f"{self.stem}\n  {self.shank_spec.describe() if self.shaped else self.band.describe()}\n  {self.placed_head.describe()}\n"
                 f"  placement: girdle at r {self.girdle_radius:.3f}, culet {self.finger_clear} mm above the bore, "
                 f"{'lowest metal' if self.floored else 'feet'} at r {self.girdle_radius + low:.3f}; "
                 f"quarter-turn about (x {px:.3f}, z {pz:.3f}) ∥ Y\n"
@@ -476,17 +555,40 @@ def wrapped_engraving(v: dict, engraving):
     return w
 
 
+def shank_from_inputs(v: dict):
+    """The shank the notebook's Shank Path points at, wrapped the way Remap Cylindrical wraps it
+    (shank.wrap_bar): what the notebook builds when no spec is at hand (the simulated nTop)."""
+    import trimesh
+    return shankmod.wrap_bar(trimesh.load(str(v["Shank Path"]), force="mesh"), float(v["Wrap Length"]))
+
+
+def arches_with_slot(v: dict, inner: float, slot=None):
+    """The arches less the split's slot cutter (the mesh at Slot Path when not given; a speck far
+    outside the ring when the shank is not split, which changes nothing)."""
+    import trimesh
+    arch = arch_mesh(v, inner)
+    if slot is None and v.get("Slot Path"):
+        slot = trimesh.load(str(v["Slot Path"]), force="mesh")
+    if slot is None or not slot.bounds[0][0] < arch.bounds[1][0] or slot.bounds.T[1][0] > arch.bounds[1][1]:
+        return arch                                                         # no cutter, or one far outside
+    return trimesh.boolean.difference([arch, slot], engine="manifold")
+
+
 def ring_parts(v: dict, envelope, prongs=None, windows=None, beads: bool = True, cut_seat: bool = True,
-               ops: geom.Booleans = geom.SHARP):
+               ops: geom.Booleans = geom.SHARP, shank_mesh=None, slot=None):
     """(shank, placed head, placement, placed seat cutter) from the notebook's numbers: the bodies
     the notebook's blended join unites and the cut that follows it. `prongs` / `windows`: the
     meshes the notebook's Prongs Path / Windows Path point at (read from those paths when not
-    given). The head is built the way its block builds it (`ops` decides the blends)."""
+    given); `shank_mesh`: the band/shank body (the spec's independent sweep, or the bar at Shank
+    Path wrapped when not given). The head is built the way its block builds it (`ops` decides
+    the blends)."""
     import trimesh
     t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
     lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
     inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2     # midway between the bounds SolitaireSpec.arch() computes
-    shank = ops.union([geom.band_mesh(v), arch_mesh(v, inner)] + ([bead_mesh(v)] if beads else []))
+    if shank_mesh is None:
+        shank_mesh = shank_from_inputs(v)
+    shank = ops.union([shank_mesh, arches_with_slot(v, inner, slot)] + ([bead_mesh(v)] if beads else []))
     kind = heads.head_kind(v)
     if kind == "outline":
         if prongs is None:
@@ -507,12 +609,14 @@ def ring_parts(v: dict, envelope, prongs=None, windows=None, beads: bool = True,
 
 
 def ring_mesh(v: dict, envelope, cut_seat: bool = True, beads: bool = True, prongs=None, engraving=None,
-              engrave: bool = True, windows=None, ops: geom.Booleans = geom.SHARP):
+              engrave: bool = True, windows=None, ops: geom.Booleans = geom.SHARP, shank_mesh=None, slot=None):
     """The solitaire from the notebook's input numbers, in the notebook's order: shank ∪ placed
     head (blended in nTop by Shank Blend; `ops` decides), then the seat cutter and the engraving
-    subtracted. `engraving`: the mesh Engraving Path points at (read from it when not given)."""
+    subtracted. `engraving`: the mesh Engraving Path points at (read from it when not given);
+    `shank_mesh` as in ring_parts."""
     import trimesh
-    shank, head, place, cutter = ring_parts(v, envelope, prongs, windows, beads=beads, cut_seat=cut_seat, ops=ops)
+    shank, head, place, cutter = ring_parts(v, envelope, prongs, windows, beads=beads, cut_seat=cut_seat, ops=ops,
+                                            shank_mesh=shank_mesh, slot=slot)
     ring = ops.union([shank, head], float(v.get("Shank Blend", 0.0)))
     cuts = [cutter] if cut_seat else []
     if engrave and "Engraving Path" in v:
@@ -522,7 +626,7 @@ def ring_mesh(v: dict, envelope, cut_seat: bool = True, beads: bool = True, pron
     return ops.clean(ops.difference(ring, cuts))
 
 
-def blend_estimate(v: dict, envelope, prongs=None, windows=None) -> float:
+def blend_estimate(v: dict, envelope, prongs=None, windows=None, shank_mesh=None, slot=None) -> float:
     """What the ring's blends add (negative: remove), mm³, from the notebook's numbers: the head's
     own junctions where they are exposed (buried in the shank: already solid; inside the seat: cut
     away afterwards), its rounded edges against, plus the head-to-shank union."""
@@ -531,7 +635,7 @@ def blend_estimate(v: dict, envelope, prongs=None, windows=None) -> float:
     shank_blend = float(v.get("Shank Blend", 0.0))
     if float(hv["Blend Radius"]) <= 0 and shank_blend <= 0:
         return 0.0
-    shank, head, place, cutter = ring_parts(v, envelope, prongs, windows)
+    shank, head, place, cutter = ring_parts(v, envelope, prongs, windows, shank_mesh=shank_mesh, slot=slot)
     j = heads.blend_junctions(hv, envelope, prongs)
     exposed = {k: geom.exposed_segments(geom.transform_segments(seg, place), shank, cutter) for k, seg in j.items()}
     est = heads.blend_estimate(hv, envelope, prongs, junctions=exposed)
@@ -547,7 +651,8 @@ def design_mesh(spec: SolitaireSpec, ops: geom.Booleans = geom.SHARP):
         prongs = spec.placed_head.prongs_mesh() if spec.outline else None
         windows = spec.placed_head.windows_mesh() if spec.bezel else None
         mesh = ring_mesh(spec.notebook_inputs(""), spec.head.seat.envelope(), prongs=prongs,
-                         engraving=spec.engraving_mesh(), windows=windows, ops=ops)
+                         engraving=spec.engraving_mesh(), windows=windows, ops=ops, shank_mesh=spec.shank_spec.design_mesh(),
+                         slot=spec.slot_mesh())
         if key is None:
             return mesh
         spec._cache[key] = mesh
@@ -569,17 +674,24 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     def shank_rays(pts, n):                                                  # the shank away from the head
         keep = pts[:, 0] < -2.0
         return keep & text_filter(pts * flip, n * flip) if text_filter else keep
-    rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=min(WALL_FLOOR, 0.8 * b.edge_thickness_mm),
-                     wall_ray_filter=shank_rays)
+    sh = spec.shank_spec
+    free = spec.free_angles()
+
+    def shank_section(a):                                                    # the designed section, away from head, arches and text
+        return sh.gate_section(a) if any(abs((a - f + 180.0) % 360.0 - 180.0) < 1e-6 for f in free) else None
+    rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=sh.wall_floor(), wall_ray_filter=shank_rays,
+                     section_design=shank_section, section_tol_mm=bandmod.section_shape_tolerance(b.mesh_tolerance_mm))
     ring = gate.load_mesh(stl)
     r = np.hypot(ring.vertices[:, 0], ring.vertices[:, 1])
     bore = 2 * float(r.min())
     rep.checks.append(gate.Check("bore", abs(bore - b.inner_diameter_mm) <= 0.05,
                                  f"Ø {bore:.3f} vs {b.inner_diameter_mm:.3f} mm (about the ring axis)"))
-    hits, _, _ = ring.ray.intersects_location([[0.0, 0.0, 0.0]], [[1.0, 0.0, 0.0]], multiple_hits=False)
-    first = float(np.linalg.norm(hits[0])) if len(hits) else float("inf")
-    rep.checks.append(gate.Check("bore closed under the stone", abs(first - b.bore_radius_mm) <= 0.1,
-                                 f"from the axis towards the head, metal starts at r {first:.3f} (bore r {b.bore_radius_mm:.3f})"))
+    z_ray = (spec.shank.split_mm / 2 + 0.3) if spec.split else 0.0          # a split shank: through a half, not the slot
+    hits, _, _ = ring.ray.intersects_location([[0.0, 0.0, z_ray]], [[1.0, 0.0, 0.0]], multiple_hits=False)
+    first = float(np.hypot(hits[0][0], hits[0][1])) if len(hits) else float("inf")
+    rep.checks.append(gate.Check("bore closed under the stone", abs(first - b.bore_radius_at(z_ray)) <= 0.1,
+                                 f"from the axis towards the head{f' (z {z_ray:.2f}, beside the slot)' if z_ray else ''}, "
+                                 f"metal starts at r {first:.3f} (bore r {b.bore_radius_at(z_ray):.3f})"))
     design = design_mesh(spec)
     d = np.array(rep.extents_mm) - np.array(design.extents)
     tol = max(0.1, 2 * spec.head.mesh_tolerance_mm)
@@ -623,7 +735,14 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
                                      f"{pocket['text_area_mm2']:.1f} mm² of text, opposite the head"
                                      + (f"; {pocket['stray_area_mm2']:.1f} mm² stray" if pocket["stray_area_mm2"] > 0.05 else "")))
     from .band import blended_design_volume_check
-    rep.checks.append(blended_design_volume_check(float(design.volume), spec.blend_volume_mm3(), ntop_vol, 3.0))
+    overcut = sh.opening_overcut_mm3() + sh.sharp_edge_round_mm3()           # the shank's rounds as nTop's opening cuts them
+    if spec.split:                                                           # and the arches' slot edges, which nTop rounds
+        a = spec.arch()
+        overcut += geom.sharp_edge_round_mm3(arches_with_slot(spec.notebook_inputs(""), a["inner"], spec.slot_mesh()), b.edge_round)
+    c = blended_design_volume_check(float(design.volume) - overcut, spec.blend_volume_mm3(), ntop_vol, 3.0)
+    if overcut and c.status != gate.INCOMPLETE:
+        c.detail += f" [less {overcut:.2f} mm³ nTop's opening takes off the shank's rounds and the slot's edges]"
+    rep.checks.append(c)
     return rep
 
 
@@ -705,9 +824,14 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
         spec.placed_head.windows_mesh().export(str(windows))
     engraving = run_dir / f"{spec.stem}.engraving.stl"
     spec.write_engraving(engraving)
+    bar = run_dir / f"{spec.stem}.bar.stl"
+    spec.shank_spec.bar_mesh().export(str(bar))
+    slot = run_dir / f"{spec.stem}.slot.stl"
+    spec.slot_mesh().export(str(slot))
     stl = run_dir / f"{spec.stem}.stl"
     inputs = spec.notebook_inputs(str(envelope), str(stl), prongs_path=str(prongs) if spec.outline else "",
-                                  engraving_path=str(engraving), windows_path=str(windows) if spec.bezel else "")
+                                  engraving_path=str(engraving), windows_path=str(windows) if spec.bezel else "",
+                                  shank_path=str(bar), slot_path=str(slot))
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(inputs), run_dir, tag=spec.stem)
     try:

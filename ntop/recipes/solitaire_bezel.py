@@ -1,4 +1,4 @@
-"""`ntop/notebooks/solitaire_bezel.ntop` - any stone in a bezel_head on a profiled band, gothic
+"""`ntop/notebooks/solitaire_bezel.ntop` - any stone in a bezel_head on the shank Python writes as a bar (plain or tapered), gothic
 cathedral arches with milgrain, optional engraving. The body is ntopjewel.nb_solitaire (shared with
 solitaire.py and solitaire_outline.py).
 

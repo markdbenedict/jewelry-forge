@@ -96,12 +96,19 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     b = res["blocks"]
     assert nb.blocks[b["Prong Head"]]["wired"]["Seat Cutter"][0] == "Seat Local"
     assert nb.blocks[b["Placed Head"]]["wired"]["Transformation"][0] == "Placement"
-    # the band and the arches are each opened on their own (re-distanced), then united sharp with the milgrain rows
-    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shaped"] and "Band + Extra" not in b
-    assert nb.blocks[b["Arches Shrunk"]]["wired"]["Body"][0] == b["Shoulders"]
+    # the shank is the bar Python wrote: imported, opened on the bar (re-distanced), wrapped; the arches opened on
+    # their own; both united sharp with the milgrain rows
+    assert nb.blocks[b["Shank Mesh"]]["wired"]["Path"][0] == "Shank Path"
+    assert nb.blocks[b["Shank Bar"]]["wired"]["Mesh"][0] == b["Shank Mesh"]
+    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bar"] and "Band + Extra" not in b and "Outer" not in b
+    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Opened"] and nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
+    assert nb.variables["Band Body"]["wraps"] == b["Shank"]
+    assert nb.blocks[b["Slot Mesh"]]["wired"]["Path"][0] == "Slot Path" and nb.blocks[b["Slot Cutter"]]["wired"]["Mesh"][0] == b["Slot Mesh"]
+    assert nb.blocks[b["Split Arches"]]["wired"]["Primary Body"][0] == b["Shoulders"] and nb.blocks[b["Split Arches"]]["lists"]["Subtraction Bodies"] == [b["Slot Cutter"]]
+    assert nb.blocks[b["Arches Shrunk"]]["wired"]["Body"][0] == b["Split Arches"]
     assert nb.blocks[b["Arches Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
     assert nb.blocks[b["Arches"]]["wired"]["Body"][0] == b["Arches Shrunk Body"] and nb.blocks[b["Arches"]]["wired"]["Distance"][0] == "Edge Round"
-    assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Band Body"} <= set(nb.blocks[b["Shank"]]["lists"]["Bodies"])
+    assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Band Body"} <= set(nb.blocks[b["Shank Union"]]["lists"]["Bodies"])
     assert nb.blocks[b["Milgrain+"]]["wired"]["Axis"][0] == b["Beads+ Axis"]
     assert nb.inputs == mod.INPUT_ORDER and nb.output == "Volume" and nb.lint() == [] and res["warnings"] == []
 
@@ -182,3 +189,90 @@ def test_solitaire_outline_recipe_embeds_the_outline_head(tmp_path):
     assert nb.blocks[b["Outline Head"]]["wired"]["Seat Cutter"][0] == "Seat Local"
     assert b["Engraving"] in nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"]            # cut after the blended join
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
+
+
+# ---- Phase 3 step 1d: the solitaire on a shaped shank ----------------------------------------------
+def tapered(**kw):
+    from ntopjewel import shank
+    b = band.BandSpec(size=6, profile="court", mesh_tolerance_mm=0.05)
+    return spec(6, shank=shank.ShankSpec(b, width_bottom_mm=2.4, thickness_bottom_mm=1.2, **kw))
+
+
+def test_a_shaped_shank_under_the_head():
+    from ntopjewel import shank
+    s, plain = tapered(), spec(6)
+    assert s.validate() == [] and s.shaped and not plain.shaped
+    assert "_w4-2.4_t1.3-1.2_" in s.stem and s.stem != plain.stem
+    assert plain.shank_spec.band == plain.band and not plain.shank_spec.tapered                 # the band all round
+    v = s.notebook_inputs("S", "O", shank_path="B")
+    assert list(v) == list(catalog.load("solitaire").inputs)                                    # Shank Path, Wrap Length ... Output Path
+    assert v["Shank Path"] == "B" and v["Wrap Length"] == s.shank_spec.notebook_inputs("B")["Wrap Length"]
+    assert "Outer Radius" not in v and v["Z Top"] == 2.0                                         # the arches still read the band's numbers
+    assert tapered(taper_from_deg=40).validate()                                                 # inside the arches: refused
+    b = s.band
+    with pytest.raises(ValueError):
+        solitaire.SolitaireSpec(b, s.head, shank=shank.ShankSpec(band.BandSpec(size=7, profile="court", mesh_tolerance_mm=0.05)))
+    assert spec(6, shank=shank.ShankSpec(b, split_mm=1.6)).validate() == []                      # a split: allowed (its own test)
+    assert spec(6, shank=shank.ShankSpec(b, dip_mm=1.0)).validate()
+    assert spec(6, shank=shank.ShankSpec(b, rope=2)).validate()
+    ring = solitaire.design_mesh(s)
+    assert ring.is_watertight and ring.body_count == 1
+    assert ring.volume < solitaire.design_mesh(plain).volume - 20                                # the taper takes metal off the bottom
+    assert set(s.free_angles()) == {61.37, 91.37, 121.37, 151.37, 181.37, 211.37, 241.37, 271.37, 301.37}
+
+
+def test_tapered_solitaire_end_to_end_and_a_plain_shank_is_caught(fake_ntopcl, tmp_path, monkeypatch):
+    nb = tmp_path / "solitaire.ntop"
+    nb.write_bytes(b"fake")
+    res = solitaire.build(tapered(), tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+    assert (res.run_dir / f"{res.spec.stem}.bar.stl").exists() and "section shape" in {c.name for c in res.gate.checks}
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "plainshank")                                        # the bar's head section all round
+    bad = solitaire.build(tapered(), tmp_path / "out", notebook=nb)
+    assert bad.status == "failed" and "section shape" in {c.name for c in bad.gate.failures()}
+
+
+def test_cli_tapered_solitaire_dry_run(capsys):
+    from ntopjewel import cli
+    assert cli.main(["solitaire", "--size", "6", "--width-bottom", "2.4", "--thickness-bottom", "1.2", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "_w4-2.4_t1.3-1.2_" in out and "bottom: width 2.4 thickness 1.2" in out
+    assert cli.main(["solitaire", "--size", "6", "--width-bottom", "2.4", "--taper-from", "30", "--dry-run"]) == 1
+
+
+def split_shank(**kw):
+    from ntopjewel import shank
+    b = band.BandSpec(size=6, profile="court", mesh_tolerance_mm=0.05)
+    return spec(6, shank=shank.ShankSpec(b, split_mm=kw.pop("split_mm", 1.6), split_span_deg=kw.pop("split_span_deg", 80), **kw))
+
+
+def test_a_split_shank_under_the_head():
+    from ntopjewel import shank
+    s = split_shank()
+    assert s.validate() == [] and s.split and "_split1.6_" in s.stem
+    assert s.head_foot_half_span() == pytest.approx(2.075, abs=0.01)                               # the lower rail bridges the slot
+    assert split_shank(split_mm=4.0, split_span_deg=80).validate()                                   # wider than the foot: refused
+    cutter = s.slot_mesh()
+    assert cutter.is_watertight and cutter.bounds[1][0] > s.arch()["crest"] + 1.5 and abs(cutter.bounds[1][2]) == pytest.approx(0.8)
+    assert spec(6).slot_mesh().volume < 0.01                                                        # a speck when there is no split
+    ring = solitaire.design_mesh(s)
+    assert ring.is_watertight and ring.body_count == 1
+    assert ring.volume < solitaire.design_mesh(spec(6)).volume - 25                                 # the slot, through band and arches
+    v = s.notebook_inputs("S", "O", shank_path="B", slot_path="C")
+    assert v["Slot Path"] == "C" and list(v) == list(catalog.load("solitaire").inputs)
+
+
+def test_split_solitaire_end_to_end(fake_ntopcl, tmp_path):
+    nb = tmp_path / "solitaire.ntop"
+    nb.write_bytes(b"fake")
+    res = solitaire.build(split_shank(), tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+    assert (res.run_dir / f"{res.spec.stem}.slot.stl").exists()
+    detail = {c.name: c.detail for c in res.gate.checks}
+    assert "beside the slot" in detail["bore closed under the stone"] and "slot's edges" in detail["design volume"]
+
+
+def test_cli_split_solitaire_dry_run(capsys):
+    from ntopjewel import cli
+    assert cli.main(["solitaire", "--size", "6", "--split", "1.6", "--split-span", "80", "--dry-run"]) == 0
+    assert "_split1.6_" in capsys.readouterr().out

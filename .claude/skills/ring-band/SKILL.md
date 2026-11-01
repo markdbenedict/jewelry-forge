@@ -174,5 +174,6 @@ a rope `ring_shank_rope<strands>x<turns>_<label>_d<strand>_<spec id>`.
 
 ## Next in this family
 
-The solitaire's shank becomes a bar too (step 1d), so a head can sit on a tapered, split or
-contoured shank; Celtic knotwork last. All built as bars and wrapped the same way.
+The solitaire's shank is a bar too since step 1d (`solitaire --width-bottom ... --thickness-bottom
+...`, `--split ...`; `gem-library`); contoured, double and rope shanks under a head, then Celtic
+knotwork, come next - all built as bars and wrapped the same way.

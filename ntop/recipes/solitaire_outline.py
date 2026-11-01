@@ -1,6 +1,6 @@
-"""`ntop/notebooks/solitaire_outline.ntop` - a PEAR (or other fancy outline) in an outline_head on a
-profiled band, gothic cathedral arches with milgrain, optional engraving. The body is
-ntopjewel.nb_solitaire (shared with solitaire.py, the round-stone notebook).
+"""`ntop/notebooks/solitaire_outline.ntop` - a PEAR (or other fancy outline) in an outline_head on the
+shank Python writes as a bar (plain or tapered), gothic cathedral arches with milgrain, optional
+engraving. The body is ntopjewel.nb_solitaire (shared with solitaire.py, the round-stone notebook).
 
     python -m ntopjewel api build stone_seat ; python -m ntopjewel api build outline_head    # the blocks, first
     python -m ntopjewel api build solitaire_outline                                         # nTop open, Python Console open

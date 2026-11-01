@@ -147,6 +147,21 @@ def _add_band_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--tolerance", type=float, default=0.1, help="Mesh from Implicit Body tolerance (= 2 x voxel size), mm")
 
 
+def _add_taper_args(p: argparse.ArgumentParser) -> None:
+    """The shank's taper flags (the `shank` command and the solitaire share them)."""
+    p.add_argument("--width-bottom", type=float, help="width at the bottom of the finger, mm (default: no width taper)")
+    p.add_argument("--thickness-bottom", type=float, help="thickness at the bottom, mm (default: no thickness taper)")
+    p.add_argument("--taper-from", type=float, default=60.0, help="full section this far from the head (degrees), then the ease to the bottom")
+    p.add_argument("--stations", type=int, default=144, help="cross-sections round the ring")
+
+
+def _add_split_args(p: argparse.ArgumentParser) -> None:
+    """The split shank's flags (the `shank` command and the solitaire share them)."""
+    p.add_argument("--split", type=float, default=0.0, help="a slot this wide splits the band at the head, closing towards the bottom, mm")
+    p.add_argument("--split-span", type=float, default=90.0, help="--split: the slot reaches this far either side of the head, degrees")
+    p.add_argument("--split-shape", default="contour", choices=["contour", "chevron"], help="--split: the slot closes smoothly or in a V")
+
+
 def _band_spec(a: argparse.Namespace) -> band.BandSpec:
     return band.BandSpec(size=a.size, system=a.system, width_mm=a.width, thickness_mm=a.thickness,
                          profile=a.profile, dome_mm=a.dome, comfort_mm=a.comfort, edge_round_mm=a.edge_round,
@@ -324,10 +339,14 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
     else:
         head = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, clearance_mm=a.clearance,
                               mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
-    spec = solitaire.SolitaireSpec(_band_spec(a), head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder,
+    b = _band_spec(a)
+    shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom, taper_from_deg=a.taper_from,
+                              stations=a.stations, split_mm=a.split, split_span_deg=a.split_span, split_shape=a.split_shape)
+              if (a.width_bottom is not None or a.thickness_bottom is not None or a.split) else None)
+    spec = solitaire.SolitaireSpec(b, head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder,
                                    milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
                                    text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
-                                   engrave_depth_mm=a.engrave_depth, shank_blend_mm=a.shank_blend)
+                                   engrave_depth_mm=a.engrave_depth, shank_blend_mm=a.shank_blend, shank=shaped)
     probs = spec.validate()
     if probs:
         print("solitaire: problems: " + "; ".join(probs))
@@ -551,10 +570,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sk = sub.add_parser("shank", help="a shaped shank: the band tapering in width and thickness towards the bottom (ring_shank.ntop)")
     _add_band_args(sk)
-    sk.add_argument("--width-bottom", type=float, help="width at the bottom of the finger, mm (default: no width taper)")
-    sk.add_argument("--thickness-bottom", type=float, help="thickness at the bottom, mm (default: no thickness taper)")
-    sk.add_argument("--taper-from", type=float, default=60.0, help="full section this far from the head (degrees), then the ease to the bottom")
-    sk.add_argument("--stations", type=int, default=144, help="cross-sections round the ring")
+    _add_taper_args(sk)
     sk.add_argument("--dip", type=float, default=0.0, help="the band's centre leaves the mid-plane by this at the head, mm (+ towards +Z)")
     sk.add_argument("--dip-span", type=float, default=60.0, help="the dip reaches this far either side of the head, degrees")
     sk.add_argument("--dip-shape", default="contour", choices=["contour", "chevron"], help="a smooth bump or a V")
@@ -563,9 +579,7 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--mirror", action="store_true", help="--double: the second strand dips the other way (a wishbone)")
     sk.add_argument("--bridges", help="--double: angles where bars join the strands, e.g. 180,100,-100 (default 180)")
     sk.add_argument("--bridge", type=float, default=1.2, help="--double: a bridge's length round the ring, mm")
-    sk.add_argument("--split", type=float, default=0.0, help="a slot this wide splits the band at the head, closing towards the bottom, mm")
-    sk.add_argument("--split-span", type=float, default=90.0, help="--split: the slot reaches this far either side of the head, degrees")
-    sk.add_argument("--split-shape", default="contour", choices=["contour", "chevron"], help="--split: the slot closes smoothly or in a V")
+    _add_split_args(sk)
     sk.add_argument("--rope", type=int, default=0, help="a rope band: this many round strands (2 or 3) twisted round the ring instead of a profile")
     sk.add_argument("--rope-turns", type=int, default=10, help="--rope: twists round the ring (a whole number)")
     sk.add_argument("--rope-strand", type=float, default=1.2, help="--rope: a strand's diameter, mm")
@@ -663,6 +677,8 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--engrave-side", default="inside", choices=["inside", "outside"])
     so.add_argument("--engrave-height", type=float, help="letter height, mm (default: fits the band width)")
     so.add_argument("--engrave-depth", type=float, default=0.3)
+    _add_taper_args(so)                                           # a tapered and/or split shank under the head (Phase 3 step 1d)
+    _add_split_args(so)
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

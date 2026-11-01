@@ -17,7 +17,8 @@ alone, as nTop would.
 Knobs (environment variables) let a test make the fake misbehave the way a wrong notebook
 would, so the rejections are tested rather than assumed:
 
-  FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave (solitaire) | noblend (the blend radii ignored:
+  FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave | plainshank (solitaire: the bar's head section
+                      all round) | noblend (the blend radii ignored:
                       sharp junctions) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
                       rectangular section instead of the designed one (what a notebook that ignores the tori produces)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
@@ -190,14 +191,27 @@ def main(argv: list[str]) -> int:
     if "solitaire" in nb.name:
         import trimesh
         from ntopjewel import solitaire
-        if not Path(values["Seat Path"]).exists():
-            fail("Seat Mesh: file not found")
+        for key in ("Seat Path", "Shank Path"):
+            if not Path(values[key]).exists():
+                fail(f"{key.replace('Path', 'Mesh')}: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
+        if shape == "plainshank":
+            # a notebook that ignored the bar's shape: the head section revolved all round (the bar's
+            # section at Y = 0 swept about Z) - a tapered shank's gate must notice
+            import numpy as np
+            from ntopjewel import geom
+            bar = trimesh.load(str(values["Shank Path"]), force="mesh")
+            sec = bar.section(plane_origin=[0, 0, 0], plane_normal=[0, 1, 0])
+            loops = [np.asarray(l) for l in sec.discrete]
+            poly = max((trimesh.path.polygons.Polygon(l[:, [0, 2]]) for l in loops), key=lambda q: q.area)
+            shank_mesh = geom.revolve_section(poly, sections=360)
+        else:
+            shank_mesh = None                                               # the bar at Shank Path, wrapped
         mesh = solitaire.ring_mesh(values, envelope, cut_seat=shape != "noseat", beads=shape != "nobeads",
-                                   engrave=shape != "noengrave", ops=ops)
+                                   engrave=shape != "noengrave", ops=ops, shank_mesh=shank_mesh)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Band", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Ring", "Mesh", "Export Mesh"):
+        for name in ("Shank Mesh", "Shank Bar", "Shank", "Band Body", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Arches", "Ring", "Mesh", "Export Mesh"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

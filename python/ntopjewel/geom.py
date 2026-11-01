@@ -42,6 +42,26 @@ def section_polygon(v: dict, shape: str = "design", chamfer_mm: float = 0.0):
     return open_polygon(sec, float(v.get("Edge Round", 0.0)), chamfer_mm)
 
 
+SHARP_EDGE_DEG = 30.0       # a convex edge whose faces turn more than this is one an opening rounds
+
+
+def sharp_edge_round_mm3(mesh, e: float, min_deg: float = SHARP_EDGE_DEG) -> float:
+    """What an opening by e takes off a mesh's sharp convex edges: a ball of radius e rolled along
+    an edge whose faces turn by δ removes e² (tan(δ/2) - δ/2) per unit length; edges turning less
+    than `min_deg` (a round sampled in small steps) do not count."""
+    import numpy as np
+    if e <= 0:
+        return 0.0
+    ang = mesh.face_adjacency_angles
+    sharp = mesh.face_adjacency_convex & (ang > math.radians(min_deg))
+    if not sharp.any():
+        return 0.0
+    edges = mesh.face_adjacency_edges[sharp]
+    length = np.linalg.norm(mesh.vertices[edges[:, 0]] - mesh.vertices[edges[:, 1]], axis=1)
+    d = ang[sharp]
+    return float((e * e * (np.tan(d / 2) - d / 2) * length).sum())
+
+
 def polygon_revolved_volume(sec) -> float:
     """Pappus for a shapely polygon in (r, z) revolved about the z axis: V = 2π ∫∫ r dA, the
     polygon's first moment about the axis, exactly (holes subtracted)."""
