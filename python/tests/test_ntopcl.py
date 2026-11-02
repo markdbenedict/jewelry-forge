@@ -101,6 +101,20 @@ def test_run_uses_template_type_names(fake_ntopcl, band_notebook, tmp_path, monk
     assert (tmp_path / "out" / "templates" / "ring_band" / "input_template.json").exists()
 
 
+def test_an_input_the_notebook_lacks_is_refused(tmp_path):
+    """A notebook older than the catalog (a rebuild pending) must not run without the new input."""
+    tpl = tmp_path / "input_template.json"
+    tpl.write_text(json.dumps({"inputs": [{"name": "Shank Path", "type": "text"}, {"name": "Wrap Length", "type": "real"}]}))
+    ok = [ntopcl.make_input("Shank Path", "file_path", "a.stl"), ntopcl.make_input("Wrap Length", "scalar", 56.9, "mm")]
+    assert [e["type"] for e in ntopcl.apply_template_types(ok, tpl)] == ["text", "real"]
+    newer = ok + [ntopcl.make_input("Shank Path 2", "file_path", "b.stl")]
+    with pytest.raises(ntopcl.NtopclError, match="no input 'Shank Path 2'.*rebuild"):
+        ntopcl.apply_template_types(newer, tpl)
+    assert len(ntopcl.apply_template_types(newer, tpl, strict=False)) == 3
+    tpl.write_text(json.dumps({"inputs": []}))                                   # no template at all: nothing to check against
+    assert len(ntopcl.apply_template_types(newer, tpl)) == 3
+
+
 def test_run_with_relative_out_dir(fake_ntopcl, band_notebook, tmp_path, monkeypatch):
     """ntopcl is started inside out_dir, so relative out paths must be made absolute first."""
     monkeypatch.chdir(tmp_path)

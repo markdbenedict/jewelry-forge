@@ -26,15 +26,22 @@ Step 1b, the centreline (rings 04, 08): the band's centre may leave the mid-plan
 a smooth `contour` bump or a `chevron` V of `dip_mm`, over `dip_span_deg` either side of the head -
 and a shank may be two strands (`strands=2`): the same band stacked in z with a `gap_mm` between
 them, the second strand's dip the same way (nested chevrons) or mirrored (a wishbone), joined by
-bridges at `bridges_deg` (full-thickness bars `bridge_mm` long round the ring). Strands and
-bridges are united in the bar before it is written, and the independent sweep unites them in
-the ring frame (a bridge there is the sector the wrapped bar makes of it).
+bridges at `bridges_deg` (full-thickness bars `bridge_mm` long round the ring). Each strand goes
+in a bar of its own and the bridges in another, and nTop unites them (`bar_meshes`); the
+independent sweep unites them in the ring frame (a bridge there is the sector the wrapped bar
+makes of it).
 
 Step 1c: a split (`split_mm`: the halves lofted the whole way round, the slot's fillets in the
 bar) and a rope (`rope`: round strands twisted round the ring). Step 1e, Celtic knotwork
 (`knot`, knotwork.py): strands interlaced in the ring's surface - a plait of two to four ribbons
 (or round wires) weaving the whole way round, each strand rising over and sinking under the
 others at its crossings, the band's width and thickness its envelope.
+
+Bodies that cross or overlap each other travel to nTop in separate bars (up to BAR_SLOTS files,
+each clean on its own) and nTop's implicit union joins them: a mesh union of crossing bodies
+leaves faces micrometres apart along its seams, which float32 STL and nTop's import turned into
+a self-intersecting bar (the trinity shank, 2026-11-02). No bar carries a mesh union; the
+independent model (`design_mesh`) still unites in the ring frame, in memory, for the gate.
 """
 from __future__ import annotations
 
@@ -45,6 +52,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from . import band, catalog, config, gate, geom, knotwork, ntopcl, runs, tables
+from .nb_jewel import BAR_SLOTS, SLOT_NAMES, slot_name   # the notebook's bar inputs (ring_shank.ntop and the solitaires)
 
 BAR_OVERLAP_MM = 1.0        # the bar runs this far past the turn at both ends: the seam is inside material
 SECTION_POINTS = 256        # every station's outline resampled to this many points (lofted vertex to vertex)
@@ -63,10 +71,16 @@ KNOT_NOSE_JOIN_MM = 0.3     # the knot's head-side crossing lies this far inside
 KNOT_NOSE_CLEAR_MM = 0.25   # the knot's inner passes stay this clear of the nose's tip
 # A knot's strand is swept in two pieces (a sweep crossing itself is no manifold) that share one section ring
 # bit for bit, and the halves' lofts end in the strands' first and last rings the same way: bodies that meet in
-# one identical face unite cleanly, where overlaps drawn a hair apart left needle faces (2026-11-01).
+# one identical face unite cleanly in the independent model, where overlaps drawn a hair apart left needle
+# faces (2026-11-01). The bars nTop gets are different: there every piece runs PLUG_MM into the body that
+# continues it (plug_rings), because an implicit union of two bodies that share a face sees a zero-thickness
+# interface, and bodies that cross each other go in separate bars (bar_meshes).
 MIN_EDGE_MM = 2e-4          # every union's result has its shorter edges collapsed (geom.collapse_short_edges): nTop merges
-                            # "very close vertices" on import, and did so into a self-intersecting bar (the trinity shank,
-                            # edges of 1.5 µm, 2026-11-01); the split and rope bars it built cleanly had none under 75 µm
+                            # "very close vertices" on import (routine: an STL is a triangle soup), and edges of 1.5 µm
+                            # went with them (the trinity shank, 2026-11-01)
+PLUG_MM = 0.1               # a bar piece runs this far into the body that continues it (a knot's strand into its half, its other piece)
+PLUG_INSET = 0.04           # ... its section drawn in by this fraction over the plug, so the plug lies inside that body
+SPECK_MM = 0.05             # an unused bar slot imports a cube this big, inside the first bar's material (union_speck)
 KNOT_LIFT_MM = 0.1          # a trinity knot's ribbon runs this far above the bore (buried clear of the pad's bore where it enters it)
 KNOT_TAPER_MM = 1.5         # the tail narrows from the half's section to the knot's ribbon over this run
 PAD_STEP_DEG = 1.0          # stations along the pad a knot's lobes run into
@@ -401,21 +415,38 @@ class ShankSpec:
         rings, reversed_ = knotwork.sweep_rings(path, closed=False, up=up, profiles=sections)
         return dict(path=path, up=up, sections=sections, s=s, params=lace.params[0], rings=rings, reversed=reversed_)
 
-    def trinity_strand_ring(self, side: int) -> list:
-        """One shoulder's strand swept in the ring frame (trinity_path), in two pieces that share one
-        section ring and its cap triangles: a sweep that passes over itself is no manifold
-        (manifold3d left slivers in the union, 2026-11-01), so the strand is cut between its third
-        and fourth crossing passes - each piece then holds one pass of every crossing. The strand's
-        first and last caps are the ones the halves' lofts end in (trinity_end)."""
+    def trinity_cut(self, side: int) -> int:
+        """The station a shoulder's strand is cut at: between its third and fourth crossing passes
+        (a sweep that passes over itself is no manifold - manifold3d left slivers in the union,
+        2026-11-01), so each piece holds one pass of every crossing."""
         import numpy as np
         d = self.trinity_path(side)
         s, cs = d["s"], d["params"]
         half = len(cs) // 2
-        k = int(np.searchsorted(s, 0.5 * (cs[half - 1] + cs[half])))
+        return int(np.searchsorted(s, 0.5 * (cs[half - 1] + cs[half])))
+
+    def trinity_strand_ring(self, side: int) -> list:
+        """One shoulder's strand swept in the ring frame (trinity_path), in two pieces (trinity_cut)
+        that share one section ring and its cap triangles; the strand's first and last caps are the
+        ones the halves' lofts end in (trinity_end). The independent model's pieces: bodies that
+        meet in one identical face unite exactly."""
+        d = self.trinity_path(side)
+        k = self.trinity_cut(side)
         cut = knotwork.cap_triangles(d["sections"][k] if not d["reversed"] else d["sections"][k][::-1])
         first, last = self.trinity_end(side, "start"), self.trinity_end(side, "end")
         return [knotwork.mesh_from_rings(d["rings"][:k + 1], start_cap=first["strand_cap"], end_cap=cut),
                 knotwork.mesh_from_rings(d["rings"][k:], start_cap=cut, end_cap=last["strand_cap"])]
+
+    def trinity_strand_bars(self, side: int) -> list:
+        """The same two pieces for the notebook: each runs PLUG_MM into the body that continues it -
+        the half's loft at the strand's ends, the other piece at the cut - its section drawn in by
+        PLUG_INSET over the plug (plug_rings), so nTop's union sees an overlap, never a shared face
+        (a zero-thickness interface to an implicit union). The first piece travels with the lower
+        half's loft, the second with the upper's (bar_meshes): a piece and the half it does not
+        touch."""
+        d = self.trinity_path(side)
+        k = self.trinity_cut(side)
+        return [knotwork.mesh_from_rings(plug_rings(d["rings"][:k + 1])), knotwork.mesh_from_rings(plug_rings(d["rings"][k:]))]
 
     def trinity_end(self, side: int, end: str) -> dict:
         """Where a strand meets a half's loft: its first (`end` "start", the upper half) or last
@@ -529,16 +560,20 @@ class ShankSpec:
         """The band under the head, lofted round the axis over ±knot_pad_deg, a nose at each end."""
         return loft_ring([(float(a), self.pad_outline(a)) for a in self.pad_angles()])
 
+    def trinity_half_loft(self, k: int):
+        """Half k's loft in the ring frame (trinity_half_angles), clear of the knots: it ends in the
+        strands' end rings themselves (trinity_end) - the lower half (0) where the strands end, the
+        upper (1) where they start."""
+        angles = self.trinity_half_angles(k)
+        ends = ("start" if k == 1 else "end")                               # the strand starts in the upper half, ends in the lower
+        first, last = self.trinity_end(1, ends), self.trinity_end(-1, ends)
+        return loft_ring([(a, self.loft_outline(k, a, 0.5 * k)) for a in angles],
+                         first_ring=first["ring"], last_ring=last["ring"], first_cap=first["cap"], last_cap=last["cap"])
+
     def trinity_parts(self) -> list:
         """The bodies of the trinity shank in the ring frame: the two halves' lofts (clear of the
         knots), the two shoulders' strands and the pad."""
-        parts = []
-        for k in range(2):
-            angles = self.trinity_half_angles(k)
-            ends = ("start" if k == 1 else "end")                           # the strand starts in the upper half, ends in the lower
-            first, last = self.trinity_end(1, ends), self.trinity_end(-1, ends)
-            parts.append(loft_ring([(a, self.loft_outline(k, a, 0.5 * k)) for a in angles],
-                                   first_ring=first["ring"], last_ring=last["ring"], first_cap=first["cap"], last_cap=last["cap"]))
+        parts = [self.trinity_half_loft(k) for k in range(2)]
         for side in (1, -1):
             parts += self.trinity_strand_ring(side)
         parts.append(self.pad_ring())
@@ -863,33 +898,87 @@ class ShankSpec:
         path = np.column_stack([rz[:, 0] * np.cos(t), rz[:, 0] * np.sin(t), rz[:, 1]])
         return tube_along(path, self.rope_radius, closed=True, up=(0.0, 0.0, 1.0))
 
-    def bar_mesh(self):
-        """The unrolled shank for the notebook: every strand's bar and, for two strands, the
-        bridges (boxes along Y, one copy per turn the bar covers), united; a rope's strands
-        united; a split's halves united in the ring frame and unrolled (unwrap_ring: where the
-        halves cross, the bar frame's straight intersection line came out of the union as one
-        28 mm edge, which a wrap turns into a chord through the ring - 2026-10-30)."""
+    def bridge_boxes(self) -> list:
+        """A double band's bridges in the bar frame: boxes along Y, one copy per turn the bar
+        covers (bridge_spans)."""
         import trimesh
-        if self.rope:
-            return united([self.rope_tube_bar(k) for k in range(self.rope)])
-        if self.knot == "plait":
-            return united([self.knot_strand_bar(k) for k in range(self.knot_strands)])
-        if self.split_mm:                                                   # a trinity shank is a split shank too
-            return unwrap_ring(self.design_mesh(), self.wrap_length_mm)
-        parts = [self.strand_bar(k) for k in range(self.lofts)]
         L = self.wrap_length_mm
         step, ks = self._bar_range()
         y_lo, y_hi = ks[0] * step, ks[-1] * step
+        boxes = []
         for a, r_in, r_out, z_lo, z_hi in self.bridge_spans():
             for turn in (-1, 0, 1):
                 y = (a / 360.0 + turn) * L
                 if y_lo - self.bridge_mm <= y <= y_hi + self.bridge_mm:
                     box = trimesh.creation.box(extents=(r_out - r_in, self.bridge_mm, z_hi - z_lo))
                     box.apply_translation(((r_in + r_out) / 2, y, (z_lo + z_hi) / 2))
-                    parts.append(box)
-        # raw: geom.clean would merge the bar's coplanar facets into mm-long ones, which a vertex-wise
-        # wrap (the simulated nTop) would then turn into chords
-        return parts[0] if len(parts) == 1 else united(parts)
+                    boxes.append(box)
+        return boxes
+
+    def bar_meshes(self) -> list:
+        """The unrolled shank for the notebook, as the bars it imports and unites (at most
+        BAR_SLOTS; write_bars fills the rest with a speck): one bar per set of bodies that touch
+        nothing else in it, so each bar is a clean mesh on its own and every union is nTop's. A
+        plain shank is one bar; a double band's strands one each (a wishbone's meet at the head) and
+        its bridges another; a rope's or a plait's strands one each; a split's halves one each
+        (unwrap_ring: lofted the whole way round, they overlap along the bottom - a wedge that
+        unites cleanly in the ring frame, where the independent model joins them, but whose
+        straight seam a bar-frame union made one 28 mm edge of, 2026-10-30); a trinity shank's
+        lower half with the strands' first pieces, its upper
+        half with their second pieces (trinity_strand_bars: each piece runs a plug into the half
+        and the piece that continue it), and the pad on its own - the pieces cross each other and
+        the pad's noses, and a mesh union of them left faces micrometres apart that float32 STL and
+        nTop's import turned into a self-intersecting bar (2026-11-02). Raw, never geom.clean: it
+        merges coplanar facets into mm-long ones, which a vertex-wise wrap turns into chords."""
+        import trimesh
+        L = self.wrap_length_mm
+        if self.rope:
+            return [self.rope_tube_bar(k) for k in range(self.rope)]
+        if self.knot == "plait":
+            return [self.knot_strand_bar(k) for k in range(self.knot_strands)]
+        if self.trinity:
+            halves = [self.trinity_half_loft(k) for k in range(2)]
+            pieces = [self.trinity_strand_bars(side) for side in (1, -1)]     # [+θ shoulder, -θ shoulder], each [first, second]
+            return [unwrap_ring(trimesh.util.concatenate([halves[0], pieces[0][0], pieces[1][0]]), L),
+                    unwrap_ring(trimesh.util.concatenate([halves[1], pieces[0][1], pieces[1][1]]), L),
+                    unwrap_ring(self.pad_ring(), L, full=False)]
+        if self.split_mm:
+            return [unwrap_ring(self.strand_ring(k), L) for k in range(self.lofts)]
+        bars = [self.strand_bar(k) for k in range(self.lofts)]                # a wishbone's strands meet at the head
+        boxes = self.bridge_boxes()
+        if boxes:
+            bars.append(trimesh.util.concatenate(boxes))
+        return bars
+
+    @property
+    def bar_count(self) -> int:
+        """How many bars bar_meshes writes (the rest of the notebook's BAR_SLOTS get the speck)."""
+        if self.rope:
+            return int(self.rope)
+        if self.knot == "plait":
+            return int(self.knot_strands)
+        if self.trinity:
+            return 3
+        if self.split_mm:
+            return int(self.lofts)
+        return int(self.lofts) + (1 if self.bridge_spans() else 0)
+
+    def bar_placeholders(self) -> list[str]:
+        """What a dry run shows for the bar inputs: the files write_bars will write."""
+        names = [f"<{self.stem}.bar.stl>"] + [f"<{self.stem}.bar{k + 1}.stl>" for k in range(1, self.bar_count)]
+        return names + [f"<{self.stem}.speck.stl>"] * (BAR_SLOTS - len(names))
+
+    def bar_mesh(self):
+        """Every bar in one, for the rope's and plait's section model (wrapped_ring) and for tests:
+        the bars united in the bar frame. Not for a split's (a trinity's included): its halves'
+        straight seam unites into long edges in the bar frame - its bars only ever travel apart,
+        and the simulated nTop unites them wrapped (bars_from_inputs)."""
+        bars = self.bar_meshes()
+        if len(bars) == 1:
+            return bars[0]
+        if self.split_mm:                                                   # a trinity shank is a split shank too
+            raise NotImplementedError("a split shank's bars unite only in the ring frame (bars_from_inputs)")
+        return united(bars)
 
     def strand_ring(self, strand: int = 0):
         """One strand swept round the axis (Z) directly: no bar, no wrap."""
@@ -938,7 +1027,10 @@ class ShankSpec:
                 body = united([self.knot_strand_ring(k) for k in range(self.knot_strands)])
             elif self.trinity:
                 # the lofts, sweeps and pad meet along many near-grazing lines; manifold3d leaves needle
-                # faces there that float32 STL cannot hold (2026-11-01): merged within 0.1 µm, then united()'s collapse
+                # faces and micrometre gaps there that float32 STL cannot hold (2026-11-01): tidied within
+                # 0.1 µm. This model is measured in memory and never unrolled (the bars come from the parts,
+                # bar_meshes): geom.clean merges coplanar facets into mm-long triangles, which a vertex-wise
+                # unwrap turned into a self-intersecting bar (2026-11-02)
                 body = united(self.trinity_parts(), clean_mm=1e-4)
             else:
                 parts = [self.strand_ring(k) for k in range(self.lofts)]
@@ -1065,10 +1157,14 @@ class ShankSpec:
         them); it rounds the edges the cuts and unions leave sharp - a split's slot, a bridge."""
         return 0.0 if (self.rope or self.knot) else self.band.edge_round
 
-    def notebook_inputs(self, bar_path: str, output_path: str = "") -> dict:
-        """Values for every input of ring_shank.ntop (names must match the catalog)."""
+    def notebook_inputs(self, bar_paths, output_path: str = "") -> dict:
+        """Values for every input of ring_shank.ntop (names must match the catalog). `bar_paths`:
+        the BAR_SLOTS bar files in slot order (write_bars), or one path for every slot (a dry run)."""
+        paths = [str(bar_paths)] * BAR_SLOTS if isinstance(bar_paths, (str, Path)) else [str(p) for p in bar_paths]
+        if len(paths) != BAR_SLOTS:
+            raise ValueError(f"{len(paths)} bar paths, the notebook takes {BAR_SLOTS}")
         return {
-            "Shank Path": str(bar_path),
+            **{slot_name(k): paths[k] for k in range(BAR_SLOTS)},
             "Wrap Length": round(self.wrap_length_mm, 4),
             "Edge Round": round(self.edge_round, 4),
             "Edge Round Inward": -round(self.edge_round, 4) if self.edge_round else 0.0,
@@ -1412,13 +1508,15 @@ def _outline_triangles(rz):
     return idx[np.asarray(f)]
 
 
-def unwrap_ring(ring, wrap_length: float):
-    """A ring mesh unrolled into a bar (the inverse of wrap_bar: X = r, Y = angle x L / 2π, Z = z)
-    running from -3L/4 to 5L/4, so it covers the turn and a half plus margins a bar needs. The
-    ring is cut into two halves by the plane through the axis (turned a little first, so the cut
-    runs between stations), each half unrolled, and the halves with their shifted copies welded
-    at the cuts vertex to twin - no boolean: a union of overlapping lofts in the bar frame, where
-    the facets are coplanar, came out in slivers (2026-10-30)."""
+def unwrap_ring(ring, wrap_length: float, full: bool = True):
+    """A ring-frame mesh unrolled into a bar (the inverse of wrap_bar: X = r, Y = angle x L / 2π,
+    Z = z) running from -3L/4 to 5L/4, so it covers the turn and a half plus margins a bar needs.
+    The mesh is cut into two halves by the plane through the axis (turned a little first, so the
+    cut runs between stations), each half unrolled, and the halves with their shifted copies
+    welded at the cuts vertex to twin - no boolean: a union of overlapping lofts in the bar frame,
+    where the facets are coplanar, came out in slivers (2026-10-30). `full`: the mesh runs the whole
+    way round, so the bar reaches both ends; off for a body that does not (a knot's pad, a
+    strand's piece), which appears once per turn the bar covers - at its angle, and a turn on."""
     import numpy as np
     import trimesh
     L = float(wrap_length)
@@ -1438,6 +1536,8 @@ def unwrap_ring(ring, wrap_length: float):
     a, b = pieces
     parts = []
     for piece, shift in ((b, -1), (a, 0), (b, 0), (a, 1)):                    # -3L/4 .. -L/4 .. L/4 .. 3L/4 .. 5L/4
+        if len(piece.faces) == 0:
+            continue
         q = piece.copy()
         q.vertices = q.vertices + np.array([0.0, shift * L, 0.0])
         parts.append(q)
@@ -1455,8 +1555,93 @@ def unwrap_ring(ring, wrap_length: float):
         bar.invert()
     assert bar.is_watertight, "unwrap_ring: the welded bar is not closed"
     y_lo, y_hi = -3 * L / 4 + y_nudge, 5 * L / 4 + y_nudge
-    assert abs(bar.bounds[0][1] - y_lo) < 1e-6 and abs(bar.bounds[1][1] - y_hi) < 1e-6
+    if full:
+        assert abs(bar.bounds[0][1] - y_lo) < 1e-6 and abs(bar.bounds[1][1] - y_hi) < 1e-6
+    else:
+        assert y_lo - 1e-6 <= bar.bounds[0][1] and bar.bounds[1][1] <= y_hi + 1e-6
     return bar
+
+
+def plug_rings(rings, length: float = PLUG_MM, inset: float = PLUG_INSET):
+    """An open sweep's vertex rings ((n, m, 3), knotwork.sweep_rings) with a plug ring beyond each
+    end: the end ring drawn in about its mean by `inset` and moved `length` on along the end's
+    direction, so the sweep runs that far into whatever continues it and a union sees an overlap,
+    not a shared face. The plug's straight run leaves a curved continuation by at most
+    length² / (2 x bend radius), well inside the inset."""
+    import numpy as np
+    R = np.asarray(rings, float)
+    out = [R]
+    for which in ("start", "end"):
+        ring, nxt = (R[0], R[1]) if which == "start" else (R[-1], R[-2])
+        c = ring.mean(axis=0)
+        t = c - nxt.mean(axis=0)
+        t = t / np.linalg.norm(t)
+        plug = (c + (ring - c) * (1.0 - inset) + t * length)[None]
+        out = [plug] + out if which == "start" else out + [plug]
+    return np.concatenate(out)
+
+
+def union_speck(bar, wrap_length: float):
+    """A cube SPECK_MM across inside `bar`'s material at the bottom of the ring (Y = L/2, the point
+    of its section there farthest from any edge): what an unused bar slot imports, united into
+    metal that is there anyway - the field does not change."""
+    import numpy as np
+    import trimesh
+    from shapely.geometry import Polygon
+    from shapely.ops import polylabel
+    L = float(wrap_length)
+    sec = bar.section(plane_origin=[0.0, L / 2, 0.0], plane_normal=[0.0, 1.0, 0.0])
+    if sec is None:
+        raise ValueError("union_speck: the first bar has no material at the bottom of the ring")
+    loops = [np.asarray(loop) for loop in sec.discrete]
+    polys = [Polygon(loop[:, [0, 2]]) for loop in loops if len(loop) >= 4]
+    poly = max((p for p in polys if p.is_valid and not p.is_empty), key=lambda p: p.area)
+    p = polylabel(poly, tolerance=0.01)
+    margin = poly.exterior.distance(p)
+    if margin < SPECK_MM:
+        raise ValueError(f"union_speck: the section at the bottom is too thin for a speck ({margin:.3f} mm to its edge)")
+    cube = trimesh.creation.box(extents=(SPECK_MM, SPECK_MM, SPECK_MM))
+    cube.apply_translation((p.x, L / 2, p.y))
+    return cube
+
+
+def bars_from_inputs(v: dict):
+    """The shank a notebook's bar inputs describe, the way the simulated nTop builds it: every bar
+    at Shank Path .. Shank Path 4 wrapped vertex-wise (wrap_bar) and the wrapped bars united in the
+    ring frame (a bar-frame union of a split's halves made one long edge of their straight seam,
+    2026-10-30; nTop unites implicits, where the frame does not matter). A slot pointing at a file
+    already taken is read once."""
+    import trimesh
+    L = float(v["Wrap Length"])
+    seen, wrapped = set(), []
+    for name in SLOT_NAMES:
+        path = str(v.get(name, "") or "")
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        wrapped.append(wrap_bar(trimesh.load(path, force="mesh"), L))
+    return wrapped[0] if len(wrapped) == 1 else united(wrapped)
+
+
+def write_bars(spec: ShankSpec, directory: Path, stem: str) -> list[str]:
+    """The notebook's BAR_SLOTS bar files for `spec` in `directory`: `<stem>.bar.stl`,
+    `<stem>.bar2.stl` ... (bar_meshes), the unused slots all pointing at `<stem>.speck.stl`
+    (union_speck inside the first bar). Returns the BAR_SLOTS paths in slot order."""
+    directory = Path(directory)
+    bars = spec.bar_meshes()
+    if len(bars) > BAR_SLOTS:
+        raise ValueError(f"{len(bars)} bars, the notebook takes {BAR_SLOTS}")
+    assert len(bars) == spec.bar_count, (len(bars), spec.bar_count)
+    paths = []
+    for k, bar in enumerate(bars):
+        path = directory / (f"{stem}.bar.stl" if k == 0 else f"{stem}.bar{k + 1}.stl")
+        bar.export(str(path))
+        paths.append(str(path))
+    if len(bars) < BAR_SLOTS:
+        speck = directory / f"{stem}.speck.stl"
+        union_speck(bars[0], spec.wrap_length_mm).export(str(speck))
+        paths += [str(speck)] * (BAR_SLOTS - len(bars))
+    return paths
 
 
 def wrap_bar(bar, wrap_length: float):
@@ -1478,9 +1663,10 @@ def wrap_bar(bar, wrap_length: float):
     mesh = geom.remap_cylindrical(one, L)
     mesh.update_faces(~(side0 | side1)[mesh.faces].all(axis=1))
     i0, i1 = np.nonzero(side0)[0], np.nonzero(side1)[0]
-    _, twin = cKDTree(mesh.vertices[i0]).query(mesh.vertices[i1])
     remap = np.arange(len(mesh.vertices))
-    remap[i1] = i0[twin]
+    if len(i0) and len(i1):                                                # a bar with no material at the seam has no twins
+        _, twin = cKDTree(mesh.vertices[i0]).query(mesh.vertices[i1])
+        remap[i1] = i0[twin]
     mesh = trimesh.Trimesh(mesh.vertices, remap[mesh.faces], process=False)
     mesh.update_faces(mesh.nondegenerate_faces())
     mesh.remove_unreferenced_vertices()
@@ -1613,10 +1799,9 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
     stem = spec.stem
     run_dir, run_id = runs.fresh_run_dir(out_dir, stem)
     stl = run_dir / f"{stem}.stl"
-    bar = run_dir / f"{stem}.bar.stl"
-    spec.bar_mesh().export(str(bar))
+    bars = write_bars(spec, run_dir, stem)
 
-    inputs = cat.build_inputs(spec.notebook_inputs(str(bar), str(stl)))
+    inputs = cat.build_inputs(spec.notebook_inputs(bars, str(stl)))
     started = time.time()
     run = ntopcl.run(nb, inputs, run_dir, tag=stem)
     try:
@@ -1633,7 +1818,7 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
     report = {
         "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
         "band": asdict(spec.band), "shank": {k: v for k, v in asdict(spec).items() if k not in ("band", "_cache")},
-        "design": spec.design(), "inputs": spec.notebook_inputs(str(bar), str(stl)), "stl": str(stl), "bar": str(bar),
+        "design": spec.design(), "inputs": spec.notebook_inputs(bars, str(stl)), "stl": str(stl), "bar": bars[0], "bars": bars,
         "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(),
         "expected_volume_mm3": spec.expected_volume_mm3(), "opening_overcut_mm3": spec.opening_overcut_mm3(), "gate": rep.to_dict(),
         "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,
@@ -1641,7 +1826,8 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
     }
     (run_dir / f"{stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     if deliver and result.ok:
-        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report, extra_files=[bar], cast_metal=cast_metal)
+        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report, extra_files=sorted(set(map(Path, bars))),
+                                        cast_metal=cast_metal)
     elif deliver:
         result.notes.append(f"not delivered: status {result.status}")
     return result

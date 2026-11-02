@@ -27,7 +27,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct, `ring_features.ntop` committed; print + cast waits for the kit (printer/resin being bought) |
 | 2 — custom-block library | `ntop/blocks/`: stone seat, prong heads (round, outline, V-prongs), bezel; gem bodies (round, oval, pear, cushion, emerald, marquise); the solitaire assembly (cathedral arches, milgrain, engraving) | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | software half PASSED 29 Oct (round US 5-7, every fancy shape, pear and marquise with V-prongs, bezels offline); the print is what remains (band profile / bead / groove / wrap as library blocks deferred to Phase 3 step 1) |
-| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands), 1c (split and rope shanks) and 1d (the solitaire on a tapered or split shank) PASSED in nTop (30 Oct - 1 Nov); the edge-round opening found never to have built, fixed in every notebook and calibrated (31 Oct: band 0.00 %, solitaire −0.08 %); 1e Celtic knotwork written (1 Nov): the plait band and ring 01's trinity-knot shank and solitaire, offline green, real runs pending |
+| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands), 1c (split and rope shanks) and 1d (the solitaire on a tapered or split shank) PASSED in nTop (30 Oct - 1 Nov); the edge-round opening found never to have built, fixed in every notebook and calibrated (31 Oct: band 0.00 %, solitaire −0.08 %); 1e Celtic knotwork written (1 Nov): the plait band and ring 01's trinity-knot shank and solitaire; the trinity's real runs failed on a self-intersecting bar (1-2 Nov), traced to the mesh union's micrometre seams - every shank now goes to nTop as up to four bars that nTop unites (2 Nov, four notebooks to rebuild), offline green, real runs pending |
 | 4 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
 | 5 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–3 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
 | 6 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
@@ -50,7 +50,13 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
   handling and voxel effects are only seen in real runs; its blends carry nTop's calibrated
   volume but not nTop's shape (square-cornered fill pieces, not a smooth bump); it does not run
   the opening, so a design whose fillets are not in Python's geometry (a bridge's ends) is only
-  rounded for real. The opening in nTop was a no-op until 30 Oct (see Phase 3 step 1).
+  rounded for real. The opening in nTop was a no-op until 30 Oct (see Phase 3 step 1). It unites
+  the shank's bars as meshes (in the ring frame) where nTop unites implicits: a mesh union is
+  what the real nTop could not import (2 Nov), so the simulation cannot show that failure.
+- A mesh boolean's result never goes to nTop as a bar: its seams hold faces micrometres apart
+  that float32 STL and Import Mesh turn into self-intersections (Phase 3 step 1e). Bodies that
+  cross each other travel in separate bars (up to four) and nTop unites them; a design needing
+  more than four mutually crossing bodies has no notebook yet.
 - Blender scripts run only on the laptops (bpy); the offline suite imports them with stubs.
 - nTop runs on the main laptop only (32 GB); casting trees may need the 128 GB machine.
 
@@ -157,15 +163,16 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    offline green)* **centrelines**: the band's centre leaves the mid-plane near the head - a
    cosine `contour` bump or a `chevron` V (`--dip`, `--dip-span`) - and **double bands**
    (`--double`: two strands of the band stacked with a gap, nested or mirrored into a wishbone,
-   joined by full-thickness bridges at chosen angles); strands and bridges are united in the bar
-   and, independently, in the ring frame; the gate's section check compares z and r bounds per
-   angle. Same notebook. 1c *(30 Oct)* **split and rope shanks**: `--split` cuts a slot that
+   joined by full-thickness bridges at chosen angles); strands and bridges are united by nTop
+   (each strand a bar of its own, the bridges another, since 2 Nov - see 1e) and, independently,
+   in the ring frame; the gate's section check compares z and r bounds per angle. Same notebook. 1c *(30 Oct)* **split and rope shanks**: `--split` cuts a slot that
    opens at the head and closes towards the bottom (contour or chevron, round ends, each half at
    least 1 mm); the halves are lofted the whole way round from the 2-D opened sections, so the
    slot's fillets are in the bar (they overlap where the slot is closed, each drawn a wedge inside
-   the other so no faces coincide; the bar is that union unrolled). `--rope` makes the band two or
-   three round strands twisted a whole number of turns round the ring (tubes round helices in a
-   fixed-up frame, the innermost just touching the bore, overlapping into one solid). The notebook
+   the other so no faces coincide; the model is that union, each half its own bar for nTop to
+   unite since 2 Nov). `--rope` makes the band two or three round strands twisted a whole number
+   of turns round the ring (tubes round helices in a fixed-up frame, the innermost just touching
+   the bore, overlapping into one solid - a bar each). The notebook
    **opens the bar by the band's edge round** before the wrap (`Edge Round Inward` / `Edge Round`;
    catalog 0.2.0) for whatever a union left sharp (a bridge's ends), and the gate's expected volume
    takes off e²(tan(δ/2) − δ/2) per mm of every convex edge turning more than 30° in the design
@@ -243,18 +250,35 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    itself is no manifold (two pieces sharing one ring and cap); overlaps drawn a hair apart left
    needle faces at every junction (bodies now meet in one identical face); a strand station in a
    loft's cap plane, and a pad station at the wrap's cut angle, broke the STL round trip
-   (stations kept off those planes; the fake's weld merges within 0.01 µm). **Real run 1 Nov:** nTop
-   merged the bar's "very close vertices" on import (edges of 1.5 µm the union had left where an
-   intersection curve passes a vertex), called it self-intersecting and built it in five shells
-   with a stray part at the head (volume still −0.08 %); the split and rope bars it had built
-   cleanly had no edge under 75 µm. Every union's result now has its edges under 0.2 mm/1000
-   collapsed (`geom.collapse_short_edges`, in `shank.united`): no two vertices of any bar lie
-   closer than that. Offline: the knot shank and the ring-01 solitaire (US 6, 10 x 5 marquise)
-   pass their gates through the simulated nTop. *Real check:* `shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3
-   --knot-repeats 4` and `shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 100
-   --knot trinity` (no rebuild: the same `ring_shank.ntop`), then `solitaire --size 6 --shape
-   marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity` (no rebuild:
-   `solitaire_outline.ntop` as built for 1d; the catalogs' wider ranges need none). Then step 2.
+   (stations kept off those planes; the fake's weld merges within 0.01 µm). **Real runs 1-2 Nov
+   FAILED** (the trinity shank twice, the trinity solitaire once): nTop called the bar
+   self-intersecting and built it in 5 / 161 shells (volume still within 0.1 %). Collapsing the
+   union's micron edges (`geom.collapse_short_edges`) changed nothing, and the "very close
+   vertices merged" warning turned out routine (an STL is a triangle soup). The cause, found with
+   an exact triangle-pair test on the bar: a **mesh union of bodies that cross each other leaves
+   faces micrometres apart along its seams** (16 pairs, 0-10 µm apart, at the strands' crossings
+   and where they enter the pad's noses, the ring-frame union itself; manifold3d's seam corners
+   are that small), which float32 STL (±2 µm at y ≈ 60) and the import turn into
+   intersections; `geom.clean` cannot help (it merges coplanar facets into mm-long triangles,
+   which the vertex-wise unwrap turned into 3858 intersecting pairs on the slot's faces). **So no
+   bar carries a mesh union any more** (2 Nov): bodies that cross each other go to nTop in
+   separate bars - `ShankSpec.bar_meshes`, up to four (`Shank Path` .. `Shank Path 4`, catalogs
+   ring_shank 0.3 / solitaire 0.8 / 0.4; an unused slot imports a speck inside the first bar) -
+   and nTop's Boolean Union joins the implicits before the opening and the wrap. A split's
+   halves one each; a double band's strands one each and its bridges another; a rope's or a
+   plait's strands one each; the trinity's lower half with the strands' first pieces, its upper
+   half with their second and the pad on its own, each piece running a 0.1 mm plug (its section
+   drawn in 4 %) into the half and the piece that continue it, so the union sees overlaps and
+   never a shared face. Each of the three trinity bars has no intersecting triangle pair as
+   written (float32), its shells 0.54 mm apart; the simulated nTop (which unites the wrapped bars
+   in the ring frame, `bars_from_inputs`) rebuilds the design to 0.00 %, one shell. *Real check
+   (the four notebooks must be rebuilt first):* `api build ring_shank`, `api build solitaire`,
+   `api build solitaire_outline`, `api build solitaire_bezel`; then `shank --size 6 --width 4
+   --thickness 1.6 --split 1.6 --split-span 100 --knot trinity`, `solitaire --size 6 --shape
+   marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity`, `shank
+   --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3 --knot-repeats 4`, and one
+   known-good design through the new union (`shank --size 6 --width 4 --thickness 1.6 --split 1.6
+   --split-span 100`, whose halves now travel apart). Then step 2.
 2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.

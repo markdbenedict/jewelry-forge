@@ -2,11 +2,12 @@
 block -> solitaire.ntop) and ntop/recipes/solitaire_outline.py (pear and other fancy outlines, the
 outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console.
 
-    shank      the band as Python wrote it, a bar (Shank Path; plain, tapered, split - ntopjewel.shank):
-               Import Mesh -> Implicit from Mesh -> opened by the edge round -> Remap Cylindrical
-               (Wrap Length) = Band Body; the arches, less the slot cutter (Slot Path: the split's
-               slot swept in the ring frame, a speck far outside when there is none), opened on
-               their own and united afterwards
+    shank      the band as Python wrote it, bars (Shank Path .. Shank Path 4; plain, tapered, split,
+               knotted - ntopjewel.shank.bar_meshes, bodies that cross each other in different bars, an
+               unused slot a speck inside the first): each Import Mesh -> Implicit from Mesh, united ->
+               opened by the edge round -> Remap Cylindrical (Wrap Length) = Band Body; the arches, less
+               the slot cutter (Slot Path: the split's slot swept in the ring frame, a speck far outside
+               when there is none), opened on their own and united afterwards
     seat       stone_seat(Seat Path, Clearance), embedded -> Seat Local (head frame)
     head       prong_head(Seat Local + 14 numbers), outline_head(Seat Local, Prongs Path + 5 rail
                numbers) or bezel_head(Seat Local, Windows Path, Wall, Bezel Bottom/Top), embedded -> head frame
@@ -49,7 +50,7 @@ ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
         ("Bead Start X", "mm"), ("Bead Start Y", "mm"), ("Bead Start X Minus", "mm"), ("Bead Start Y Minus", "mm")]
 ENGRAVING = [("Engraving Path", "path"), ("Engraving Wrap Length", "mm")]
 ENGRAVING_TURN_DEG = 180.0
-SHANK = [("Shank Path", "path"), ("Wrap Length", "mm"), ("Slot Path", "path")]
+SHANK = [(name, "path") for name in nj.SLOT_NAMES] + [("Wrap Length", "mm"), ("Slot Path", "path")]   # the bars nTop unites, then the wrap
 BAND_FOR_ARCHES = ["Z Top", "Z Bottom", "Dome Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]   # of nj.BAND_INPUTS
 
 
@@ -162,8 +163,8 @@ def body(kind: str):
     def _body(h, p, values, test_output):
         ids = nj.add_typed_inputs(h, specs(kind), values)
         out_var = nj.path_variable(h, "Output Path", test_output)
-        band = h.wrap_var("Band Body", nj.add_wrapped_shank(h, ids["Shank Path"], ids["Wrap Length"], ids["Edge Round Inward"],
-                                                            ids["Edge Round"], ids["Mesh Tolerance"]))   # the bar, opened, wrapped
+        band = h.wrap_var("Band Body", nj.add_wrapped_shank(h, [ids[name] for name in nj.SLOT_NAMES], ids["Wrap Length"],
+                                                            ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))   # the bars united, opened, wrapped
         # the arches rounded on their own and united sharp: opening the union (band + arches)
         # grew a 0.07 mm layer over the arch feet, where the arch dome lies on the band's dome
         # (2026-10-31: the re-distance mesh of two near-coincident surfaces); apart, each is plain
@@ -225,19 +226,20 @@ def body(kind: str):
 def prepare(spec, params: dict, test_dir: Path, tag: str) -> dict:
     """Laptop side: the test envelope / prongs / engraving files and every input value of `spec`."""
     test_dir.mkdir(parents=True, exist_ok=True)
-    env, prongs, eng, win, bar, slot = (test_dir / f"{tag}_test_envelope.stl", test_dir / f"{tag}_test_prongs.stl",
-                                        test_dir / f"{tag}_test_engraving.stl", test_dir / f"{tag}_test_windows.stl",
-                                        test_dir / f"{tag}_test_bar.stl", test_dir / f"{tag}_test_slot.stl")
+    env, prongs, eng, win, slot = (test_dir / f"{tag}_test_envelope.stl", test_dir / f"{tag}_test_prongs.stl",
+                                   test_dir / f"{tag}_test_engraving.stl", test_dir / f"{tag}_test_windows.stl",
+                                   test_dir / f"{tag}_test_slot.stl")
     spec.head.seat.envelope().export(str(env))
     if spec.outline:
         spec.placed_head.prongs_mesh().export(str(prongs))
     if spec.bezel:
         spec.placed_head.windows_mesh().export(str(win))
     spec.write_engraving(eng)
-    spec.shank_spec.bar_mesh().export(str(bar))
+    from .shank import write_bars
+    bars = write_bars(spec.shank_spec, test_dir, f"{tag}_test")                   # <tag>_test.bar.stl, .speck.stl
     spec.slot_mesh().export(str(slot))
     v = spec.notebook_inputs(str(env), prongs_path=str(prongs) if spec.outline else "", engraving_path=str(eng),
-                             windows_path=str(win) if spec.bezel else "", shank_path=str(bar), slot_path=str(slot))
+                             windows_path=str(win) if spec.bezel else "", shank_paths=bars, slot_path=str(slot))
     params["values"] = {**v, **(params.get("values") or {})}
     return params
 

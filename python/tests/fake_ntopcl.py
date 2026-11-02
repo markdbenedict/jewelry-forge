@@ -191,7 +191,8 @@ def main(argv: list[str]) -> int:
     if "solitaire" in nb.name:
         import trimesh
         from ntopjewel import solitaire
-        for key in ("Seat Path", "Shank Path"):
+        from ntopjewel.nb_jewel import SLOT_NAMES
+        for key in ("Seat Path", *SLOT_NAMES):
             if not Path(values[key]).exists():
                 fail(f"{key.replace('Path', 'Mesh')}: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
@@ -276,23 +277,24 @@ def main(argv: list[str]) -> int:
                         "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
     elif "shank" in nb.name:
         import trimesh
-        if not Path(values["Shank Path"]).exists():
-            fail("Shank Mesh: file not found")
-        bar = trimesh.load(str(values["Shank Path"]), force="mesh")
-        L = float(values["Wrap Length"])
+        from ntopjewel.nb_jewel import SLOT_NAMES
+        for key in SLOT_NAMES:
+            if not Path(values[key]).exists():
+                fail(f"{key.replace('Path', 'Mesh')}: file not found")
         # the notebook's opening (Edge Round / Edge Round Inward) is not simulated: a slot's or a
         # bridge's edges stay sharp here, which the gate's section-shape check then reports (as it
         # would for nTop); tests of those designs run with the edge round at 0
-        if shape == "nowrap":                                 # a notebook that exports the bar itself
-            mesh = bar
+        if shape == "nowrap":                                 # a notebook that exports the first bar itself
+            mesh = trimesh.load(str(values["Shank Path"]), force="mesh")
         else:
-            # one turn of the bar wrapped vertex-wise, cut between stations, the seam joined
-            # (shank.wrap_bar: Remap Cylindrical Body is exactly that in r, z and angle)
-            from ntopjewel.shank import wrap_bar
-            mesh = wrap_bar(bar, L)
+            # every bar wrapped vertex-wise, one turn each, cut between stations, the seam joined
+            # (shank.wrap_bar: Remap Cylindrical Body is exactly that in r, z and angle), and the
+            # wrapped bars united (nTop unites the implicits before the wrap; same thing)
+            from ntopjewel.shank import bars_from_inputs
+            mesh = bars_from_inputs(values)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Mesh", "Shank Bar", "Shrunk", "Shrunk Body Mesh", "Shrunk Body", "Opened", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
+        for name in ("Shank Mesh", "Shank Bar", "Shank Mesh 2", "Shank Bar 2", "Shank Bars", "Shrunk", "Shrunk Body Mesh", "Shrunk Body", "Opened", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

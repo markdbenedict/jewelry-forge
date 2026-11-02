@@ -108,10 +108,12 @@ python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80 
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: trinity knots on the shoulders
 ```
 
-The shank is always the bar Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
-`<stem>.bar.stl` in the run directory; `Shank Path` / `Wrap Length` inputs, catalogs 0.7 / 0.3):
-Import Mesh → Implicit from Mesh → opened by the edge round → Remap Cylindrical = Band Body; the
-arches are opened on their own and united with it. Plain by default; `--width-bottom`,
+The shank is always the bars Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
+`<stem>.bar.stl`, `.bar2.stl` ... and `<stem>.speck.stl` for the unused slots in the run
+directory; `Shank Path` .. `Shank Path 4` / `Wrap Length` inputs, catalogs 0.8 / 0.4): each
+Import Mesh → Implicit from Mesh, united → opened by the edge round → Remap Cylindrical = Band
+Body; the arches are opened on their own and united with it. Bodies that cross each other (a
+split's halves, a knot's strands) come in separate bars and nTop unites them (`ring-band`). Plain by default; `--width-bottom`,
 `--thickness-bottom`, `--taper-from` (≥ the arches' wedge + 3°, i.e. 50° at the default
 shoulder) taper it towards the bottom of the finger (stem `..._w4-2.4_t1.3-1.2_...`). `--split`
 splits it (`--split-span`, `--split-shape` as the `shank` command): the halves carry the slot

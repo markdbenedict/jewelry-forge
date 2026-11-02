@@ -100,12 +100,18 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   (metres, kilograms); `ntopcl.scalar_value` converts to mm / g.
 - **Mesh from Implicit Body `Tolerance` = 2 × voxel size**, triangle count ∝ 1/tolerance².
   Default 0.1 mm (50 µm voxels). 0.01 mm produced a 57 M-triangle, 2.7 GB band STL.
-- **Import Mesh merges "very close vertices"** (`[W] Mesh_0: Duplicate and/or very close vertices
-  have been merged`) and may then call the mesh self-intersecting; Implicit Body from such a mesh
-  built the trinity shank in five shells (2026-11-01: the bar had 1.5 µm edges where a boolean's
-  intersection curve passed a vertex; bars with no edge under 75 µm imported cleanly). Every bar
-  and design body therefore has its edges under 0.2 µm collapsed (`geom.collapse_short_edges`,
-  through `shank.united`); a `[W]` about merged vertices on a bar is a bug in the bar.
+- **Import Mesh's `[W] Mesh_0: Duplicate and/or very close vertices have been merged` is routine**
+  (an STL is a triangle soup); `[W] Mesh_0: Output Mesh is self-intersecting` is the one that
+  matters, and Implicit Body from such a mesh built the trinity shank in five shells (2026-11-01/02).
+  The cause: a mesh union (manifold3d) of bodies that cross each other leaves faces micrometres
+  apart along its seams (sub-µm at seam corners), which float32 STL (±2 µm at y ≈ 60) and the
+  import turn into intersections - no cleaning fixes that (`geom.clean` merges coplanar facets into
+  mm-long triangles, which a vertex-wise unwrap turns into self-intersections; the edge collapse
+  helps nothing). **So no bar carries a mesh union**: bodies that cross each other go to nTop in
+  separate bars (`ShankSpec.bar_meshes`, `Shank Path` .. `Shank Path 4`, a speck inside the first
+  bar in an unused slot) and nTop's Boolean Union joins the implicits; pieces that continue each
+  other overlap by a 0.1 mm plug, never share a face. The simulated nTop unites the wrapped bars
+  in the ring frame (`shank.bars_from_inputs`).
 
 ## Notebook API rules (doc Oct 2026; console, SSH and discovery verified 2026-10-26 on nTop 6.3.3)
 
@@ -260,7 +266,7 @@ python -m ntopjewel api build outline_head                           # ntop\bloc
 python -m ntopjewel api build solitaire_outline                      # ntop\notebooks\solitaire_outline.ntop: the solitaire with the outline head (pear ...)
 python -m ntopjewel api build bezel_head                             # ntop\blocks\bezel_head.ntop (wall + cup round any outline, light windows) + its harness
 python -m ntopjewel api build solitaire_bezel                        # ntop\notebooks\solitaire_bezel.ntop: the solitaire with the bezel
-python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bar Python writes (prepare() writes the test bar)
+python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bars Python writes, united in nTop (prepare() writes the test bar + speck)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
@@ -282,7 +288,7 @@ python -m ntopjewel solitaire --size 6 --length 6.5 --prongs 6        # the Phas
 python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-width 8.9 --stone-depth 4.6 --material glass --engrave Makena   # pear, text inside the shank
 python -m ntopjewel solitaire --bezel --size 6 --length 6.5            # any stone in a bezel (head --bezel for the head alone)
 python -m ntopjewel solitaire --size 6 --length 6.5 --blend 0 --shank-blend 0   # sharp junctions (default: the tables' blend_radius_mm on both)
-python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank: every solitaire's shank is a bar (Shank Path), plain unless shaped
+python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank: every solitaire's shank is bars (Shank Path .. 4), plain unless shaped
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot under the head, through the arches (Slot Path)
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: the knots take the arches' place
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4

@@ -256,7 +256,7 @@ def cmd_shank(a: argparse.Namespace) -> int:
                       + " / ".join(f"{spec.z_offset(t, k):+.3f}" for k in range(spec.strands))
                       + (f"  split {spec.split_at(t):.3f}" if spec.split_mm else ""))
         if not probs:
-            for k, v in spec.notebook_inputs("<bar path>", "<output path>").items():
+            for k, v in spec.notebook_inputs(spec.bar_placeholders(), "<output path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
     try:
@@ -383,7 +383,7 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
     if a.dry_run:
         print(spec.describe())
         for k, v in spec.notebook_inputs("<envelope path>", "<output path>", prongs_path="<prongs path>" if spec.outline else "",
-                                         engraving_path="<engraving path>",
+                                         engraving_path="<engraving path>", shank_paths=spec.shank_spec.bar_placeholders(),
                                          windows_path="<windows path>" if spec.bezel else "").items():
             print(f"    {k}: {v}")
         return 0

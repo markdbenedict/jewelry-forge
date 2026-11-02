@@ -100,7 +100,9 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     # their own; both united sharp with the milgrain rows
     assert nb.blocks[b["Shank Mesh"]]["wired"]["Path"][0] == "Shank Path"
     assert nb.blocks[b["Shank Bar"]]["wired"]["Mesh"][0] == b["Shank Mesh"]
-    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bar"] and "Band + Extra" not in b and "Outer" not in b
+    assert nb.blocks[b["Shank Mesh 4"]]["wired"]["Path"][0] == "Shank Path 4"                     # four bars, united before the opening
+    assert nb.blocks[b["Shank Bars"]]["lists"]["Bodies"] == [b["Shank Bar"], b["Shank Bar 2"], b["Shank Bar 3"], b["Shank Bar 4"]]
+    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bars"] and "Band + Extra" not in b and "Outer" not in b
     assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Opened"] and nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
     assert nb.variables["Band Body"]["wraps"] == b["Shank"]
     assert nb.blocks[b["Slot Mesh"]]["wired"]["Path"][0] == "Slot Path" and nb.blocks[b["Slot Cutter"]]["wired"]["Mesh"][0] == b["Slot Mesh"]
@@ -204,9 +206,10 @@ def test_a_shaped_shank_under_the_head():
     assert s.validate() == [] and s.shaped and not plain.shaped
     assert "_w4-2.4_t1.3-1.2_" in s.stem and s.stem != plain.stem
     assert plain.shank_spec.band == plain.band and not plain.shank_spec.tapered                 # the band all round
-    v = s.notebook_inputs("S", "O", shank_path="B")
-    assert list(v) == list(catalog.load("solitaire").inputs)                                    # Shank Path, Wrap Length ... Output Path
-    assert v["Shank Path"] == "B" and v["Wrap Length"] == s.shank_spec.notebook_inputs("B")["Wrap Length"]
+    v = s.notebook_inputs("S", "O", shank_paths=["B", "B2", "B3", "B4"])
+    assert list(v) == list(catalog.load("solitaire").inputs)                                    # Shank Path .. Shank Path 4, Wrap Length ... Output Path
+    assert v["Shank Path"] == "B" and v["Shank Path 4"] == "B4" and v["Wrap Length"] == s.shank_spec.notebook_inputs("B")["Wrap Length"]
+    assert s.notebook_inputs("S", "O", shank_paths="B")["Shank Path 3"] == "B"                   # one path fills every slot (a dry run)
     assert "Outer Radius" not in v and v["Z Top"] == 2.0                                         # the arches still read the band's numbers
     assert tapered(taper_from_deg=40).validate()                                                 # inside the arches: refused
     b = s.band
@@ -259,7 +262,7 @@ def test_a_split_shank_under_the_head():
     ring = solitaire.design_mesh(s)
     assert ring.is_watertight and ring.body_count == 1
     assert ring.volume < solitaire.design_mesh(spec(6)).volume - 25                                 # the slot, through band and arches
-    v = s.notebook_inputs("S", "O", shank_path="B", slot_path="C")
+    v = s.notebook_inputs("S", "O", shank_paths="B", slot_path="C")
     assert v["Slot Path"] == "C" and list(v) == list(catalog.load("solitaire").inputs)
 
 
@@ -298,7 +301,7 @@ def test_a_knot_shank_under_the_head():
     assert s.shank.knot_pad_deg == s.knot_pad_deg_needed() == pytest.approx(math.degrees((s.head_half_length() + solitaire.KNOT_PAD_CLEAR_MM)
                                                                                            / (s.band.bore_radius_mm + 0.8)), abs=0.01)
     assert s.head_half_length() == pytest.approx(3.03, abs=0.05)                                     # the marquise head along the ring
-    v = s.notebook_inputs("E", "O", prongs_path="P", engraving_path="T", shank_path="B", slot_path="S")
+    v = s.notebook_inputs("E", "O", prongs_path="P", engraving_path="T", shank_paths="B", slot_path="S")
     assert list(v) == list(catalog.load("solitaire_outline").inputs)
     assert v["Edge Round"] == 0.0 and v["Z Top"] == 0.5 and v["Dome Tube Radius"] == 2.0            # the buried stubs' numbers
     assert v["Arch Radius"] == solitaire.BURIED_ARCH_RADIUS_MM and v["Arch Centre X"] > 0 and v["Wedge Angle"] == 10.0

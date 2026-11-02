@@ -117,7 +117,14 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
     res = mod.build(nb, params)
     b = res["blocks"]
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
-    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bar"]                 # the opening on the bar ...
+    assert mod.INPUT_ORDER[:4] == ["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"]
+    for k, name in enumerate(["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"]):   # four bars imported ...
+        tag = "" if k == 0 else f" {k + 1}"
+        assert nb.blocks[b[f"Shank Mesh{tag}"]]["wired"]["Path"][0] == b[name]
+        assert nb.blocks[b[f"Shank Bar{tag}"]]["wired"]["Mesh"][0] == b[f"Shank Mesh{tag}"]
+    assert nb.blocks[b["Shank Bars"]]["lists"]["Bodies"] == [b["Shank Bar"], b["Shank Bar 2"], b["Shank Bar 3"], b["Shank Bar 4"]]   # ... and united
+    assert params["values"]["Shank Path 2"] == params["values"]["Shank Path 4"] != params["values"]["Shank Path"]   # the tapered shank: one bar + the speck
+    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bars"]                # the opening on the union ...
     assert nb.blocks[b["Shrunk"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
     assert nb.blocks[b["Shrunk Body Mesh"]]["wired"]["Body"][0] == b["Shrunk"]          # ... re-distanced through a mesh
     assert nb.blocks[b["Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == b["Mesh Tolerance"]
@@ -295,12 +302,13 @@ def test_split_and_rope_designs_pass_their_gate_and_the_bar_agrees(kind, tmp_pat
     m.export(tmp_path / "s.stl")
     rep = shank.check_shank(s, tmp_path / "s.stl", s.expected_volume_mm3())
     assert rep.status == "passed", rep.text()
-    bar = s.bar_mesh()
-    assert bar.is_watertight and bar.body_count == 1
-    L = s.wrap_length_mm
-    one = trimesh.intersections.slice_mesh_plane(bar, [0, 1, 0], [0, -L / 730, 0], cap=True)
-    one = trimesh.intersections.slice_mesh_plane(one, [0, -1, 0], [0, L - L / 730, 0], cap=True)
-    assert geom.remap_cylindrical(one, L).volume == pytest.approx(m.volume, rel=3e-3)
+    bars = s.bar_meshes()                                                                             # a split: a bar per half; a rope: one per strand
+    assert len(bars) == s.bar_count == (s.rope or 2)
+    assert all(b.is_watertight and b.body_count == 1 for b in bars)
+    paths = shank.write_bars(s, tmp_path, "s")
+    assert len(paths) == 4 and paths[s.bar_count:] == [str(tmp_path / "s.speck.stl")] * (4 - s.bar_count)
+    back = shank.bars_from_inputs({**s.notebook_inputs(paths), "Wrap Length": s.wrap_length_mm})   # the simulated nTop: wrapped, united
+    assert back.is_watertight and back.body_count == 1 and back.volume == pytest.approx(m.volume, rel=3e-3)
     if not s.rope:
         plain = shank.ShankSpec(s.band).design_mesh()                                                 # the same band, no slot: caught
         plain.export(tmp_path / "p.stl")
@@ -527,10 +535,16 @@ def test_the_trinity_shank(tmp_path):
     assert trimesh.load(tmp_path / "t.stl").is_watertight                                            # survives float32
     rep = shank.check_shank(s, tmp_path / "t.stl", s.expected_volume_mm3())
     assert rep.status == "passed", rep.text()
-    bar = s.bar_mesh()
-    bar.export(tmp_path / "bar.stl")
-    back = shank.wrap_bar(trimesh.load(tmp_path / "bar.stl"), s.wrap_length_mm)
-    assert back.is_watertight and back.volume == pytest.approx(m.volume, rel=1e-3)
+    bars = s.bar_meshes()                                                                             # lower half + first pieces, upper + second, pad
+    assert s.bar_count == len(bars) == 3 and [b.body_count for b in bars] == [7, 7, 2] and all(b.is_watertight for b in bars)
+    for b in bars:                                                                                    # as float32 holds them: no two faces cross
+        assert len(geom.intersecting_faces(b, region=lambda c: np.abs(c[:, 1]) < 12.0)) == 0            # (the knots' copies at y = 0; the old union's bar had 16)
+    paths = shank.write_bars(s, tmp_path, "t")
+    assert paths[3] == str(tmp_path / "t.speck.stl") and trimesh.load(paths[3]).volume == pytest.approx(shank.SPECK_MM ** 3, rel=1e-3)
+    back = shank.bars_from_inputs({**s.notebook_inputs(paths), "Wrap Length": s.wrap_length_mm})   # the simulated nTop: wrapped, united
+    assert back.is_watertight and back.body_count == 1 and back.volume == pytest.approx(m.volume, rel=2e-3)
+    with pytest.raises(NotImplementedError):
+        s.bar_mesh()
     plain = shank.ShankSpec(s.band, split_mm=1.6, split_span_deg=100.0).design_mesh()               # the split without its knots: caught
     plain.export(tmp_path / "p.stl")
     failed = {c.name for c in shank.check_shank(s, tmp_path / "p.stl", float(plain.volume)).failures()}

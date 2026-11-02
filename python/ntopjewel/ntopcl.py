@@ -72,14 +72,21 @@ def make_input(name: str, type_: str, value: Any, units: str | None = None) -> d
     return entry
 
 
-def apply_template_types(inputs: Iterable[dict], input_template: Path) -> list[dict]:
+def apply_template_types(inputs: Iterable[dict], input_template: Path, strict: bool = True) -> list[dict]:
     """Rename each input's `type` to what nTop's own `-t` template declares for that name.
 
     nTop's template is the authority for type spelling (6.3.3 writes `real`, the docs say
-    `scalar`). Inputs the template does not know are left as they are.
+    `scalar`). An input the template does not know means the notebook on disk is older than
+    the catalog that produced the inputs (a catalog change that says "rebuild the notebook"):
+    refused with `strict`, since nTopCL would run the notebook without it; otherwise left as it is.
     """
     tpl = json.loads(Path(input_template).read_text(encoding="utf-8"))
     tpl_types = {e["name"]: e.get("type") for e in tpl.get("inputs", []) if "name" in e}
+    inputs = list(inputs)
+    unknown = [e["name"] for e in inputs if e["name"] not in tpl_types]
+    if unknown and strict and tpl_types:
+        raise NtopclError(f"the notebook has no input {', '.join(repr(n) for n in unknown)}: it is older than the catalog - "
+                          f"rebuild it (python -m ntopjewel api build <recipe>) and run again (template: {input_template})")
     out = []
     for entry in inputs:
         e = dict(entry)

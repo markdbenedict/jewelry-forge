@@ -207,10 +207,22 @@ law: the full section until `--taper-from` degrees from the head, then a cosine 
 bottom (no crease at the shoulders or the bottom). The thin end must itself be a valid band
 (floors, edge round): a 1.0 mm court bottom needs `--edge-round 0.15`.
 
+**Bodies that cross each other travel in separate bars** (`ShankSpec.bar_meshes`, up to four:
+`Shank Path` .. `Shank Path 4`, catalog 0.3; an unused slot imports a speck inside the first
+bar) and nTop's Boolean Union joins them as implicits before the opening and the wrap: a split's
+two halves, a double band's strands and its bridges, a rope's or a plait's strands one each, a
+trinity shank's lower half with the strands' first pieces, its upper half with their second
+and the pad on its own (each piece runs a 0.1 mm plug into the half and the piece that continue
+it, so the union sees overlaps, never a shared face). A mesh union of crossing bodies leaves
+faces micrometres apart along its seams, which float32 STL and nTop's import turned into a
+self-intersecting bar (the trinity shank, 2026-11-02: 5 shells). The `[W] ... very close
+vertices have been merged` line on an Import Mesh is routine (an STL is a triangle soup);
+`[W] Mesh_0: Output Mesh is self-intersecting` is the one that matters.
+
 The gate: the band checks measured about the axis (bore Ø, the widest width, the largest
 outer Ø, walls against the thinnest station's edge), volume vs nTop, **section shape** (above)
-and the design volume against the independent sweep of the same sections (no bar, no wrap). Files: `out\shank\<stem>\<run id>\` with the bar
-(`<stem>.bar.stl`) beside the STL; stem
+and the design volume against the independent sweep of the same sections (no bar, no wrap). Files: `out\shank\<stem>\<run id>\` with the bars
+(`<stem>.bar.stl`, `.bar2.stl` ..., `<stem>.speck.stl`) beside the STL; stem
 `ring_shank_<profile>_<label>_w<head>-<bottom>_t<head>-<bottom>[_contour1.5|_chevron2][_x2|_x2m][_split1.6]_<spec id>`,
 a rope `ring_shank_rope<strands>x<turns>_<label>_d<strand>_<spec id>`.
 

@@ -1,11 +1,12 @@
-# Phase 3 step 1: a shaped shank. Python writes the ring unrolled as a bar (X radial, Y along the
+# Phase 3 step 1: a shaped shank. Python writes the ring unrolled as bars (X radial, Y along the
 # ring, Z axial; one cross-section every few degrees at that angle's width and thickness,
-# ntopjewel.shank.ShankSpec.bar_mesh); the notebook imports it and wraps it round Z with Remap
+# ntopjewel.shank.ShankSpec.bar_meshes - up to four files, bodies that cross each other in
+# different ones); the notebook imports them, unites them and wraps the union round Z with Remap
 # Cylindrical Body (Y mapping length = Wrap Length, one turn). Built by ntop/recipes/ring_shank.py
 # through the Notebook API. Verify names: python -m ntopjewel templates ntop/notebooks/ring_shank.ntop --catalog ring_shank
 notebook: ring_shank.ntop
-version: 0.2.1   # .1: the edge-round opening re-distanced (nj.add_opening, 2026-10-30); same inputs, rebuild the notebook
-title: Shaped shank (tapered width and thickness) from a wrapped bar
+version: 0.3.0   # .3: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook (api build ring_shank)
+title: Shaped shank (tapered width and thickness) from wrapped bars
 output:
   name: Volume
   type: scalar
@@ -14,7 +15,16 @@ output:
 inputs:
   Shank Path:
     type: text
-    doc: Absolute path of the bar STL (ntopjewel.shank writes it into the run directory).
+    doc: Absolute path of the first bar STL (ntopjewel.shank.write_bars writes them into the run directory).
+  Shank Path 2:
+    type: text
+    doc: The second bar (a split's upper half, a double band's bridges, a rope's or plait's second strand ...), or the speck inside the first bar when there is none.
+  Shank Path 3:
+    type: text
+    doc: The third bar (a trinity shank's pad, a third strand), or the speck.
+  Shank Path 4:
+    type: text
+    doc: The fourth bar (a plait's fourth strand), or the speck.
   Wrap Length:
     type: scalar
     units: mm

@@ -313,11 +313,12 @@ class SolitaireSpec:
 
     # ---- the notebook's numbers ----------------------------------------------------------------
     def notebook_inputs(self, seat_path: str, output_path: str | None = None, *, prongs_path: str = "",
-                        engraving_path: str = "", windows_path: str = "", shank_path: str = "", slot_path: str = "") -> dict:
+                        engraving_path: str = "", windows_path: str = "", shank_paths="", slot_path: str = "") -> dict:
+        """`shank_paths`: the shank's shankmod.BAR_SLOTS bar files (shankmod.write_bars), or one path for every slot."""
         from .nb_solitaire import BAND_FOR_ARCHES
         band_ins = self.band.notebook_inputs("")
-        sh = self.shank_spec.notebook_inputs(shank_path, "")
-        ins = {"Shank Path": sh["Shank Path"], "Wrap Length": sh["Wrap Length"], "Slot Path": slot_path}
+        sh = self.shank_spec.notebook_inputs(shank_paths, "")
+        ins = {**{name: sh[name] for name in shankmod.SLOT_NAMES}, "Wrap Length": sh["Wrap Length"], "Slot Path": slot_path}
         ins.update({k: band_ins[k] for k in BAND_FOR_ARCHES})
         ins["Edge Round"], ins["Edge Round Inward"] = sh["Edge Round"], sh["Edge Round Inward"]   # 0 for a rope or a knot
         if not self.arches:                                           # the buried stubs: short along the axis, in a fat torus
@@ -626,10 +627,10 @@ def wrapped_engraving(v: dict, engraving):
 
 
 def shank_from_inputs(v: dict):
-    """The shank the notebook's Shank Path points at, wrapped the way Remap Cylindrical wraps it
-    (shank.wrap_bar): what the notebook builds when no spec is at hand (the simulated nTop)."""
-    import trimesh
-    return shankmod.wrap_bar(trimesh.load(str(v["Shank Path"]), force="mesh"), float(v["Wrap Length"]))
+    """The shank the notebook's Shank Path .. Shank Path 4 point at, each bar wrapped the way Remap
+    Cylindrical wraps it and the wrapped bars united (shank.bars_from_inputs): what the notebook
+    builds when no spec is at hand (the simulated nTop)."""
+    return shankmod.bars_from_inputs(v)
 
 
 def arches_with_slot(v: dict, inner: float, slot=None):
@@ -895,14 +896,13 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
         spec.placed_head.windows_mesh().export(str(windows))
     engraving = run_dir / f"{spec.stem}.engraving.stl"
     spec.write_engraving(engraving)
-    bar = run_dir / f"{spec.stem}.bar.stl"
-    spec.shank_spec.bar_mesh().export(str(bar))
+    bars = shankmod.write_bars(spec.shank_spec, run_dir, spec.stem)
     slot = run_dir / f"{spec.stem}.slot.stl"
     spec.slot_mesh().export(str(slot))
     stl = run_dir / f"{spec.stem}.stl"
     inputs = spec.notebook_inputs(str(envelope), str(stl), prongs_path=str(prongs) if spec.outline else "",
                                   engraving_path=str(engraving), windows_path=str(windows) if spec.bezel else "",
-                                  shank_path=str(bar), slot_path=str(slot))
+                                  shank_paths=bars, slot_path=str(slot))
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(inputs), run_dir, tag=spec.stem)
     try:

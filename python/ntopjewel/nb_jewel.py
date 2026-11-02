@@ -43,6 +43,18 @@ INTEGER_VARS = ("core.var<integer>", "core.var<int>")
 BAND_INPUTS = ["Outer Radius", "Bore Radius", "Z Top", "Z Bottom", "Dome Ring Radius", "Dome Tube Radius",
                "Comfort Ring Radius", "Comfort Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]
 
+# a shank's bars: ring_shank.ntop and the solitaires import this many (ntopjewel.shank.bar_meshes writes them,
+# an unused slot a speck inside the first) and unite them (add_wrapped_shank)
+BAR_SLOTS = 4
+
+
+def slot_name(k: int) -> str:
+    """The input that takes bar slot k (0-based): Shank Path, Shank Path 2, ..."""
+    return "Shank Path" if k == 0 else f"Shank Path {k + 1}"
+
+
+SLOT_NAMES = tuple(slot_name(k) for k in range(BAR_SLOTS))
+
 
 # ---- variables ----------------------------------------------------------------------------------
 def path_variable(h: NotebookHelper, name: str, value: str) -> str:
@@ -195,17 +207,33 @@ def add_opening(h: NotebookHelper, body: str, inward_var: str, outward_var: str,
     return opened
 
 
-def add_wrapped_shank(h: NotebookHelper, path_var: str, wrap_var: str, inward_var: str, outward_var: str,
+def add_wrapped_shank(h: NotebookHelper, path_vars, wrap_var: str, inward_var: str, outward_var: str,
                       tolerance_var: str, label: str = "Shank") -> str:
-    """The shank Python wrote as a bar (ntopjewel.shank.ShankSpec.bar_mesh: X radial, Y along the
-    ring, Z axial): Import Mesh -> Implicit from Mesh -> the opening by the edge round (add_opening,
-    on the bar, where the field is exact) -> Remap Cylindrical Body (Y mapping length = wrap_var).
-    Returns the id of the remap block, the ring-shaped shank."""
-    imp = h.add(f"{label} Mesh", mask="import_mesh", must=IMPORT_MESH)
-    h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
-    body = h.add(f"{label} Bar", mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
-    h.wire(imp, body, ["Mesh"])
-    opened = add_opening(h, body, inward_var, outward_var, tolerance_var)
+    """The shank Python wrote as bars (ntopjewel.shank.ShankSpec.bar_meshes: X radial, Y along the
+    ring, Z axial; `path_vars`: the text variables holding the shank.BAR_SLOTS paths, an unused
+    slot's a speck inside the first bar): per bar Import Mesh -> Implicit from Mesh; Boolean Union
+    of the bars (sharp: bodies that cross each other - a knot's strands, a split's halves, a double
+    band's bridges - are united here, as implicits, never as meshes: a mesh union leaves faces
+    micrometres apart along its seams, which nTop's import read as self-intersecting, 2026-11-02)
+    -> the opening by the edge round (add_opening, on the bar, where the field is exact) -> Remap
+    Cylindrical Body (Y mapping length = wrap_var). Returns the id of the remap block, the
+    ring-shaped shank."""
+    path_vars = [path_vars] if isinstance(path_vars, str) else list(path_vars)
+    bodies = []
+    for k, path_var in enumerate(path_vars):
+        tag = "" if k == 0 else f" {k + 1}"
+        imp = h.add(f"{label} Mesh{tag}", mask="import_mesh", must=IMPORT_MESH)
+        h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
+        body = h.add(f"{label} Bar{tag}", mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
+        h.wire(imp, body, ["Mesh"])
+        bodies.append(body)
+    if len(bodies) == 1:
+        joined = bodies[0]
+    else:
+        joined = h.add(f"{label} Bars", mask="union", must=UNION)
+        for body in bodies:
+            h.to_list(body, joined, ["Bodies"])
+    opened = add_opening(h, joined, inward_var, outward_var, tolerance_var)
     wrapped = h.add(label, mask="remap_cylindrical", must=REMAP_CYLINDRICAL)
     h.wire(opened, wrapped, ["Body"])
     h.wire(wrap_var, wrapped, ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"])

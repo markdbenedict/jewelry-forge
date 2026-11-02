@@ -179,6 +179,81 @@ def collapse_short_edges(mesh, min_length_mm: float = 5e-5, passes: int = 8):
     return out
 
 
+def intersecting_faces(mesh, cell_mm: float = 0.3, eps: float = 1e-9, as_written: bool = True, region=None, chunk: int = 200000):
+    """Pairs of the mesh's faces that intersect without sharing a vertex ((n, 2) face indices):
+    the exact separating-axis test over every pair whose boxes overlap (a uniform grid of
+    `cell_mm` cells finds them), coplanar pairs included. `as_written`: test the vertices as an
+    STL holds them (float32), which is what nTop reads - a mesh union of crossing bodies leaves
+    faces micrometres apart along its seams, and those rounded into intersections (the trinity
+    bar, 2026-11-02: 16 pairs in float32, none in float64). `region(centres) -> mask` restricts
+    the faces considered (both faces of a pair must lie in it). Empty for a mesh nTop can import;
+    about a minute per million faces."""
+    import numpy as np
+    V = np.asarray(mesh.vertices, float)
+    if as_written:
+        V = V.astype(np.float32).astype(np.float64)
+    F = np.asarray(mesh.faces, int)
+    keep = np.arange(len(F)) if region is None else np.flatnonzero(region(V[F].mean(axis=1)))
+    F = F[keep]
+    tri = V[F]
+    lo, hi = tri.min(axis=1), tri.max(axis=1)
+    origin = lo.min(axis=0)
+    c0 = np.floor((lo - origin) / cell_mm).astype(np.int64)
+    c1 = np.floor((hi - origin) / cell_mm).astype(np.int64)
+    n_cells = (c1 - c0 + 1).prod(axis=1)
+    face_of = np.repeat(np.arange(len(F)), n_cells)
+    local = np.arange(len(face_of)) - np.repeat(np.cumsum(n_cells) - n_cells, n_cells)
+    span = (c1 - c0 + 1)[face_of]
+    ix = c0[face_of, 0] + local % span[:, 0]
+    iy = c0[face_of, 1] + (local // span[:, 0]) % span[:, 1]
+    iz = c0[face_of, 2] + local // (span[:, 0] * span[:, 1])
+    ny, nz = int(c1[:, 1].max()) + 2, int(c1[:, 2].max()) + 2
+    cell = (ix * ny + iy) * nz + iz
+    order = np.argsort(cell, kind="stable")
+    cell, face_of = cell[order], face_of[order]
+    starts = np.flatnonzero(np.r_[True, cell[1:] != cell[:-1]])
+    counts = np.diff(np.r_[starts, len(cell)])
+
+    def intersect(p):
+        """The separating-axis test over the pairs p ((m, 2)): True where the two overlap."""
+        A, B = tri[p[:, 0]], tri[p[:, 1]]
+        ea = np.stack([A[:, 1] - A[:, 0], A[:, 2] - A[:, 1], A[:, 0] - A[:, 2]], axis=1)
+        eb = np.stack([B[:, 1] - B[:, 0], B[:, 2] - B[:, 1], B[:, 0] - B[:, 2]], axis=1)
+        na, nb = np.cross(ea[:, 0], ea[:, 1]), np.cross(eb[:, 0], eb[:, 1])
+        axes = ([na, nb] + [np.cross(ea[:, i], eb[:, j]) for i in range(3) for j in range(3)]
+                + [np.cross(na, ea[:, i]) for i in range(3)] + [np.cross(nb, eb[:, j]) for j in range(3)])   # the last six: coplanar pairs
+        separated = np.zeros(len(p), bool)
+        for ax in axes:
+            n = np.linalg.norm(ax, axis=1)
+            good = n > 1e-14
+            axn = ax / np.where(good, n, 1.0)[:, None]
+            pa, pb = np.einsum("mij,mj->mi", A, axn), np.einsum("mij,mj->mi", B, axn)
+            separated |= good & ((pa.max(axis=1) < pb.min(axis=1) - eps) | (pb.max(axis=1) < pa.min(axis=1) - eps))
+        return ~separated
+
+    hits = []
+    for size in np.unique(counts[counts > 1]):
+        heads = starts[counts == size]
+        i, j = np.triu_indices(size, 1)
+        per_group = len(i)
+        step = max(1, chunk // per_group)                                   # groups per batch: memory stays bounded
+        for s in range(0, len(heads), step):
+            members = face_of[heads[s:s + step, None] + np.arange(size)[None, :]]   # (groups, size)
+            P = np.column_stack([members[:, i].ravel(), members[:, j].ravel()])
+            P = np.sort(P, axis=1)
+            a, b = P[:, 0], P[:, 1]
+            P = P[(lo[a] <= hi[b]).all(axis=1) & (lo[b] <= hi[a]).all(axis=1)]
+            if len(P) == 0:
+                continue
+            fa, fb = F[P[:, 0]], F[P[:, 1]]
+            P = P[~(fa[:, :, None] == fb[:, None, :]).any(axis=(1, 2))]    # neighbours touch by right
+            if len(P):
+                hits.append(P[intersect(P)])
+    if not hits:
+        return np.zeros((0, 2), int)
+    return keep[np.unique(np.vstack(hits), axis=0)]
+
+
 def remap_cylindrical(mesh, wrap_length: float):
     """nTop's Remap Cylindrical Body on a mesh: X -> radius, Y -> angle (Y = wrap length is one
     turn), Z unchanged. Vertex-wise; an engraving's facets are far smaller than the radius."""
