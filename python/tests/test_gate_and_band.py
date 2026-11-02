@@ -36,6 +36,36 @@ def test_gate_fails_open_mesh_and_wrong_size(tmp_path):
     assert not rep.passed and names["watertight"] is False and names["inner diameter"] is False
 
 
+def test_gate_counts_the_meshers_specks_apart_from_shells(tmp_path):
+    """nTop's Mesh from Implicit Body leaves 12-face bubbles of no volume where two surfaces kiss (the
+    trinity solitaire: 7 of them, 2026-11-02); a shell that could never print is not a shell. A real
+    speck (a 0.05 mm bead adrift) still counts."""
+    m = _band_mesh()
+    bubble = trimesh.creation.box(extents=(0.005, 0.001, 0.0005)).apply_translation([12.0, 0.0, 3.0])   # 2.5e-9 mm³
+    bead = trimesh.creation.icosphere(subdivisions=2, radius=0.05).apply_translation([12.0, 0.0, -3.0])   # 5e-4 mm³
+    p = tmp_path / "specks.stl"
+    trimesh.util.concatenate([m, bubble]).export(p)
+    rep = gate.check(p, expect_inner=16.51, wall_samples=0, write_report=False)
+    names = {c.name: c for c in rep.checks}
+    assert rep.shells == 1 and rep.specks == 1 and names["shells"].ok and "1 degenerate speck under" in names["shells"].detail
+    assert "(+1 degenerate specks)" in rep.text()
+    trimesh.util.concatenate([m, bubble, bead]).export(p)
+    rep = gate.check(p, expect_inner=16.51, wall_samples=0, write_report=False)
+    assert rep.shells == 2 and rep.specks == 1 and not {c.name: c for c in rep.checks}["shells"].ok
+
+
+def test_section_shape_tolerance_may_depend_on_the_angle(tmp_path):
+    """A knot's step creases fill fuller than a band's; the check takes a tolerance per angle, judges
+    the worst angle by how far it is over its own tolerance, and still names the largest distance."""
+    from shapely.geometry import box
+    m = _band_mesh(r_in=8.0, r_out=9.0, width=2.0)
+    design = lambda a: box(8.0, -1.0, 9.0, 1.0) if a < 100 else box(8.0, -1.0, 9.0, 1.04)     # 0.04 off beyond 100°
+    flat = gate.section_shape_check(m, design, angles=(1.37, 121.37), tol_mm=0.03)
+    assert not flat.ok and "worst at 121°" in flat.detail
+    varied = gate.section_shape_check(m, design, angles=(1.37, 121.37), tol_mm=lambda a: 0.03 if a < 100 else 0.1)
+    assert varied.ok and "worst at 1°" in varied.detail and "largest 0.040 at 121° (tolerance 0.10 there)" in varied.detail
+
+
 def test_gate_flags_thin_wall(tmp_path):
     m = _band_mesh(r_in=8.0, r_out=8.3)     # 0.3 mm wall
     p = tmp_path / "thin.stl"

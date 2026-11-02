@@ -752,7 +752,7 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     def shank_section(a):                                                    # the designed section, away from head, arches and text
         return sh.gate_section(a) if any(abs((a - f + 180.0) % 360.0 - 180.0) < 1e-6 for f in free) else None
     rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=sh.wall_floor(), wall_ray_filter=shank_rays,
-                     section_design=shank_section, section_tol_mm=bandmod.section_shape_tolerance(b.mesh_tolerance_mm))
+                     section_design=shank_section, section_tol_mm=sh.section_tolerance)
     ring = gate.load_mesh(stl)
     r = np.hypot(ring.vertices[:, 0], ring.vertices[:, 1])
     bore = 2 * float(r.min())

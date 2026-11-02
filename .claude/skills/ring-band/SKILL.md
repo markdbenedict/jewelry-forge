@@ -208,8 +208,10 @@ bottom (no crease at the shoulders or the bottom). The thin end must itself be a
 (floors, edge round): a 1.0 mm court bottom needs `--edge-round 0.15`.
 
 **Bodies that cross each other travel in separate bars** (`ShankSpec.bar_meshes`, up to four:
-`Shank Path` .. `Shank Path 4`, catalog 0.3; an unused slot imports a speck inside the first
-bar) and nTop's Boolean Union joins them as implicits before the opening and the wrap: a split's
+`Shank Path` .. `Shank Path 4`, catalog 0.3; an unused slot imports a 0.25 mm speck inside the
+first bar), each opened by the edge round on its own, and nTop's Boolean Union joins the opened
+implicits before the wrap (opening the union eroded a 0.05 mm groove along a split's seam: a
+union's field measures to a buried face inside an overlap): a split's
 two halves, a double band's strands and its bridges, a rope's or a plait's strands one each, a
 trinity shank's lower half with the strands' first pieces, its upper half with their second
 and the pad on its own (each piece runs a 0.1 mm plug into the half and the piece that continue
@@ -217,7 +219,12 @@ it, so the union sees overlaps, never a shared face). A mesh union of crossing b
 faces micrometres apart along its seams, which float32 STL and nTop's import turned into a
 self-intersecting bar (the trinity shank, 2026-11-02: 5 shells). The `[W] ... very close
 vertices have been merged` line on an Import Mesh is routine (an STL is a triangle soup);
-`[W] Mesh_0: Output Mesh is self-intersecting` is the one that matters.
+`[W] Mesh_0: Output Mesh is self-intersecting` is the one that matters. nTop's mesher leaves
+12-face bubbles of no volume where two surfaces kiss (a ribbon's rounded corner passing
+another's at a fused crossing): the gate reports them as degenerate specks beside the shell
+count (under 1e-6 mm³), not as shells. Through a trinity knot the section check allows the whole
+mesh tolerance (a pass over another makes a step crease the mesher fills by a voxel per round
+trip: 0.057 mm at 0.1), half of it elsewhere.
 
 The gate: the band checks measured about the axis (bore Ø, the widest width, the largest
 outer Ø, walls against the thinnest station's edge), volume vs nTop, **section shape** (above)

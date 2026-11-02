@@ -1,16 +1,17 @@
 """Build `ring_shank.ntop` through nTop's Notebook API: a shaped shank from the bars Python writes -
 Phase 3, step 1 (ntopjewel.shank).
 
-    Shank Path .. Shank Path 4 (text)  -> Import Mesh -> Implicit from Mesh, each; Boolean Union of the four
-                          (Shank Bars): bodies that cross each other - a split's halves, a double band's bridges,
-                          a rope's, plait's or trinity knot's strands - come in separate bars and are united HERE,
-                          as implicits (a mesh union left faces micrometres apart along its seams, which the
-                          import read as self-intersecting, 2026-11-02); an unused slot holds a speck inside the
-                          first bar, which changes nothing
-                       -> Offset Body (Edge Round Inward, -e) -> Mesh -> Implicit from Mesh -> Offset Body
-                          (Edge Round, +e): the opening (nj.add_opening) that rounds every edge a cut or a
-                          union left sharp (a split's slot, a bridge); the band's own edges are rounded that
-                          much in the section already. On the bar, where the field is exact.
+    Shank Path .. Shank Path 4 (text)  -> Import Mesh -> Implicit from Mesh, each
+                       -> each: Offset Body (Edge Round Inward, -e) -> Mesh -> Implicit from Mesh -> Offset Body
+                          (Edge Round, +e): the opening (nj.add_opening) that rounds every edge a cut left sharp
+                          (a split's slot, a bridge's ends); the band's own edges are rounded that much in the
+                          section already. On the bar, where the field is exact - and on each bar apart, since a
+                          union's field erodes into its overlaps (a 0.05 mm groove along a split's seam, 2026-11-02)
+                       -> Boolean Union of the four opened bars (Shank Bars): bodies that cross each other - a
+                          split's halves, a double band's bridges, a rope's, plait's or trinity knot's strands -
+                          come in separate bars and are united HERE, as implicits (a mesh union left faces
+                          micrometres apart along its seams, which the import read as self-intersecting,
+                          2026-11-02); an unused slot holds a speck inside the first bar, which changes nothing
                        -> Remap Cylindrical Body (Y mapping length = Wrap Length)   the bar wrapped round Z
                        -> Shank Body -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance),
                           Export Mesh (Output Path)

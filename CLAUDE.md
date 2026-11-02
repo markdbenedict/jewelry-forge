@@ -54,11 +54,13 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   Every check has a status - PASSED, FAILED or **INCOMPLETE** (it could not be measured: no
   rays came back, nTop reported no volume) - and a part's status is PASSED only when the
   nTop run succeeded and every hard check PASSED; INCOMPLETE is not a pass. The mandatory
-  checks for a band or ring: watertight, winding, one shell, wall thickness, inner/outer Ø,
+  checks for a band or ring: watertight, winding, one shell (the mesher's zero-volume bubbles
+  counted apart, see the nTopCL rules), wall thickness, inner/outer Ø,
   width, volume (mesh vs nTop), **design volume (nTop vs the independent arithmetic in
   Python - the check that catches a notebook building the wrong section)**, **section shape
   (the built outline against the designed section at 12 angles: an edge left sharp, a missing
-  strand, a wrong wrap)** and, when engraved, the pocket. The wall check casts rays only along radial/axial directions (letter
+  strand, a wrong wrap; the whole mesh tolerance through a trinity knot, whose step creases the
+  mesher fills by a voxel per round trip)** and, when engraved, the pocket. The wall check casts rays only along radial/axial directions (letter
   walls and bead seams measure ribs and slivers, not walls), only between the bead rows, and
   not axially inside an engraving's span, and drops a ray that leaves through a face at a grazing angle (a sharp edge's corner, not a wall); fewer than 1000 usable rays is INCOMPLETE (p1 of a
   few hundred rays is not a measurement). The ring axis is the one whose centre line passes
@@ -108,10 +110,20 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   import turn into intersections - no cleaning fixes that (`geom.clean` merges coplanar facets into
   mm-long triangles, which a vertex-wise unwrap turns into self-intersections; the edge collapse
   helps nothing). **So no bar carries a mesh union**: bodies that cross each other go to nTop in
-  separate bars (`ShankSpec.bar_meshes`, `Shank Path` .. `Shank Path 4`, a speck inside the first
-  bar in an unused slot) and nTop's Boolean Union joins the implicits; pieces that continue each
-  other overlap by a 0.1 mm plug, never share a face. The simulated nTop unites the wrapped bars
-  in the ring frame (`shank.bars_from_inputs`).
+  separate bars (`ShankSpec.bar_meshes`, `Shank Path` .. `Shank Path 4`, a 0.25 mm speck inside the
+  first bar in an unused slot) and nTop's Boolean Union joins the implicits; pieces that continue
+  each other overlap by a 0.1 mm plug, never share a face. The simulated nTop unites the wrapped
+  bars in the ring frame (`shank.bars_from_inputs`). Verified 2026-11-02: the trinity shank, the
+  trinity solitaire and the plait all built in one shell.
+- **Open each bar on its own, then unite** (`nj.add_wrapped_shank`): a Boolean Union's field is the
+  minimum of its bodies' fields, so inside an overlap it measures to a body's buried face, and the
+  opening's erosion cut a 0.05 mm groove along a split's seam all round the bottom (2026-11-02,
+  the halves' overlap wedge). Same rule as the arches: open apart, unite afterwards.
+- **Mesh from Implicit Body leaves 12-face bubbles of no volume where two surfaces kiss** (a
+  ribbon's rounded corner passing another's at a fused crossing, a rail's foot on the band's dome
+  inside the blend): 2 on the plait, 7 on the trinity solitaire (2026-11-02). The gate counts a
+  closed component under `gate.SPECK_VOLUME_MM3` (1e-6 mm³, a 10 µm cube) as a degenerate speck,
+  reported beside the shell count, not as a shell; a 0.05 mm bead adrift (5e-4 mm³) still counts.
 
 ## Notebook API rules (doc Oct 2026; console, SSH and discovery verified 2026-10-26 on nTop 6.3.3)
 

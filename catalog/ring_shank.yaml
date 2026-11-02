@@ -1,11 +1,11 @@
 # Phase 3 step 1: a shaped shank. Python writes the ring unrolled as bars (X radial, Y along the
 # ring, Z axial; one cross-section every few degrees at that angle's width and thickness,
 # ntopjewel.shank.ShankSpec.bar_meshes - up to four files, bodies that cross each other in
-# different ones); the notebook imports them, unites them and wraps the union round Z with Remap
+# different ones); the notebook imports them, opens each by the edge round, unites them and wraps the union round Z with Remap
 # Cylindrical Body (Y mapping length = Wrap Length, one turn). Built by ntop/recipes/ring_shank.py
 # through the Notebook API. Verify names: python -m ntopjewel templates ntop/notebooks/ring_shank.ntop --catalog ring_shank
 notebook: ring_shank.ntop
-version: 0.3.0   # .3: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook (api build ring_shank)
+version: 0.3.1   # 0.3.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); .3: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook (api build ring_shank)
 title: Shaped shank (tapered width and thickness) from wrapped bars
 output:
   name: Volume

@@ -80,7 +80,8 @@ MIN_EDGE_MM = 2e-4          # every union's result has its shorter edges collaps
                             # went with them (the trinity shank, 2026-11-01)
 PLUG_MM = 0.1               # a bar piece runs this far into the body that continues it (a knot's strand into its half, its other piece)
 PLUG_INSET = 0.04           # ... its section drawn in by this fraction over the plug, so the plug lies inside that body
-SPECK_MM = 0.05             # an unused bar slot imports a cube this big, inside the first bar's material (union_speck)
+SPECK_MM = 0.25             # an unused bar slot imports a cube this big, inside the first bar's material (union_speck): five
+                            # voxels at the default Mesh Tolerance, so the notebook's per-bar mesh round trip keeps it whole
 KNOT_LIFT_MM = 0.1          # a trinity knot's ribbon runs this far above the bore (buried clear of the pad's bore where it enters it)
 KNOT_TAPER_MM = 1.5         # the tail narrows from the half's section to the knot's ribbon over this run
 PAD_STEP_DEG = 1.0          # stations along the pad a knot's lobes run into
@@ -694,6 +695,17 @@ class ShankSpec:
         if self.trinity and self.trinity_section(theta_deg):
             return gate.section_geometry(self.design_mesh(), theta_deg)
         return self.section_shape(theta_deg, chamfer_mm=self.opening_chamfer_mm)
+
+    def section_tolerance(self, theta_deg: float) -> float:
+        """How far the built section may stray from gate_section at an angle: the band's rule
+        (band.section_shape_tolerance: half the mesh tolerance, a shallow crease's fill), or the
+        whole mesh tolerance through a trinity knot, where a pass over another makes a step that
+        the mesher fills by a voxel at each of its two round trips (0.056 mm at 0.1 mm, 2026-11-02;
+        a pass missing or lifted wrong reads ten times that)."""
+        t = band.section_shape_tolerance(self.band.mesh_tolerance_mm)
+        if self.trinity and self.trinity_section(theta_deg):
+            return max(t, float(self.band.mesh_tolerance_mm))
+        return t
 
     def opening_overcut_mm3(self) -> float:
         """What nTop's opening takes off beyond the design's rounds: the exact sections' volume
@@ -1584,7 +1596,9 @@ def plug_rings(rings, length: float = PLUG_MM, inset: float = PLUG_INSET):
 def union_speck(bar, wrap_length: float):
     """A cube SPECK_MM across inside `bar`'s material at the bottom of the ring (Y = L/2, the point
     of its section there farthest from any edge): what an unused bar slot imports, united into
-    metal that is there anyway - the field does not change."""
+    metal that is there anyway - the field does not change. Big enough to come through the
+    notebook's per-bar mesh round trip (a 0.05 mm one would mesh to nothing, or to the 12-face
+    bubbles nTop makes of a 0.05 mm bead)."""
     import numpy as np
     import trimesh
     from shapely.geometry import Polygon
@@ -1598,7 +1612,7 @@ def union_speck(bar, wrap_length: float):
     poly = max((p for p in polys if p.is_valid and not p.is_empty), key=lambda p: p.area)
     p = polylabel(poly, tolerance=0.01)
     margin = poly.exterior.distance(p)
-    if margin < SPECK_MM:
+    if margin < SPECK_MM * math.sqrt(3) / 2:                                 # the cube's half diagonal
         raise ValueError(f"union_speck: the section at the bottom is too thin for a speck ({margin:.3f} mm to its edge)")
     cube = trimesh.creation.box(extents=(SPECK_MM, SPECK_MM, SPECK_MM))
     cube.apply_translation((p.x, L / 2, p.y))
@@ -1748,7 +1762,7 @@ def check_shank(spec: ShankSpec, stl: Path, ntop_vol: float | None) -> gate.Gate
     rep = gate.check(stl, expect_inner=b.inner_diameter_mm, expect_outer=2 * spec.outer_radius_mm,
                      expect_width=spec.overall_width_mm, expect_volume=ntop_vol, wall_floor=spec.wall_floor(),
                      centre="origin",                      # the box centre sits off the axis on a tapered ring
-                     section_design=spec.gate_section, section_tol_mm=band.section_shape_tolerance(b.mesh_tolerance_mm))
+                     section_design=spec.gate_section, section_tol_mm=spec.section_tolerance)
     c = band.design_volume_check(spec.expected_volume_mm3(), ntop_vol, 2.0)
     rounded, overcut = spec.sharp_edge_round_mm3(), spec.opening_overcut_mm3()
     if (rounded or overcut) and c.status != gate.INCOMPLETE:

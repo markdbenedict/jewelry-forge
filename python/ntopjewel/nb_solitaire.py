@@ -4,8 +4,8 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
 
     shank      the band as Python wrote it, bars (Shank Path .. Shank Path 4; plain, tapered, split,
                knotted - ntopjewel.shank.bar_meshes, bodies that cross each other in different bars, an
-               unused slot a speck inside the first): each Import Mesh -> Implicit from Mesh, united ->
-               opened by the edge round -> Remap Cylindrical (Wrap Length) = Band Body; the arches, less
+               unused slot a speck inside the first): each Import Mesh -> Implicit from Mesh -> opened by
+               the edge round, then united -> Remap Cylindrical (Wrap Length) = Band Body; the arches, less
                the slot cutter (Slot Path: the split's slot swept in the ring frame, a speck far outside
                when there is none), opened on their own and united afterwards
     seat       stone_seat(Seat Path, Clearance), embedded -> Seat Local (head frame)

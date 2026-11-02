@@ -63,6 +63,7 @@ class GateReport:
     winding_consistent: bool = False
     normals_flipped: bool = False
     shells: int = 0
+    specks: int = 0                      # closed components under SPECK_VOLUME_MM3, not counted as shells
     volume_mm3: float = 0.0
     area_mm2: float = 0.0
     extents_mm: list[float] = field(default_factory=list)
@@ -106,7 +107,8 @@ class GateReport:
         p = Path(self.path)
         word = {PASSED: "PASS", FAILED: "FAIL", INCOMPLETE: "INCOMPLETE"}[self.status]
         lines = [f"{word}  {p.name}",
-                 f"  {self.triangles:,} tris, {self.vertices:,} verts, shells {self.shells}, "
+                 f"  {self.triangles:,} tris, {self.vertices:,} verts, shells {self.shells}"
+                 + (f" (+{self.specks} degenerate specks)" if self.specks else "") + ", "
                  f"watertight {self.watertight}, winding ok {self.winding_consistent}"
                  + (", normals were flipped" if self.normals_flipped else ""),
                  f"  extents {self.extents_mm[0]:.2f} x {self.extents_mm[1]:.2f} x {self.extents_mm[2]:.2f} mm, "
@@ -141,6 +143,9 @@ def load_mesh(path: Path) -> trimesh.Trimesh:
 
 
 MIN_WALL_SAMPLES = 1000      # fewer usable rays and p1 rests on a handful of them: not a measurement
+SPECK_VOLUME_MM3 = 1e-6      # a closed component under this (a 10 µm cube) is the mesher's, not the part's: nTop's Mesh from
+                             # Implicit Body leaves 12-face bubbles of no volume where two surfaces kiss (a ribbon's rounded
+                             # corner passing another's, a rail's foot on the band's dome; 2026-11-02) - no print resolves one
 
 
 def ring_axis(mesh: trimesh.Trimesh) -> int:
@@ -301,10 +306,11 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
           wall_floor: float = tables.FLOORS["wall_marginal"], wall_samples: int = 4000,
           axis: str | None = None, metals=tables.DEFAULT_WEIGHT_METALS,
           write_report: bool = True, wall_abs_axis_max: float | None = None, wall_ray_filter=None,
-          centre: str = "bbox", section_design=None, section_tol_mm: float | None = None) -> GateReport:
+          centre: str = "bbox", section_design=None, section_tol_mm=None) -> GateReport:
     """The generic gate. `section_design(theta_deg)` -> the designed cross-section at that angle as
     a shapely geometry in (r, z) (None to skip the angle) adds the section-shape check
-    (section_shape_check) at SHAPE_ANGLES_DEG, within `section_tol_mm` (default SHAPE_TOL_MM)."""
+    (section_shape_check) at SHAPE_ANGLES_DEG, within `section_tol_mm` (a number or a function of
+    the angle; default SHAPE_TOL_MM)."""
     path = Path(path)
     mesh = load_mesh(path)
     rep = GateReport(path=str(path), triangles=int(len(mesh.faces)), vertices=int(len(mesh.vertices)))
@@ -315,7 +321,8 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
         mesh.invert()
         rep.normals_flipped = True
     parts = mesh.split(only_watertight=False)
-    rep.shells = int(len(parts)) if len(parts) else 1
+    rep.specks = int(sum(1 for q in parts if abs(float(q.volume)) < SPECK_VOLUME_MM3)) if len(parts) > 1 else 0
+    rep.shells = (int(len(parts)) - rep.specks) if len(parts) else 1
     rep.volume_mm3 = float(abs(mesh.volume)) if rep.watertight else float(abs(mesh.volume))
     rep.area_mm2 = float(mesh.area)
     rep.extents_mm = [float(x) for x in mesh.bounding_box.extents]
@@ -335,7 +342,9 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
                    hard=False))
     c.append(Check("watertight", rep.watertight, "closed mesh" if rep.watertight else "open edges or holes"))
     c.append(Check("winding", rep.winding_consistent, "consistent" if rep.winding_consistent else "inconsistent face winding"))
-    c.append(Check("shells", rep.shells == shells, f"{rep.shells} (expected {shells})"))
+    c.append(Check("shells", rep.shells == shells, f"{rep.shells} (expected {shells})"
+                   + (f"; {rep.specks} degenerate speck{'s' if rep.specks > 1 else ''} under {SPECK_VOLUME_MM3:g} mm³ not counted "
+                      "(the mesher's bubbles where two surfaces kiss)" if rep.specks else "")))
     if rep.thickness and rep.thickness["samples"] < MIN_WALL_SAMPLES and wall_floor > 0:
         t = rep.thickness
         c.append(incomplete("wall thickness", f"only {t['samples']} usable rays (need {MIN_WALL_SAMPLES}): p1 {t['p01']:.3f} mm "
@@ -403,17 +412,20 @@ def section_geometry(mesh: trimesh.Trimesh, theta_deg: float, axis: int = 2):
     return geom
 
 
-def section_shape_check(mesh: trimesh.Trimesh, design, angles=SHAPE_ANGLES_DEG, tol_mm: float = SHAPE_TOL_MM,
+def section_shape_check(mesh: trimesh.Trimesh, design, angles=SHAPE_ANGLES_DEG, tol_mm=SHAPE_TOL_MM,
                         axis: int = 2, name: str = "section shape") -> Check:
     """The built section against the designed one at several angles: the Hausdorff distance
-    between the two outlines (shapely, densified), at most `tol_mm` everywhere. `design(theta)`
+    between the two outlines (shapely, densified), at most `tol_mm` everywhere - a number, or a
+    function of the angle (a knot's creases fill fuller than a plain band's). `design(theta)`
     returns the designed section as a shapely geometry in (r, z), or None to skip that angle. A
     corner the notebook left sharp where a round was designed stands off the fillet (0.065 mm on
     a court band's 0.25 mm round: the real court band built while nTop's opening was a no-op read
     0.049 against its opened section and 0.020 against the unopened one, 2026-10-30), a missing
     strand or a filled slot far more; a wrong wrap length stretches every section."""
     import shapely
-    worst = (-1.0, None, "")
+    tol_at = tol_mm if callable(tol_mm) else (lambda a: tol_mm)
+    worst = (-1.0, None, "", 0.0, 0.0)                                      # by how far over its tolerance
+    largest = (-1.0, None, 0.0)                                             # the largest distance, whatever its tolerance
     checked = 0
     for a in angles:
         want = design(a)
@@ -423,17 +435,22 @@ def section_shape_check(mesh: trimesh.Trimesh, design, angles=SHAPE_ANGLES_DEG, 
         if got is None or got.is_empty:
             return incomplete(name, f"no section at {a:.0f}°: the cut through the axis met nothing there")
         d = float(shapely.hausdorff_distance(got.boundary, want.boundary, densify=0.1))
+        tol = float(tol_at(a))
         checked += 1
-        if d > worst[0]:
+        if d - tol > worst[0]:
             parts = len(getattr(got, "geoms", [got])), len(getattr(want, "geoms", [want]))
-            worst = (d, a, f"{parts[0]} part{'s' if parts[0] != 1 else ''} built vs {parts[1]} designed" if parts[0] != parts[1] else "")
+            worst = (d - tol, a, f"{parts[0]} part{'s' if parts[0] != 1 else ''} built vs {parts[1]} designed" if parts[0] != parts[1] else "", d, tol)
+        if d > largest[0]:
+            largest = (d, a, tol)
     if not checked:
         return incomplete(name, "no angle to check")
-    d, a, extra = worst
-    ok = d <= tol_mm
-    detail = f"{checked} angles, outlines within {d:.3f} mm of the design (tolerance {tol_mm:.2f}); worst at {a:.0f}°"
+    _, a, extra, d, tol = worst
+    ok = d <= tol
+    detail = f"{checked} angles, outlines within {d:.3f} mm of the design (tolerance {tol:.2f}); worst at {a:.0f}°"
     if extra:
         detail += f" ({extra})"
+    if largest[1] != a:
+        detail += f"; largest {largest[0]:.3f} at {largest[1]:.0f}° (tolerance {largest[2]:.2f} there)"
     if not ok:
         detail += " - the built section is not the designed one (an edge left sharp, a feature missing, a wrong wrap?)"
     return Check(name, ok, detail)

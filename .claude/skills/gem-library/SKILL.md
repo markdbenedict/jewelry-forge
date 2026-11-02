@@ -111,8 +111,10 @@ python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-widt
 The shank is always the bars Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
 `<stem>.bar.stl`, `.bar2.stl` ... and `<stem>.speck.stl` for the unused slots in the run
 directory; `Shank Path` .. `Shank Path 4` / `Wrap Length` inputs, catalogs 0.8 / 0.4): each
-Import Mesh → Implicit from Mesh, united → opened by the edge round → Remap Cylindrical = Band
-Body; the arches are opened on their own and united with it. Bodies that cross each other (a
+Import Mesh → Implicit from Mesh → opened by the edge round, then united → Remap Cylindrical =
+Band Body; the arches are opened on their own and united with it. Ring 01 (the marquise on the
+trinity shank) built PASSED in nTop on 2 Nov; its 7 "shells" were the mesher's zero-volume
+bubbles where the rails' feet kiss the band's dome, which the gate now reports apart. Bodies that cross each other (a
 split's halves, a knot's strands) come in separate bars and nTop unites them (`ring-band`). Plain by default; `--width-bottom`,
 `--thickness-bottom`, `--taper-from` (≥ the arches' wedge + 3°, i.e. 50° at the default
 shoulder) taper it towards the bottom of the finger (stem `..._w4-2.4_t1.3-1.2_...`). `--split`

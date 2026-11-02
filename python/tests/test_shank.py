@@ -122,16 +122,17 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
         tag = "" if k == 0 else f" {k + 1}"
         assert nb.blocks[b[f"Shank Mesh{tag}"]]["wired"]["Path"][0] == b[name]
         assert nb.blocks[b[f"Shank Bar{tag}"]]["wired"]["Mesh"][0] == b[f"Shank Mesh{tag}"]
-    assert nb.blocks[b["Shank Bars"]]["lists"]["Bodies"] == [b["Shank Bar"], b["Shank Bar 2"], b["Shank Bar 3"], b["Shank Bar 4"]]   # ... and united
     assert params["values"]["Shank Path 2"] == params["values"]["Shank Path 4"] != params["values"]["Shank Path"]   # the tapered shank: one bar + the speck
-    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bars"]                # the opening on the union ...
-    assert nb.blocks[b["Shrunk"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
-    assert nb.blocks[b["Shrunk Body Mesh"]]["wired"]["Body"][0] == b["Shrunk"]          # ... re-distanced through a mesh
-    assert nb.blocks[b["Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == b["Mesh Tolerance"]
-    assert nb.blocks[b["Shrunk Body"]]["wired"]["Mesh"][0] == b["Shrunk Body Mesh"]
-    assert nb.blocks[b["Opened"]]["wired"]["Body"][0] == b["Shrunk Body"]
-    assert nb.blocks[b["Opened"]]["wired"]["Distance"][0] == b["Edge Round"]
-    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Opened"]                     # ... then the wrap
+    for tag in ("", " 2", " 3", " 4"):                                                    # ... each opened on its own ...
+        assert nb.blocks[b[f"Shrunk{tag}"]]["wired"]["Body"][0] == b[f"Shank Bar{tag}"]
+        assert nb.blocks[b[f"Shrunk{tag}"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
+        assert nb.blocks[b[f"Shrunk{tag} Body Mesh"]]["wired"]["Body"][0] == b[f"Shrunk{tag}"]   # ... re-distanced through a mesh
+        assert nb.blocks[b[f"Shrunk{tag} Body Mesh"]]["wired"]["Tolerance"][0] == b["Mesh Tolerance"]
+        assert nb.blocks[b[f"Shrunk{tag} Body"]]["wired"]["Mesh"][0] == b[f"Shrunk{tag} Body Mesh"]
+        assert nb.blocks[b[f"Opened{tag}"]]["wired"]["Body"][0] == b[f"Shrunk{tag} Body"]
+        assert nb.blocks[b[f"Opened{tag}"]]["wired"]["Distance"][0] == b["Edge Round"]
+    assert nb.blocks[b["Shank Bars"]]["lists"]["Bodies"] == [b["Opened"], b["Opened 2"], b["Opened 3"], b["Opened 4"]]   # ... united opened (a union's field erodes into its overlaps)
+    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Shank Bars"]                 # ... then the wrap
     assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == b["Wrap Length"]
 
 

@@ -211,31 +211,37 @@ def add_wrapped_shank(h: NotebookHelper, path_vars, wrap_var: str, inward_var: s
                       tolerance_var: str, label: str = "Shank") -> str:
     """The shank Python wrote as bars (ntopjewel.shank.ShankSpec.bar_meshes: X radial, Y along the
     ring, Z axial; `path_vars`: the text variables holding the shank.BAR_SLOTS paths, an unused
-    slot's a speck inside the first bar): per bar Import Mesh -> Implicit from Mesh; Boolean Union
-    of the bars (sharp: bodies that cross each other - a knot's strands, a split's halves, a double
+    slot's a speck inside the first bar): per bar Import Mesh -> Implicit from Mesh -> the opening
+    by the edge round (add_opening, on the bar, where the field is exact); Boolean Union of the
+    opened bars (sharp: bodies that cross each other - a knot's strands, a split's halves, a double
     band's bridges - are united here, as implicits, never as meshes: a mesh union leaves faces
     micrometres apart along its seams, which nTop's import read as self-intersecting, 2026-11-02)
-    -> the opening by the edge round (add_opening, on the bar, where the field is exact) -> Remap
-    Cylindrical Body (Y mapping length = wrap_var). Returns the id of the remap block, the
-    ring-shaped shank."""
+    -> Remap Cylindrical Body (Y mapping length = wrap_var). Returns the id of the remap block,
+    the ring-shaped shank.
+
+    Each bar is opened on its own, BEFORE the union: a union's field is the minimum of its bars'
+    fields, so inside an overlap it measures to a bar's buried face, not to the part's surface,
+    and the erosion cut a 0.05 mm groove along a split's seam (the halves' overlap wedge) all round
+    the bottom of the ring (2026-11-02). Opened apart, each bar's convex edges round as designed
+    (a slot's, a bridge's) and the overlap stays whole; a buried face's edges round inside the
+    other bar, where nothing shows."""
     path_vars = [path_vars] if isinstance(path_vars, str) else list(path_vars)
-    bodies = []
+    opened = []
     for k, path_var in enumerate(path_vars):
         tag = "" if k == 0 else f" {k + 1}"
         imp = h.add(f"{label} Mesh{tag}", mask="import_mesh", must=IMPORT_MESH)
         h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
         body = h.add(f"{label} Bar{tag}", mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
         h.wire(imp, body, ["Mesh"])
-        bodies.append(body)
-    if len(bodies) == 1:
-        joined = bodies[0]
+        opened.append(add_opening(h, body, inward_var, outward_var, tolerance_var, name=f"Opened{tag}", shrunk_name=f"Shrunk{tag}"))
+    if len(opened) == 1:
+        joined = opened[0]
     else:
         joined = h.add(f"{label} Bars", mask="union", must=UNION)
-        for body in bodies:
+        for body in opened:
             h.to_list(body, joined, ["Bodies"])
-    opened = add_opening(h, joined, inward_var, outward_var, tolerance_var)
     wrapped = h.add(label, mask="remap_cylindrical", must=REMAP_CYLINDRICAL)
-    h.wire(opened, wrapped, ["Body"])
+    h.wire(joined, wrapped, ["Body"])
     h.wire(wrap_var, wrapped, ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"])
     return wrapped
 
