@@ -115,7 +115,10 @@ raises `NtopclError` (with the parsed `RunResult` attached) on failure.
 
 1. Write or change the catalog entry first (`catalog/<name>.yaml` is the schema: types,
    units, ranges, defaults, docs); the build script's `INPUT_ORDER` must equal its input
-   names (a test enforces this for the band).
+   names (a test enforces this for the band). **Any change to what the notebook builds bumps
+   the version AND sets `rebuild_since` to it**, inputs changed or not: runs of an older
+   build are then refused with the `api build` to run (`runs.require_built`; `api build`
+   writes the `<name>.build.json` stamp it checks - commit it with the notebook).
 2. Write or change the build script in `ntop/recipes/<name>.py`; run the offline tests
    (they exercise it against `python/tests/fake_notebook.py`).
 3. `api build <name>` on the laptop; read the identifiers and states in the result and the
@@ -123,6 +126,8 @@ raises `NtopclError` (with the parsed `RunResult` attached) on failure.
 4. `templates` against the catalog entry until it says `catalog matches the notebook`.
 5. Run once with test values; read `out/<tag>.ntopcl.log` and the output JSON.
 6. Run the gate on every file the notebook wrote. Report the gate text, not a summary of it.
+   Every command ends with one `==> PASSED / FAILED / ERROR` line; after a batch,
+   `python -m ntopjewel runs` (today's runs, `--since HH:MM`, `--last N`) is the table to read.
 7. Record block timings from the log in the report when a run takes more than a minute.
 
 ## Diagnosing failures

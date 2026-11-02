@@ -66,6 +66,17 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   few hundred rays is not a measurement). The ring axis is the one whose centre line passes
   through the bore (a band wider than its diameter keeps its axis). Nothing is reported as
   finished until the status is PASSED.
+- **Every command ends with one verdict line** (`summary.verdict`): `==> PASSED <stem>`, `==> FAILED
+  <stem>: <failing checks>`, or `==> ERROR <what>: <why>` when nothing was built; green / red /
+  yellow on a console that shows colour. `python -m ntopjewel runs` tabulates every run's report
+  in `out\` - read that, not the scroll-back, after a batch.
+- **A notebook must be at least as new as its catalog says** (`rebuild_since` in the catalog,
+  `runs.require_built`): `api build` writes `ntop\notebooks\<name>.build.json` (the catalog
+  versions it was built for, the notebook's sha256) and a run of a catalog's own notebook is
+  refused, naming the `api build` to run, when the stamp is missing or older than
+  `rebuild_since`. Bump `rebuild_since` with every notebook-body change, inputs changed or not
+  (2026-11-02: a notebook a commit behind ran and one design failed for it). Commit the stamp
+  with the notebook.
 - **Every variant and run has a distinct identity.** A stem is
   `ring_band_<profile>_<size>_w<width>_t<thickness>_<spec id>` (rings: `ring_<profile>_<features>_…`),
   the spec id being a hash of every number that defines the design, so two designs never share
@@ -304,6 +315,7 @@ python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickne
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot under the head, through the arches (Slot Path)
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: the knots take the arches' place
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
+python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests
 pytest python\tests -q -m slow                  # tests that run nTop
 ```

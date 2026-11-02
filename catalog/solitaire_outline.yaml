@@ -3,6 +3,7 @@
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_outline.ntop
 version: 0.4.1   # 0.4.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.4.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
+rebuild_since: 0.4.1   # the notebook body changed then (each bar opened before the union): a notebook built for an older version is refused (runs.require_built)
 title: 'Solitaire (pear / fancy stone, outline_head): gothic cathedral arches, arch
   milgrain, optional engraving'
 output:

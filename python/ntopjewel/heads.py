@@ -338,6 +338,7 @@ def build_head(spec: HeadSpec, out_dir: Path | None = None, *, notebook: Path | 
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []   # a notebook older than the catalog needs: refused
     run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "head", spec.stem)
     envelope = run_dir / f"{spec.stem}.envelope.stl"
     spec.seat.envelope().export(str(envelope))
@@ -799,6 +800,7 @@ def build_outline_head(spec: OutlineHeadSpec, out_dir: Path | None = None, *, no
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []   # a notebook older than the catalog needs: refused
     run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "head", spec.stem)
     envelope, prongs = run_dir / f"{spec.stem}.envelope.stl", run_dir / f"{spec.stem}.prongs.stl"
     spec.seat.envelope().export(str(envelope))
@@ -1110,6 +1112,7 @@ def build_bezel(spec: BezelSpec, out_dir: Path | None = None, *, notebook: Path 
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []   # a notebook older than the catalog needs: refused
     run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "head", spec.stem)
     envelope, windows = run_dir / f"{spec.stem}.envelope.stl", run_dir / f"{spec.stem}.windows.stl"
     spec.seat.envelope().export(str(envelope))

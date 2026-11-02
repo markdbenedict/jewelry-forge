@@ -885,6 +885,7 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name or spec.catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []   # a notebook older than the catalog needs: refused
     run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "solitaire", spec.stem)
     envelope = run_dir / f"{spec.stem}.envelope.stl"
     spec.head.seat.envelope().export(str(envelope))
@@ -918,7 +919,7 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     stone = spec.head.stone
     res.notes.append(f"stone {stone.carats():.2f} ct {stone.material}; metal " +
                      ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))
-    res.notes += spec.band.warnings()
+    res.notes += spec.band.warnings() + built_notes
     report = {"stem": spec.stem, "spec_id": runs.spec_id(spec.design()), "run_id": run_id, "status": res.status,
               "design": spec.design(), "inputs": inputs, "stl": str(stl),
               "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notes": res.notes,

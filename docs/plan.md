@@ -285,9 +285,15 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    groove along the halves' seam on both the bore and the outside, because the opening eroded the
    *union's* field, which inside the overlap wedge measures to a half's buried face. **Each bar is
    now opened on its own and the opened bars united** (catalogs .1: same inputs, rebuild the four
-   notebooks again), and the speck is 0.25 mm so the per-bar mesh round trip keeps it. *Real
-   check:* rebuild, then the same four commands; the split shank's bottom sections should be
-   within 0.01 mm again (they were 0.005 elsewhere). Then step 2.
+   notebooks again), and the speck is 0.25 mm so the per-bar mesh round trip keeps it. **Rerun
+   17:00, 2 Nov: trinity shank, ring-01 solitaire and plait PASSED; the split shank failed the
+   same 0.058** - its `ring_shank.ntop` was the 14:52 build, a commit behind (pulled, not rebuilt).
+   Nothing could tell: the inputs had not changed. So `api build` now stamps every notebook it
+   saves (`<name>.build.json`: catalog versions, sha256), catalogs carry `rebuild_since`, and a run
+   on an older notebook is refused naming the rebuild (`runs.require_built`); every command ends
+   in one verdict line and `ntopjewel runs` tabulates the day's runs. *Real check:* the four
+   `api build`s (each prints `stamped` and `==> BUILT`), then the split shank: bottom sections
+   within ~0.01 mm. Then step 2.
 2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.

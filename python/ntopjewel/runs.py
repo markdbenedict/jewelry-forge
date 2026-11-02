@@ -78,6 +78,92 @@ def notebook_identity(notebook: Path) -> dict:
     return out
 
 
+def build_stamp_path(notebook: Path) -> Path:
+    """`ring_shank.ntop` -> `ring_shank.build.json` beside it: which catalog versions the notebook was built for."""
+    nb = Path(notebook)
+    return nb.with_name(nb.stem + ".build.json")
+
+
+def write_build_stamp(notebook: Path, catalogs: dict[str, str] | None = None) -> dict | None:
+    """After `api build` saved a notebook: record its hash and the version of every catalog that
+    names it (the contract it was built to), so a run can tell a notebook that predates a change
+    that needs a rebuild (require_built). None when no catalog names the notebook (a block, a
+    scratch build)."""
+    from . import catalog as catmod
+    nb = Path(notebook).resolve()
+    cats = dict(catalogs or {})
+    for name in ([] if catalogs else catmod.names()):
+        try:
+            c = catmod.load(name)
+        except Exception:
+            continue
+        if Path(c.notebook).resolve() == nb:
+            cats[name] = c.version
+    if not cats or not nb.exists():
+        return None
+    stamp = {"notebook": nb.name, "sha256": sha256(nb), "built": datetime.now(timezone.utc).isoformat(),
+             "catalogs": cats, "git_commit": git_commit(), "ntopjewel": __version__}
+    build_stamp_path(nb).write_text(json.dumps(stamp, indent=2), encoding="utf-8")
+    return stamp
+
+
+def _version_key(v: str) -> tuple:
+    return tuple(int(x) if x.isdigit() else 0 for x in str(v).split("."))
+
+
+def require_built(cat, notebook: Path) -> list[str]:
+    """Refuse a notebook older than the catalog needs: when the catalog says `rebuild_since: X`
+    (the notebook body changed in version X, its inputs perhaps not - nothing else would notice),
+    the notebook's build stamp must name catalog version X or later. Returns warnings (a notebook
+    changed since its stamp: built or edited outside `api build`). Raises ValueError naming the
+    rebuild. 2026-11-02: four notebooks ran a day's old build and one design failed for it."""
+    nb = Path(notebook)
+    since = getattr(cat, "rebuild_since", None)
+    stamp_path = build_stamp_path(nb)
+    stamp = None
+    if stamp_path.exists():
+        try:
+            stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            stamp = None
+    fix = f"rebuild it: python -m ntopjewel api build {_recipe_for(nb)} (nTop open, Python Console open), then run again"
+    if since:
+        built_for = (stamp or {}).get("catalogs", {}).get(cat.name)
+        if built_for is None:
+            raise ValueError(f"{nb.name} has no build stamp for catalog {cat.name} {cat.version}, which needs a notebook "
+                             f"built for {since} or later - {fix}")
+        if _version_key(built_for) < _version_key(since):
+            raise ValueError(f"{nb.name} was built for {cat.name} {built_for}; the catalog is {cat.version} and its notebook "
+                             f"changed in {since} - {fix}")
+    warnings = []
+    if stamp and nb.exists() and stamp.get("sha256") and stamp["sha256"] != sha256(nb):
+        warnings.append(f"{nb.name} changed since its build stamp ({stamp.get('built', '?')}): edited in the GUI or "
+                        "pulled from elsewhere? Rebuild it if in doubt")
+    return warnings
+
+
+def _recipe_for(notebook: Path) -> str:
+    """The `api build` name that writes a notebook (ntop/recipes/<name>.py saves ntop/notebooks/<x>.ntop)."""
+    stem = Path(notebook).stem
+    stem = stem[:-len("_harness")] if stem.endswith("_harness") else stem
+    return {"ring_band_profile": "band_profile"}.get(stem, stem)
+
+
+def stamp_fresh_builds(started: float) -> list[Path]:
+    """Every catalogued notebook saved since `started` (an `api build` that just finished; a block
+    recipe saves its harness too) gets its build stamp. Returns the notebooks stamped."""
+    from . import catalog as catmod
+    done = []
+    for name in catmod.names():
+        try:
+            nb = Path(catmod.load(name).notebook)
+        except Exception:
+            continue
+        if nb.exists() and nb.stat().st_mtime >= started - 1.0 and nb not in done and write_build_stamp(nb):
+            done.append(nb)
+    return done
+
+
 def git_commit() -> str | None:
     try:
         proc = subprocess.run(["git", "rev-parse", "--short=12", "HEAD"], capture_output=True, text=True,

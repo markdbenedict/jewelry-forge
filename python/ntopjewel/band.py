@@ -352,6 +352,7 @@ def build(spec: BandSpec, out_dir: Path | None = None, *, notebook: Path | None 
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []   # a notebook older than the catalog needs: refused
     out_dir = Path(out_dir) if out_dir else config.out_dir() / "band"
     stem = spec.stem
     run_dir, run_id = runs.fresh_run_dir(out_dir, stem)      # nothing from an earlier run can be mistaken for this one

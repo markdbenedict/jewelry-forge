@@ -1809,6 +1809,7 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []   # a notebook older than the catalog needs: refused
     out_dir = Path(out_dir) if out_dir else config.out_dir() / "shank"
     stem = spec.stem
     run_dir, run_id = runs.fresh_run_dir(out_dir, stem)
@@ -1828,7 +1829,7 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
     rep = check_shank(spec, stl, ntop_vol)
     gate.save(rep)
     result = ShankResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
-    result.notes += spec.warnings()
+    result.notes += spec.warnings() + built_notes
     report = {
         "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
         "band": asdict(spec.band), "shank": {k: v for k, v in asdict(spec).items() if k not in ("band", "_cache")},

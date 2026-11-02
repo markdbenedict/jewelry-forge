@@ -13,6 +13,7 @@
   solitaire --shape pear ... --engrave T a pear in an outline head, text inside the shank (solitaire_outline.ntop)
   solitaire --bezel ...                  any stone in a bezel (solitaire_bezel.ntop)
   gate FILE.stl [--expect-*]  run the mesh gate on any mesh
+  runs [--since 16:00|--last 5|--all]   one line per run: PASSED / FAILED and the failing checks (today by default)
   sizes                       print the ring-size conversion table
   api check                   prove the SSH link to nTop's Python Console (Notebook API)
   api build RECIPE            author a notebook through the Notebook API (ntop/recipes/<RECIPE>.py)
@@ -26,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, shank, solitaire, tables
+from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, shank, solitaire, summary, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -104,6 +105,7 @@ def cmd_run(a: argparse.Namespace) -> int:
         print(e)
         if e.result:
             print(e.result.summary())
+        print(summary.error_line(cat.name, e))
         return 2
     print(res.summary())
     return 0
@@ -126,10 +128,13 @@ def cmd_band(a: argparse.Namespace) -> int:
                          cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"band failed: {e}")
+        _error_verdict = summary.error_line("band", e)
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
+        print(_error_verdict)
         return 2
     print(res.text())
+    print(summary.verdict(res))
     return 0 if res.ok else 1
 
 
@@ -221,8 +226,10 @@ def cmd_ring(a: argparse.Namespace) -> int:
             res = features.preview(spec, Path(a.out) if a.out else None, console=console, timeout=a.timeout)
         except (notebook_api.ConsoleError, ValueError, RuntimeError) as e:
             print(f"preview failed: {e}")
+            print(summary.error_line("preview", e))
             return 2
         print(res.text())
+        print(summary.verdict(res))
         return 0 if res.ok else 1
     try:
         res = features.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
@@ -230,10 +237,13 @@ def cmd_ring(a: argparse.Namespace) -> int:
                          cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
         print(f"ring failed: {e}")
+        _error_verdict = summary.error_line("ring", e)
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
+        print(_error_verdict)
         return 2
     print(res.text())
+    print(summary.verdict(res))
     return 0 if res.ok else 1
 
 
@@ -264,10 +274,13 @@ def cmd_shank(a: argparse.Namespace) -> int:
                           catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
         print(f"shank failed: {e}")
+        _error_verdict = summary.error_line("shank", e)
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
+        print(_error_verdict)
         return 2
     print(res.text())
+    print(summary.verdict(res))
     return 0 if res.ok else 1
 
 
@@ -306,10 +319,13 @@ def cmd_seat(a: argparse.Namespace) -> int:
         res = gems.build_seat(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"seat failed: {e}")
+        _error_verdict = summary.error_line("seat", e)
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
+        print(_error_verdict)
         return 2
     print(res.text())
+    print(summary.verdict(res))
     return 0 if res.ok else 1
 
 
@@ -348,10 +364,13 @@ def cmd_head(a: argparse.Namespace) -> int:
         res = build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"head failed: {e}")
+        _error_verdict = summary.error_line("head", e)
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
+        print(_error_verdict)
         return 2
     print(res.text())
+    print(summary.verdict(res))
     return 0 if res.ok else 1
 
 
@@ -392,10 +411,13 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                               deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"solitaire failed: {e}")
+        _error_verdict = summary.error_line("solitaire", e)
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
+        print(_error_verdict)
         return 2
     print(res.text())
+    print(summary.verdict(res))
     return 0 if res.ok else 1
 
 
@@ -516,6 +538,8 @@ def cmd_api(a: argparse.Namespace) -> int:
     print(f"building  : {script.stem} in nTop's open session (a fresh notebook; the canvas fills as blocks are "
           f"added, then it is saved to {params.get('save_to') or 'the recipe default'})", flush=True)
     progress = work_dir / f"{script.stem}.progress.log"
+    import time as _time
+    started = _time.time()
     try:
         res = _console(a).run_script(script, params, work_dir=work_dir, python_path=python_path, timeout=a.timeout)
     except (notebook_api.ConsoleError, KeyboardInterrupt) as e:
@@ -523,9 +547,31 @@ def cmd_api(a: argparse.Namespace) -> int:
         if progress.exists():
             tail = progress.read_text(encoding="utf-8").splitlines()[-15:]
             print(f"last steps inside nTop ({progress}):\n    " + "\n    ".join(tail))
+        print(summary.error_line(f"api build {script.stem}", e or "interrupted"))
         return 2
     _print_build_result(res)
     print(f"\nfull result: {work_dir / (script.stem + '.result.json')}")
+    from . import runs as _runs
+    for nb in _runs.stamp_fresh_builds(started):
+        print(f"stamped   : {_runs.build_stamp_path(nb).name} (the runner checks it against the catalog's rebuild_since)")
+    print(summary.paint(f"==> BUILT   {script.stem}", summary.GREEN))
+    return 0
+
+
+def cmd_runs(a: argparse.Namespace) -> int:
+    from datetime import datetime
+    since = None
+    if a.since:
+        s = a.since.strip()
+        try:
+            since = (datetime.combine(datetime.now().date(), datetime.strptime(s, "%H:%M").time()) if len(s) <= 5
+                     else datetime.strptime(s, "%Y-%m-%d %H:%M") if " " in s else datetime.strptime(s, "%Y-%m-%d"))
+        except ValueError:
+            raise SystemExit(f"--since expects HH:MM or YYYY-MM-DD[ HH:MM], got {a.since!r}")
+    elif not a.all and a.last is None:
+        since = datetime.combine(datetime.now().date(), datetime.min.time())      # today
+    rows = summary.scan_runs(Path(a.out) if a.out else config.out_dir(), since=since, last=a.last)
+    print(summary.table(rows))
     return 0
 
 
@@ -732,6 +778,13 @@ def main(argv: list[str] | None = None) -> int:
     g.set_defaults(fn=cmd_gate)
 
     sub.add_parser("sizes").set_defaults(fn=cmd_sizes)
+
+    rr = sub.add_parser("runs", help="one line per run in out/: what passed, what failed and why (today's runs by default)")
+    rr.add_argument("--last", type=int, help="the last N runs, whenever they were")
+    rr.add_argument("--all", action="store_true", help="every run in out/")
+    rr.add_argument("--since", help="runs from this local time on: HH:MM today, or YYYY-MM-DD[ HH:MM]")
+    rr.add_argument("--out", help="the output root (default: out/)")
+    rr.set_defaults(fn=cmd_runs)
 
     api = sub.add_parser("api", help="nTop Notebook API through the Python Console (SSH localhost:2222)")
     api.add_argument("--key", help="SSH private key (default: NTOP_SSH_KEY or ~/.ssh/id_ntopcli)")

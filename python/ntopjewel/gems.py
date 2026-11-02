@@ -372,6 +372,7 @@ def build_seat(spec: SeatSpec, out_dir: Path | None = None, *, notebook: Path | 
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name)
     nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []   # a notebook older than the catalog needs: refused
     run_dir, run_id = runs.fresh_run_dir(Path(out_dir) if out_dir else config.out_dir() / "seat", spec.stem)
     envelope_stl = run_dir / f"{spec.stem}.envelope.stl"
     spec.envelope().export(str(envelope_stl))

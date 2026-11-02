@@ -52,6 +52,7 @@ class Catalog:
     output: dict
     inputs: dict[str, InputSpec] = field(default_factory=dict)
     path: Path | None = None
+    rebuild_since: str | None = None   # a notebook built for an older catalog version than this must be rebuilt (runs.require_built)
 
     def build_inputs(self, values: dict[str, Any]) -> list[dict]:
         """Validate `values` against the schema and return Automate input entries."""
@@ -113,8 +114,10 @@ def load(name_or_path: str | Path) -> Catalog:
     nb = Path(doc.get("notebook", f"{p.stem}.ntop"))
     if not nb.is_absolute():
         nb = config.notebooks_dir() / nb
+    rs = doc.get("rebuild_since")
     return Catalog(name=p.stem, notebook=nb, version=str(doc.get("version", "0")),
-                   title=doc.get("title", p.stem), output=doc.get("output") or {}, inputs=inputs, path=p)
+                   title=doc.get("title", p.stem), output=doc.get("output") or {}, inputs=inputs, path=p,
+                   rebuild_since=str(rs) if rs is not None else None)
 
 
 def names() -> list[str]:
