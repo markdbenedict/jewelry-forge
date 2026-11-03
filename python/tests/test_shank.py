@@ -256,7 +256,8 @@ def test_the_opening_and_what_it_takes_off_sharp_edges():
     slot_fillets = (plain.design_volume_mm3() - s.design_volume_mm3()) - (plain_sharp.design_volume_mm3() - sharp.design_volume_mm3())
     assert 1.0 < slot_fillets / fillets < 1.45                                                        # the lofted halves carry them: 2.0 mm³ (the comfort relief and the
                                                                                                       # dome tilt the corners past 90°, so more than the square-corner figure)
-    assert s.sharp_edge_round_mm3() < 0.3                                                             # so hardly a sharp edge is left to the notebook
+    assert s.sharp_edge_round_mm3() < 0.5                                                             # so hardly a sharp edge is left to the notebook (0.32: the V where
+                                                                                                      # the halves' lofts rejoin past the slot's end, 0.35 mm overlap)
     assert s.expected_volume_mm3() == pytest.approx(s.design_volume_mm3() - s.sharp_edge_round_mm3() - s.opening_overcut_mm3())
     assert 0.5 < s.opening_overcut_mm3() < 1.5 and plain.opening_overcut_mm3() < s.opening_overcut_mm3()   # the mesher's chamfer on every round (mesh tolerance 0.05 here)
     assert shank.ShankSpec(court(), rope=2).opening_overcut_mm3() == 0.0
@@ -576,3 +577,29 @@ def test_cli_trinity_flags(capsys):
     assert "_split1.6_trinity5.6_" in out and "trinity knots on the shoulders" in out and "ribbon 0.9 wide x 1.12 thick" in out
     assert cli.main(["shank", "--size", "6", "--knot", "trinity", "--dry-run"]) == 1
     assert "--split" in capsys.readouterr().out
+
+
+def test_a_split_half_carries_exact_surface_past_the_seam_by_more_than_the_edge_round(monkeypatch):
+    """2026-11-03: the real split shank's crown sat 0.055 mm low along the seam all round the
+    bottom, opened per bar or not - the opening rounds each half's cut edge by the edge round,
+    which begins that far back from the cut, and a 0.1 mm overlap left the two quarter-rounds
+    meeting in a groove. Emulated here in 2-D: open each half's section, unite, compare with the
+    opened whole; the emulation reads the groove at the old overlap and nothing at the new."""
+    from shapely.geometry import Polygon
+    import shapely
+    s = shank.ShankSpec(court(width=4.0), split_mm=1.6, split_span_deg=100)
+    assert s.split_overlap_mm == pytest.approx(s.edge_round + s.band.mesh_tolerance_mm) and s.split_overlap_mm > s.edge_round
+    a = 181.37                                                         # the bottom: the slot is closed, the halves overlap
+    assert s.slot_half_at(a) == 0
+
+    def groove():
+        halves = [Polygon(s.loft_outline(k, a)) for k in range(2)]
+        assert all(h.is_valid for h in halves)
+        opened = shapely.union_all([geom.open_polygon(h, s.edge_round, s.opening_chamfer_mm) for h in halves])
+        want = s.gate_section(a)
+        return float(shapely.hausdorff_distance(opened.boundary, want.boundary, densify=0.1))
+
+    assert groove() < 0.01
+    monkeypatch.setattr(shank.ShankSpec, "split_overlap_mm", property(lambda self: 0.1))
+    s._cache.clear()
+    assert 0.03 < groove() < 0.1                                       # the real reading was 0.055 (0.25 round, 0.1 overlap)

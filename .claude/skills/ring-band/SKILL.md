@@ -211,7 +211,11 @@ bottom (no crease at the shoulders or the bottom). The thin end must itself be a
 `Shank Path` .. `Shank Path 4`, catalog 0.3; an unused slot imports the smallest bar again),
 each opened by the edge round on its own, and nTop's Boolean Union joins the opened
 implicits before the wrap (opening the union eroded a 0.05 mm groove along a split's seam: a
-union's field measures to a buried face inside an overlap): a split's
+union's field measures to a buried face inside an overlap). Bodies that overlap must overlap
+by more than the edge round, because the opening rounds a body's cut edge starting that far
+back from the cut (a split's halves overlap edge round + mesh tolerance where the slot is
+closed, `split_overlap_mm`; at 0.1 mm the quarter-rounds met in a 0.055 mm groove along the
+seam, 2026-11-03). The bars: a split's
 two halves, a double band's strands and its bridges, a rope's or a plait's strands one each, a
 trinity shank's lower half with the strands' first pieces, its upper half with their second
 and the pad on its own (each piece runs a 0.1 mm plug into the half and the piece that continue

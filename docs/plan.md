@@ -294,9 +294,18 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    in one verdict line and `ntopjewel runs` tabulates the day's runs. **The 20:00 rebuilds then
    all timed out:** the unused slots' speck, eroded by the 0.25 mm edge round, was empty, nTop's
    Mesh block failed on it (`Bounding box for this Implicit Body is empty`) and the chain never
-   built. An unused slot now imports the smallest real bar again. *Real check:* the four `api
-   build`s (each prints `stamped` and `==> BUILT`), then the split shank: bottom sections within
-   ~0.01 mm. Then step 2.
+   built. An unused slot now imports the smallest real bar again. **3 Nov, 07:18: the four
+   notebooks built and stamped (nTop needs the focus to run its Python at speed); the split shank
+   through the per-bar opening still read 0.056 at the bottom** - the crown 0.055 mm low along the
+   seam at every closed angle. Not the union's field this time but the halves' overlap: the
+   opening rounds the edge where a half's cut face meets the crown by the edge round, which
+   begins 0.25 mm back from the cut, and the halves overlapped only 0.1 mm, so the two
+   quarter-rounds met in a groove (r = 9.603 + sqrt(0.25² − 0.15²) = 9.803 vs 9.853 designed;
+   built 9.798). Each half is now lofted edge round + mesh tolerance past the centreline
+   (`ShankSpec.split_overlap_mm`, 0.35 mm), and a 2-D emulation of the per-bar opening in the
+   tests reads the groove at 0.1 and nothing at 0.35. *Real check:* `shank --split 1.6
+   --split-span 100` (a Python-side change: no rebuild) - bottom sections within ~0.01 mm. Then
+   step 2.
 2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.

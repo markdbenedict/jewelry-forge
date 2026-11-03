@@ -60,7 +60,8 @@ CHECK_ANGLES_DEG = tuple(range(0, 360, 30))   # where the gate measures the buil
 SECTION_TOL_MM = 0.06       # width / thickness at a station: the mesh tolerance plus a little
 SPLIT_STRAND_MIN_MM = 1.0   # each half of a split shank keeps at least this width at the head
 SLOT_END_MM = 0.4           # a split closes into a round end this wide (a cast slot cannot end in a crack)
-SPLIT_OVERLAP_MM = 0.1      # a split's two halves, lofted the whole way round, overlap this much where the slot is closed
+SPLIT_OVERLAP_MM = 0.1      # a split's two halves, lofted the whole way round, overlap at least this much where the slot is
+                            # closed - and more than the edge round when the notebook opens the bars (split_overlap_mm)
 SPLIT_INSET_MM = 0.01       # ... each half's surface drawn this far inside the other's across the overlap, so no faces coincide
 BRIDGE_INSET_MM = 0.1       # a bridge runs this far into each strand it joins
 ROPE_STRAND_MIN_MM = 0.8    # a rope's strand diameter: a prong-tip-sized rod casts; thinner does not
@@ -735,11 +736,24 @@ class ShankSpec:
         """How many bodies are lofted station to station: the strands, or a split's two halves."""
         return 2 if self.split_mm else self.strands
 
+    @property
+    def split_overlap_mm(self) -> float:
+        """How far past the centreline each half of a split is lofted where the slot is closed: the
+        edge round plus the mesh tolerance, at least SPLIT_OVERLAP_MM. The notebook opens each bar
+        on its own, and the opening rounds the edge where a half's cut face meets the ring's surface
+        by the edge round, beginning that far back from the cut - so each half's surface must run
+        exact past the centreline by more than the round for the round to lie buried in the other
+        half. At 0.1 mm with a 0.25 mm round the two quarter-rounds met in a groove 0.055 mm deep
+        along the seam all round the bottom (2026-11-02/03, the real split shank, before and after
+        the bars were opened apart: r = 9.603 + sqrt(0.25² - 0.15²) = 9.803 vs 9.853 designed, built
+        9.798). The mesh tolerance is the margin for the re-distance mesh's voxel."""
+        return max(SPLIT_OVERLAP_MM, self.edge_round + float(self.band.mesh_tolerance_mm))
+
     def loft_outline(self, k: int, theta_deg: float, phase: float = 0.0):
         """(SECTION_POINTS, 2) outline of loft `k` at an angle: a strand's section at its centreline,
         or a split's lower (0) / upper (1) half - the opened 2-D section's part on that side where
         the slot is open (its fillets included); where it is closed, the section cut
-        SPLIT_OVERLAP_MM past the centreline, so the halves overlap and unite, each half's surface
+        split_overlap_mm past the centreline, so the halves overlap and unite, each half's surface
         drawn inward across the overlap, from nothing at the centreline to SPLIT_INSET_MM at its
         cut (a wedge, by scaling the points there about the section's middle): the ring's surface
         is exact, each half's surface beyond the centreline lies inside the other half, and no two
@@ -758,7 +772,7 @@ class ShankSpec:
             return outline_points(half, SECTION_POINTS, start=(self.band.bore_radius_mm, zc), phase=phase)
         b = self.band
         lo, hi = b.bore_radius_mm - 2.0, b.outer_radius_mm + 2.0
-        d = SPLIT_OVERLAP_MM
+        d = self.split_overlap_mm
         half = sec.intersection(box(lo, zc - 10.0, hi, zc + d) if k == 0 else box(lo, zc - d, hi, zc + 10.0))
         if hasattr(half, "geoms"):
             half = max(half.geoms, key=lambda q: q.area)

@@ -136,7 +136,11 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 - **Open each bar on its own, then unite** (`nj.add_wrapped_shank`): a Boolean Union's field is the
   minimum of its bodies' fields, so inside an overlap it measures to a body's buried face, and the
   opening's erosion cut a 0.05 mm groove along a split's seam all round the bottom (2026-11-02,
-  the halves' overlap wedge). Same rule as the arches: open apart, unite afterwards.
+  the halves' overlap wedge). Same rule as the arches: open apart, unite afterwards. **And bodies
+  that overlap must overlap by more than the edge round**: the opening rounds the edge where a
+  body's cut face meets the surface, starting the edge round back from the cut, so a 0.1 mm
+  overlap under a 0.25 mm round still left the halves' quarter-rounds meeting in a 0.055 mm groove
+  (2026-11-03, opened per bar; `ShankSpec.split_overlap_mm` = edge round + mesh tolerance).
 - **Mesh from Implicit Body leaves 12-face bubbles of no volume where two surfaces kiss** (a
   ribbon's rounded corner passing another's at a fused crossing, a rail's foot on the band's dome
   inside the blend): 2 on the plait, 7 on the trinity solitaire (2026-11-02). The gate counts a
