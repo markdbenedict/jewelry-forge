@@ -134,3 +134,14 @@ def test_cli_multistone_dry_run(capsys):
                      "--side-length", "6", "--side-width", "4", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "point inward" in out and "Turn 2" in out and "Prongs Path 5" in out
+
+
+def test_the_extents_allowance_follows_the_rails_acute_corner():
+    """2026-11-03: the real round three-stone came out 7.10 mm along the finger against the sharp
+    design's 7.55 - the centre's upper rail, leaning out with the pavilion, has an acute top corner
+    that the blend rounds back 0.225 mm a side; the square-corner allowance (tolerance + one blend)
+    was 0.40 in all."""
+    h = heads.OutlineHeadSpec(gems.StoneSpec("round", 6.5))
+    per_side = ms.rail_corner_shrink(h)
+    assert 0.225 < per_side < 0.7 and per_side > h.blend * (2 ** 0.5 - 1)
+    assert ms.rail_corner_shrink(heads.OutlineHeadSpec(gems.StoneSpec("round", 6.5), blend_mm=0.0)) == 0.0

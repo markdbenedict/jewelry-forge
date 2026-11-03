@@ -411,6 +411,19 @@ def ring_from_inputs(v: dict, ops: geom.Booleans = geom.SHARP):
 
 
 # ---- the gate -------------------------------------------------------------------------------------
+def rail_corner_shrink(h: heads.OutlineHeadSpec) -> float:
+    """How far a blended rail's outermost edge may retreat, each side: the rails follow the pavilion,
+    so the corner between a rail's top and its outer face is acute (90° less the pavilion's lean from
+    vertical, 41° on an ideal round), and rounding a corner of angle a by r takes its tip back by
+    r (1/sin(a/2) - 1) - 0.56 mm at r 0.3 against r (√2 - 1) on a square corner. The real three-stone
+    came out 0.225 mm a side narrower along the finger than the sharp design (2026-11-03), where the
+    square-corner allowance gave 0.2."""
+    _, pav = h.stone.heights
+    lean = math.atan((max(h.stone.length, h.stone.width) / 2) / pav)
+    a = math.pi / 2 - lean
+    return max(h.blend, h.blend * (1 / math.sin(a / 2) - 1))
+
+
 def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) -> gate.GateReport:
     """The shank's checks away from the heads (walls, section shape, bore), the bore closed under
     every stone, extents against the design, the design volume with the blends' estimate, and per
@@ -448,7 +461,7 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
     design = spec.design_mesh()
     d = np.array(rep.extents_mm) - np.array(design.extents)
     tol = max(0.1, 2 * spec.centre.mesh_tolerance_mm)
-    shrink = tol + spec.centre.blend
+    shrink = tol + 2 * max(rail_corner_shrink(p.head) for p in stones)
     rep.checks.append(gate.Check("extents", bool(np.all(d <= tol) and np.all(d >= -shrink)),
                                  " x ".join(f"{x:.2f}" for x in rep.extents_mm) + " vs design "
                                  + " x ".join(f"{x:.2f}" for x in design.extents) + f" mm (+{tol:.2f} / -{shrink:.2f})"))
