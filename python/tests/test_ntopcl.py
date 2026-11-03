@@ -171,4 +171,4 @@ def test_a_run_past_the_timeout_is_killed_and_leaves_its_log(fake_ntopcl, tmp_pa
     res = ei.value.result
     assert res is not None and not res.ok and res.returncode is None and res.seconds < 10
     assert "Notebook started" in res.log_path.read_text()                     # what nTopCL printed before the kill
-    assert "--logfile" in res.command and res.command[res.command.index("--logfile") + 1].endswith("t.ntop.log")
+    assert "--logfile" not in res.command                                     # 6.3.3 exits 1 on that flag (2026-11-03)

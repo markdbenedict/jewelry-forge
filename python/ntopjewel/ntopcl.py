@@ -316,15 +316,15 @@ def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: st
         if p.exists():
             p.unlink()
 
-    ntop_log = out_dir / f"{tag}.ntop.log"             # nTopCL's own --logfile: written as it goes, to tail during a run
     cmd = [str(exe), "-v", str(verbosity)]
     if in_path is not None:
         cmd += ["-j", str(in_path)]
-    cmd += ["-o", str(out_path), "--logfile", str(ntop_log), *extra_args, str(notebook)]
+    cmd += ["-o", str(out_path), *extra_args, str(notebook)]       # (no --logfile: 6.3.3 exits 1 on it, 2026-11-03)
 
     # stdout streamed into the log file (not captured in memory): a run that stalls or is killed
-    # at the timeout still leaves every block line it printed (2026-11-03: a solitaire run killed
-    # after 3600 s left no log at all, and the per-block timings were the one clue to where it sat)
+    # at the timeout still leaves the block lines it printed, less what nTopCL's block-buffered
+    # stdout still held (2026-11-03: a solitaire run killed after 3600 s left no log at all, and
+    # the per-block timings were the one clue to where it sat)
     t0 = time.time()
     with open(log_path, "w", encoding="utf-8", errors="replace") as fh:
         proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT, text=True, cwd=str(out_dir),
@@ -340,7 +340,7 @@ def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: st
             proc.wait()
             fh.flush()
             seconds = time.time() - t0
-            text = _longer_log(log_path, ntop_log)
+            text = log_path.read_text(encoding="utf-8", errors="replace")
             parsed = parse_log(text)
             result = RunResult(notebook, in_path, out_path, log_path, None, seconds, parsed, {}, cmd)
             done = parsed.timings
@@ -348,7 +348,7 @@ def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: st
                               + (f", the last {done[-1].block!r} ({done[-1].ms} ms)" if done else "")
                               + f"; it was still working on the next one (log: {log_path})", result)
     seconds = time.time() - t0
-    text = _longer_log(log_path, ntop_log)
+    text = log_path.read_text(encoding="utf-8", errors="replace")
     parsed = parse_log(text)
     outputs = parse_output(out_path) if out_path.exists() else {}
     result = RunResult(notebook, in_path, out_path, log_path, proc.returncode, seconds, parsed, outputs, cmd)
@@ -357,19 +357,6 @@ def run(notebook: Path, inputs: Iterable[dict] | None, out_dir: Path, *, tag: st
             f"exit code {proc.returncode}" if proc.returncode else "no 'nTop successfully built' line")
         raise NtopclError(f"ntopcl failed: {why} (log: {log_path})", result)
     return result
-
-
-def _longer_log(stdout_log: Path, ntop_log: Path) -> str:
-    """The run's log text: nTopCL's stdout as streamed to `stdout_log`, or its own --logfile when
-    that holds more lines (stdout to a file is block-buffered and can lag the logfile by a few KB
-    when the process is killed)."""
-    texts = []
-    for p in (stdout_log, ntop_log):
-        try:
-            texts.append(p.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
-            texts.append("")
-    return max(texts, key=lambda t: t.count("\n"))
 
 
 def templates(notebook: Path, out_dir: Path, exe: Path | None = None) -> tuple[Path, Path]:

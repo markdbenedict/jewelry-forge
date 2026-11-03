@@ -103,18 +103,19 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 
 ## nTopCL rules (verified 2026-10-25 on nTop 6.3.3, cloud licence, Mark's laptop)
 
-- Invocation: `ntopcl -v 2 -j in.json -o out.json notebook.ntop` (`--logfile path` to keep
-  the log; `-t notebook.ntop` writes `input_template.json` / `output_template.json`).
+- Invocation: `ntopcl -v 2 -j in.json -o out.json notebook.ntop` (`-t notebook.ntop` writes
+  `input_template.json` / `output_template.json`). **`--logfile path` is not accepted** (exit code 1
+  at once, 2026-11-03): the runner keeps the log from stdout.
 - A notebook with **no inputs** must be run **without `-j`**; nTopCL rejects an input JSON
   whose `inputs` list is empty (`[E]: JSON file has no inputs`).
 - **Success = all three:** exit code 0, no `[E]` line in the log, and the line
   `nTop successfully built.` present. nTopCL can exit 0 after a failed block.
 - Per-block timing lines look like `15:57:33 [I]: Sphere_0 complete 0ms`; the runner
-  parses them into the report. `ntopcl.run` streams nTopCL's output into `<tag>.ntopcl.log` as it
-  goes and keeps nTopCL's own `--logfile` beside it (`<tag>.ntop.log`; `Get-Content -Wait -Tail 3`
-  it during a long run), kills nTopCL after `NTOPCL_TIMEOUT_S` (3600) naming the last block that
-  completed (`==> ERROR`), and kills it on Ctrl+C (the child has no console window; 2026-11-03: a
-  solitaire run killed after an hour had left no log at all).
+  parses them into the report. `ntopcl.run` streams nTopCL's stdout into `<tag>.ntopcl.log` as it
+  goes (`Get-Content -Wait -Tail 3` it during a long run; nTopCL's stdout is block-buffered, so
+  the file can lag by a few KB), kills nTopCL after `NTOPCL_TIMEOUT_S` (3600) naming the last block
+  that completed (`==> ERROR`), and kills it on Ctrl+C (the child has no console window;
+  2026-11-03: a solitaire run killed after an hour had left no log at all).
 - Input types (Automate docs): `bool`, `scalar` (+ `units`), `integer`, `text`, `file_path`,
   `point`, `vector` (+ `units`, required for some vectors), `enum` (integer id). A scalar may
   carry `values: [..]` to sweep one parameter in a single run. **nTop's own `-t` template
