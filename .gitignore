@@ -11,6 +11,11 @@ __pycache__/
 build/
 dist/
 
+# nTop runner notebooks are build products: `api build <recipe>` regenerates them from ntop/recipes/
+# and stamps them (<name>.build.json, committed); the solitaire ones passed GitHub's 100 MB limit on
+# 2026-11-03 (230 MB each with the per-bar opening's cached meshes). The block library stays tracked.
+ntop/notebooks/*.ntop
+
 # nTop / Blender scratch
 *.blend1
 *.blend2

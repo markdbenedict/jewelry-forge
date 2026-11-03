@@ -75,8 +75,10 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   versions it was built for, the notebook's sha256) and a run of a catalog's own notebook is
   refused, naming the `api build` to run, when the stamp is missing or older than
   `rebuild_since`. Bump `rebuild_since` with every notebook-body change, inputs changed or not
-  (2026-11-02: a notebook a commit behind ran and one design failed for it). Commit the stamp
-  with the notebook.
+  (2026-11-02: a notebook a commit behind ran and one design failed for it). **Commit the stamp;
+  the notebook itself is not in git** (`ntop/notebooks/*.ntop` ignored since 2026-11-03: the
+  solitaire notebooks reached 230 MB, past GitHub's 100 MB limit; a fresh checkout runs the
+  `api build`s). The block library `ntop/blocks/*.ntop` (small) is tracked.
 - **Every variant and run has a distinct identity.** A stem is
   `ring_band_<profile>_<size>_w<width>_t<thickness>_<spec id>` (rings: `ring_<profile>_<features>_…`),
   the spec id being a hash of every number that defines the design, so two designs never share

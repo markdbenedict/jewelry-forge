@@ -5,6 +5,14 @@ as in `catalog/<name>.yaml`), one Output (the volume: a Volume Integral of 1, or
 files through Export blocks fed by `file_path` inputs. Run them only through
 `python -m ntopjewel ...`, which validates inputs, calls `ntopcl` and runs the gate.
 
+**The `.ntop` files here are not in git** (since 2026-11-03: the solitaire notebooks reached 230 MB
+each, past GitHub's 100 MB limit - nTop caches every bar's round-trip meshes in the file). They are
+build products: `python -m ntopjewel api build <recipe>` regenerates each from `ntop/recipes/<recipe>.py`
+and writes `<name>.build.json` beside it (catalog versions, sha256, commit), and **the stamp is what is
+committed**. A fresh checkout runs the `api build`s listed in CLAUDE.md before any run; a run on a
+notebook whose stamp is missing or older than the catalog's `rebuild_since` is refused naming the build.
+The block library in `ntop/blocks/` (under 1 MB each) stays in git.
+
 | Notebook | Catalog | Recipe |
 | --- | --- | --- |
 | `ring_band.ntop` | `catalog/ring_band.yaml` | `ntop/recipes/band-primitive.md` (Phase 0 flat band, gate passed 2026-10-25) |
