@@ -27,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, runs, shank, solitaire, summary, tables
+from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, pave, runs, shank, solitaire, summary, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -279,6 +279,38 @@ def cmd_shank(a: argparse.Namespace) -> int:
     except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
         print(f"shank failed: {e}")
         _error_verdict = summary.error_line("shank", e)
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        print(_error_verdict)
+        return 2
+    print(res.text())
+    print(summary.verdict(res))
+    return 0 if res.ok else 1
+
+
+def cmd_pave(a: argparse.Namespace) -> int:
+    span = 360.0 if a.eternity else a.span
+    b = pave.band_for(a.stone, a.rows, a.layout, a.size, system=a.system, profile=a.profile, thickness_mm=a.thickness,
+                      width_mm=a.width, mesh_tolerance_mm=a.tolerance, allowance_mm=a.allowance)
+    sh = shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
+                         taper_from_deg=a.taper_from, stations=a.stations)
+    spec = pave.PaveSpec(sh, stone_mm=a.stone, rows=a.rows, layout=a.layout, span_deg=span, gap_mm=a.gap,
+                         bead_mm=a.bead, material=a.material)
+    if a.dry_run:
+        probs = spec.validate()
+        print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+        for w in spec.warnings():
+            print("  warning: " + w)
+        if not probs:
+            for k, v in spec.notebook_inputs(sh.bar_placeholders(), "<seats path>", "<beads path>", "<output path>").items():
+                print(f"    {k}: {v}")
+        return 1 if probs else 0
+    try:
+        res = pave.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                         catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
+    except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
+        print(f"pave failed: {e}")
+        _error_verdict = summary.error_line("pave", e)
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
         print(_error_verdict)
@@ -707,6 +739,32 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     sk.add_argument("--dry-run", action="store_true")
     sk.set_defaults(fn=cmd_shank)
+
+    pv = sub.add_parser("pave", help="a pavé band: rows of small stones in seats with light holes, held by beads (pave_band.ntop)")
+    pv.add_argument("--size", default="6")
+    pv.add_argument("--system", default="US", help="US | UK | ISO | MM")
+    pv.add_argument("--stone", type=float, default=1.3, help="the stones' diameter, mm (round brilliants)")
+    pv.add_argument("--rows", type=int, default=1, help="rows of stones across the band (1..4)")
+    pv.add_argument("--layout", default="staggered", choices=list(pave.LAYOUTS), help="rows nested half a stone apart, or a grid")
+    pv.add_argument("--span", type=float, default=180.0, help="degrees of the ring the stones cover, centred on the top")
+    pv.add_argument("--eternity", action="store_true", help="stones all the way round (--span 360)")
+    pv.add_argument("--gap", type=float, help="girdle to girdle, mm (default: tables pave_stone_gap_mm)")
+    pv.add_argument("--bead", type=float, help="bead diameter, mm (default: tables pave_bead_frac x the stone)")
+    pv.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    pv.add_argument("--profile", default="comfort-flat", choices=sorted(band.PROFILES), help="the band's section (a flat top suits pavé)")
+    pv.add_argument("--width", type=float, help="band width, mm (default: what the rows need with their edge walls)")
+    pv.add_argument("--thickness", type=float, help="band thickness, mm (default: what the seats need, at least 1.6)")
+    pv.add_argument("--allowance", type=float, default=0.0, help="mm added to the inner diameter (fit, not shrink)")
+    pv.add_argument("--tolerance", type=float, help="Mesh Tolerance, mm (default: tables pave_mesh_tolerance_mm)")
+    _add_taper_args(pv)
+    pv.add_argument("--catalog", default="pave_band")
+    pv.add_argument("--out")
+    pv.add_argument("--notebook")
+    pv.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
+    pv.add_argument("--project", default="Pave")
+    pv.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
+    pv.add_argument("--dry-run", action="store_true")
+    pv.set_defaults(fn=cmd_pave)
 
     gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald) as STL")
     gm.add_argument("--shape", default="round", choices=gems.SHAPES)

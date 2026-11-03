@@ -57,7 +57,7 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name:
+    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name:
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
         name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
@@ -271,6 +271,32 @@ def main(argv: list[str]) -> int:
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Seat Mesh", "Seat Body", "Stone Seat", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "pave" in nb.name:
+        import trimesh
+        from ntopjewel.nb_jewel import SLOT_NAMES
+        for key in (*SLOT_NAMES, "Pave Seats Path", "Pave Beads Path"):
+            if not Path(values[key]).exists():
+                fail(f"{key.replace('Path', 'Mesh')}: file not found")
+        # the band as ring_shank builds it (bars wrapped and united; the opening, as there, not
+        # simulated), then (band ∪ beads) − seats
+        from ntopjewel.shank import bars_from_inputs
+        mesh = bars_from_inputs(values)
+        beads = trimesh.load(str(values["Pave Beads Path"]), force="mesh")
+        seats = trimesh.load(str(values["Pave Seats Path"]), force="mesh")
+        if shape == "nobeads":                                # a notebook that lost the bead layer
+            pass
+        else:
+            mesh = trimesh.boolean.union([mesh, beads], engine="manifold")
+        if shape != "noseats":                                # ... or never cut the seats
+            mesh = trimesh.boolean.difference([mesh, seats], engine="manifold")
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Shank Mesh", "Shank Bar", "Shank Bars", "Opened", "Shank", "Pave Beads Mesh", "Pave Beads",
+                     "Pave Seats Mesh", "Pave Seats", "Beaded", "Ring", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

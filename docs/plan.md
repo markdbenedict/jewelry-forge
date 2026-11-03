@@ -306,10 +306,19 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    tests reads the groove at 0.1 and nothing at 0.35. *Real check:* `shank --split 1.6
    --split-span 100` (a Python-side change: no rebuild) - bottom sections within ~0.01 mm. Then
    step 2.
-2. **Multi-stone placement and galleries.** N heads at (angle, tilt) along the band from the head
+2. **Multi-stone placement and galleries.** *(3 Nov: started with pavé, which the multi-stone rings reuse - see 3)*
+   N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.
-3. **Pavé and accents.** Rows of 1–1.5 mm rounds along a path with seats and beads, graduated sizes,
+3. **Pavé and accents.** *(3 Nov: the pavé band written and gated offline - `pave`, `pave_band.ntop`,
+   `ntopjewel.pave`: rows (1-4, staggered or aligned) of round stones over any span or all round, each
+   in a seat cut along the surface normal with a light hole to the bore, held by beads standing just
+   outside the openings; the pitch solved on the girdles' 3-D edges (neighbours' normals converge);
+   Python writes the seats and the beads as one mesh each, the notebook builds (shank ∪ beads) − seats;
+   the gate probes every hole, seat floor, drop-in path and bead with rays cast on the built ring and
+   the design alike. *Real check:* `api build pave_band`, then `pave --rows 1 --span 180` and
+   `pave --rows 2 --span 120` - PASSED, and a look at the beads in the GUI at Mesh Tolerance 0.05.)*
+   Rows of 1–1.5 mm rounds along a path with seats and beads, graduated sizes,
    small polygon bezels (kite, hexagon); spacing and bead rules into the tables.
 4. **New stone bodies.** Pearl (sphere on a post in a cup), cabochon (dome on a flat base), asscher
    (emerald outline with a corner-cut ratio); their seats.

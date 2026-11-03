@@ -1,6 +1,6 @@
 ---
 name: gem-library
-description: Parametric stone bodies (round, oval, pear, marquise, cushion, emerald) for settings, seats and cutters, with volume and carat weight - the `gem` command and ntopjewel.gems. Use for any request to model a stone, size a seat for one, or estimate a stone's carat weight from its dimensions.
+description: Parametric stone bodies (round, oval, pear, marquise, cushion, emerald) for settings, seats and cutters, with volume and carat weight - the `gem` command and ntopjewel.gems - and the settings built from them, prong heads, bezels, the solitaire and pavé bands (`pave`). Use for any request to model a stone, size a seat for one, estimate a stone's carat weight, or set stones in a ring.
 ---
 
 # gem-library
@@ -157,6 +157,52 @@ gate's 12 angles less the arches' wedge about the head and the engraving's span 
 against `ShankSpec.gate_section`: a shank built plain where a taper was designed fails here),
 volume vs nTop and vs the independent ring (design + blend − the chamfer nTop's opening puts on
 the shank's rounds).
+
+## Pavé bands (`pave_band.ntop`, `ntopjewel.pave`, Phase 3 step 2/3)
+
+```powershell
+python -m ntopjewel pave --size 6 --stone 1.3 --span 180                     # one row over the top half
+python -m ntopjewel pave --size 6 --stone 1.3 --rows 2 --span 120            # two staggered rows (nested)
+python -m ntopjewel pave --size 6 --stone 1.3 --rows 2 --layout aligned --eternity   # a grid all round
+python -m ntopjewel pave --size 6 --rows 3 --span 90 --dry-run               # the layout, the band, the inputs
+```
+
+Rows of round stones (`--stone` 0.8-3 mm, `--rows` 1-4, `--layout staggered|aligned`, `--span`
+degrees centred on the top or `--eternity`) set in the band's surface. Each stone sits in a seat cut
+along the surface normal: its envelope (crown and girdle carried straight up, the drop-in path)
+grown by the seat clearance, the table `pave_table_below_mm` below the surface, a light hole
+(`pave_hole_frac` x the stone) drilled on through to the bore. Beads (`pave_bead_frac` x the stone,
+at least the 0.5 mm floor) stand in the gaps `pave_bead_gap_mm` outside the openings they border:
+from every pair of neighbouring stones the two points at that holding distance from both, points
+closer than a bead's diameter merged (a staggered triangle's three meet at its centre), beads off
+the band's top or holding no real stone dropped; every stone needs `pave_min_beads`. **The pitch is
+solved on the real 3-D geometry**: neighbours' normals converge towards the axis, so their girdles'
+lower edges come closest - the pitch along a row and the spacing across rows are bisected until
+those edges stand `pave_stone_gap_mm` apart (a full eternity widens the pitch to divide 360°).
+
+The band is `ring_shank`'s (plain, or tapered with the pavé inside the full section; no rope,
+knot, double band, split or dip yet). With no `--width` / `--thickness` the band is sized to the
+layout (`pave.band_for`: the outer rows' openings plus a 0.5 mm wall to the edge, rounded up to
+0.1 mm; the seat plus the light hole's shoulder plus 0.75 mm, at least 1.6 mm), comfort-flat
+(a flat top), at `pave_mesh_tolerance_mm` 0.05 (the webs between seats are 0.1 mm).
+
+Python writes `<stem>.seats.stl` (every cutter, disjoint) and `<stem>.beads.stl` (every sphere,
+disjoint) beside the bars; the notebook builds `(shank ∪ beads) − seats`, the seats cut after the
+beads so every drop-in path is clear (a bead in a tight interstice comes out trimmed by the
+openings, as on the bench); neither layer is opened by the edge round.
+
+Gate (`pave.check_pave`): the band's checks (bore, width, outer Ø over the beads, walls with seat
+and bead faces left out - the floor under the stones is measured from the bore, the outer rows'
+walls to the band's edge - the section shape through the pavé against the design's within the mesh
+tolerance, design volume = band ∪ beads − seats less the band's opening corrections) and the pavé's:
+`stones fit` (ring ∩ every stone), `light holes open`, `seats` (every floor at its depth),
+`drop-in clear`, `beads` (every apex where designed) and `stones held` (each stone's standing
+beads >= `pave_min_beads`) - rays cast identically on the built ring and on the design, so the
+imported facets are the same on both. A notebook that loses the beads fails `beads` and `stones
+held` (the volume barely moves); one that never cuts the seats fails five checks.
+
+Stem: `ring_pave_<profile>_<size>_w<W>t<T>_<rows>[s|a]x<stone>_<span>deg|eternity_<spec id>`;
+runs land in `out\pave\`, `--deliver` in `Jewelry\Pave\`.
 
 ## Blends (every head and solitaire notebook)
 

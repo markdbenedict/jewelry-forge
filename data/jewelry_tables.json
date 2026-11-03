@@ -313,6 +313,41 @@
       "value": 1.0,
       "status": "calibrated",
       "source": "nTop's edge-round opening re-distances through Mesh from Implicit Body (nb_jewel.add_opening); that mesh chamfers the eroded body's sharp convex corners by about one voxel (half the Mesh Tolerance), so the +e offset rounds a little more than the design's e. The models emulate it in 2-D (geom.open_polygon). Calibrated 2026-10-31: see calibration_log"
+    },
+    "pave_stone_gap_mm": {
+      "value": 0.2,
+      "status": "default",
+      "source": "pavé: girdle to girdle between neighbouring stones, measured at the girdle's lower edge (where neighbours on a ring come closest). 0.1-0.2 mm is bench practice for micro-pavé; the seats are cut with the clearance on each side, so 0.2 leaves a 0.1 mm web of metal between two openings, two voxels at the pavé mesh tolerance"
+    },
+    "pave_bead_frac": {
+      "value": 0.4,
+      "status": "default",
+      "source": "pavé bead diameter as a fraction of the stone's (0.5 mm for 1.3 mm stones), never below floors.bead_dia: bench practice, a bead a third to a half of the stone"
+    },
+    "pave_bead_gap_mm": {
+      "value": 0.02,
+      "status": "default",
+      "source": "pavé: a bead stands this far outside its stone's seat opening, so the stone drops in past it; the setter pushes the bead over the crown afterwards"
+    },
+    "pave_table_below_mm": {
+      "value": 0.05,
+      "status": "default",
+      "source": "pavé: the stone's table sits this far below the band's surface, so the beads stand proud of the stones to be raised over them"
+    },
+    "pave_hole_frac": {
+      "value": 0.5,
+      "status": "default",
+      "source": "pavé: the light (and cleaning) hole under each stone, as a fraction of the stone's diameter, drilled through to the bore"
+    },
+    "pave_min_beads": {
+      "value": 3,
+      "status": "default",
+      "source": "pavé: beads holding each stone (bench practice: 3 or 4; shared with the neighbours)"
+    },
+    "pave_mesh_tolerance_mm": {
+      "value": 0.05,
+      "status": "default",
+      "source": "Mesh Tolerance for a pavé ring (25 µm voxels): the webs between seats are 0.1 mm and the beads 0.5 mm, which 0.1 mm (50 µm voxels) blurs"
     }
   },
   "calibration_log": [

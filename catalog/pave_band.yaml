@@ -1,0 +1,62 @@
+# Phase 3 step 2/3: a pavé band. The band is ring_shank.ntop's (Python writes the ring unrolled as
+# bars; the notebook opens each, unites them and wraps the union round Z); Python lays the stones out
+# on its surface and writes two more meshes, every stone's seat (envelope + clearance + light hole)
+# and every bead; the notebook unites the beads and subtracts the seats: (shank ∪ beads) − seats.
+# Built by ntop/recipes/pave_band.py through the Notebook API.
+# Verify names: python -m ntopjewel templates ntop/notebooks/pave_band.ntop --catalog pave_band
+notebook: pave_band.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-03)
+rebuild_since: 0.1.0
+title: Pavé band - stones in seats with light holes, held by beads
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the finished ring, cross-checked by the gate against the independent (band ∪ beads − seats).
+inputs:
+  Shank Path:
+    type: text
+    doc: Absolute path of the first bar STL (ntopjewel.shank.write_bars writes them into the run directory).
+  Shank Path 2:
+    type: text
+    doc: The second bar (a split's upper half, a double band's bridges, a rope's or plait's second strand ...), or the smallest bar again when there is none.
+  Shank Path 3:
+    type: text
+    doc: The third bar (a trinity shank's pad, a third strand), or the smallest bar again.
+  Shank Path 4:
+    type: text
+    doc: The fourth bar (a plait's fourth strand), or the smallest bar again.
+  Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 200.0
+    doc: Remap Cylindrical's Y mapping length, one turn of the bar (the mid-wall circumference, 2π(bore + thickness/2)).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: Second Offset Body distance (+e) after the wrap; with Edge Round Inward an opening that rounds every edge a cut or a union left sharp (0 for a rope).
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: 0.0
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.05
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; pavé runs at tables pave_mesh_tolerance_mm (0.05 mm = 25 µm voxels).
+  Pave Seats Path:
+    type: text
+    doc: Absolute path of the seats STL (ntopjewel.pave.PaveSpec.write_layer) - every stone's cutter, disjoint, in the ring frame.
+  Pave Beads Path:
+    type: text
+    doc: Absolute path of the beads STL - every bead, a sphere standing on the band's surface, disjoint, in the ring frame.
+  Output Path:
+    type: text
+    doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop).
