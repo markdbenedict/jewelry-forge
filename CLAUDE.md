@@ -176,6 +176,11 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   `Input`; bare `core.var` does not exist. `add_real_variable(name, v, "mm")` makes a
   `core.var<real>` whose id is the name; `add_variable(name)` makes `core.var_any<any>` with
   input `x`. `list_block_inputs` also lists the block's return value (`isReturnValue`).
+- **A build script runs in nTop's own Python, which has none of this package's dependencies** (no
+  yaml, numpy, trimesh, shapely): at module level a recipe imports only `nb_jewel`, `notebook_api` and
+  the console-safe `nb_*` modules; anything heavier goes inside `prepare()` (laptop side). 2026-11-03:
+  `api build multistone` failed in nTop with "No module named 'yaml'"; `tests/test_console_safe.py`
+  now imports every recipe (and builds the newer ones) in a Python where those packages are blocked.
 - nTop's Python persists between runs, so the driver purges `ntopjewel*` from `sys.modules`
   before each run; without that an edited helper is not what runs.
 - `set_block_input` cannot set a `file_path` parameter (6.3.3: "only real, vector, point,

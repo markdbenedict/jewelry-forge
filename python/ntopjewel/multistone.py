@@ -34,32 +34,12 @@ from pathlib import Path
 
 from . import band as bandmod, catalog, config, gate, gems, geom, heads, ntopcl, runs, tables
 from . import shank as shankmod
+from .nb_multistone import COMMON, SLOT_FIELDS, SLOTS, input_order, slot_input, specs  # noqa: F401  (console-safe)
 
-SLOTS = 5
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
 HEAD_ANGLE_DEG = 90.0
 SIDE_GAP_MM = 0.3                  # girdle to girdle between neighbouring stones (default)
 CUT_ALLOWED_MM3 = 1e-3             # a seat may take no more than this from a neighbour's head
-SLOT_FIELDS = [("Seat Path", "path"), ("Prongs Path", "path"), ("Rail Offset", "mm"), ("Upper Rail Bottom", "mm"),
-               ("Upper Rail Top", "mm"), ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm"),
-               ("Spin", "deg"), ("Pivot X", "mm"), ("Pivot Z", "mm"), ("Turn", "deg")]
-COMMON = [("Clearance", "mm"), ("Head Blend", "mm"), ("Shank Blend", "mm")]
-
-
-def slot_input(name: str, k: int) -> str:
-    """The notebook input of slot k (0-based): `Seat Path`, `Seat Path 2` ..."""
-    return name if k == 0 else f"{name} {k + 1}"
-
-
-def specs() -> list[tuple[str, str]]:
-    """Every notebook input but the output, in order (the catalog's order)."""
-    shank_in = [(n, "path") for n in shankmod.SLOT_NAMES] + [("Wrap Length", "mm"), ("Edge Round", "mm"),
-                                                               ("Edge Round Inward", "mm"), ("Mesh Tolerance", "mm")]
-    return shank_in + COMMON + [(slot_input(n, k), t) for k in range(SLOTS) for n, t in SLOT_FIELDS]
-
-
-def input_order() -> list[str]:
-    return [n for n, _ in specs()] + ["Output Path"]
 
 
 @dataclass

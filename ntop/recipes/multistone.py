@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ntopjewel import multistone as ms
+from ntopjewel import nb_multistone as ms           # console-safe: nTop's Python has no yaml / trimesh
 from ntopjewel import nb_jewel as nj
 from ntopjewel.notebook_api import ConsoleError
 
@@ -40,10 +40,10 @@ RAILS = ("Rail Offset", "Upper Rail Bottom", "Upper Rail Top", "Lower Rail Botto
 
 
 def _spec():
-    from ntopjewel import band, gems, heads
+    from ntopjewel import band, gems, heads, multistone                # laptop side only (prepare)
     b = band.BandSpec(size=6, width_mm=2.6, thickness_mm=1.8, profile="court", mesh_tolerance_mm=0.05)
-    return ms.MultiStoneSpec(b, heads.OutlineHeadSpec(gems.StoneSpec("round", 6.5)),
-                             heads.OutlineHeadSpec(gems.StoneSpec("round", 4.0)))
+    return multistone.MultiStoneSpec(b, heads.OutlineHeadSpec(gems.StoneSpec("round", 6.5)),
+                                     heads.OutlineHeadSpec(gems.StoneSpec("round", 4.0)))
 
 
 DEFAULTS = {
