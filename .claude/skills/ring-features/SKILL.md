@@ -108,6 +108,7 @@ FAIL and INCOMPLETE is not a pass; neither is delivered.
 python -m ntopjewel artwork --size 6 --sides leaves --outer vine                 # the Seraphine layout (flat 2.8 x 2.0 band)
 python -m ntopjewel artwork --size 6 --sides leaves --outer none --end 100       # leaf rows on the side faces only
 python -m ntopjewel artwork --size 6 --sides plain --outer volute --start 20 --end 60 --dry-run
+python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # the same panels under a head (gem-library)
 ```
 
 A **panel** is a channel `--channel` deep cut into one face of the band - the outer face or a side
@@ -117,8 +118,15 @@ and so `channel − relief` below the face, protected by the rails. Motifs are 2
 the panel's own frame (u along the ring from the head end, v across the channel): `leaves` (a row of
 teardrop leaves pointing away from the head, each with a shallow vein groove, VEIN_WIDTH_MM x
 VEIN_DEPTH_MM), `vine` (a gentle S-curve spine with a leaf at each crest and a hook at each end, one
-polygon, clipped to the channel), `volute` (a spiral scroll), `plain` (the channel alone). A new motif
-is one function returning `[{"poly", "groove"}]`.
+polygon, clipped to the channel), `scroll` (the vine with a full volute the channel's width at its head
+end - the Seraphine's scrolls at the base of the head - the spine running on from the volute's outer
+turn), `volute` (a spiral scroll), `plain` (the channel alone). A new motif is one function returning
+`[{"poly", "veins"}]`. A side face is the band's **edge thickness** (the mid-plane thickness less the
+dome and the comfort fit) less two rails, centred between the bore's and the dome's edges; on a domed
+(court) outer face the relief would stand proud where the face falls away at the channel's edge, so
+`validate` refuses it (a flat band, a deeper channel or a lower relief). A `plain` panel's relief file
+holds a 0.2 mm cube **buried in the band** opposite the head (`buried_speck`), so the notebook's union
+has a body and the ring is unchanged - never a speck outside the ring, which a union leaves as a second shell.
 
 Geometry: the cutters are boxes lofted station by station along the ring and wrapped vertex-wise
 (geom.remap_cylindrical, what nTop's Remap Cylindrical does); a relief body's outline is densified in
@@ -144,6 +152,17 @@ cast identically on the built ring and the design - `channel floors`, `relief`, 
 grid over every panel (points within 0.12 mm of a motif's edge skipped). A notebook that never cut
 the channels fails floors and volume; one that lost the relief fails `relief`.
 
-Not yet: panels on a tapered, split or knotted shank, or under a solitaire's head (the solitaire
-notebooks would take Cut Path / Relief Path as they take Slot Path); the Seraphine's scroll volutes
-under the head, its double-claw prongs and heart gallery are head work (plan step 5/6).
+**Under a solitaire's head** (gem-library: `solitaire --sides/--outer/--start/--end ...`, the same flags):
+the three solitaire notebooks take `Cut Path` / `Relief Path` after `Slot Path` and carve the opened band
+(`nj.add_carved`: (Band Body − Panel Cuts) ∪ Relief = Carved Band) BEFORE the arches, the milgrain and the
+blended head join it and the seat and engraving are cut. `SolitaireSpec.panels` + the artwork numbers;
+every panel's head end is held back (`panel_start_min_deg`): past the arches' wedge + 1° (they fill the
+band's faces from mid-wall outward inside it), or with `--no-arches` (plain shoulders, the head standing
+on the band as the Seraphine's does; milgrain off) just past the head's reach along the ring + the shank
+blend + 0.5 mm. Without artwork the two inputs get no-op specks (`write_artwork`). The gate adds the three
+probe checks, keeps the channel zones out of the wall sample and compares the section shape inside the
+panels against the carved band. The simulated nTop carves from the same files (`carved_shank_from_inputs`;
+`FAKE_NTOPCL_SHAPE=nocut|norelief` to lose a layer).
+
+Not yet: panels on a tapered, split or knotted shank; the Seraphine's knots standing on a continuous
+band beside the head, its double-claw prongs and heart gallery (plan step 5/6).

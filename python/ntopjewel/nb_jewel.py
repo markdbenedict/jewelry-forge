@@ -207,6 +207,31 @@ def add_opening(h: NotebookHelper, body: str, inward_var: str, outward_var: str,
     return opened
 
 
+def add_mesh_body(h: NotebookHelper, name: str, path_var: str) -> str:
+    """A ring-frame body Python wrote: Import Mesh (`<name> Mesh`, Path from the text variable)
+    -> Implicit from Mesh (`<name>`). Returns the implicit's id."""
+    imp = h.add(f"{name} Mesh", mask="import_mesh", must=IMPORT_MESH)
+    h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
+    body = h.add(name, mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
+    h.wire(imp, body, ["Mesh"])
+    return body
+
+
+def add_carved(h: NotebookHelper, body_var: str, cut_var: str, relief_var: str, label: str = "Carved") -> str:
+    """Artwork on a band (ntopjewel.artwork): (`body_var` − the panel cutters at Cut Path) ∪ the
+    relief at Relief Path, as ring_artwork.ntop builds it - the band is opened before this, so the
+    channel edges stay crisp and the relief is never rounded. Returns the union's id."""
+    cuts = add_mesh_body(h, "Panel Cuts", cut_var)
+    relief = add_mesh_body(h, "Relief", relief_var)
+    carved = h.add(label, mask="subtract", must=SUBTRACT)
+    h.wire(body_var, carved, ["Primary Body", "Body"])
+    h.to_list(cuts, carved, ["Subtraction Bodies", "Bodies"])
+    joined = h.add(f"{label} + Relief", mask="union", must=UNION)
+    h.to_list(carved, joined, ["Bodies"])
+    h.to_list(relief, joined, ["Bodies"])
+    return joined
+
+
 def add_wrapped_shank(h: NotebookHelper, path_vars, wrap_var: str, inward_var: str, outward_var: str,
                       tolerance_var: str, label: str = "Shank") -> str:
     """The shank Python wrote as bars (ntopjewel.shank.ShankSpec.bar_meshes: X radial, Y along the

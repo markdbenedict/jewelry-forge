@@ -106,12 +106,17 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Shank Bars"] and "Band + Extra" not in b and "Outer" not in b
     assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
     assert nb.variables["Band Body"]["wraps"] == b["Shank"]
+    # the artwork carved into the opened band before anything joins it: (Band Body − Panel Cuts) ∪ Relief = Carved Band
+    assert nb.blocks[b["Panel Cuts Mesh"]]["wired"]["Path"][0] == "Cut Path" and nb.blocks[b["Relief Mesh"]]["wired"]["Path"][0] == "Relief Path"
+    assert nb.blocks[b["Carved"]]["wired"]["Primary Body"][0] == "Band Body" and nb.blocks[b["Carved"]]["lists"]["Subtraction Bodies"] == [b["Panel Cuts"]]
+    assert nb.blocks[b["Carved + Relief"]]["lists"]["Bodies"] == [b["Carved"], b["Relief"]] and nb.variables["Carved Band"]["wraps"] == b["Carved + Relief"]
     assert nb.blocks[b["Slot Mesh"]]["wired"]["Path"][0] == "Slot Path" and nb.blocks[b["Slot Cutter"]]["wired"]["Mesh"][0] == b["Slot Mesh"]
     assert nb.blocks[b["Split Arches"]]["wired"]["Primary Body"][0] == b["Shoulders"] and nb.blocks[b["Split Arches"]]["lists"]["Subtraction Bodies"] == [b["Slot Cutter"]]
     assert nb.blocks[b["Arches Shrunk"]]["wired"]["Body"][0] == b["Split Arches"]
     assert nb.blocks[b["Arches Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
     assert nb.blocks[b["Arches"]]["wired"]["Body"][0] == b["Arches Shrunk Body"] and nb.blocks[b["Arches"]]["wired"]["Distance"][0] == "Edge Round"
-    assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Band Body"} <= set(nb.blocks[b["Shank Union"]]["lists"]["Bodies"])
+    assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Carved Band"} <= set(nb.blocks[b["Shank Union"]]["lists"]["Bodies"])
+    assert "Band Body" not in nb.blocks[b["Shank Union"]]["lists"]["Bodies"]                     # the carved band, not the bare one
     assert nb.blocks[b["Milgrain+"]]["wired"]["Axis"][0] == b["Beads+ Axis"]
     assert nb.inputs == mod.INPUT_ORDER and nb.output == "Volume" and nb.lint() == [] and res["warnings"] == []
 

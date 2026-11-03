@@ -156,6 +156,23 @@ def _add_band_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--tolerance", type=float, default=0.1, help="Mesh from Implicit Body tolerance (= 2 x voxel size), mm")
 
 
+def _add_artwork_args(p: argparse.ArgumentParser, sides: str, outer: str) -> None:
+    """The artwork flags (the `artwork` command and the solitaire share them); `sides` / `outer`: the default motifs."""
+    p.add_argument("--sides", default=sides, choices=[*artwork.MOTIFS, "none"], help="the motif on both side faces (none: no side panels)")
+    p.add_argument("--outer", default=outer, choices=[*artwork.MOTIFS, "none"],
+                   help="the motif on the outer face (scroll: a volute at the head end running into a vine)")
+    p.add_argument("--start", type=float, default=25.0, help="the panels begin this far from the top, degrees (the shoulder; under a "
+                                                            "head, held back past the arches or the head)")
+    p.add_argument("--end", type=float, default=120.0, help="... and end here (the bottom of the ring stays plain)")
+    p.add_argument("--channel", type=float, default=0.30, help="channel depth, mm")
+    p.add_argument("--rail", type=float, default=0.35, help="rail left along each edge of a face, mm")
+    p.add_argument("--relief", type=float, default=0.25, help="the motif's height above the channel floor, mm")
+    p.add_argument("--leaf", type=float, help="leaf length, mm (default: from the channel's width)")
+    p.add_argument("--leaf-pitch", type=float, default=1.3, help="leaf to leaf, in leaf lengths")
+    p.add_argument("--stroke", type=float, default=0.3, help="a vine's or volute's stroke width, mm")
+    p.add_argument("--no-vein", action="store_true", help="leaves without the vein groove")
+
+
 def _add_taper_args(p: argparse.ArgumentParser) -> None:
     """The shank's taper flags (the `shank` command and the solitaire share them)."""
     p.add_argument("--width-bottom", type=float, help="width at the bottom of the finger, mm (default: no width taper)")
@@ -427,10 +444,14 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                               stations=a.stations, split_mm=a.split, split_span_deg=a.split_span, split_shape=a.split_shape,
                               **_knot_kwargs(a))
               if (a.width_bottom is not None or a.thickness_bottom is not None or a.split or a.knot) else None)
+    panels = artwork.seraphine_panels(a.start, a.end, outer=a.outer, sides=a.sides)
     spec = solitaire.SolitaireSpec(b, head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder,
                                    milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
                                    text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
-                                   engrave_depth_mm=a.engrave_depth, shank_blend_mm=a.shank_blend, shank=shaped)
+                                   engrave_depth_mm=a.engrave_depth, shank_blend_mm=a.shank_blend, shank=shaped,
+                                   cathedral=not a.no_arches, panels=panels, channel_mm=a.channel, rail_mm=a.rail,
+                                   relief_mm=a.relief, leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke,
+                                   vein=not a.no_vein)
     probs = spec.validate()
     if probs:
         print("solitaire: problems: " + "; ".join(probs))
@@ -439,7 +460,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
         print(spec.describe())
         for k, v in spec.notebook_inputs("<envelope path>", "<output path>", prongs_path="<prongs path>" if spec.outline else "",
                                          engraving_path="<engraving path>", shank_paths=spec.shank_spec.bar_placeholders(),
-                                         windows_path="<windows path>" if spec.bezel else "").items():
+                                         windows_path="<windows path>" if spec.bezel else "",
+                                         cut_path="<cut path>", relief_path="<relief path>").items():
             print(f"    {k}: {v}")
         return 0
     try:
@@ -871,17 +893,7 @@ def main(argv: list[str] | None = None) -> int:
 
     aw = sub.add_parser("artwork", help="artwork in relief in sunk panels on the band's faces: leaf rows, a vine scroll (ring_artwork.ntop)")
     _add_band_args(aw)
-    aw.add_argument("--sides", default="leaves", choices=[*artwork.MOTIFS, "none"], help="the motif on both side faces (none: no side panels)")
-    aw.add_argument("--outer", default="vine", choices=[*artwork.MOTIFS, "none"], help="the motif on the outer face")
-    aw.add_argument("--start", type=float, default=25.0, help="the panels begin this far from the top, degrees (the shoulder)")
-    aw.add_argument("--end", type=float, default=120.0, help="... and end here (the bottom of the ring stays plain)")
-    aw.add_argument("--channel", type=float, default=0.30, help="channel depth, mm")
-    aw.add_argument("--rail", type=float, default=0.35, help="rail left along each edge of a face, mm")
-    aw.add_argument("--relief", type=float, default=0.25, help="the motif's height above the channel floor, mm")
-    aw.add_argument("--leaf", type=float, help="leaf length, mm (default: from the channel's width)")
-    aw.add_argument("--leaf-pitch", type=float, default=1.3, help="leaf to leaf, in leaf lengths")
-    aw.add_argument("--stroke", type=float, default=0.3, help="a vine's or volute's stroke width, mm")
-    aw.add_argument("--no-vein", action="store_true", help="leaves without the vein groove")
+    _add_artwork_args(aw, sides="leaves", outer="vine")
     aw.add_argument("--catalog", default="ring_artwork")
     aw.add_argument("--out")
     aw.add_argument("--notebook")
@@ -978,6 +990,8 @@ def main(argv: list[str] | None = None) -> int:
     _add_taper_args(so)                                           # a tapered and/or split shank under the head (Phase 3 step 1d)
     _add_split_args(so)
     _add_knot_args(so, solitaire=True)                            # trinity knots on a split shank's shoulders (step 1e)
+    so.add_argument("--no-arches", action="store_true", help="plain shoulders: the head stands on the band (no cathedral arches, no arch milgrain)")
+    _add_artwork_args(so, sides="none", outer="none")             # artwork panels on the band under the head (step 5)
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

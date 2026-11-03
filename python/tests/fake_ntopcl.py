@@ -18,7 +18,8 @@ Knobs (environment variables) let a test make the fake misbehave the way a wrong
 would, so the rejections are tested rather than assumed:
 
   FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave | plainshank (solitaire: the bar's head section
-                      all round) | noblend (the blend radii ignored:
+                      all round) | nocut / norelief (artwork, on a band or under a head: the channels never cut, the
+                      relief lost) | noblend (the blend radii ignored:
                       sharp junctions) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
                       rectangular section instead of the designed one (what a notebook that ignores the tori produces)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
@@ -196,6 +197,9 @@ def main(argv: list[str]) -> int:
             if not Path(values[key]).exists():
                 fail(f"{key.replace('Path', 'Mesh')}: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
+        for key in ("Cut Path", "Relief Path"):
+            if key in values and not Path(values[key]).exists():
+                fail(f"{key.replace('Path', 'Mesh')}: file not found")
         if shape == "plainshank":
             # a notebook that ignored the bar's shape: the head section revolved all round (the bar's
             # section at Y = 0 swept about Z) - a tapered shank's gate must notice
@@ -206,8 +210,8 @@ def main(argv: list[str]) -> int:
             loops = [np.asarray(l) for l in sec.discrete]
             poly = max((trimesh.path.polygons.Polygon(l[:, [0, 2]]) for l in loops), key=lambda q: q.area)
             shank_mesh = geom.revolve_section(poly, sections=360)
-        else:
-            shank_mesh = None                                               # the bar at Shank Path, wrapped
+        else:                                                               # the bars at Shank Path .., wrapped, carved by the
+            shank_mesh = solitaire.carved_shank_from_inputs(values, cut=shape != "nocut", relief=shape != "norelief")   # artwork layers
         mesh = solitaire.ring_mesh(values, envelope, cut_seat=shape != "noseat", beads=shape != "nobeads",
                                    engrave=shape != "noengrave", ops=ops, shank_mesh=shank_mesh)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":

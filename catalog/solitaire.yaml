@@ -2,8 +2,8 @@
 # Built by ntop/recipes/solitaire.py; run by `python -m ntopjewel solitaire ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire.ntop
-version: 0.8.1   # 0.8.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.8.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.7.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.7.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
-rebuild_since: 0.8.1   # the notebook body changed then (each bar opened before the union): a notebook built for an older version is refused (runs.require_built)
+version: 0.9.0   # 0.9.0: artwork under the head - Cut Path / Relief Path, the band carved before the arches join (2026-11-03) - rebuild the notebook; 0.8.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.8.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.7.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.7.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
+rebuild_since: 0.9.0   # the notebook body changed then (the artwork carve between the wrapped band and the arches): a notebook built for an older version is refused (runs.require_built)
 title: 'Solitaire (round stone, prong_head): gothic cathedral arches, arch milgrain,
   optional engraving'
 output:
@@ -33,6 +33,12 @@ inputs:
   Slot Path:
     type: text
     doc: Absolute path of the split's slot cutter STL (ntopjewel.shank.ShankSpec.slot_cutter, the slot swept in the ring frame through the arches), or a speck far outside the ring when the shank is not split.
+  Cut Path:
+    type: text
+    doc: Absolute path of the artwork's channel cutters STL (ntopjewel.artwork.ArtworkSpec.write_layers - one body per panel, in the ring frame; SolitaireSpec.write_artwork), or a speck far outside the ring when the ring has no artwork.
+  Relief Path:
+    type: text
+    doc: Absolute path of the artwork's relief STL (one body per leaf or scroll, each plugged into its channel floor), or a 0.2 mm speck buried in the band when the ring has no artwork - the band is carved before the arches and the head join it.
   Z Top:
     type: scalar
     units: mm

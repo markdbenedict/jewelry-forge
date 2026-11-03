@@ -8,6 +8,11 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
                the edge round, then united -> Remap Cylindrical (Wrap Length) = Band Body; the arches, less
                the slot cutter (Slot Path: the split's slot swept in the ring frame, a speck far outside
                when there is none), opened on their own and united afterwards
+    artwork    (Band Body − Panel Cuts) ∪ Relief = Carved Band (nj.add_carved, as ring_artwork.ntop): the
+               panel channels and the motifs in relief Python writes (Cut Path, Relief Path;
+               ntopjewel.artwork), carved into the opened band BEFORE the arches and the head join it
+               - the panels stop short of the arches' wedge, or of the head on a plain-shouldered ring.
+               No artwork: a cutter speck far outside the ring and a relief speck buried in the band
     seat       stone_seat(Seat Path, Clearance), embedded -> Seat Local (head frame)
     head       prong_head(Seat Local + 14 numbers), outline_head(Seat Local, Prongs Path + 5 rail
                numbers) or bezel_head(Seat Local, Windows Path, Wall, Bezel Bottom/Top), embedded -> head frame
@@ -20,7 +25,7 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
                Array (Bead Count, Bead Spacing) about the axis through that arch's centre ∥ Z
     engraving  Import Mesh (Engraving Path) -> Implicit from Mesh -> Remap Cylindrical (Engraving Wrap
                Length) -> turned 180° about +Z (the text opposite the head)
-    ring       ((Band Body ∪ milgrain) ∪ placed head, blended by Shank Blend) - placed seat - engraving
+    ring       ((Carved Band ∪ arches ∪ milgrain) ∪ placed head, blended by Shank Blend) - placed seat - engraving
                -> Volume, Mesh, Export. The cuts come AFTER the blend: a smooth union fills every corner
                two surfaces make within its radius, and the seat's corners must stay empty
 
@@ -51,6 +56,7 @@ ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
 ENGRAVING = [("Engraving Path", "path"), ("Engraving Wrap Length", "mm")]
 ENGRAVING_TURN_DEG = 180.0
 SHANK = [(name, "path") for name in nj.SLOT_NAMES] + [("Wrap Length", "mm"), ("Slot Path", "path")]   # the bars nTop unites, then the wrap
+ARTWORK = [("Cut Path", "path"), ("Relief Path", "path")]                                                  # the panels carved into the band
 BAND_FOR_ARCHES = ["Z Top", "Z Bottom", "Dome Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]   # of nj.BAND_INPUTS
 
 
@@ -59,7 +65,7 @@ def head_specs(kind: str) -> list[tuple[str, str]]:
 
 
 def specs(kind: str) -> list[tuple[str, str]]:
-    return (SHANK + [(n, "mm") for n in BAND_FOR_ARCHES] + [("Seat Path", "path"), ("Clearance", "mm")] + head_specs(kind)
+    return (SHANK + ARTWORK + [(n, "mm") for n in BAND_FOR_ARCHES] + [("Seat Path", "path"), ("Clearance", "mm")] + head_specs(kind)
             + ARCH + ENGRAVING + JOIN)
 
 
@@ -165,6 +171,7 @@ def body(kind: str):
         out_var = nj.path_variable(h, "Output Path", test_output)
         band = h.wrap_var("Band Body", nj.add_wrapped_shank(h, [ids[name] for name in nj.SLOT_NAMES], ids["Wrap Length"],
                                                             ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))   # the bars united, opened, wrapped
+        carved = h.wrap_var("Carved Band", nj.add_carved(h, band, ids["Cut Path"], ids["Relief Path"]))   # the artwork, before anything joins
         # the arches rounded on their own and united sharp: opening the union (band + arches)
         # grew a 0.07 mm layer over the arch feet, where the arch dome lies on the band's dome
         # (2026-10-31: the re-distance mesh of two near-coincident surfaces); apart, each is plain
@@ -202,8 +209,8 @@ def body(kind: str):
             h.wire(placement, t, [h.input_of_type(t, "transformation")])
             placed[label] = t
 
-        shank = h.add("Shank Union", mask="union", must=nj.UNION)       # band + arches + milgrain
-        h.to_list(band, shank, ["Bodies"])
+        shank = h.add("Shank Union", mask="union", must=nj.UNION)       # carved band + arches + milgrain
+        h.to_list(carved, shank, ["Bodies"])
         h.to_list(arch_body, shank, ["Bodies"])
         for row in milgrain(h, ids):
             h.to_list(row, shank, ["Bodies"])
@@ -238,8 +245,10 @@ def prepare(spec, params: dict, test_dir: Path, tag: str) -> dict:
     from .shank import write_bars
     bars = write_bars(spec.shank_spec, test_dir, f"{tag}_test")                   # <tag>_test.bar.stl ...
     spec.slot_mesh().export(str(slot))
+    cut, relief = spec.write_artwork(test_dir, f"{tag}_test")                     # <tag>_test.cut.stl / .relief.stl (specks: no artwork)
     v = spec.notebook_inputs(str(env), prongs_path=str(prongs) if spec.outline else "", engraving_path=str(eng),
-                             windows_path=str(win) if spec.bezel else "", shank_paths=bars, slot_path=str(slot))
+                             windows_path=str(win) if spec.bezel else "", shank_paths=bars, slot_path=str(slot),
+                             cut_path=cut, relief_path=relief)
     params["values"] = {**v, **(params.get("values") or {})}
     return params
 

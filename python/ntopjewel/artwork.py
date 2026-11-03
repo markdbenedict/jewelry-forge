@@ -7,8 +7,10 @@ ring, reference 2026-11-03: leaf rows in channels on both side faces, a vine scr
 the outer face, from the shoulders to 120° from the top). Motifs are 2-D (shapely) in the panel's
 own frame - u along the ring from the panel's start, v across the channel - so new ones are a
 function returning polygons: `leaves` (a row of teardrop leaves with a shallow vein), `vine` (an
-S-curve spine with leaves budding off it and a curl at each end), `volute` (a spiral scroll),
-`plain` (the sunk channel alone).
+S-curve spine with leaves budding off it and a curl at each end), `scroll` (the vine with a full
+volute at its head end - the Seraphine's scrolls at the base of the head), `volute` (a spiral
+scroll), `plain` (the sunk channel alone). The same panels go under a solitaire's head
+(ntopjewel.solitaire.SolitaireSpec.panels: the band carved before the arches and the head join it).
 
 Geometry: everything is built in the bar frame (X radial, Y along the ring - Y = wrap length is a
 turn, angle 0 at the top - Z axial) and wrapped vertex-wise round Z (geom.remap_cylindrical,
@@ -35,9 +37,10 @@ from pathlib import Path
 from . import band, catalog, config, gate, geom, ntopcl, runs, tables
 from . import shank as shankmod
 
-MOTIFS = ("leaves", "vine", "volute", "plain")
+MOTIFS = ("leaves", "vine", "scroll", "volute", "plain")
 FACES = ("outer", "side+", "side-")
 PLUG_MM = 0.1                 # relief bodies sink this far into the channel floor
+SPECK_MM = 0.2                # the no-op relief: a cube this size buried in the band (buried_speck)
 MAX_EDGE_MM = 0.25            # facets subdivided to this before the wrap (a chord under 0.001 mm at r 10)
 VEIN_WIDTH_MM = 0.2
 VEIN_DEPTH_MM = 0.12
@@ -102,6 +105,15 @@ def _spiral(turns: float, r0: float, r1: float, n: int = 90):
     return np.column_stack([r * np.cos(t), r * np.sin(t)])
 
 
+def _spiral_to(turns: float, r0: float, r1: float, n: int = 90):
+    """_spiral turned so its outer end lies at angle 0 (on the +x side of its centre), where a
+    stem can continue from it."""
+    pts = _spiral(turns, r0, r1, n)
+    a = -2 * math.pi * turns
+    c, s = math.cos(a), math.sin(a)
+    return pts @ [[c, s], [-s, c]]
+
+
 def motif_volute(length_u: float, width_v: float, stroke: float) -> list[dict]:
     """A scroll: a spiral of 1.4 turns filling the panel's width, its tail running on along u."""
     from shapely.geometry import LineString
@@ -113,34 +125,43 @@ def motif_volute(length_u: float, width_v: float, stroke: float) -> list[dict]:
     return [{"poly": line.buffer(stroke / 2, cap_style="round", join_style="round"), "veins": []}]
 
 
-def motif_vine(length_u: float, width_v: float, stroke: float, leaf: float, vein: bool) -> list[dict]:
+def motif_vine(length_u: float, width_v: float, stroke: float, leaf: float, vein: bool, volute: bool = False) -> list[dict]:
     """A vine: a gentle S-curve spine the length of the panel with a leaf budding outward and
     onward at each crest and a curl at each end, united into one polygon and clipped to the channel
-    (nothing stands over the rails or past the band's edge)."""
+    (nothing stands over the rails or past the band's edge). `volute`: the head end (u = 0) is a
+    full scroll the channel's width instead of a hook, the spine running on from its outer turn
+    (the Seraphine's volutes at the base of the head)."""
     import numpy as np
     from shapely.affinity import rotate, translate
     from shapely.geometry import LineString, box
     from shapely.ops import unary_union
     half = width_v / 2
     A = 0.25 * width_v                                                  # the spine's swing
+    parts, veins = [], []
+    u0 = 0.0
+    if volute:                                                          # 1.25 turns, inner end at the bottom, outer end on +u
+        R = half - stroke / 2 - 0.08                                    # inside the clip: the scroll keeps its round
+        pts = _spiral_to(1.25, 0.3 * R, R, 60) + [R + stroke / 2, 0.0]
+        parts.append(LineString(list(map(tuple, pts))).buffer(stroke / 2, cap_style="round", join_style="round"))
+        u0 = 2 * R + stroke / 2 - 0.02                                  # the spine starts inside the scroll's outer stroke
+    span = length_u - u0
     period = max(3.0 * leaf, 2.5)
-    n_half = max(2, int(round(2 * length_u / period)))                 # whole half-periods
-    period = 2 * length_u / n_half
-    u = np.linspace(0.0, length_u, max(20, int(length_u / 0.1)))
-    v = A * np.sin(2 * math.pi * u / period)
-    spine = LineString(np.column_stack([u, v])).buffer(stroke / 2, cap_style="round", join_style="round")
-    parts, veins = [spine], []
+    n_half = max(2, int(round(2 * span / period)))                     # whole half-periods
+    period = 2 * span / n_half
+    u = np.linspace(u0, length_u, max(20, int(span / 0.1)))
+    v = A * np.sin(2 * math.pi * (u - u0) / period)
+    parts.append(LineString(np.column_stack([u, v])).buffer(stroke / 2, cap_style="round", join_style="round"))
     leaf_w = 0.5 * leaf
     for k in range(n_half):
-        uc = (k + 0.5) * period / 2                                     # a crest
+        uc = u0 + (k + 0.5) * period / 2                                # a crest
         side = 1.0 if k % 2 == 0 else -1.0
         ang, at = 32.0 * side, (uc - 0.1 * leaf, side * (A - 0.08))
         parts.append(translate(rotate(leaf_polygon(leaf, leaf_w), ang, origin=(0.0, 0.0)), *at))
         if vein:
             veins.append(_move_seg(leaf_vein(leaf, leaf_w), ang, *at))
     curl_r = max(0.25, min(half - stroke / 2 - 0.05, 0.6 * leaf))
-    for end, sign in ((0.0, 1.0), (length_u, -1.0)):               # a hook at each end (a full spiral fills in at this stroke)
-        pts = _spiral(0.75, 0.55 * curl_r, curl_r, 36)
+    for end, sign in ([(length_u, -1.0)] if volute else [(0.0, 1.0), (length_u, -1.0)]):   # a hook at each free end
+        pts = _spiral(0.75, 0.55 * curl_r, curl_r, 36)                 # (a full spiral fills in at this stroke)
         pts = pts * [sign, 1.0] + [end + sign * curl_r, 0.0]
         parts.append(LineString(list(map(tuple, pts))).buffer(stroke / 2, cap_style="round", join_style="round"))
     clip = box(0.0, -half + 0.08, length_u, half - 0.08)
@@ -179,6 +200,23 @@ def prism_along_y(x0: float, x1: float, z0: float, z1: float, y0: float, y1: flo
     if m.volume < 0:
         m.invert()
     return m
+
+
+def buried_speck(b: band.BandSpec):
+    """The no-op relief: a SPECK_MM cube (12 faces, the simplest closed mesh) buried in the band's
+    metal opposite the head (at the mid-wall radius, angle 180°, on the mid-plane), so a notebook's
+    union has a body to take and the ring is unchanged. (A speck far outside the ring, as the
+    engraving's dummy cutter is, would come out of a union as a second shell.)"""
+    import trimesh
+    speck = trimesh.creation.box(extents=(SPECK_MM, SPECK_MM, SPECK_MM))
+    speck.apply_translation([-(b.bore_radius_mm + b.thickness_mm / 2), 0.0, 0.0])
+    return speck
+
+
+def outside_speck(b: band.BandSpec):
+    """The no-op cutter: a speck far outside the ring, which subtracting changes nothing (engrave.dummy_mesh)."""
+    from . import engrave
+    return engrave.dummy_mesh(b.outer_radius_mm)
 
 
 def densified(poly, step: float = MAX_EDGE_MM):
@@ -476,9 +514,28 @@ class ArtworkSpec:
     def y_of(self, theta_deg: float) -> float:
         return theta_deg / 360.0 * self.L
 
-    def channel_width(self, face: str) -> float:
+    def face_width(self, face: str) -> float:
+        """The face a panel sits in: the band's width (outer), or a side face's radial extent - the
+        edge thickness, which a dome and a comfort fit leave short of the mid-plane thickness."""
         b = self.band
-        return (b.width_mm if face == "outer" else b.thickness_mm) - 2 * self.rail_mm
+        return b.width_mm if face == "outer" else b.edge_thickness_mm
+
+    def channel_width(self, face: str) -> float:
+        return self.face_width(face) - 2 * self.rail_mm
+
+    @property
+    def side_mid_radius(self) -> float:
+        """The radius of a side face's middle (between the bore's and the dome's edges)."""
+        b = self.band
+        return (b.bore_radius_at(b.width_mm / 2) + b.outer_radius_at(b.width_mm / 2)) / 2
+
+    def face_fall(self, face: str) -> float:
+        """How far the face falls from the channel's centre line to its edge: a domed outer face
+        drops by its sagitta at the channel's half-width (a side face is flat)."""
+        if face != "outer":
+            return 0.0
+        b = self.band
+        return b.outer_radius_mm - b.outer_radius_at(self.channel_width(face) / 2)
 
     def leaf_length(self, face: str) -> float:
         return float(self.leaf_mm) if self.leaf_mm else round(min(1.35 * self.channel_width(face), 2.0), 3)
@@ -494,9 +551,9 @@ class ArtworkSpec:
             if p.motif == "leaves":
                 leaf = self.leaf_length(p.face)
                 m = motif_leaves(Lu - 0.3, w - 0.2, leaf, self.leaf_pitch * leaf, self.vein)
-            elif p.motif == "vine":
+            elif p.motif in ("vine", "scroll"):
                 leaf = min(0.8 * self.leaf_length(p.face), 0.45 * (w - 0.2))
-                m = motif_vine(Lu - 0.3, w - 0.2, self.stroke_mm, leaf, self.vein)
+                m = motif_vine(Lu - 0.3, w - 0.2, self.stroke_mm, leaf, self.vein, volute=p.motif == "scroll")
             elif p.motif == "volute":
                 m = motif_volute(Lu - 0.3, w - 0.2, self.stroke_mm)
             else:
@@ -533,7 +590,7 @@ class ArtworkSpec:
             return radial_prism(yz, floor + h0, floor + h1, self.L)
         out = 1.0 if p.face == "side+" else -1.0
         floor = out * (b.width_mm / 2 - self.channel_mm)
-        xmid = (b.bore_radius_mm + b.outer_radius_mm) / 2
+        xmid = self.side_mid_radius
 
         def wrap(c):
             r, y = xmid + c[:, 1], y0 + sign * c[:, 0]
@@ -553,7 +610,7 @@ class ArtworkSpec:
         else:
             out = 1.0 if p.face == "side+" else -1.0
             zface = out * b.width_mm / 2
-            xmid = (b.bore_radius_mm + b.outer_radius_mm) / 2
+            xmid = self.side_mid_radius
             z0, z1 = sorted((zface - out * self.channel_mm, zface + out * 1.0))
             m = prism_along_y(xmid - w / 2, xmid + w / 2, z0, z1, 0.0, Lu, MAX_EDGE_MM)
         if sign < 0:
@@ -596,10 +653,8 @@ class ArtworkSpec:
     def relief_mesh(self):
         import trimesh
         bodies = [b for p in self.panels for s in self.copies(p) for b in self.relief_bodies(p, s)]
-        if not bodies:                                                 # plain channels: a speck far outside, so the
-            speck = trimesh.creation.icosphere(subdivisions=1, radius=0.05)   # notebook's union has a body to take
-            speck.apply_translation([60.0, 0.0, 0.0])
-            return speck
+        if not bodies:                                                 # plain channels: the notebook's union still needs a body
+            return buried_speck(self.band)
         return trimesh.util.concatenate(bodies)
 
     @property
@@ -648,11 +703,15 @@ class ArtworkSpec:
         return v
 
     # ---- identity --------------------------------------------------------------------------------
+    def artwork_design(self) -> dict:
+        """The artwork's own numbers (the panels and every dimension), without the shank's."""
+        return {"panels": [asdict(p) for p in self.panels], "channel": self.channel_mm, "rail": self.rail_mm,
+                "relief": self.relief_mm, "leaf": self.leaf_mm, "leaf_pitch": self.leaf_pitch, "stroke": self.stroke_mm,
+                "vein": self.vein, "vein_width": VEIN_WIDTH_MM, "vein_depth": VEIN_DEPTH_MM}
+
     def design(self) -> dict:
         d = self.shank.design()
-        d.update({"panels": [asdict(p) for p in self.panels], "channel": self.channel_mm, "rail": self.rail_mm,
-                  "relief": self.relief_mm, "leaf": self.leaf_mm, "leaf_pitch": self.leaf_pitch, "stroke": self.stroke_mm,
-                  "vein": self.vein, "vein_width": VEIN_WIDTH_MM, "vein_depth": VEIN_DEPTH_MM})
+        d.update(self.artwork_design())
         return d
 
     @property
@@ -699,6 +758,10 @@ class ArtworkSpec:
         if self.below < 0.03:
             p.append("the relief reaches within 0.03 mm of the face: deepen the channel")
         faces = {q.face for q in self.panels}
+        if "outer" in faces and self.below - self.face_fall("outer") < 0.03:
+            p.append(f"on a {b.profile} band the outer face falls {self.face_fall('outer'):.2f} mm from the middle to the channel's "
+                     f"edge, where the relief ({self.below:.2f} below the face at the middle) would stand proud: a flat band, "
+                     "a deeper channel or a lower relief")
         sides = len(faces & {"side+", "side-"})
         if "outer" in faces and sides and self.channel_mm > self.rail_mm - 0.02:
             p.append(f"the outer channel ({self.channel_mm:g} deep) reaches the side channels' walls (rails {self.rail_mm:g}): "
@@ -712,7 +775,8 @@ class ArtworkSpec:
             p.append(f"{core_t:.2f} mm of band left under the outer channel, under {wall:g}: a thicker band")
         for q in self.panels:
             if self.channel_width(q.face) < 0.6:
-                p.append(f"panel {q.face}: the channel is {self.channel_width(q.face):.2f} mm wide; at least 0.6")
+                p.append(f"panel {q.face}: the channel is {self.channel_width(q.face):.2f} mm wide (the face {self.face_width(q.face):.2f} "
+                         f"less two rails); at least 0.6")
             elif q.motif != "plain" and not self.motif(q):
                 p.append(f"panel {q.face}: too short for a {q.motif}")
         if self.stroke_mm < tables.FLOORS["engrave_stroke"]:
@@ -732,6 +796,7 @@ class ArtworkSpec:
         for q in self.panels:
             n = len(self.motif(q))
             what = {"leaves": f"{n} leaves of {self.leaf_length(q.face):.2f} mm", "vine": "a vine scroll with leaves",
+                    "scroll": "a volute at the head end running into a vine with leaves",
                     "volute": "a volute", "plain": "nothing (a sunk channel)"}[q.motif]
             lines.append(f"  {q.face} face: a channel {self.channel_width(q.face):.2f} wide x {self.channel_mm:g} deep from "
                          f"{q.start_deg:g}° to {q.end_deg:g}° ({self.panel_length(q):.1f} mm){' each side' if q.mirror else ''}, "
@@ -821,8 +886,7 @@ class ArtworkSpec:
             dirs = -np.column_stack([np.cos(th), np.sin(th), np.zeros_like(th)])
         else:
             out = 1.0 if p.face == "side+" else -1.0
-            xmid = (b.bore_radius_mm + b.outer_radius_mm) / 2
-            r = xmid + V
+            r = self.side_mid_radius + V
             z0 = out * (b.width_mm / 2 + 0.5)
             origins = np.column_stack([r * np.cos(th), r * np.sin(th), np.full_like(th, z0)])
             dirs = np.column_stack([np.zeros_like(th), np.zeros_like(th), np.full_like(th, -out)])

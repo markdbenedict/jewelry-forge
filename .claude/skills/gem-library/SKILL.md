@@ -106,12 +106,15 @@ python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-widt
 python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank (Phase 3 step 1d)
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot runs under the head, through the arches
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: trinity knots on the shoulders
+python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # the Seraphine: artwork panels under the head
 ```
 
 The shank is always the bars Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
-`<stem>.bar.stl`, `.bar2.stl` ... in the run directory, the smallest repeated in unused slots; `Shank Path` .. `Shank Path 4` / `Wrap Length` inputs, catalogs 0.8 / 0.4): each
+`<stem>.bar.stl`, `.bar2.stl` ... in the run directory, the smallest repeated in unused slots; `Shank Path` .. `Shank Path 4` / `Wrap Length` inputs, catalogs 0.9 / 0.5): each
 Import Mesh → Implicit from Mesh → opened by the edge round, then united → Remap Cylindrical =
-Band Body; the arches are opened on their own and united with it. Ring 01 (the marquise on the
+Band Body → carved by the artwork layers at `Cut Path` / `Relief Path` (`nj.add_carved`: (Band Body −
+Panel Cuts) ∪ Relief = Carved Band; no-op specks without artwork) → the arches, opened on their own,
+united with it. Ring 01 (the marquise on the
 trinity shank) built PASSED in nTop on 2 Nov; its 7 "shells" were the mesher's zero-volume
 bubbles where the rails' feet kiss the band's dome, which the gate now reports apart. Bodies that cross each other (a
 split's halves, a knot's strands) come in separate bars and nTop unites them (`ring-band`). Plain by default; `--width-bottom`,
@@ -131,7 +134,8 @@ are off: the notebook keeps no conditional, so the arch inputs become two 0.7 mm
 in the band 4° either side of the head (`arch_inputs`: Z Top/Bottom ±0.5, a 2 mm dome tube, a
 10° wedge, the cut inside the bore; catalogs 0.7.1 / 0.3.1 widened their ranges for them, no
 rebuild), which the opening chain can mesh and which change nothing; the independent model
-builds the same stub with a 0.1 mm wall. Slot Path is a speck (the band under the head is
+builds the same stub with a thin wall (the edge round twice + 0.1, so the section's opening
+emulation leaves it standing on a band whose edge round is not 0). Slot Path is a speck (the band under the head is
 whole), Edge Round 0 (the knot shank's rounds are all in its bar), the gate's section angles
 skip the knots, and the design volume takes no slot-edge term. Contoured, double, rope and
 plait shanks under a head are refused for now (the arches and the head placement assume a band
@@ -141,6 +145,23 @@ A non-round `--shape` runs `solitaire_outline.ntop`. `--engrave TEXT` cuts it in
 (`--engrave-side outside` for the outside), centred opposite the head, 0.3 mm deep, letter height
 to fit the band (`--engrave-height`, `--engrave-depth`); the gate's `engraving` check finds the
 pocket. The text is part of the spec id but not the stem.
+
+**Artwork under the head** (`ring-features` has the panels themselves): `--sides` / `--outer` (a motif, or
+`none`, the default), `--start` / `--end`, `--channel`, `--rail`, `--relief`, `--leaf`, `--leaf-pitch`,
+`--stroke`, `--no-vein` as the `artwork` command - `SolitaireSpec.panels` and the artwork numbers,
+`SolitaireSpec.artwork` the `ArtworkSpec` over the shank. The band is carved before anything joins it
+(the channel edges stay crisp, the relief is never rounded), so each panel's head end is held back
+(`panel_start_min_deg`): past the arches' wedge + 1° (inside it the arch fills the band's faces from
+mid-wall outward), or with **`--no-arches`** (plain shoulders: the head stands on the band, milgrain
+off, the arch inputs the buried stubs as for a knot shank) just past the head's reach along the ring
+(the placed head or its seat cutter, whichever reaches further) + the shank blend + 0.5 mm - 21.6° for
+the 6.5 mm round 4-prong on the 2.8 x 2.0 flat band, so the Seraphine's panels from 25° are not
+moved. A panel ending inside that is refused, as is an outside engraving with an outer panel, and the
+artwork's own rules apply (a court band's domed outer face refuses the relief: flat bands). The gate
+adds `channel floors` / `relief` / `rails`, keeps the channel zones out of the wall sample, compares
+the section shape inside the panels against the carved band (`artwork.gate_section`) and uses the
+carved band as the independent shank (`carved_shank_mesh`, design volume and blend estimate alike).
+Stem `..._art_<id>`; `<stem>.cut.stl` / `.relief.stl` in the run directory, delivered with the part.
 
 Band options are the `band` ones (`--width` is the band's; the stone's are `--stone-width`,
 `--stone-depth`). `--finger-clear` (default 0.6 mm, never under the wall floor) is the metal

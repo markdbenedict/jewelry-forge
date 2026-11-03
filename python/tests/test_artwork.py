@@ -34,7 +34,7 @@ def test_the_leaf_row_fills_the_panel_and_the_vine_is_one_piece():
     a = seraphine()
     side, outer = a.panels[1], a.panels[0]
     leaves = a.motif(side)
-    assert len(leaves) == 6 and all(len(d["veins"]) == 1 for d in leaves)
+    assert len(leaves) == 7 and all(len(d["veins"]) == 1 for d in leaves)          # the side face is the edge thickness (1.96) less two rails
     starts = sorted(d["poly"].bounds[0] for d in leaves)
     assert np.allclose(np.diff(starts), a.leaf_pitch * a.leaf_length("side+"))          # evenly pitched
     assert len(a.motif(outer)) == 1                                                       # spine, leaves and hooks united
@@ -44,7 +44,7 @@ def test_the_leaf_row_fills_the_panel_and_the_vine_is_one_piece():
 def test_layers_are_disjoint_watertight_bodies_wrapped_onto_the_band():
     a = seraphine()
     cuts, relief = a.cutters_mesh(), a.relief_mesh()
-    assert cuts.body_count == 6 and relief.body_count == a.relief_count == 26
+    assert cuts.body_count == 6 and relief.body_count == a.relief_count == 30
     for m in cuts.split(only_watertight=False) + relief.split(only_watertight=False):
         assert m.is_watertight and m.volume > 0
     b = a.band
@@ -117,7 +117,7 @@ def test_cli_artwork_dry_run(capsys):
     from ntopjewel import cli
     assert cli.main(["artwork", "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "vine scroll" in out and "6 leaves" in out and "Relief Path" in out
+    assert "vine scroll" in out and "7 leaves" in out and "Relief Path" in out
     assert cli.main(["artwork", "--rail", "0.2", "--dry-run"]) == 1
 
 

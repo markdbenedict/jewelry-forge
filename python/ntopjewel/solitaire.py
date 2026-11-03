@@ -17,6 +17,12 @@ Ring frame (nTop convention): ring axis Z, band centred on the origin, the head 
     milgrain   bead rows along both edges of each arch (the band's milgrain conventions: centre
                0.15 radii inside the edge corner, 2.2 radii apart), from the tangent point up to
                where the head's envelope + 0.2 mm begins; polar arrays about the arch centres
+    artwork    optional panels on the band's faces (ntopjewel.artwork: leaf rows on the side faces, a
+               scroll or vine on the outer face - the Seraphine Celtic ring), carved into the opened
+               band before the arches and the head join it. Each panel's head end is held back past
+               the arches' wedge, or (`cathedral=False`, the shoulders plain and the head standing on
+               the band, as the reference ring) just clear of the head's reach along the ring and the
+               shank blend; the band end is where the panel says
     seat       the stone_seat cutter (stone + straight drop-in path + clearance), placed with the
                head, subtracted from band + shoulders: the pavilion sits down into the metal
     head       the prong_head block (round), the outline_head block (pear and other fancy
@@ -38,11 +44,13 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from . import band as bandmod, gems, geom, heads, shank as shankmod, tables
+from . import artwork as artmod, band as bandmod, gems, geom, heads, shank as shankmod, tables
 
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
 HEAD_ANGLE_DEG = 90.0
 KNOT_PAD_CLEAR_MM = 0.5          # a knot solitaire: the band's nose tip lies this far beyond the head's feet along the ring
+PANEL_HEAD_CLEAR_MM = 0.5        # artwork on plain shoulders: a panel starts this far past the head's reach + the shank blend
+PANEL_WEDGE_CLEAR_DEG = 1.0      # ... or this far past the arches' wedge
 BURIED_ARCH_DEG = 4.0            # arches off: the stubs sit this far either side of the head ...
 BURIED_ARCH_RADIUS_MM = 0.7      # ... this fat (they must survive the opening's erosion), inside the band's thickness
 WEDGE_EXTRA_DEG = 2.0           # the arch is cut 2° past its tangent ray (it departs from the band by < 0.01 mm there)
@@ -69,11 +77,22 @@ class SolitaireSpec:
     font: dict | None = None
     shank_blend_mm: float | None = None     # nTop blend radius where the head meets the shank; default tables, 0 = sharp
     shank: "shankmod.ShankSpec | None" = None   # the shank's shape (taper ...); None = the band all round
+    cathedral: bool = True                  # the gothic arches; False: plain shoulders, the head stands on the band
+    panels: list = field(default_factory=list)   # artwork panels (artwork.Panel) on the band's faces; their head ends held back
+    channel_mm: float = 0.30                # the artwork's numbers (artwork.ArtworkSpec)
+    rail_mm: float = 0.35
+    relief_mm: float = 0.25
+    leaf_mm: float = 0.0
+    leaf_pitch: float = 1.3
+    stroke_mm: float = 0.3
+    vein: bool = True
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self):
         if self.shank is not None and self.shank.band != self.band:
             raise ValueError("the shank's band must be the solitaire's band (its head section)")
+        if not self.cathedral:
+            self.milgrain = False                                        # the beads run along the arches
         if self.shank is not None and self.shank.knot == "trinity":
             # the band under the head runs out to a nose between the knot's lobes: its tip must clear
             # the head's feet along the ring; the arches and their milgrain give way to the knots
@@ -91,8 +110,66 @@ class SolitaireSpec:
 
     @property
     def arches(self) -> bool:
-        """Cathedral arches between the shank and the head: every solitaire but the knotwork one."""
-        return not self.knot
+        """Cathedral arches between the shank and the head: every solitaire but the knotwork one
+        and the plain-shouldered one (`cathedral=False`)."""
+        return self.cathedral and not self.knot
+
+    # ---- artwork ----------------------------------------------------------------------------
+    @property
+    def has_artwork(self) -> bool:
+        return bool(self.panels)
+
+    def panel_start_min_deg(self) -> float:
+        """Where a panel may begin, from the top: past the arches' wedge (they fill the band's faces
+        from mid-wall outward inside it), or on plain shoulders just past the head - its reach along
+        the ring (the placed head and its seat cutter), the shank blend (a smooth union fills every
+        corner within its radius) and PANEL_HEAD_CLEAR_MM."""
+        if "panel_start" not in self._cache:
+            if self.arches:
+                deg = self.shoulder_deg + WEDGE_EXTRA_DEG + PANEL_WEDGE_CLEAR_DEG
+            else:
+                import numpy as np
+                cutter = geom.offset_convex(self.head.seat.envelope(), self.head.clearance)
+                reach = max(self.head_half_length(), float(np.abs(cutter.vertices[:, 1]).max()))
+                ro = self.band.outer_radius_mm
+                deg = math.degrees(math.asin(min(1.0, reach / ro))) + math.degrees((self.shank_blend + PANEL_HEAD_CLEAR_MM) / ro)
+            self._cache["panel_start"] = round(deg, 2)
+        return self._cache["panel_start"]
+
+    def placed_panels(self) -> list:
+        """The panels as they go on this ring: each one's head end held back to panel_start_min_deg."""
+        from dataclasses import replace
+        lo = self.panel_start_min_deg()
+        return [replace(p, start_deg=max(float(p.start_deg), lo)) for p in self.panels]
+
+    @property
+    def artwork(self) -> "artmod.ArtworkSpec | None":
+        """The artwork on this ring's shank (artwork.ArtworkSpec over shank_spec and placed_panels), or None."""
+        if not self.has_artwork:
+            return None
+        if "artwork" not in self._cache:
+            self._cache["artwork"] = artmod.ArtworkSpec(self.shank_spec, self.placed_panels(), channel_mm=self.channel_mm,
+                                                        rail_mm=self.rail_mm, relief_mm=self.relief_mm, leaf_mm=self.leaf_mm,
+                                                        leaf_pitch=self.leaf_pitch, stroke_mm=self.stroke_mm, vein=self.vein)
+        return self._cache["artwork"]
+
+    def write_artwork(self, directory: Path, stem: str) -> tuple[str, str]:
+        """<stem>.cut.stl and <stem>.relief.stl for the notebook: the panel cutters and the relief
+        (artwork.ArtworkSpec.write_layers, each refused if it crosses itself), or without artwork a
+        cutter speck far outside the ring and a relief speck buried in the band - no-ops both."""
+        art = self.artwork
+        if art is not None:
+            return art.write_layers(Path(directory), stem)
+        cut, relief = Path(directory) / f"{stem}.cut.stl", Path(directory) / f"{stem}.relief.stl"
+        artmod.outside_speck(self.band).export(str(cut))
+        artmod.buried_speck(self.band).export(str(relief))
+        return str(cut), str(relief)
+
+    def carved_shank_mesh(self):
+        """The shank body the notebook joins the arches and the head to: the independent shank
+        carved by the artwork (artwork.design_mesh), or the plain shank."""
+        art = self.artwork
+        return art.design_mesh() if art is not None else self.shank_spec.design_mesh()
 
     def knot_pad_deg_needed(self) -> float:
         """How far the band must run either side of the head before a knot's nose: past everything
@@ -313,12 +390,15 @@ class SolitaireSpec:
 
     # ---- the notebook's numbers ----------------------------------------------------------------
     def notebook_inputs(self, seat_path: str, output_path: str | None = None, *, prongs_path: str = "",
-                        engraving_path: str = "", windows_path: str = "", shank_paths="", slot_path: str = "") -> dict:
-        """`shank_paths`: the shank's shankmod.BAR_SLOTS bar files (shankmod.write_bars), or one path for every slot."""
+                        engraving_path: str = "", windows_path: str = "", shank_paths="", slot_path: str = "",
+                        cut_path: str = "", relief_path: str = "") -> dict:
+        """`shank_paths`: the shank's shankmod.BAR_SLOTS bar files (shankmod.write_bars), or one path for every slot;
+        `cut_path` / `relief_path`: the artwork layers (write_artwork; specks when there is no artwork)."""
         from .nb_solitaire import BAND_FOR_ARCHES
         band_ins = self.band.notebook_inputs("")
         sh = self.shank_spec.notebook_inputs(shank_paths, "")
-        ins = {**{name: sh[name] for name in shankmod.SLOT_NAMES}, "Wrap Length": sh["Wrap Length"], "Slot Path": slot_path}
+        ins = {**{name: sh[name] for name in shankmod.SLOT_NAMES}, "Wrap Length": sh["Wrap Length"], "Slot Path": slot_path,
+               "Cut Path": cut_path, "Relief Path": relief_path}
         ins.update({k: band_ins[k] for k in BAND_FOR_ARCHES})
         ins["Edge Round"], ins["Edge Round Inward"] = sh["Edge Round"], sh["Edge Round Inward"]   # 0 for a rope or a knot
         if not self.arches:                                           # the buried stubs: short along the axis, in a fat torus
@@ -446,7 +526,8 @@ class SolitaireSpec:
         return {"band": self.band.design(), "shank": self.shank_spec.design(), "head": self.placed_head.design(),
                 "finger_clear_mm": self.finger_clear,
                 "shoulder_deg": self.shoulder_deg, "crown_below_girdle_mm": self.crown_below_girdle_mm,
-                "arch": "gothic-tangent", "milgrain": self.milgrain,
+                "arch": "gothic-tangent" if self.arches else "none", "milgrain": self.milgrain,
+                "artwork": self.artwork.artwork_design() if self.has_artwork else None,
                 "bead_radius_mm": self.bead_radius_mm if self.milgrain else None,
                 "bead_pitch": self.bead_pitch if self.milgrain else None,
                 "engraving": ({"text": self.text, "side": self.engrave_side, "height_mm": self.engraving.engrave_geometry()["height"],
@@ -460,7 +541,7 @@ class SolitaireSpec:
             self._cache["blend_volume"] = blend_estimate(self.notebook_inputs(""), self.head.seat.envelope(),
                                                          prongs=self.placed_head.prongs_mesh() if self.outline else None,
                                                          windows=self.placed_head.windows_mesh() if self.bezel else None,
-                                                         shank_mesh=self.shank_spec.design_mesh(), slot=self.slot_mesh())
+                                                         shank_mesh=self.carved_shank_mesh(), slot=self.slot_mesh())
         return self._cache["blend_volume"]
 
     @property
@@ -469,7 +550,8 @@ class SolitaireSpec:
         b, s = self.band, self.head.stone
         setting = "bezel" if self.bezel else f"{self.prong_count}prong"
         shape = f"_{self.shank_spec.shape_tag}" if self.shaped else ""
-        return (f"solitaire_{b.profile}_{b.label}{shape}_{setting}_{s.stem[len('stone_'):]}_"
+        art = "_art" if self.has_artwork else ""
+        return (f"solitaire_{b.profile}_{b.label}{shape}_{setting}_{s.stem[len('stone_'):]}{art}_"
                 f"{runs.spec_id(self.design())}")
 
     # ---- checks on the design ---------------------------------------------------------------
@@ -510,6 +592,16 @@ class SolitaireSpec:
         if self.has_engraving:
             p += [q for q in self.engraving.validate() if q not in p]
         p += heads.blend_problems(self.shank_blend, self.band.edge_thickness_mm)
+        if self.has_artwork and not p:
+            art = self.artwork
+            p += [q for q in art.validate() if q not in p]
+            lo = self.panel_start_min_deg()
+            for q, placed in zip(self.panels, art.panels):
+                if placed.end_deg <= lo:
+                    p.append(f"panel {q.face}: ends at {q.end_deg:g}°, inside the {'arches' if self.arches else 'head'} "
+                             f"(a panel may begin at {lo:g}° at the earliest)")
+            if self.has_engraving and self.engrave_side == "outside" and any(q.face == "outer" for q in self.panels):
+                p.append("an outside engraving and an outer-face panel: not together")
         if not self.arches:
             return p
         if not 30 <= self.shoulder_deg <= 75:
@@ -563,11 +655,16 @@ class SolitaireSpec:
                    f"({a['cx']:.3f}, ±{-a['cy']:.3f}); crest at r {a['crest']:.3f} ({a['rise']:.2f} mm above the band)"
                    + (f"\n  milgrain: {len(self.beads()['angles'])} beads of r {self.bead_radius_mm} mm per arch edge (x4), "
                       f"{self.beads()['spacing']:.3f}° apart" if self.milgrain else "\n  milgrain: off") if self.arches else
-                   f"  arches and milgrain: off - the band runs {self.shank.knot_pad_deg:g}° either side of the head (which reaches "
-                   f"{self.head_half_length():.2f} mm along the ring) into the knots' noses")
+                   (f"  arches and milgrain: off - the band runs {self.shank.knot_pad_deg:g}° either side of the head (which reaches "
+                    f"{self.head_half_length():.2f} mm along the ring) into the knots' noses" if self.knot else
+                    f"  arches and milgrain: off - plain shoulders, the head (reaching {self.head_half_length():.2f} mm along the ring) "
+                    "stands on the band"))
                 + (f"\n  engraving: {self.text!r} {self.engrave_side}, {self.engraving.engrave_geometry()['height']:.2f} mm high, "
                    f"{self.engrave_depth_mm} mm deep, centred opposite the head" if self.has_engraving else "")
-                + f"\n  blends: head {self.placed_head.blend:g} mm, head into shank {self.shank_blend:g} mm")
+                + f"\n  blends: head {self.placed_head.blend:g} mm, head into shank {self.shank_blend:g} mm"
+                + (f"\n  artwork (panels begin at {self.panel_start_min_deg():g}° at the earliest, past the "
+                   f"{'arches' if self.arches else 'head'}):\n" + "\n".join("  " + line for line in self.artwork.describe().splitlines()[1:])
+                   if self.has_artwork else ""))
 
 
 # ---- the independent ring ---------------------------------------------------------------------
@@ -633,6 +730,22 @@ def shank_from_inputs(v: dict):
     return shankmod.bars_from_inputs(v)
 
 
+def carved_shank_from_inputs(v: dict, cut: bool = True, relief: bool = True):
+    """The shank from the notebook's numbers with its artwork: (bars − the cutters at Cut Path) ∪
+    the relief at Relief Path, as nb_solitaire carves the band before the arches and the head join
+    it. Without those inputs (an older notebook), the bare shank; `cut` / `relief` off simulate a
+    notebook that lost a layer."""
+    import trimesh
+    body = shank_from_inputs(v)
+    if v.get("Cut Path") and cut:
+        cutter = trimesh.load(str(v["Cut Path"]), force="mesh")
+        if cutter.bounds[0][0] < body.bounds[1][0]:                        # not the speck far outside
+            body = trimesh.boolean.difference([body, cutter], engine="manifold")
+    if v.get("Relief Path") and relief:
+        body = trimesh.boolean.union([body, trimesh.load(str(v["Relief Path"]), force="mesh")], engine="manifold")
+    return body
+
+
 def arches_with_slot(v: dict, inner: float, slot=None):
     """The arches less the split's slot cutter (the mesh at Slot Path when not given; a speck far
     outside the ring when the shank is not split, which changes nothing)."""
@@ -650,16 +763,17 @@ def ring_parts(v: dict, envelope, prongs=None, windows=None, beads: bool = True,
     """(shank, placed head, placement, placed seat cutter) from the notebook's numbers: the bodies
     the notebook's blended join unites and the cut that follows it. `prongs` / `windows`: the
     meshes the notebook's Prongs Path / Windows Path point at (read from those paths when not
-    given); `shank_mesh`: the band/shank body (the spec's independent sweep, or the bar at Shank
-    Path wrapped when not given). The head is built the way its block builds it (`ops` decides
-    the blends)."""
+    given); `shank_mesh`: the band/shank body with its artwork (the spec's carved independent
+    sweep, or the bars at Shank Path .. wrapped and carved by the layers at Cut Path / Relief Path
+    when not given). The head is built the way its block builds it (`ops` decides the blends)."""
     import trimesh
     t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
     lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
     inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2     # midway between the bounds SolitaireSpec.arch() computes
-    inner = min(inner, float(v["Arch Radius"]) - 0.1)                          # a buried stub (arches off): a 0.1 mm wall
+    wall = max(0.1, 2 * float(v.get("Edge Round", 0.0)) + 0.1)                 # a buried stub (arches off): a thin wall that the
+    inner = min(inner, float(v["Arch Radius"]) - wall)                         # section's edge-round emulation leaves standing
     if shank_mesh is None:
-        shank_mesh = shank_from_inputs(v)
+        shank_mesh = carved_shank_from_inputs(v)
     shank = ops.union([shank_mesh, arches_with_slot(v, inner, slot)] + ([bead_mesh(v)] if beads else []))
     kind = heads.head_kind(v)
     if kind == "outline":
@@ -723,7 +837,7 @@ def design_mesh(spec: SolitaireSpec, ops: geom.Booleans = geom.SHARP):
         prongs = spec.placed_head.prongs_mesh() if spec.outline else None
         windows = spec.placed_head.windows_mesh() if spec.bezel else None
         mesh = ring_mesh(spec.notebook_inputs(""), spec.head.seat.envelope(), prongs=prongs,
-                         engraving=spec.engraving_mesh(), windows=windows, ops=ops, shank_mesh=spec.shank_spec.design_mesh(),
+                         engraving=spec.engraving_mesh(), windows=windows, ops=ops, shank_mesh=spec.carved_shank_mesh(),
                          slot=spec.slot_mesh())
         if key is None:
             return mesh
@@ -742,17 +856,31 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     b = spec.band
     text_filter = spec.engraving.wall_ray_filter() if spec.has_engraving else None
     flip = np.array([-1.0, -1.0, 1.0])                                       # the text sits at -X: its filter works at +X
+    art = spec.artwork
+    art_filter = art.wall_ray_filter() if art is not None else None          # the channel zones measure rails, not walls
 
     def shank_rays(pts, n):                                                  # the shank away from the head
         keep = pts[:, 0] < -2.0
-        return keep & text_filter(pts * flip, n * flip) if text_filter else keep
+        if text_filter:
+            keep = keep & text_filter(pts * flip, n * flip)
+        if art_filter:
+            keep = keep & art_filter(pts, n)
+        return keep
     sh = spec.shank_spec
     free = spec.free_angles()
 
+    def is_free(a):
+        return any(abs((a - f + 180.0) % 360.0 - 180.0) < 1e-6 for f in free)
+
     def shank_section(a):                                                    # the designed section, away from head, arches and text
-        return sh.gate_section(a) if any(abs((a - f + 180.0) % 360.0 - 180.0) < 1e-6 for f in free) else None
+        if not is_free(a):
+            return None
+        return art.gate_section(a) if art is not None and art.in_panel(a) else sh.gate_section(a)
+
+    def section_tol(a):
+        return art.section_tolerance(a) if art is not None and art.in_panel(a) else sh.section_tolerance(a)
     rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=sh.wall_floor(), wall_ray_filter=shank_rays,
-                     section_design=shank_section, section_tol_mm=sh.section_tolerance)
+                     section_design=shank_section, section_tol_mm=section_tol)
     ring = gate.load_mesh(stl)
     r = np.hypot(ring.vertices[:, 0], ring.vertices[:, 1])
     bore = 2 * float(r.min())
@@ -798,6 +926,8 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
         rep.checks.append(heads.bezel_wall_check(spec.placed_head, local))
     if spec.milgrain:
         rep.checks.append(milgrain_check(spec, ring))
+    if art is not None:
+        rep.checks += artmod.artwork_checks(art, ring)                       # every panel probed, built against the carved band
     if spec.has_engraving:
         turned = ring.copy()
         turned.apply_transform(trimesh.transformations.rotation_matrix(math.pi, [0, 0, 1]))   # the text back to +X
@@ -900,10 +1030,11 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     bars = shankmod.write_bars(spec.shank_spec, run_dir, spec.stem)
     slot = run_dir / f"{spec.stem}.slot.stl"
     spec.slot_mesh().export(str(slot))
+    cut, relief = spec.write_artwork(run_dir, spec.stem)                        # the panel cutters and the relief, or specks
     stl = run_dir / f"{spec.stem}.stl"
     inputs = spec.notebook_inputs(str(envelope), str(stl), prongs_path=str(prongs) if spec.outline else "",
                                   engraving_path=str(engraving), windows_path=str(windows) if spec.bezel else "",
-                                  shank_paths=bars, slot_path=str(slot))
+                                  shank_paths=bars, slot_path=str(slot), cut_path=cut, relief_path=relief)
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(inputs), run_dir, tag=spec.stem)
     try:
@@ -919,14 +1050,15 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     stone = spec.head.stone
     res.notes.append(f"stone {stone.carats():.2f} ct {stone.material}; metal " +
                      ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))
-    res.notes += spec.band.warnings() + built_notes
+    res.notes += (spec.artwork.warnings() if spec.has_artwork else spec.band.warnings()) + built_notes
     report = {"stem": spec.stem, "spec_id": runs.spec_id(spec.design()), "run_id": run_id, "status": res.status,
-              "design": spec.design(), "inputs": inputs, "stl": str(stl),
+              "design": spec.design(), "inputs": inputs, "stl": str(stl), "cut": cut, "relief": relief,
               "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notes": res.notes,
               "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version())}
     (run_dir / f"{spec.stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     if deliver and res.ok:
-        res.delivered = runs.deliver(stl, run_dir, spec.stem, deliver_project, report, cast_metal=cast_metal)
+        res.delivered = runs.deliver(stl, run_dir, spec.stem, deliver_project, report, cast_metal=cast_metal,
+                                     extra_files=[Path(cut), Path(relief)] if spec.has_artwork else ())
     elif deliver:
         res.notes.append(f"not delivered: status {res.status}")
     return res
