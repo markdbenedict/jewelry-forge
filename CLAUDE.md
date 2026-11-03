@@ -291,7 +291,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
 | `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), pavé layouts, seats and beads (`pave.py`), multi-stone rings (`multistone.py`: heads spun, placed and turned, side angles solved), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`; its shank a bar from `shank.py`), shaped shanks (`shank.py`: the ring unrolled as a bar for nTop to wrap), Celtic knotwork (`knotwork.py`: strands interlaced in the ring's surface - crossings incl. self-crossings, the alternating over/under, the radial laws, the trefoil motif, ribbon sweeps that share rings and caps), shared independent geometry (`geom.py`), CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), pavé layouts, seats and beads (`pave.py`), multi-stone rings (`multistone.py`: heads spun, placed and turned, side angles solved), artwork on the band (`artwork.py`: 2-D motifs in relief in sunk panels on any face, built in the bar frame and wrapped), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`; its shank a bar from `shank.py`), shaped shanks (`shank.py`: the ring unrolled as a bar for nTop to wrap), Celtic knotwork (`knotwork.py`: strands interlaced in the ring's surface - crossings incl. self-crossings, the alternating over/under, the radial laws, the trefoil motif, ribbon sweeps that share rings and caps), shared independent geometry (`geom.py`), CLI |
 | `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry with `pseudo_blend.py`'s blended booleans, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
 | `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
 | `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
@@ -321,6 +321,7 @@ python -m ntopjewel api build solitaire_bezel                        # ntop\note
 python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bars Python writes, united in nTop (prepare() writes the test bar)
 python -m ntopjewel api build pave_band                              # ntop\notebooks\pave_band.ntop: the shank + the seats and beads Python writes, (shank ∪ beads) − seats
 python -m ntopjewel api build multistone                             # ntop\notebooks\multistone.ntop: five outline-head slots spun, placed and turned round the shank (embeds stone_seat + outline_head)
+python -m ntopjewel api build ring_artwork                           # ntop\notebooks\ring_artwork.ntop: the shank − the panel channels Python writes ∪ the relief motifs
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
@@ -347,6 +348,7 @@ python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80 
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: the knots take the arches' place
 python -m ntopjewel pave --size 6 --stone 1.3 --rows 2 --span 120     # a pavé band: rows of stones in seats with light holes, held by beads (out\pave; --eternity, --layout aligned)
 python -m ntopjewel multistone --shape cushion --length 7 --stone-width 6 --side-shape pear --side-length 6 --side-width 4   # ring 05: a centre + side stones, pears pointing in (out\multistone; --side-pairs 2 for five)
+python -m ntopjewel artwork --size 6 --sides leaves --outer vine     # artwork in relief in sunk panels: leaf rows on the side faces, a vine outside, 25°-120° from the top (out\artwork)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests
@@ -371,6 +373,6 @@ pytest python\tests -q -m slow                  # tests that run nTop
   authors a notebook through the Notebook API.
 - `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers.
 - `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1, shaped shanks from Phase 3).
-- `ring-features` — milgrain, channel groove and wrapped engraving on a band (`ring` command).
+- `ring-features` — milgrain, channel groove and wrapped engraving on a band (`ring` command); artwork in relief in sunk panels on its faces (`artwork`).
 - `gem-library` — stone bodies, seats, prong heads, the solitaire, multi-stone rings and pavé (`gem`, `seat`, `head`, `solitaire`, `multistone`, `pave`).
 - `blender-jewelry-render` (synced from claude.ai) — the silver product shot.

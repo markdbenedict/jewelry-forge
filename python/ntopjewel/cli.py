@@ -27,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, pave, runs, shank, solitaire, summary, tables
+from . import __version__, artwork, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, pave, runs, shank, solitaire, summary, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -499,6 +499,35 @@ def cmd_multistone(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
+def cmd_artwork(a: argparse.Namespace) -> int:
+    b = _band_spec(a)
+    panels = artwork.seraphine_panels(a.start, a.end, outer=a.outer, sides=a.sides)
+    spec = artwork.ArtworkSpec(shank.ShankSpec(b), panels, channel_mm=a.channel, rail_mm=a.rail, relief_mm=a.relief,
+                               leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke, vein=not a.no_vein)
+    if a.dry_run:
+        probs = spec.validate()
+        print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+        for w in spec.warnings():
+            print("  warning: " + w)
+        if not probs:
+            for k, v in spec.notebook_inputs(spec.shank.bar_placeholders(), "<cut path>", "<relief path>", "<output path>").items():
+                print(f"    {k}: {v}")
+        return 1 if probs else 0
+    try:
+        res = artwork.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                            catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
+    except (ntopcl.NtopclError, ValueError, RuntimeError) as e:
+        print(f"artwork failed: {e}")
+        _error_verdict = summary.error_line("artwork", e)
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        print(_error_verdict)
+        return 2
+    print(res.text())
+    print(summary.verdict(res))
+    return 0 if res.ok else 1
+
+
 def cmd_gate(a: argparse.Namespace) -> int:
     rep = gate.check(Path(a.file), expect_inner=a.expect_inner, expect_outer=a.expect_outer,
                      expect_width=a.expect_width, expect_volume=a.expect_volume, tol_mm=a.tol,
@@ -839,6 +868,28 @@ def main(argv: list[str] | None = None) -> int:
     mu.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     mu.add_argument("--dry-run", action="store_true")
     mu.set_defaults(fn=cmd_multistone, width=2.6, thickness=1.8, tolerance=0.05)
+
+    aw = sub.add_parser("artwork", help="artwork in relief in sunk panels on the band's faces: leaf rows, a vine scroll (ring_artwork.ntop)")
+    _add_band_args(aw)
+    aw.add_argument("--sides", default="leaves", choices=[*artwork.MOTIFS, "none"], help="the motif on both side faces (none: no side panels)")
+    aw.add_argument("--outer", default="vine", choices=[*artwork.MOTIFS, "none"], help="the motif on the outer face")
+    aw.add_argument("--start", type=float, default=25.0, help="the panels begin this far from the top, degrees (the shoulder)")
+    aw.add_argument("--end", type=float, default=120.0, help="... and end here (the bottom of the ring stays plain)")
+    aw.add_argument("--channel", type=float, default=0.30, help="channel depth, mm")
+    aw.add_argument("--rail", type=float, default=0.35, help="rail left along each edge of a face, mm")
+    aw.add_argument("--relief", type=float, default=0.25, help="the motif's height above the channel floor, mm")
+    aw.add_argument("--leaf", type=float, help="leaf length, mm (default: from the channel's width)")
+    aw.add_argument("--leaf-pitch", type=float, default=1.3, help="leaf to leaf, in leaf lengths")
+    aw.add_argument("--stroke", type=float, default=0.3, help="a vine's or volute's stroke width, mm")
+    aw.add_argument("--no-vein", action="store_true", help="leaves without the vein groove")
+    aw.add_argument("--catalog", default="ring_artwork")
+    aw.add_argument("--out")
+    aw.add_argument("--notebook")
+    aw.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
+    aw.add_argument("--project", default="Artwork")
+    aw.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
+    aw.add_argument("--dry-run", action="store_true")
+    aw.set_defaults(fn=cmd_artwork, profile="flat", width=2.8, thickness=2.0, tolerance=0.05)
 
     gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald) as STL")
     gm.add_argument("--shape", default="round", choices=gems.SHAPES)

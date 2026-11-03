@@ -57,7 +57,7 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name:
+    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name or "artwork" in nb.name:
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
         name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
@@ -290,6 +290,28 @@ def main(argv: list[str]) -> int:
             mesh.export(values["Output Path"])
         for name in ("Shank Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Placed Head 1 3", "Heads", "Joined", "Ring",
                      "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "artwork" in nb.name:
+        import trimesh
+        from ntopjewel.nb_jewel import SLOT_NAMES
+        for key in (*SLOT_NAMES, "Cut Path", "Relief Path"):
+            if not Path(values[key]).exists():
+                fail(f"{key.replace('Path', 'Mesh')}: file not found")
+        from ntopjewel.shank import bars_from_inputs
+        mesh = bars_from_inputs(values)                                # the band (its opening not simulated)
+        cuts = trimesh.load(str(values["Cut Path"]), force="mesh")
+        relief = trimesh.load(str(values["Relief Path"]), force="mesh")
+        if shape != "nocut":                                          # a notebook that never cut the channels ...
+            mesh = trimesh.boolean.difference([mesh, cuts], engine="manifold")
+        if shape != "norelief":                                       # ... or lost the relief
+            mesh = trimesh.boolean.union([mesh, relief], engine="manifold")
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Shank Mesh", "Shank Bar", "Shank Bars", "Opened", "Shank", "Panel Cuts Mesh", "Panel Cuts",
+                     "Relief Mesh", "Relief", "Carved", "Ring", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

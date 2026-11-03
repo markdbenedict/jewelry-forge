@@ -1,0 +1,62 @@
+# Phase 3 step 5: artwork on the band. The band is ring_shank.ntop's (Python writes the ring unrolled as
+# bars; the notebook opens each, unites them and wraps the union round Z); Python builds each panel's
+# channel cutter and its motif in relief in the bar frame, wraps them and writes two meshes; the notebook
+# cuts the channels from the opened band and unites the relief: (shank − cuts) ∪ relief.
+# Built by ntop/recipes/ring_artwork.py through the Notebook API.
+# Verify names: python -m ntopjewel templates ntop/notebooks/ring_artwork.ntop --catalog ring_artwork
+notebook: ring_artwork.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-03)
+rebuild_since: 0.1.0
+title: Artwork on the band - motifs in relief in sunk panels on its faces
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the finished ring, cross-checked by the gate against the independent (band − channels ∪ relief).
+inputs:
+  Shank Path:
+    type: text
+    doc: Absolute path of the first bar STL (ntopjewel.shank.write_bars writes them into the run directory).
+  Shank Path 2:
+    type: text
+    doc: The second bar (a split's upper half, a double band's bridges, a rope's or plait's second strand ...), or the smallest bar again when there is none.
+  Shank Path 3:
+    type: text
+    doc: The third bar (a trinity shank's pad, a third strand), or the smallest bar again.
+  Shank Path 4:
+    type: text
+    doc: The fourth bar (a plait's fourth strand), or the smallest bar again.
+  Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 200.0
+    doc: Remap Cylindrical's Y mapping length, one turn of the bar (the mid-wall circumference, 2π(bore + thickness/2)).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: Second Offset Body distance (+e) after the wrap; with Edge Round Inward an opening that rounds every edge a cut or a union left sharp (0 for a rope).
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: 0.0
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.05
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; artwork runs at 0.05 mm (25 µm voxels, for 0.3 mm relief and 0.2 mm veins).
+  Cut Path:
+    type: text
+    doc: Absolute path of the channel cutters STL (ntopjewel.artwork.ArtworkSpec.write_layers) - one body per panel, in the ring frame.
+  Relief Path:
+    type: text
+    doc: Absolute path of the relief STL - one body per leaf or scroll, each plugged into its channel floor, in the ring frame.
+  Output Path:
+    type: text
+    doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop).

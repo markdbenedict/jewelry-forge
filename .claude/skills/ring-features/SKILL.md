@@ -1,6 +1,6 @@
 ---
 name: ring-features
-description: Add milgrain beads, a channel groove and a wrapped engraving (inside or outside) to a profiled ring band with nTop through ntopjewel - the `ring` command, ring_features.ntop, the engraving STL that Python writes, the gate expectations with features on. Use for any request to engrave a band, add milgrain or a groove, or to run or debug ring_features.
+description: Add milgrain beads, a channel groove and a wrapped engraving (inside or outside) to a profiled ring band with nTop through ntopjewel - the `ring` command, ring_features.ntop, the engraving STL that Python writes, the gate expectations with features on - and artwork in relief (leaf rows, vine scrolls, volutes) in sunk panels on a band's faces (`artwork`, ring_artwork.ntop). Use for any request to engrave or decorate a band, add milgrain, a groove, leaves or scrollwork, or to run or debug ring_features / ring_artwork.
 ---
 
 # ring-features
@@ -100,3 +100,44 @@ note catch a wrong unit).
 The gate text with its `status:` line (PASSED / FAILED / INCOMPLETE), the engraving note
 (length, thinnest stroke) and where the run directory and any delivery are. A FAIL is a
 FAIL and INCOMPLETE is not a pass; neither is delivered.
+
+
+## Artwork in relief (`artwork`, `ring_artwork.ntop`, `ntopjewel.artwork`, Phase 3 step 5)
+
+```powershell
+python -m ntopjewel artwork --size 6 --sides leaves --outer vine                 # the Seraphine layout (flat 2.8 x 2.0 band)
+python -m ntopjewel artwork --size 6 --sides leaves --outer none --end 100       # leaf rows on the side faces only
+python -m ntopjewel artwork --size 6 --sides plain --outer volute --start 20 --end 60 --dry-run
+```
+
+A **panel** is a channel `--channel` deep cut into one face of the band - the outer face or a side
+face - from `--start` to `--end` degrees from the top (mirrored on the other side of the ring), leaving
+a rail `--rail` wide along each edge, with a **motif** standing `--relief` high on the channel floor
+and so `channel − relief` below the face, protected by the rails. Motifs are 2-D shapely polygons in
+the panel's own frame (u along the ring from the head end, v across the channel): `leaves` (a row of
+teardrop leaves pointing away from the head, each with a shallow vein groove, VEIN_WIDTH_MM x
+VEIN_DEPTH_MM), `vine` (a gentle S-curve spine with a leaf at each crest and a hook at each end, one
+polygon, clipped to the channel), `volute` (a spiral scroll), `plain` (the channel alone). A new motif
+is one function returning `[{"poly", "groove"}]`.
+
+Geometry is built in the bar frame (X radial, Y along the ring, Z axial), subdivided to
+`MAX_EDGE_MM` and wrapped vertex-wise (geom.remap_cylindrical, what nTop's Remap Cylindrical does): a
+side-face motif is stretched along the ring in proportion to the radius (±10 % over a 2 mm thick band).
+Python writes `<stem>.cut.stl` (one body per panel copy) and `<stem>.relief.stl` (one body per leaf
+or scroll, each plugged `PLUG_MM` into the floor); the notebook builds `(shank − cuts) ∪ relief` -
+the band is opened by its edge round first, so the channel edges stay crisp and the relief is never
+rounded. **Cutters must not touch**: an outer channel as deep as the side rails are wide meets the
+side channels' walls along an edge, which the STL round trip turns into a non-manifold seam
+(`validate` refuses it). Rails are lips on a solid band, not walls: at least `RAIL_MIN_MM` (0.3)
+wide, and the wall sampler skips every panelled face's channel zone (a ray through a rail into the
+channel read 0.35 mm). Mesh Tolerance 0.05.
+
+Gate (`artwork.check_artwork`): the band's checks with the panels' zones out of the wall sample and
+the section shape through the panels against the design's, the design volume, and three probe checks
+cast identically on the built ring and the design - `channel floors`, `relief`, `rails` - on a 0.25 mm
+grid over every panel (points within 0.12 mm of a motif's edge skipped). A notebook that never cut
+the channels fails floors and volume; one that lost the relief fails `relief`.
+
+Not yet: panels on a tapered, split or knotted shank, or under a solitaire's head (the solitaire
+notebooks would take Cut Path / Relief Path as they take Slot Path); the Seraphine's scroll volutes
+under the head, its double-claw prongs and heart gallery are head work (plan step 5/6).

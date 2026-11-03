@@ -329,8 +329,20 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    small polygon bezels (kite, hexagon); spacing and bead rules into the tables.
 4. **New stone bodies.** Pearl (sphere on a post in a cup), cabochon (dome on a flat base), asscher
    (emerald outline with a corner-cut ratio); their seats.
-5. **Artwork on the band.** Scroll and floral relief panels, leaf borders, vein engraving: the
-   medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
+5. **Artwork on the band.** *(3 Nov: started, from the Seraphine Celtic ring Mark photographed -
+   leaf rows in channels on both side faces, a vine scroll in a channel on the outer face, 25°-120°
+   from the top, Celtic knots on the shoulders, scroll volutes under a 4-prong head with double claws
+   and a heart-shaped gallery. `artwork`, `ring_artwork.ntop`, `ntopjewel.artwork`: panels (a sunk
+   channel on the outer or a side face over an arc, rails along its edges) with a 2-D motif in relief
+   on the floor - `leaves`, `vine`, `volute`, `plain` - built in the bar frame and wrapped; Python
+   writes the cutters and the relief, the notebook builds (shank − cuts) ∪ relief; the gate probes
+   every panel's floor, relief and rails on a grid. Passes on the simulated nTop. *Real check:*
+   `api build ring_artwork`, then `artwork --sides leaves --outer vine` - PASSED, and the 0.2 mm
+   veins and 0.25 mm relief looked at in the GUI at Mesh Tolerance 0.05. **Still missing for the
+   Seraphine:** the panels under a solitaire's head (Cut/Relief Path on the solitaire notebooks), the
+   knots standing on a continuous band (ours are woven from a split), the volutes under the head,
+   double-claw prongs and the heart gallery (6).)* Scroll and floral relief panels, leaf borders,
+   vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the
    shank where they are simple; Blender sculpts imported as meshes where they are not.
 
