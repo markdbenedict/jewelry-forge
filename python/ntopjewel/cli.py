@@ -27,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, pave, runs, shank, solitaire, summary, tables
+from . import __version__, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, pave, runs, shank, solitaire, summary, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -457,6 +457,44 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
+def cmd_multistone(a: argparse.Namespace) -> int:
+    def head(shape, length, width, depth, prongs):
+        stone = gems.StoneSpec(shape=shape, length_mm=length, width_mm=width, depth_mm=depth, material=a.material)
+        return heads.OutlineHeadSpec(stone, prongs=prongs, clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
+    centre = head(a.shape, a.length, a.stone_width, a.stone_depth, a.prongs)
+    side = head(a.side_shape, a.side_length, a.side_width, a.side_depth, a.side_prongs) if a.side_shape else None
+    b = _band_spec(a)
+    shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
+                              taper_from_deg=a.taper_from, stations=a.stations)
+              if (a.width_bottom is not None or a.thickness_bottom is not None) else None)
+    spec = multistone.MultiStoneSpec(b, centre, side, side_pairs=a.side_pairs, side_gap_mm=a.side_gap,
+                                     centre_spin_deg=a.centre_spin, finger_clear_mm=a.finger_clear,
+                                     shank_blend_mm=a.shank_blend, shank=shaped)
+    probs = spec.validate()
+    if probs:
+        print("multistone: problems: " + "; ".join(probs))
+        return 1
+    if a.dry_run:
+        print(spec.describe())
+        files = [("<envelope path>", "<prongs path>")] * spec.stone_count
+        for k, v in spec.notebook_inputs(spec.shank_spec.bar_placeholders(), files, "<output path>").items():
+            print(f"    {k}: {v}")
+        return 0
+    try:
+        res = multistone.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                               deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
+    except (ntopcl.NtopclError, ValueError) as e:
+        print(f"multistone failed: {e}")
+        _error_verdict = summary.error_line("multistone", e)
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        print(_error_verdict)
+        return 2
+    print(res.text())
+    print(summary.verdict(res))
+    return 0 if res.ok else 1
+
+
 def cmd_gate(a: argparse.Namespace) -> int:
     rep = gate.check(Path(a.file), expect_inner=a.expect_inner, expect_outer=a.expect_outer,
                      expect_width=a.expect_width, expect_volume=a.expect_volume, tol_mm=a.tol,
@@ -765,6 +803,35 @@ def main(argv: list[str] | None = None) -> int:
     pv.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     pv.add_argument("--dry-run", action="store_true")
     pv.set_defaults(fn=cmd_pave)
+
+    mu = sub.add_parser("multistone", help="a centre stone and side stones in a row along the band (multistone.ntop)")
+    _add_band_args(mu)
+    _add_taper_args(mu)
+    mu.add_argument("--shape", default="round", choices=list(gems.SHAPES), help="the centre stone")
+    mu.add_argument("--length", type=float, default=6.5, help="centre: length, mm (round: the diameter)")
+    mu.add_argument("--stone-width", type=float, help="centre: width, mm")
+    mu.add_argument("--stone-depth", type=float, help="centre: total depth, mm (default: ideal proportions)")
+    mu.add_argument("--prongs", type=int, help="centre: round prongs (4, 6 or 8; a pear 5)")
+    mu.add_argument("--centre-spin", type=float, default=0.0, help="turn the centre about its own axis, degrees (90: its length along the band)")
+    mu.add_argument("--side-shape", choices=list(gems.SHAPES), help="the side stones (none: a solitaire in this notebook)")
+    mu.add_argument("--side-length", type=float, default=4.0)
+    mu.add_argument("--side-width", type=float)
+    mu.add_argument("--side-depth", type=float)
+    mu.add_argument("--side-prongs", type=int)
+    mu.add_argument("--side-pairs", type=int, default=1, help="side stones each side of the centre (1: three-stone, 2: five)")
+    mu.add_argument("--side-gap", type=float, default=multistone.SIDE_GAP_MM, help="girdle to girdle between neighbours, mm")
+    mu.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    mu.add_argument("--clearance", type=float, help="seat clearance, mm (default: tables)")
+    mu.add_argument("--finger-clear", type=float, help="metal between the bore and each culet, mm")
+    mu.add_argument("--blend", type=float, help="head blend radius, mm (default: tables; 0 = sharp)")
+    mu.add_argument("--shank-blend", type=float, help="heads-into-shank blend radius, mm (default: tables; 0 = sharp)")
+    mu.add_argument("--out")
+    mu.add_argument("--notebook")
+    mu.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
+    mu.add_argument("--project", default="Multistone")
+    mu.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
+    mu.add_argument("--dry-run", action="store_true")
+    mu.set_defaults(fn=cmd_multistone, width=2.6, thickness=1.8, tolerance=0.05)
 
     gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald) as STL")
     gm.add_argument("--shape", default="round", choices=gems.SHAPES)

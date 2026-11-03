@@ -1,0 +1,136 @@
+"""Multi-stone rings (Phase 3 step 2): the side stones' angles solved against their neighbours, the
+pear's point turned to the centre, the notebook's five slots, and the ring end to end on the
+simulated nTop - including the gate catching a notebook whose side slots never got their own values."""
+import math
+
+import numpy as np
+import pytest
+
+from ntopjewel import band, catalog, gems, heads, multistone as ms
+
+
+def ring_band():
+    return band.BandSpec(size=6, width_mm=2.6, thickness_mm=1.8, profile="court", mesh_tolerance_mm=0.05)
+
+
+def three(centre=("round", 6.5, None), side=("round", 4.0, None), **kw):
+    return ms.MultiStoneSpec(ring_band(), heads.OutlineHeadSpec(gems.StoneSpec(centre[0], centre[1], centre[2])),
+                             heads.OutlineHeadSpec(gems.StoneSpec(side[0], side[1], side[2])), **kw)
+
+
+def test_the_side_angle_is_the_smallest_that_clears_the_centre():
+    s = three()
+    assert s.validate() == []
+    stones = s.stones()
+    assert [p.role for p in stones] == ["centre", "side", "side"]
+    t = stones[1].theta_deg
+    assert t > 0 and stones[2].theta_deg == -t
+    centre = (s.centre, 0.0, 0.0)
+    assert s._clear(centre, (s.side, t, s.side_spin(t)))
+    assert not s._clear(centre, (s.side, t - 0.5, s.side_spin(t - 0.5)))      # half a degree closer: a seat cuts a prong, or the girdles crowd
+    # the smaller stone sits lower, its culet still clear of the bore
+    assert s.girdle_radius(s.side) < s.girdle_radius(s.centre)
+    assert s.girdle_gap(0, 1) >= s.side_gap_mm                                     # here the prongs, not the gap, set the angle
+    wider = three(side_gap_mm=s.girdle_gap(0, 1) + 0.5)
+    assert wider.stones()[1].theta_deg > t and wider.girdle_gap(0, 1) == pytest.approx(wider.side_gap_mm, abs=0.02)
+
+
+def test_a_pear_side_stone_points_at_the_centre():
+    s = three(centre=("cushion", 7.0, 6.0), side=("pear", 6.0, 4.0))
+    assert s.validate() == []
+    for p in s.stones()[1:]:
+        m = s.matrix(p.head, p.theta_deg, p.spin_deg)
+        xy = p.head.stone.outline()
+        tip = xy[np.argmin(xy[:, 0])]                                              # the pear's point is at -X in its frame
+        tip_ring = m @ np.array([tip[0], tip[1], 0.0, 1.0])
+        centre_ring = m @ np.array([0.0, 0.0, 0.0, 1.0])
+        a_tip, a_c = (math.degrees(math.atan2(v[1], v[0])) for v in (tip_ring, centre_ring))
+        assert abs(a_tip) < abs(a_c)                                               # nearer the top than the stone's own centre
+
+
+def test_five_stones_and_the_slot_limit():
+    five = three(side=("round", 3.0, None), side_pairs=2)
+    assert five.validate() == [] and five.stone_count == 5
+    th = sorted(p.theta_deg for p in five.stones())
+    assert th[0] < th[1] < 0 < th[3] < th[4]
+    seven = three(side=("round", 2.5, None), side_pairs=3)
+    assert any("head slots" in x for x in seven.validate())
+    mixed = ms.MultiStoneSpec(ring_band(), heads.OutlineHeadSpec(gems.StoneSpec("round", 6.5)),
+                              heads.OutlineHeadSpec(gems.StoneSpec("round", 4.0), clearance_mm=0.1))
+    assert any("one seat clearance" in x for x in mixed.validate())
+
+
+def test_unused_slots_repeat_the_centre_and_every_catalog_input_is_given():
+    s = three()
+    files = [(f"env{i}", f"prongs{i}") for i in range(s.stone_count)]
+    v = s.notebook_inputs("bar.stl", files, "out.stl")
+    cat = catalog.load("multistone")
+    assert set(v) == set(cat.inputs) and list(cat.inputs) == ms.input_order()
+    for name, _ in ms.SLOT_FIELDS:
+        assert v[ms.slot_input(name, 3)] == v[ms.slot_input(name, 4)] == v[name]          # slots 4 and 5: the centre again
+    assert v["Turn 2"] == -v["Turn 3"] and v["Spin 2"] == -v["Spin 3"] == 90.0
+
+
+def test_recipe_builds_on_the_fake_notebook(tmp_path):
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    env = tmp_path / "env.stl"
+    gems.SeatSpec(gems.StoneSpec("round", 6.5)).envelope().export(str(env))          # the two blocks, built by the fake first
+    load_recipe("stone_seat").build(FakeNotebook(), {"save_to": str(tmp_path / "sh.ntop"), "recipe_to": str(tmp_path / "sh.json"),
+                                                     "test_output": str(tmp_path / "s.stl"), "values": {"Seat Path": str(env)}})
+    oh = load_recipe("outline_head")
+    pp = oh.prepare({}, tmp_path)
+    pp.update({"save_to": str(tmp_path / "oh.ntop"), "recipe_to": str(tmp_path / "oh.json"), "test_output": str(tmp_path / "h.stl"),
+               "seat_block": str(tmp_path / "stone_seat.ntop")})
+    oh.build(FakeNotebook(), pp)
+    mod = load_recipe("multistone")
+    params = mod.prepare({}, tmp_path)
+    params.update({"save_to": str(tmp_path / "m.ntop"), "recipe_to": str(tmp_path / "m.json"), "test_output": str(tmp_path / "m.stl"),
+                   "seat_block": str(tmp_path / "stone_seat.ntop"), "head_block": str(tmp_path / "outline_head.ntop")})
+    nb = FakeNotebook()
+    res = mod.build(nb, params)
+    b = res["blocks"]
+    assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
+    for k in range(1, ms.SLOTS + 1):
+        tag = f" {k}"
+        sfx = "" if k == 1 else f" {k}"
+        assert nb.blocks[b[f"Stone Seat{tag}"]]["wired"]["Seat Path"][0] == b[f"Seat Path{sfx}"]
+        assert nb.blocks[b[f"Outline Head{tag}"]]["wired"]["Seat Cutter"][0] == b[f"Seat Local{tag}"]
+        assert nb.blocks[b[f"Outline Head{tag}"]]["wired"]["Prongs Path"][0] == b[f"Prongs Path{sfx}"]
+        # spin, then the quarter-turn onto +X, then the turn about the ring axis - for the head and its seat alike
+        for what, start in (("Placed Head", f"Outline Head{tag}"), ("Placed Seat", f"Seat Local{tag}")):
+            chain = [nb.blocks[b[f"{what}{tag} {i}"]] for i in (1, 2, 3)]
+            assert [c["wired"]["Transformation"][0] for c in chain] == [b[f"Spin Rotation{tag} T"], b[f"Placement{tag} T"], b[f"Turn Rotation{tag} T"]]
+            assert chain[0]["wired"]["Object"][0] == b[start]
+    assert nb.blocks[b["Heads"]]["lists"]["Bodies"] == [b[f"Placed Head {k} 3"] for k in range(1, ms.SLOTS + 1)]
+    assert nb.blocks[b["Joined"]]["wired"]["Blend Radius"][0] == b["Shank Blend"]        # the heads melt into the shank ...
+    assert nb.blocks[b["Ring"]]["wired"]["Primary Body"][0] == b["Joined"]               # ... THEN every seat is cut
+    assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == [b[f"Placed Seat {k} 3"] for k in range(1, ms.SLOTS + 1)]
+
+
+def _build(out_dir, tmp_path, spec):
+    nb = tmp_path / "multistone.ntop"
+    nb.write_bytes(b"fake")
+    return ms.build(spec, out_dir, notebook=nb)
+
+
+def test_three_stone_end_to_end(fake_ntopcl, tmp_path, out_dir):
+    res = _build(out_dir, tmp_path, three())
+    assert res.ok, res.text()
+    names = {c.name for c in res.gate.checks}
+    assert {"stones fit", "seat ledges", "drop-in clear", "bore closed under the stones", "design volume", "section shape"} <= names
+
+
+def test_the_gate_catches_side_slots_left_on_the_centre(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noside")
+    res = _build(out_dir, tmp_path, three())
+    failed = {c.name for c in res.gate.checks if not c.ok}
+    assert not res.ok and {"seat ledges", "design volume"} <= failed
+
+
+def test_cli_multistone_dry_run(capsys):
+    from ntopjewel import cli
+    assert cli.main(["multistone", "--shape", "cushion", "--length", "7", "--stone-width", "6", "--side-shape", "pear",
+                     "--side-length", "6", "--side-width", "4", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "point inward" in out and "Turn 2" in out and "Prongs Path 5" in out

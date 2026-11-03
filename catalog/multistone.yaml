@@ -1,0 +1,303 @@
+# Phase 3 step 2: a multi-stone ring - a centre stone and side stones in a row along the band (reference
+# rings 05 and 02). The shank is the bars Python writes, wrapped and united as ring_shank.ntop does; five
+# head slots, each an embedded stone_seat + outline_head (any of the six shapes) spun about its own axis,
+# placed on +X like the solitaire's head and turned about the ring axis; an unused slot repeats the centre.
+# Ring = ((shank ∪ heads), blended by Shank Blend) − seats. Built by ntop/recipes/multistone.py.
+# Verify names: python -m ntopjewel templates ntop/notebooks/multistone.ntop --catalog multistone
+notebook: multistone.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-03)
+rebuild_since: 0.1.0
+title: Multi-stone ring - centre and side stones in outline heads on a shank
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the finished ring, cross-checked by the gate against the independent ring plus the blends' estimate.
+inputs:
+  Shank Path:
+    type: text
+    doc: "Absolute path of the first bar STL (ntopjewel.shank.write_bars)."
+  Shank Path 2:
+    type: text
+    doc: "The second bar, or the smallest bar again."
+  Shank Path 3:
+    type: text
+    doc: "The third bar, or the smallest bar again."
+  Shank Path 4:
+    type: text
+    doc: "The fourth bar, or the smallest bar again."
+  Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 200.0
+    doc: "Remap Cylindrical's Y mapping length, one turn of the bar."
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: "The shank's opening, second offset (+e)."
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: 0.0
+    doc: "The shank's opening, first offset (-e)."
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    doc: "Mesh from Implicit Body tolerance = 2 x voxel size (the shank's opening and the export)."
+  Clearance:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 0.3
+    doc: "Seat clearance of every stone_seat (one for all stones)."
+  Head Blend:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: "Every outline_head's Blend Radius: prongs into rails, the rails' edges rounded."
+  Shank Blend:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: "Blend Radius of the heads-into-shank union; 0 = sharp."
+  Seat Path:
+    type: text
+    doc: "Slot 1: the stone's seat envelope STL (head frame; gems.seat_envelope) (the centre stone)"
+  Prongs Path:
+    type: text
+    doc: "Slot 1: the head's prong rods STL (head frame; heads.OutlineHeadSpec.prongs_mesh) (the centre stone)"
+  Rail Offset:
+    type: scalar
+    units: mm
+    doc: "Slot 1: the rails: the seat cutter grown by this (the centre stone)"
+  Upper Rail Bottom:
+    type: scalar
+    units: mm
+    doc: "Slot 1: upper rail slab, bottom z (head frame) (the centre stone)"
+  Upper Rail Top:
+    type: scalar
+    units: mm
+    doc: "Slot 1: upper rail slab, top z (the centre stone)"
+  Lower Rail Bottom:
+    type: scalar
+    units: mm
+    doc: "Slot 1: lower rail slab, bottom z (the centre stone)"
+  Lower Rail Top:
+    type: scalar
+    units: mm
+    doc: "Slot 1: lower rail slab, top z (the centre stone)"
+  Spin:
+    type: scalar
+    units: deg
+    min: -360.0
+    max: 360.0
+    doc: "Slot 1: rotation about the head's own +Z first (a side stone's point towards the centre) (the centre stone)"
+  Pivot X:
+    type: scalar
+    units: mm
+    doc: "Slot 1: x of the quarter-turn's axis (∥ +Y) that puts the head on +X (the centre stone)"
+  Pivot Z:
+    type: scalar
+    units: mm
+    doc: "Slot 1: z of that axis (the centre stone)"
+  Turn:
+    type: scalar
+    units: deg
+    min: -180.0
+    max: 180.0
+    doc: "Slot 1: rotation about the ring axis, the stone's angle from the top (+ towards +Y) (the centre stone)"
+  Seat Path 2:
+    type: text
+    doc: "Slot 2: the stone's seat envelope STL (head frame; gems.seat_envelope) (or the centre's again when unused)"
+  Prongs Path 2:
+    type: text
+    doc: "Slot 2: the head's prong rods STL (head frame; heads.OutlineHeadSpec.prongs_mesh) (or the centre's again when unused)"
+  Rail Offset 2:
+    type: scalar
+    units: mm
+    doc: "Slot 2: the rails: the seat cutter grown by this (or the centre's again when unused)"
+  Upper Rail Bottom 2:
+    type: scalar
+    units: mm
+    doc: "Slot 2: upper rail slab, bottom z (head frame) (or the centre's again when unused)"
+  Upper Rail Top 2:
+    type: scalar
+    units: mm
+    doc: "Slot 2: upper rail slab, top z (or the centre's again when unused)"
+  Lower Rail Bottom 2:
+    type: scalar
+    units: mm
+    doc: "Slot 2: lower rail slab, bottom z (or the centre's again when unused)"
+  Lower Rail Top 2:
+    type: scalar
+    units: mm
+    doc: "Slot 2: lower rail slab, top z (or the centre's again when unused)"
+  Spin 2:
+    type: scalar
+    units: deg
+    min: -360.0
+    max: 360.0
+    doc: "Slot 2: rotation about the head's own +Z first (a side stone's point towards the centre) (or the centre's again when unused)"
+  Pivot X 2:
+    type: scalar
+    units: mm
+    doc: "Slot 2: x of the quarter-turn's axis (∥ +Y) that puts the head on +X (or the centre's again when unused)"
+  Pivot Z 2:
+    type: scalar
+    units: mm
+    doc: "Slot 2: z of that axis (or the centre's again when unused)"
+  Turn 2:
+    type: scalar
+    units: deg
+    min: -180.0
+    max: 180.0
+    doc: "Slot 2: rotation about the ring axis, the stone's angle from the top (+ towards +Y) (or the centre's again when unused)"
+  Seat Path 3:
+    type: text
+    doc: "Slot 3: the stone's seat envelope STL (head frame; gems.seat_envelope) (or the centre's again when unused)"
+  Prongs Path 3:
+    type: text
+    doc: "Slot 3: the head's prong rods STL (head frame; heads.OutlineHeadSpec.prongs_mesh) (or the centre's again when unused)"
+  Rail Offset 3:
+    type: scalar
+    units: mm
+    doc: "Slot 3: the rails: the seat cutter grown by this (or the centre's again when unused)"
+  Upper Rail Bottom 3:
+    type: scalar
+    units: mm
+    doc: "Slot 3: upper rail slab, bottom z (head frame) (or the centre's again when unused)"
+  Upper Rail Top 3:
+    type: scalar
+    units: mm
+    doc: "Slot 3: upper rail slab, top z (or the centre's again when unused)"
+  Lower Rail Bottom 3:
+    type: scalar
+    units: mm
+    doc: "Slot 3: lower rail slab, bottom z (or the centre's again when unused)"
+  Lower Rail Top 3:
+    type: scalar
+    units: mm
+    doc: "Slot 3: lower rail slab, top z (or the centre's again when unused)"
+  Spin 3:
+    type: scalar
+    units: deg
+    min: -360.0
+    max: 360.0
+    doc: "Slot 3: rotation about the head's own +Z first (a side stone's point towards the centre) (or the centre's again when unused)"
+  Pivot X 3:
+    type: scalar
+    units: mm
+    doc: "Slot 3: x of the quarter-turn's axis (∥ +Y) that puts the head on +X (or the centre's again when unused)"
+  Pivot Z 3:
+    type: scalar
+    units: mm
+    doc: "Slot 3: z of that axis (or the centre's again when unused)"
+  Turn 3:
+    type: scalar
+    units: deg
+    min: -180.0
+    max: 180.0
+    doc: "Slot 3: rotation about the ring axis, the stone's angle from the top (+ towards +Y) (or the centre's again when unused)"
+  Seat Path 4:
+    type: text
+    doc: "Slot 4: the stone's seat envelope STL (head frame; gems.seat_envelope) (or the centre's again when unused)"
+  Prongs Path 4:
+    type: text
+    doc: "Slot 4: the head's prong rods STL (head frame; heads.OutlineHeadSpec.prongs_mesh) (or the centre's again when unused)"
+  Rail Offset 4:
+    type: scalar
+    units: mm
+    doc: "Slot 4: the rails: the seat cutter grown by this (or the centre's again when unused)"
+  Upper Rail Bottom 4:
+    type: scalar
+    units: mm
+    doc: "Slot 4: upper rail slab, bottom z (head frame) (or the centre's again when unused)"
+  Upper Rail Top 4:
+    type: scalar
+    units: mm
+    doc: "Slot 4: upper rail slab, top z (or the centre's again when unused)"
+  Lower Rail Bottom 4:
+    type: scalar
+    units: mm
+    doc: "Slot 4: lower rail slab, bottom z (or the centre's again when unused)"
+  Lower Rail Top 4:
+    type: scalar
+    units: mm
+    doc: "Slot 4: lower rail slab, top z (or the centre's again when unused)"
+  Spin 4:
+    type: scalar
+    units: deg
+    min: -360.0
+    max: 360.0
+    doc: "Slot 4: rotation about the head's own +Z first (a side stone's point towards the centre) (or the centre's again when unused)"
+  Pivot X 4:
+    type: scalar
+    units: mm
+    doc: "Slot 4: x of the quarter-turn's axis (∥ +Y) that puts the head on +X (or the centre's again when unused)"
+  Pivot Z 4:
+    type: scalar
+    units: mm
+    doc: "Slot 4: z of that axis (or the centre's again when unused)"
+  Turn 4:
+    type: scalar
+    units: deg
+    min: -180.0
+    max: 180.0
+    doc: "Slot 4: rotation about the ring axis, the stone's angle from the top (+ towards +Y) (or the centre's again when unused)"
+  Seat Path 5:
+    type: text
+    doc: "Slot 5: the stone's seat envelope STL (head frame; gems.seat_envelope) (or the centre's again when unused)"
+  Prongs Path 5:
+    type: text
+    doc: "Slot 5: the head's prong rods STL (head frame; heads.OutlineHeadSpec.prongs_mesh) (or the centre's again when unused)"
+  Rail Offset 5:
+    type: scalar
+    units: mm
+    doc: "Slot 5: the rails: the seat cutter grown by this (or the centre's again when unused)"
+  Upper Rail Bottom 5:
+    type: scalar
+    units: mm
+    doc: "Slot 5: upper rail slab, bottom z (head frame) (or the centre's again when unused)"
+  Upper Rail Top 5:
+    type: scalar
+    units: mm
+    doc: "Slot 5: upper rail slab, top z (or the centre's again when unused)"
+  Lower Rail Bottom 5:
+    type: scalar
+    units: mm
+    doc: "Slot 5: lower rail slab, bottom z (or the centre's again when unused)"
+  Lower Rail Top 5:
+    type: scalar
+    units: mm
+    doc: "Slot 5: lower rail slab, top z (or the centre's again when unused)"
+  Spin 5:
+    type: scalar
+    units: deg
+    min: -360.0
+    max: 360.0
+    doc: "Slot 5: rotation about the head's own +Z first (a side stone's point towards the centre) (or the centre's again when unused)"
+  Pivot X 5:
+    type: scalar
+    units: mm
+    doc: "Slot 5: x of the quarter-turn's axis (∥ +Y) that puts the head on +X (or the centre's again when unused)"
+  Pivot Z 5:
+    type: scalar
+    units: mm
+    doc: "Slot 5: z of that axis (or the centre's again when unused)"
+  Turn 5:
+    type: scalar
+    units: deg
+    min: -180.0
+    max: 180.0
+    doc: "Slot 5: rotation about the ring axis, the stone's angle from the top (+ towards +Y) (or the centre's again when unused)"
+  Output Path:
+    type: text
+    doc: "Absolute path of the STL to write (Export Mesh block; a Text variable in nTop)."

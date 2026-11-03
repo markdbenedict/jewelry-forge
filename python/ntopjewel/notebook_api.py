@@ -377,6 +377,11 @@ class NotebookHelper:
 
     # ---- blocks ------------------------------------------------------------------------
     def add(self, label: str, *candidates: str, mask: str = "", must: Iterable[str] = (), section_id: str = "") -> str:
+        if label in self.blocks:
+            # a block labelled like an earlier block or variable takes over its name in `blocks`, and
+            # finish() then moves the wrong block to a notebook input (2026-11-03: rotation blocks
+            # "Spin 2" / "Turn 2" shadowed slot 2's inputs of the same names)
+            raise ConsoleError(f"a block or variable is already called {label!r}: give this {mask or 'block'} another label")
         ident = self.identifier(*candidates, mask=mask, must=must)
         info = self.nb.add_block(ident, section_id) if section_id else self.nb.add_block(ident)
         self.blocks[label] = info["id"]

@@ -306,7 +306,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    tests reads the groove at 0.1 and nothing at 0.35. *Real check:* `shank --split 1.6
    --split-span 100` (a Python-side change: no rebuild) - bottom sections within ~0.01 mm. Then
    step 2.
-2. **Multi-stone placement and galleries.** *(3 Nov: started with pavé, which the multi-stone rings reuse - see 3)*
+2. **Multi-stone placement and galleries.** *(3 Nov: the multi-stone ring written and gated offline -
+   `multistone`, `multistone.ntop`, `ntopjewel.multistone`: a centre and 1-2 side pairs, every stone in an
+   outline head (round included), spun (a pear's point at the centre), placed as the solitaire's and
+   turned about the ring axis; each side angle bisected to the smallest at which no seat cuts a
+   neighbour's head and the girdles stand `--side-gap` apart; five slots, unused ones repeat the centre.
+   Gated per stone in its own frame. *Real check:* `api build multistone`, then the round three-stone and
+   ring 05's cushion + pears - PASSED, and a look in the GUI at where the prongs between stones meet.
+   Not yet: the gallery bridge under the heads, shared prongs (ring 02), engraving.)*
    N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.

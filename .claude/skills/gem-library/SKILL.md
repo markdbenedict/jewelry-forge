@@ -1,6 +1,6 @@
 ---
 name: gem-library
-description: Parametric stone bodies (round, oval, pear, marquise, cushion, emerald) for settings, seats and cutters, with volume and carat weight - the `gem` command and ntopjewel.gems - and the settings built from them, prong heads, bezels, the solitaire and pavé bands (`pave`). Use for any request to model a stone, size a seat for one, estimate a stone's carat weight, or set stones in a ring.
+description: Parametric stone bodies (round, oval, pear, marquise, cushion, emerald) for settings, seats and cutters, with volume and carat weight - the `gem` command and ntopjewel.gems - and the settings built from them, prong heads, bezels, the solitaire, multi-stone rings (`multistone`) and pavé bands (`pave`). Use for any request to model a stone, size a seat for one, estimate a stone's carat weight, or set stones in a ring.
 ---
 
 # gem-library
@@ -157,6 +157,45 @@ gate's 12 angles less the arches' wedge about the head and the engraving's span 
 against `ShankSpec.gate_section`: a shank built plain where a taper was designed fails here),
 volume vs nTop and vs the independent ring (design + blend − the chamfer nTop's opening puts on
 the shank's rounds).
+
+## Multi-stone rings (`multistone.ntop`, `ntopjewel.multistone`, Phase 3 step 2)
+
+```powershell
+python -m ntopjewel multistone --size 6 --length 6.5 --side-shape round --side-length 4                 # a round three-stone
+python -m ntopjewel multistone --size 6 --shape cushion --length 7 --stone-width 6 --side-shape pear --side-length 6 --side-width 4   # ring 05
+python -m ntopjewel multistone --size 6 --length 6 --side-shape round --side-length 3 --side-pairs 2      # five in a row
+python -m ntopjewel multistone ... --width-bottom 2 --thickness-bottom 1.4 --dry-run                    # on a tapered shank; numbers only
+```
+
+A centre stone and `--side-pairs` side stones each side, every one in an **outline head** (the
+`outline_head` block - prongs on its outline, rails following its pavilion; round stones too, 4/6/8
+prongs; a pear 5 with its V; a marquise a V at each end). Band defaults: court 2.6 x 1.8, Mesh
+Tolerance 0.05. Each head is placed as the solitaire's (the quarter-turn about a pivot ∥ +Y onto
++X) after a **spin** about its own axis (sides ±90°: their length runs along the band, a pear's or
+marquise's point at the centre; `--centre-spin 90` turns the centre's length along the band) and
+before a **turn** about the ring axis to its angle. Every culet stands at least `--finger-clear`
+above the bore; a small side stone whose two rails need more room under it than that leaves stands
+higher, until its lowest metal is 0.2 mm above the bore (`MultiStoneSpec._seating`).
+
+**The side angles are solved**: for each side stone the smallest turn (bisection to 0.0001°, plus
+0.01°) at which its girdle is `--side-gap` (0.3 mm) clear of its neighbour's and neither stone's
+seat cutter - drop-in path included - takes metal from the other's head. Prongs may touch and fuse
+(nTop's blended union); a seat may not cut a neighbour's prong. Usually the prongs bind, not the
+gap: `describe()` prints the girdle gaps it got.
+
+The notebook has five slots (`Seat Path`, `Prongs Path`, the five rail numbers, `Spin`, `Pivot X`,
+`Pivot Z`, `Turn`; slot k > 1 suffixed " k"); a three-stone ring repeats the centre in slots 4 and
+5 (the same head in the same place unites to nothing new). One `Clearance`, `Head Blend` and `Shank
+Blend` for all. Ring = ((shank ∪ placed heads), blended) − placed seats. The shank is the bars
+(plain or tapered; no rope, knot, double band or split yet; the heads must stay inside the taper's
+full section).
+
+Gate (`multistone.check_multistone`): the shank's walls and section shape away from the heads
+(beyond their reach + 8°), bore, `bore closed under the stones`, extents against the design, and
+for each stone in its own frame `stones fit`, `seat ledges` (every prong under its girdle) and
+`drop-in clear`; the design volume with every head's blend estimate and the heads-into-shank
+junction. A notebook whose side slots never got their own values fails `seat ledges` and the
+design volume. Stem `ring_multi_<n>_<centre>_<side>_<size>_<spec id>`; runs in `out\multistone\`.
 
 ## Pavé bands (`pave_band.ntop`, `ntopjewel.pave`, Phase 3 step 2/3)
 

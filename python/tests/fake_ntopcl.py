@@ -57,7 +57,7 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name:
+    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name:
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
         name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
@@ -184,7 +184,7 @@ def main(argv: list[str]) -> int:
 
     outputs: list[dict] = []
     shape = os.environ.get("FAKE_NTOPCL_SHAPE", "design")
-    if "solitaire" in nb.name or "head" in nb.name:
+    if "solitaire" in nb.name or "head" in nb.name or "multistone" in nb.name:
         from ntopjewel import geom
         from pseudo_blend import Blended
         ops = geom.SHARP if shape == "noblend" else Blended()           # nTop blends where the radius says so
@@ -271,6 +271,25 @@ def main(argv: list[str]) -> int:
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Seat Mesh", "Seat Body", "Stone Seat", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "multistone" in nb.name:
+        from ntopjewel import multistone
+        from ntopjewel.nb_jewel import SLOT_NAMES
+        for key in (*SLOT_NAMES, *(multistone.slot_input(n, k) for k in range(multistone.SLOTS) for n in ("Seat Path", "Prongs Path"))):
+            if not Path(values[key]).exists():
+                fail(f"{key.replace('Path', 'Mesh')}: file not found")
+        if shape == "noside":                                 # a notebook whose slots 2.. never got their own values
+            for k in range(1, multistone.SLOTS):
+                for n, _ in multistone.SLOT_FIELDS:
+                    values[multistone.slot_input(n, k)] = values[n]
+        mesh = multistone.ring_from_inputs(values, ops)
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Shank Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Placed Head 1 3", "Heads", "Joined", "Ring",
+                     "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
