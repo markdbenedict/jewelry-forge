@@ -83,6 +83,12 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   a file. Every run writes into a fresh `out\<family>\<stem>\<run id>\` directory and the
   export must have been written by that run (`runs.require_fresh`). The report JSON records
   the inputs, the notebook's sha256 and recipe, and the tool versions.
+- **A stem appears twice in every run file's path** (`out\<family>\<stem>\<run id>\<stem>.print_sterling.stl`),
+  and a solitaire's is up to 90 characters, so a deep `--out` passes Windows' MAX_PATH (260) and a build
+  dies mid-way with FileNotFoundError (2026-11-03, pytest's temp dir). `runs.fresh_run_dir` refuses such a
+  run before making anything (`RunPathError`, an `==> ERROR`) unless the LongPathsEnabled policy is on
+  (`doctor` shows it; whether nTopCL honours it is unverified); tests use the `out_dir` fixture, which
+  stays short on Windows.
 - Deliverables go to Mark's `OneDrive\Documents\Jewelry\<project>\<stem>\` only when the status
   is PASSED (`--deliver`; `runs.deliver` refuses anything else): the STL with the input JSON,
   the gate and build reports and `manifest.json`. `out/` is scratch and git-ignored.

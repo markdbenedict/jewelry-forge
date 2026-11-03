@@ -57,18 +57,18 @@ def test_design_ring_passes_its_gate(size, tmp_path):
     assert rep.status == "passed", rep.text()
 
 
-def test_solitaire_end_to_end_and_an_unseated_ring_is_caught(fake_ntopcl, tmp_path, monkeypatch):
+def test_solitaire_end_to_end_and_an_unseated_ring_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
     nb = tmp_path / "solitaire.ntop"
     nb.write_bytes(b"fake")
     monkeypatch.setenv("JEWELRY_DELIVER", str(tmp_path / "Jewelry"))
-    res = solitaire.build(spec(6), tmp_path / "out", notebook=nb, deliver=True, cast_metal="sterling")
+    res = solitaire.build(spec(6), out_dir, notebook=nb, deliver=True, cast_metal="sterling")
     assert res.status == "passed", res.text()
     assert res.delivered and res.delivered.exists() and (res.delivered.parent / f"{res.spec.stem}.print_sterling.stl").exists()
     monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noseat")
-    bad = solitaire.build(spec(6), tmp_path / "out", notebook=nb)
+    bad = solitaire.build(spec(6), out_dir, notebook=nb)
     assert bad.status == "failed" and {"stone fits", "drop-in clear"} <= {c.name for c in bad.gate.failures()}
     monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nobeads")                  # milgrain lost: ~1 % of volume, only the bead check sees it
-    bare = solitaire.build(spec(6), tmp_path / "out", notebook=nb)
+    bare = solitaire.build(spec(6), out_dir, notebook=nb)
     assert bare.status == "failed" and [c.name for c in bare.gate.failures()] == ["arch milgrain"]
 
 
@@ -124,13 +124,13 @@ def test_cli_solitaire_dry_run(capsys):
     assert cli.main(["solitaire", "--size", "6", "--finger-clear", "0.2", "--dry-run"]) == 1
 
 
-def test_gate_json_on_disk_holds_the_family_checks(fake_ntopcl, tmp_path):
+def test_gate_json_on_disk_holds_the_family_checks(fake_ntopcl, tmp_path, out_dir):
     """2026-10-28: the first real run's gate.json held only the generic checks (written before the
     solitaire ones were appended) - the report was right, the file Mark opened was not."""
     import json
     nb = tmp_path / "solitaire.ntop"
     nb.write_bytes(b"fake")
-    res = solitaire.build(spec(6), tmp_path / "out", notebook=nb)
+    res = solitaire.build(spec(6), out_dir, notebook=nb)
     names = [c["name"] for c in json.loads(res.stl.with_suffix(".gate.json").read_text())["checks"]]
     assert {"bore", "extents", "stone fits", "design volume"} <= set(names)
 
@@ -157,15 +157,15 @@ def test_pear_solitaire_spec():
     assert solitaire.SolitaireSpec(s.band, s.head, text="Makenna").stem != s.stem                  # the text is part of the identity
 
 
-def test_pear_solitaire_end_to_end_and_lost_engraving_is_caught(fake_ntopcl, tmp_path, monkeypatch):
+def test_pear_solitaire_end_to_end_and_lost_engraving_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
     nb = tmp_path / "solitaire_outline.ntop"
     nb.write_bytes(b"fake")
-    res = solitaire.build(makena(), tmp_path / "out", notebook=nb)
+    res = solitaire.build(makena(), out_dir, notebook=nb)
     assert res.status == "passed", res.text()
     names = {c.name for c in res.gate.checks}
     assert {"engraving", "arch milgrain", "seat ledges", "design volume"} <= names
     monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noengrave")
-    bare = solitaire.build(makena(), tmp_path / "out", notebook=nb)
+    bare = solitaire.build(makena(), out_dir, notebook=nb)
     assert bare.status == "failed" and [c.name for c in bare.gate.failures()] == ["engraving"]
 
 
@@ -226,14 +226,14 @@ def test_a_shaped_shank_under_the_head():
     assert set(s.free_angles()) == {61.37, 91.37, 121.37, 151.37, 181.37, 211.37, 241.37, 271.37, 301.37}
 
 
-def test_tapered_solitaire_end_to_end_and_a_plain_shank_is_caught(fake_ntopcl, tmp_path, monkeypatch):
+def test_tapered_solitaire_end_to_end_and_a_plain_shank_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
     nb = tmp_path / "solitaire.ntop"
     nb.write_bytes(b"fake")
-    res = solitaire.build(tapered(), tmp_path / "out", notebook=nb)
+    res = solitaire.build(tapered(), out_dir, notebook=nb)
     assert res.status == "passed", res.text()
     assert (res.run_dir / f"{res.spec.stem}.bar.stl").exists() and "section shape" in {c.name for c in res.gate.checks}
     monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "plainshank")                                        # the bar's head section all round
-    bad = solitaire.build(tapered(), tmp_path / "out", notebook=nb)
+    bad = solitaire.build(tapered(), out_dir, notebook=nb)
     assert bad.status == "failed" and "section shape" in {c.name for c in bad.gate.failures()}
 
 
@@ -267,10 +267,10 @@ def test_a_split_shank_under_the_head():
     assert v["Slot Path"] == "C" and list(v) == list(catalog.load("solitaire").inputs)
 
 
-def test_split_solitaire_end_to_end(fake_ntopcl, tmp_path):
+def test_split_solitaire_end_to_end(fake_ntopcl, tmp_path, out_dir):
     nb = tmp_path / "solitaire.ntop"
     nb.write_bytes(b"fake")
-    res = solitaire.build(split_shank(), tmp_path / "out", notebook=nb)
+    res = solitaire.build(split_shank(), out_dir, notebook=nb)
     assert res.status == "passed", res.text()
     assert (res.run_dir / f"{res.spec.stem}.slot.stl").exists()
     detail = {c.name: c.detail for c in res.gate.checks}
@@ -323,11 +323,11 @@ def test_a_knot_shank_under_the_head():
     assert np.hypot(ring.vertices[:, 0], ring.vertices[:, 1]).min() == pytest.approx(s.band.bore_radius_mm, abs=2e-3)
 
 
-def test_knot_solitaire_end_to_end(fake_ntopcl, tmp_path):
+def test_knot_solitaire_end_to_end(fake_ntopcl, tmp_path, out_dir):
     nb = tmp_path / "solitaire_outline.ntop"
     nb.write_bytes(b"fake")
     s = knotted()
-    res = solitaire.build(s, tmp_path / "out", notebook=nb)
+    res = solitaire.build(s, out_dir, notebook=nb)
     assert res.status == "passed", res.text()
     assert {c.name for c in res.gate.checks} >= {"section shape", "bore", "extents", "stone fits", "design volume"}
 

@@ -59,6 +59,21 @@ def fake_ntopcl(tmp_path, monkeypatch) -> Path:
 
 
 @pytest.fixture
+def out_dir(tmp_path) -> Path:
+    """Where a test's runs go. On Windows a solitaire stem (up to 90 characters, twice in every
+    file's path) under pytest's deep temp dir runs past MAX_PATH (2026-11-03: two end-to-end tests
+    failed with FileNotFoundError on the laptop and passed in CI), so there it is a short directory
+    straight under %TEMP%, removed afterwards."""
+    if os.name != "nt":
+        yield tmp_path / "out"
+        return
+    import shutil, tempfile  # pragma: no cover - the Linux container runs the tests
+    d = Path(tempfile.mkdtemp(prefix="jf-"))
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
+
+
+@pytest.fixture
 def band_notebook(tmp_path) -> Path:
     nb = tmp_path / "ring_band.ntop"
     nb.write_bytes(b"fake notebook")

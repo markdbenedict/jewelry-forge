@@ -27,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, shank, solitaire, summary, tables
+from . import __version__, band, catalog, config, features, gate, gems, heads, ntopcl, runs, shank, solitaire, summary, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -58,6 +58,10 @@ def cmd_doctor(_: argparse.Namespace) -> int:
         print(f"ntopcl version : {ntopcl.version(exe) or '?'}")
     print(f"blender        : {config.blender_path() or 'not found (optional; set BLENDER)'}")
     print(f"out dir        : {config.out_dir()}")
+    if sys.platform == "win32":  # pragma: no cover
+        room = runs.WINDOWS_MAX_PATH - len(str(config.out_dir())) - 2 * 90 - runs.RUN_ID_CHARS - 2 - len(runs.LONGEST_SUFFIX)
+        print(f"long paths     : {'enabled' if runs.long_paths_enabled() else 'OFF'} (LongPathsEnabled); a 90-character stem under "
+              f"out dir {'fits' if room >= 0 else f'runs {-room} characters over MAX_PATH'} without them")
     print(f"deliver dir    : {config.deliver_dir()} ({'exists' if config.deliver_dir().exists() else 'missing'})")
     nbs = sorted(config.notebooks_dir().glob("*.ntop")) if config.notebooks_dir().exists() else []
     print(f"notebooks      : {', '.join(p.name for p in nbs) or 'none yet (build from ntop/recipes)'}")

@@ -92,3 +92,16 @@ def test_the_runner_refuses_before_nTop_runs(fake_ntopcl, tmp_path, monkeypatch,
     res = shank.build(s, tmp_path / "out")
     assert res.status == "passed", res.text()
     assert summary.verdict(res).startswith("==> PASSED  " + s.stem)
+
+
+def test_a_run_whose_paths_would_pass_max_path_is_refused_before_anything_is_made(tmp_path):
+    """2026-11-03: two solitaire end-to-end tests failed on the laptop with FileNotFoundError from
+    the middle of a build - pytest's temp dir plus a 90-character stem twice passed Windows'
+    MAX_PATH. The runner now says so up front, naming the length and the way out."""
+    stem = "solitaire_court_US6_w4-4_t1.6-1.6_split1.6_trinity5.6_6prong_marquise_10x5x3p05_25341b97"
+    with pytest.raises(runs.RunPathError, match="use a shorter --out, or enable long paths"):
+        runs.fresh_run_dir(tmp_path / "out", stem, max_path=len(str(tmp_path)) + 2 * len(stem))
+    assert not (tmp_path / "out").exists()
+    d, _ = runs.fresh_run_dir(tmp_path / "out", stem, max_path=None)      # no limit: the usual directory
+    assert d.is_dir() and d.parent.name == stem
+    assert runs.path_limit() in (None, runs.WINDOWS_MAX_PATH)

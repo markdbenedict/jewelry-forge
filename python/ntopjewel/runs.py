@@ -35,9 +35,50 @@ def spec_id(design: dict) -> str:
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:SPEC_ID_CHARS]
 
 
-def fresh_run_dir(out_dir: Path, stem: str) -> tuple[Path, str]:
-    """A directory no run has used: <out_dir>/<stem>/<YYYYmmdd-HHMMSS>[-n]. Returns (dir, run id)."""
+WINDOWS_MAX_PATH = 259                   # MAX_PATH - 1: the longest path a Windows API call takes without long paths
+LONGEST_SUFFIX = ".print_sterling.stl"    # the longest file name a run writes beside <stem>.stl
+RUN_ID_CHARS = len("YYYYmmdd-HHMMSS-9")
+
+
+class RunPathError(ValueError):
+    """The run's files would have paths Windows cannot open (over MAX_PATH, long paths off)."""
+
+
+def long_paths_enabled() -> bool:
+    """Windows: the LongPathsEnabled policy (Python honours it; whether nTopCL does is unverified).
+    Elsewhere: True."""
+    if sys.platform != "win32":
+        return True
+    try:  # pragma: no cover - Windows only
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem") as k:
+            return int(winreg.QueryValueEx(k, "LongPathsEnabled")[0]) == 1
+    except OSError:  # pragma: no cover
+        return False
+
+
+def path_limit() -> int | None:
+    """The longest path this machine's file calls accept, or None when there is no practical limit."""
+    return None if long_paths_enabled() else WINDOWS_MAX_PATH
+
+
+def fresh_run_dir(out_dir: Path, stem: str, max_path: int | None = None) -> tuple[Path, str]:
+    """A directory no run has used: <out_dir>/<stem>/<YYYYmmdd-HHMMSS>[-n]. Returns (dir, run id).
+
+    Refused (RunPathError) before anything is made when the longest file the run will write,
+    `<dir>/<stem>/<run id>/<stem>.print_sterling.stl`, would exceed `max_path` (default: 259 on
+    Windows without the LongPathsEnabled policy, no limit elsewhere): a stem appears twice in every
+    file's path and a solitaire's runs to 90 characters, so a deep `--out` hits Windows' MAX_PATH
+    with a FileNotFoundError from the middle of a build (seen 2026-11-03 under pytest's temp dir)."""
     base = Path(out_dir).resolve() / stem
+    limit = path_limit() if max_path is None else max_path
+    if limit is not None:
+        longest = len(str(base)) + 1 + RUN_ID_CHARS + 1 + len(stem) + len(LONGEST_SUFFIX)
+        if longest > limit:
+            raise RunPathError(
+                f"the run's files would have paths of {longest} characters under {base.parent}, over the "
+                f"{limit} this machine's file calls accept (the stem is {len(stem)} characters and appears twice): "
+                f"use a shorter --out, or enable long paths (Windows: LongPathsEnabled, `python -m ntopjewel doctor`)")
     base.mkdir(parents=True, exist_ok=True)
     run_id = time.strftime("%Y%m%d-%H%M%S")
     cand, n = base / run_id, 1
