@@ -145,3 +145,30 @@ def test_the_extents_allowance_follows_the_rails_acute_corner():
     per_side = ms.rail_corner_shrink(h)
     assert 0.225 < per_side < 0.7 and per_side > h.blend * (2 ** 0.5 - 1)
     assert ms.rail_corner_shrink(heads.OutlineHeadSpec(gems.StoneSpec("round", 6.5), blend_mm=0.0)) == 0.0
+
+
+def test_stones_sized_by_weight_and_pears_pointing_out():
+    """The ruby demo (2026-11-03): a 1.5 ct cushion, two 0.5 ct pears with their points away from it."""
+    c = gems.StoneSpec.for_carats("cushion", 1.5, material="sapphire")
+    p = gems.StoneSpec.for_carats("pear", 0.5, material="sapphire")
+    assert c.carats() == pytest.approx(1.5, abs=0.005) and p.carats() == pytest.approx(0.5, abs=0.005)
+    assert c.length / c.width == pytest.approx(gems.RATIO["cushion"], abs=0.01)
+    s = ms.MultiStoneSpec(ring_band(), heads.OutlineHeadSpec(c), heads.OutlineHeadSpec(p), side_point="out")
+    assert s.validate() == []
+    for q in s.stones()[1:]:
+        m = s.matrix(q.head, q.theta_deg, q.spin_deg)
+        xy = q.head.stone.outline()
+        tip = m @ np.array([*xy[np.argmin(xy[:, 0])], 0.0, 1.0])
+        mid = m @ np.array([0.0, 0.0, 0.0, 1.0])
+        assert abs(math.atan2(tip[1], tip[0])) > abs(math.atan2(mid[1], mid[0]))          # the point further from the top
+    inward = ms.MultiStoneSpec(ring_band(), heads.OutlineHeadSpec(c), heads.OutlineHeadSpec(p))
+    assert "side_point" not in inward.design() and s.spec_id != inward.spec_id
+    # every prong reaches under its girdle, counted prong by prong (pieces fuse with the centre's metal)
+    d = s.design_mesh()
+    q = s.stones()[1]
+    local = d.copy()
+    local.apply_transform(np.linalg.inv(s.matrix(q.head, q.theta_deg, q.spin_deg)))
+    under, _ = heads.seat_regions(q.head.stone, q.head.clearance)
+    g = q.head.stone.girdle
+    assert ms.prong_ledges(local, s.placed_head(q.head), -g / 2 - 0.3, under) == 5
+    assert heads.outline_count(local, -g / 2 - 0.3, under) < 5                              # the piece count misses one

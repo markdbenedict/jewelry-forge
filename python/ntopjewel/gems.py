@@ -28,6 +28,8 @@ SHAPES = ("round", "oval", "pear", "marquise", "cushion", "emerald")
 # fractions of the stone's WIDTH (the round's diameter)
 TABLE_FRAC = {"round": 0.57, "oval": 0.57, "pear": 0.55, "marquise": 0.55, "cushion": 0.60, "emerald": 0.65}
 CROWN_FRAC, GIRDLE_FRAC, PAVILION_FRAC = 0.15, 0.03, 0.43
+# length / width a stone sized by weight takes unless told (trade-typical outlines)
+RATIO = {"round": 1.0, "oval": 1.4, "pear": 1.5, "marquise": 2.0, "cushion": 1.15, "emerald": 1.4}
 MIN_GIRDLE_MM = 0.10
 OUTLINE_POINTS = 256
 
@@ -144,6 +146,22 @@ class StoneSpec:
 
     def carats(self, material: str | None = None) -> float:
         return tables.carats(self.volume_mm3(), material or self.material)
+
+    @classmethod
+    def for_carats(cls, shape: str, carats: float, ratio: float | None = None, material: str = tables.DEFAULT_STONE) -> "StoneSpec":
+        """The stone of this shape and length/width ratio (default RATIO[shape]) that weighs `carats`
+        in `material`, in ideal proportions: the length bisected (weight grows as its cube)."""
+        r = RATIO[shape] if ratio is None else float(ratio)
+        lo, hi = 0.5, 40.0
+        for _ in range(60):
+            L = (lo + hi) / 2
+            s = cls(shape, L, None if shape == "round" else L / r, material=material)
+            if s.carats() < carats:
+                lo = L
+            else:
+                hi = L
+        L = round(hi, 3)
+        return cls(shape, L, None if shape == "round" else round(L / r, 3), material=material)
 
     def validate(self) -> list[str]:
         p = []

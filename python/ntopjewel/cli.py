@@ -458,17 +458,21 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
 
 
 def cmd_multistone(a: argparse.Namespace) -> int:
-    def head(shape, length, width, depth, prongs):
-        stone = gems.StoneSpec(shape=shape, length_mm=length, width_mm=width, depth_mm=depth, material=a.material)
+    def head(shape, length, width, depth, prongs, carats=None):
+        if carats:                                                    # sized by weight; --length / --width give the ratio
+            ratio = (length / width) if (width and length) else None
+            stone = gems.StoneSpec.for_carats(shape, carats, ratio, a.material)
+        else:
+            stone = gems.StoneSpec(shape=shape, length_mm=length, width_mm=width, depth_mm=depth, material=a.material)
         return heads.OutlineHeadSpec(stone, prongs=prongs, clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
-    centre = head(a.shape, a.length, a.stone_width, a.stone_depth, a.prongs)
-    side = head(a.side_shape, a.side_length, a.side_width, a.side_depth, a.side_prongs) if a.side_shape else None
+    centre = head(a.shape, a.length, a.stone_width, a.stone_depth, a.prongs, a.carats)
+    side = head(a.side_shape, a.side_length, a.side_width, a.side_depth, a.side_prongs, a.side_carats) if a.side_shape else None
     b = _band_spec(a)
     shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
                               taper_from_deg=a.taper_from, stations=a.stations)
               if (a.width_bottom is not None or a.thickness_bottom is not None) else None)
     spec = multistone.MultiStoneSpec(b, centre, side, side_pairs=a.side_pairs, side_gap_mm=a.side_gap,
-                                     centre_spin_deg=a.centre_spin, finger_clear_mm=a.finger_clear,
+                                     centre_spin_deg=a.centre_spin, side_point=a.side_point, finger_clear_mm=a.finger_clear,
                                      shank_blend_mm=a.shank_blend, shank=shaped)
     probs = spec.validate()
     if probs:
@@ -818,6 +822,9 @@ def main(argv: list[str] | None = None) -> int:
     mu.add_argument("--side-width", type=float)
     mu.add_argument("--side-depth", type=float)
     mu.add_argument("--side-prongs", type=int)
+    mu.add_argument("--carats", type=float, help="centre: size the stone to this weight in --material (ideal proportions; --length/--stone-width set the ratio)")
+    mu.add_argument("--side-carats", type=float, help="side stones: size each to this weight")
+    mu.add_argument("--side-point", default="in", choices=["in", "out"], help="pear / marquise sides: point towards the centre or away")
     mu.add_argument("--side-pairs", type=int, default=1, help="side stones each side of the centre (1: three-stone, 2: five)")
     mu.add_argument("--side-gap", type=float, default=multistone.SIDE_GAP_MM, help="girdle to girdle between neighbours, mm")
     mu.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))

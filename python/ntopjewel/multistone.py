@@ -59,6 +59,7 @@ class MultiStoneSpec:
     side_pairs: int = 1                        # side stones each side of the centre (1: a three-stone ring)
     side_gap_mm: float = SIDE_GAP_MM
     centre_spin_deg: float = 0.0               # 90: the centre's length along the band
+    side_point: str = "in"                    # a pear's / marquise's point: "in" towards the centre, "out" away from it
     finger_clear_mm: float | None = None
     shank_blend_mm: float | None = None
     shank: shankmod.ShankSpec | None = None
@@ -181,7 +182,10 @@ class MultiStoneSpec:
         return float(d.min())
 
     def side_spin(self, theta_deg: float) -> float:
-        return 90.0 if theta_deg > 0 else -90.0
+        """A side stone's length runs along the band; its point (the stone's -X) faces the centre
+        (side_point "in") or away from it ("out")."""
+        s = 90.0 if theta_deg > 0 else -90.0
+        return s if self.side_point == "in" else -s
 
     # ---- the layout ---------------------------------------------------------------------------
     def stones(self) -> list[Placed]:
@@ -270,6 +274,8 @@ class MultiStoneSpec:
                   "side": self.placed_head(self.side).design() if self.side is not None else None,
                   "side_pairs": self.side_pairs if self.side is not None else 0, "side_gap": self.side_gap_mm,
                   "centre_spin": self.centre_spin_deg, "finger_clear": self.finger_clear, "shank_blend": self.shank_blend})
+        if self.side_point != "in":                                   # only when set: earlier designs keep their ids
+            d["side_point"] = self.side_point
         return d
 
     @property
@@ -329,6 +335,8 @@ class MultiStoneSpec:
             p += [f"{role}: {x}" for x in self.placed_head(h).validate()]
         if p:
             return p
+        if self.side_point not in ("in", "out"):
+            p.append(f"side point {self.side_point!r}: in or out")
         if self.stone_count > SLOTS:
             p.append(f"{self.stone_count} stones: the notebook has {SLOTS} head slots")
         if self.side is not None and self.side_pairs < 1:
@@ -366,7 +374,9 @@ class MultiStoneSpec:
             if p.role == "side" and p.theta_deg < 0:
                 continue
             s = p.head.stone
-            where = "at the top" if p.role == "centre" else f"at ±{p.theta_deg:.2f}° (spun {abs(p.spin_deg):g}°, point inward)"
+            where = "at the top" if p.role == "centre" else (f"at ±{p.theta_deg:.2f}° (spun {abs(p.spin_deg):g}°"
+                                                             + (f", point {'inward' if self.side_point == 'in' else 'outward'})"
+                                                                if p.head.stone.shape in ("pear", "marquise") else ")"))
             lines.append(f"  {p.role}: {s.describe()} in {self.placed_head(p.head).count} prongs, {where}; "
                          f"girdle at r {self.girdle_radius(p.head):.3f}")
         gaps = ""
@@ -411,6 +421,30 @@ def ring_from_inputs(v: dict, ops: geom.Booleans = geom.SHARP):
 
 
 # ---- the gate -------------------------------------------------------------------------------------
+def prong_ledges(local, head: heads.OutlineHeadSpec, z: float, under) -> int:
+    """How many of the head's prongs carry metal under the girdle, prong by prong: the section at
+    height z (head frame) near each prong's knee overlapping the girdle region. Counting separate
+    pieces (heads.outline_count, the solitaire's way) undercounts here: a side stone's prongs fuse
+    with the neighbouring head's metal into one piece (two pear prongs read as one, 2026-11-03)."""
+    import numpy as np
+    from shapely.geometry import Point, Polygon
+    sec = local.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
+    if sec is None:
+        return 0
+    planar, to3d = sec.to_2D()
+
+    def lift(coords):
+        pts = np.asarray(coords)
+        return (to3d @ np.column_stack([pts, np.zeros(len(pts)), np.ones(len(pts))]).T).T[:, :2]
+    pieces = [Polygon(lift(q.exterior.coords), [lift(h.coords) for h in q.interiors]).buffer(0) for q in planar.polygons_full]
+    count = 0
+    for (foot, knee, tip) in head.prong_axes():
+        near = Point(float(knee[0]), float(knee[1])).buffer(head.rho + 0.05)
+        if any(pc.intersection(near).intersection(under).area > 1e-4 for pc in pieces):
+            count += 1
+    return count
+
+
 def rail_corner_shrink(h: heads.OutlineHeadSpec) -> float:
     """How far a blended rail's outermost edge may retreat, each side: the rails follow the pavilion,
     so the corner between a rail's top and its outer face is acute (90° less the pavilion's lean from
@@ -475,7 +509,7 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
         fits.append((overlap, 0.002 * stone.volume))
         under, over = heads.seat_regions(p.head.stone, p.head.clearance)
         g = p.head.stone.girdle
-        ledges.append((heads.outline_count(local, -g / 2 - 0.3, under), spec.placed_head(p.head).count))
+        ledges.append((prong_ledges(local, spec.placed_head(p.head), -g / 2 - 0.3, under), spec.placed_head(p.head).count))
         drops.append(heads.outline_count(local, g / 2 + 0.15, over))
     bad = [i for i, (o, a) in enumerate(fits) if not o <= a]
     rep.checks.append(gate.Check("stones fit", not bad, f"{len(stones) - len(bad)}/{len(stones)} stones clear of the metal "
