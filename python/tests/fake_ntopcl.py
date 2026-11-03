@@ -45,7 +45,7 @@ BAND_INPUT_NAMES = ["Outer Radius", "Bore Radius", "Z Top", "Z Bottom", "Dome Ri
 
 
 def log(level: str, msg: str) -> None:
-    print(f"{STAMP} [{level}]: {msg}")
+    print(f"{STAMP} [{level}]: {msg}", flush=True)       # as it goes: a killed run leaves its lines
 
 
 def fail(msg: str) -> None:

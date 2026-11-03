@@ -51,8 +51,8 @@ HEAD_ANGLE_DEG = 90.0
 KNOT_PAD_CLEAR_MM = 0.5          # a knot solitaire: the band's nose tip lies this far beyond the head's feet along the ring
 PANEL_HEAD_CLEAR_MM = 0.5        # artwork on plain shoulders: a panel starts this far past the head's reach + the shank blend
 PANEL_WEDGE_CLEAR_DEG = 1.0      # ... or this far past the arches' wedge
-BURIED_ARCH_DEG = 4.0            # arches off: the stubs sit this far either side of the head ...
-BURIED_ARCH_RADIUS_MM = 0.7      # ... this fat (they must survive the opening's erosion), inside the band's thickness
+BURIED_ARCH_RADIUS_MM = 0.7      # arches off: the stub buried under the head is at most this fat (and 0.1 inside the band's faces)
+BURIED_ARCH_MARGIN_MM = 0.1      # ... this far inside the bore and the outer face
 WEDGE_EXTRA_DEG = 2.0           # the arch is cut 2° past its tangent ray (it departs from the band by < 0.01 mm there)
 BEAD_CORNER_INSET = 0.15        # as features.py: bead centre this many radii inside the edge corner
 BEAD_PITCH = 2.2                # centre to centre, in bead radii
@@ -481,12 +481,16 @@ class SolitaireSpec:
         return engrave.text_mesh(self.text, g["height"], self.engrave_depth_mm, g["radius"], g["side"], font=self.font)
 
     def arch_inputs(self) -> dict:
-        """The arches' numbers - or, with the arches off (a knot shank), two stubs buried in the band
-        under the head: 0.7 mm cylinders about points 4° either side of the head at mid-thickness,
-        0.5 mm each way along the axis (Z Top / Z Bottom feed only the arches now), inside a fat
-        torus and a 10° wedge, cut by nothing (the cut radius inside the bore). The notebook needs
-        no conditional and its opening chain has a body to mesh; the independent model builds the
-        same stub (ring_parts hollows it to a 0.1 mm wall). Buried, it changes nothing."""
+        """The arches' numbers - or, with the arches off (a knot shank, plain shoulders), one stub
+        buried in the band under the head: a 0.7 mm cylinder about a point on the +X axis at
+        mid-thickness, 0.5 mm each way along the axis (Z Top / Z Bottom feed only the arches now),
+        inside a fat torus and a 10° wedge, cut by nothing (the cut radius inside the bore). Both
+        arch centres sit on that one point, so the arches' intersection is the whole cylinder: the
+        opening erodes it by the edge round and it stays (two stubs 4° apart left a 0.11 mm lens,
+        which a 0.1 mm erosion emptied before the mesh round trip - 2026-11-03, the flat band; the
+        knot shank's edge round of 0 had hidden it). The notebook needs no conditional and its
+        opening chain has a body to mesh; the independent model builds the same stub (ring_parts
+        hollows it to a thin wall). Buried, it changes nothing."""
         if self.arches:
             a = self.arch()
             return {"Arch Centre X": round(a["cx"], 4), "Arch Centre Y": round(a["cy"], 4),
@@ -495,11 +499,17 @@ class SolitaireSpec:
                     "Wedge Angle": round(a["wedge_deg"], 4), "Wedge Angle Minus": round(-a["wedge_deg"], 4)}
         b = self.band
         r_m = b.bore_radius_mm + b.thickness_mm / 2
-        ang = math.radians(BURIED_ARCH_DEG)
-        return {"Arch Centre X": round(r_m * math.cos(ang), 4), "Arch Centre Y": round(-r_m * math.sin(ang), 4),
-                "Arch Centre Y Minus": round(r_m * math.sin(ang), 4), "Arch Radius": BURIED_ARCH_RADIUS_MM,
-                "Arch Dome Ring Radius": BURIED_ARCH_RADIUS_MM, "Arch Cut Radius": round(b.bore_radius_mm - 1.0, 4),
+        rho = self.buried_stub_radius
+        return {"Arch Centre X": round(r_m, 4), "Arch Centre Y": 0.0,
+                "Arch Centre Y Minus": 0.0, "Arch Radius": round(rho, 4),
+                "Arch Dome Ring Radius": round(rho, 4), "Arch Cut Radius": round(b.bore_radius_mm - 1.0, 4),
                 "Wedge Angle": 10.0, "Wedge Angle Minus": -10.0}
+
+    @property
+    def buried_stub_radius(self) -> float:
+        """The buried stub's radius (arches off): BURIED_ARCH_RADIUS_MM, or less on a band too thin to
+        hold that inside its bore and outer face by BURIED_ARCH_MARGIN_MM."""
+        return round(min(BURIED_ARCH_RADIUS_MM, self.band.thickness_mm / 2 - BURIED_ARCH_MARGIN_MM), 4)
 
     def bead_inputs(self) -> dict:
         """Start beads for the two polar arrays (each runs counter-clockwise about its arch centre):
@@ -603,6 +613,9 @@ class SolitaireSpec:
             if self.has_engraving and self.engrave_side == "outside" and any(q.face == "outer" for q in self.panels):
                 p.append("an outside engraving and an outer-face panel: not together")
         if not self.arches:
+            if self.buried_stub_radius - self.shank_spec.edge_round < 0.1:
+                p.append(f"the band ({self.band.thickness_mm:g} thick) is too thin to bury the arch stub under the head past "
+                         f"its edge round {self.shank_spec.edge_round:g}")
             return p
         if not 30 <= self.shoulder_deg <= 75:
             p.append("shoulder angle outside 30-75°")
@@ -668,17 +681,25 @@ class SolitaireSpec:
 
 
 # ---- the independent ring ---------------------------------------------------------------------
+def is_buried_stub(v: dict) -> bool:
+    """Arches off: the arch inputs describe the stub buried under the head (SolitaireSpec.arch_inputs)."""
+    return float(v["Arch Radius"]) <= BURIED_ARCH_RADIUS_MM + 1e-6
+
+
 def arch_mesh(v: dict, inner: float):
     """The cathedral arches from the notebook's numbers: arch+ ∩ arch- ∩ wedge - the mid-wall cylinder.
     Each arch is the band's outer section (dome torus, edge round) about its centre; `inner` hollows
-    it (any radius clear of the wedge - nTop leaves the arch solid; the wedge and cut decide)."""
+    it (any radius clear of the wedge - nTop leaves the arch solid; the wedge and cut decide). The
+    buried stub (arches off) is built unopened: it is inside the band, its shape changes nothing,
+    and the 2-D opening of its thin hollowed wall emptied it (2026-11-03)."""
     import numpy as np
     import trimesh
     from shapely.geometry import Point, Polygon, box
     zb, zt, e = float(v["Z Bottom"]), float(v["Z Top"]), float(v.get("Edge Round", 0.0))
     R, dr, dt = float(v["Arch Radius"]), float(v["Arch Dome Ring Radius"]), float(v["Dome Tube Radius"])
     sec = box(inner, zb, R, zt).intersection(Point(dr, 0.0).buffer(dt, quad_segs=256))
-    sec = geom.open_polygon(sec, e, tables.opening_chamfer_mm(float(v.get("Mesh Tolerance", 0.1))))
+    if not is_buried_stub(v):
+        sec = geom.open_polygon(sec, e, tables.opening_chamfer_mm(float(v.get("Mesh Tolerance", 0.1))))
     parts = []
     for cy in (float(v["Arch Centre Y"]), float(v["Arch Centre Y Minus"])):
         m = geom.revolve_section(sec, sections=720)
@@ -770,8 +791,8 @@ def ring_parts(v: dict, envelope, prongs=None, windows=None, beads: bool = True,
     t = math.hypot(float(v["Arch Centre X"]), float(v["Arch Centre Y"]))
     lo = float(v["Arch Dome Ring Radius"]) - math.sqrt(max(float(v["Dome Tube Radius"]) ** 2 - float(v["Z Top"]) ** 2, 0)) + 0.3
     inner = (lo + math.hypot(t, float(v["Arch Cut Radius"])) - 0.5) / 2     # midway between the bounds SolitaireSpec.arch() computes
-    wall = max(0.1, 2 * float(v.get("Edge Round", 0.0)) + 0.1)                 # a buried stub (arches off): a thin wall that the
-    inner = min(inner, float(v["Arch Radius"]) - wall)                         # section's edge-round emulation leaves standing
+    if is_buried_stub(v):
+        inner = float(v["Arch Radius"]) - 0.1                                  # the buried stub: a 0.1 mm wall (unopened, see arch_mesh)
     if shank_mesh is None:
         shank_mesh = carved_shank_from_inputs(v)
     shank = ops.union([shank_mesh, arches_with_slot(v, inner, slot)] + ([bead_mesh(v)] if beads else []))

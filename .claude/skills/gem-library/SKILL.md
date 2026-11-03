@@ -130,12 +130,16 @@ slot. `--knot trinity` on a split shank (reference ring 01; `ring-band` has the 
 replaces the arches: the band runs either side of the head out to a nose between the knot's
 lobes - as far as the head reaches along the ring plus 0.5 mm (`SolitaireSpec.knot_pad_deg_needed`,
 set on the `ShankSpec` unless `--knot-pad` asked for more) - and the arches and their milgrain
-are off: the notebook keeps no conditional, so the arch inputs become two 0.7 mm stubs buried
-in the band 4° either side of the head (`arch_inputs`: Z Top/Bottom ±0.5, a 2 mm dome tube, a
-10° wedge, the cut inside the bore; catalogs 0.7.1 / 0.3.1 widened their ranges for them, no
-rebuild), which the opening chain can mesh and which change nothing; the independent model
-builds the same stub with a thin wall (the edge round twice + 0.1, so the section's opening
-emulation leaves it standing on a band whose edge round is not 0). Slot Path is a speck (the band under the head is
+are off: the notebook keeps no conditional, so the arch inputs become one stub buried in the
+band under the head - both arch centres on the same point of the +X axis at mid-thickness, so the
+arches' intersection is a whole cylinder of 0.7 mm or less (`buried_stub_radius`: 0.1 inside the
+bore and the outer face; `arch_inputs`: Z Top/Bottom ±0.5, a 2 mm dome tube, a 10° wedge, the cut
+inside the bore; catalogs 0.7.1 / 0.3.1 widened their ranges for it, no rebuild), which the
+opening chain erodes by the edge round, meshes and dilates, and which changes nothing. (Two stubs
+4° apart met in a 0.11 mm lens that a 0.1 mm erosion emptied before the mesh round trip -
+2026-11-03, the flat band under the Seraphine head; the knot shank's edge round of 0 had hidden
+it; `validate` refuses a band too thin to bury the stub past its round.) The independent model
+builds the stub as a thin unopened wall. Slot Path is a speck (the band under the head is
 whole), Edge Round 0 (the knot shank's rounds are all in its bar), the gate's section angles
 skip the knots, and the design volume takes no slot-edge term. Contoured, double, rope and
 plait shanks under a head are refused for now (the arches and the head placement assume a band

@@ -343,4 +343,4 @@ def test_cli_knot_solitaire_dry_run(capsys):
                      "--split", "1.6", "--split-span", "100", "--knot", "trinity", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "_split1.6_trinity5.2_" in out and "arches and milgrain: off" in out and "Slot Path: <slot path>" not in out
-    assert "Arch Radius: 0.7" in out
+    assert "Arch Radius: 0.55" in out

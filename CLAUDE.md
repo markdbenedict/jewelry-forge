@@ -110,7 +110,11 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 - **Success = all three:** exit code 0, no `[E]` line in the log, and the line
   `nTop successfully built.` present. nTopCL can exit 0 after a failed block.
 - Per-block timing lines look like `15:57:33 [I]: Sphere_0 complete 0ms`; the runner
-  parses them into the report.
+  parses them into the report. `ntopcl.run` streams nTopCL's output into `<tag>.ntopcl.log` as it
+  goes and keeps nTopCL's own `--logfile` beside it (`<tag>.ntop.log`; `Get-Content -Wait -Tail 3`
+  it during a long run), kills nTopCL after `NTOPCL_TIMEOUT_S` (3600) naming the last block that
+  completed (`==> ERROR`), and kills it on Ctrl+C (the child has no console window; 2026-11-03: a
+  solitaire run killed after an hour had left no log at all).
 - Input types (Automate docs): `bool`, `scalar` (+ `units`), `integer`, `text`, `file_path`,
   `point`, `vector` (+ `units`, required for some vectors), `enum` (integer id). A scalar may
   carry `values: [..]` to sweep one parameter in a single run. **nTop's own `-t` template

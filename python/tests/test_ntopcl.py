@@ -155,3 +155,20 @@ def test_templates_tolerate_an_unbuilt_output(fake_ntopcl, tmp_path, capsys):
     rc = cli.main(["templates", str(nb), "--out", str(tmp_path / "t2"), "--catalog", "ring_band_profile"])
     out = capsys.readouterr().out
     assert rc == 0 and "catalog matches the notebook" in out and "never built in the GUI session" in out
+
+
+def test_a_run_past_the_timeout_is_killed_and_leaves_its_log(fake_ntopcl, tmp_path, monkeypatch):
+    """2026-11-03: a solitaire run was killed after 3600 s and left no log - the output was only
+    written from memory at the end. Now stdout streams into the log file and nTopCL's own
+    --logfile is kept beside it, so the last block to complete is in the error."""
+    monkeypatch.setenv("FAKE_NTOPCL_SLEEP", "20")
+    nb = tmp_path / "test.ntop"
+    nb.write_bytes(b"x")
+    with pytest.raises(ntopcl.NtopclError) as ei:
+        ntopcl.run(nb, None, tmp_path / "out", tag="t", timeout_s=1.5)
+    msg = str(ei.value)
+    assert "killed after 2 s (timeout)" in msg and "0 blocks had completed" in msg
+    res = ei.value.result
+    assert res is not None and not res.ok and res.returncode is None and res.seconds < 10
+    assert "Notebook started" in res.log_path.read_text()                     # what nTopCL printed before the kill
+    assert "--logfile" in res.command and res.command[res.command.index("--logfile") + 1].endswith("t.ntop.log")

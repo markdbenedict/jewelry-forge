@@ -353,6 +353,12 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    under the head. *Real check:* `api build solitaire` (and `solitaire_outline`, `solitaire_bezel`), then
    `solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll`
    - and the plain `solitaire --size 6` again, whose band now passes through the carve with specks.
+   First attempt (14:02): nTopCL still working after an hour, killed by the runner's timeout, no log
+   (the runner now streams it). The suspect by elimination - the artwork layers are the band run's -
+   was the arch stub buried under the head with `--no-arches`: two cylinders 4° apart whose
+   intersection on this band was a 0.11 mm lens, which the flat band's 0.1 mm erosion all but emptied
+   before the mesh round trip (the knot ring's edge round of 0 had hidden it); now one stub sized to
+   the band. Rerun pending.
    **Still missing for the Seraphine:** the knots standing on a continuous band beside the head (ours are
    woven from a split), double-claw prongs and the heart gallery (6).)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
