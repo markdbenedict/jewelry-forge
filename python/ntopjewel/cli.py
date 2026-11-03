@@ -535,10 +535,24 @@ def cmd_api(a: argparse.Namespace) -> int:
               f"`python -m ntopjewel api collect {script.stem}`:\n\n    {notebook_api.exec_line(driver)}\n")
         print("Or over SSH: " + " ".join(_console(a).command()))
         return 0
+    import time as _time
+    # a build script runs INSIDE nTop's Python and outlives this client's timeout: one that stalled
+    # keeps nTop busy for hours and every later build queues behind it (2026-11-02: three drivers
+    # piled up, a variable took 20 minutes to set). So the console must answer briskly first.
+    t0 = _time.time()
+    try:
+        _console(a).check(timeout=45)
+    except notebook_api.ConsoleError as e:
+        print(f"nTop's console did not answer within 45 s: a build may still be running inside nTop (a timed-out "
+              f"`api build` keeps going in there). Close nTop, reopen it with View > Python Console, `api check`, then build again.")
+        print(summary.error_line(f"api build {script.stem}", "nTop busy or hung - restart it"))
+        return 2
+    slow = _time.time() - t0
+    if slow > 10:
+        print(f"note      : the console took {slow:.0f} s to answer; nTop is busy. If this build stalls, restart nTop.")
     print(f"building  : {script.stem} in nTop's open session (a fresh notebook; the canvas fills as blocks are "
           f"added, then it is saved to {params.get('save_to') or 'the recipe default'})", flush=True)
     progress = work_dir / f"{script.stem}.progress.log"
-    import time as _time
     started = _time.time()
     try:
         res = _console(a).run_script(script, params, work_dir=work_dir, python_path=python_path, timeout=a.timeout)

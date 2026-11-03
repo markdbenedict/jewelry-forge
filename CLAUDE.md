@@ -212,6 +212,12 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   variable (`-t`: "Output of function not built") - make the Output typed (a variable
   wrapping the measurement block, or a `core.var<real>`). The runner's `templates` tolerates
   a missing output template; the first real run is the check.
+- **A build script runs inside nTop's Python and outlives the client's timeout.** A stalled `api
+  build` keeps running in nTop for hours, and every later build queues behind it (2026-11-02:
+  three drivers piled up overnight, one variable took 20 minutes to set). `api build` now refuses
+  to start unless the console answers within 45 s; when it refuses, close nTop (kill it if it
+  will not close), reopen it with the Python Console, `api check`, then build - one at a time,
+  waiting for `==> BUILT`.
 - SSH: `ssh -tt -i ~\.ssh\id_ntopcli -p 2222 localhost` while the console panel is open.
   Key-based only; `authorized_keys` written as ASCII (no BOM), owner-only. **One line per
   send**; a script is run as `exec(open(r"...driver.py").read())`; **Ctrl+C ends the
