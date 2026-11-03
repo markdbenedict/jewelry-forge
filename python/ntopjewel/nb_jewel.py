@@ -44,7 +44,7 @@ BAND_INPUTS = ["Outer Radius", "Bore Radius", "Z Top", "Z Bottom", "Dome Ring Ra
                "Comfort Ring Radius", "Comfort Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]
 
 # a shank's bars: ring_shank.ntop and the solitaires import this many (ntopjewel.shank.bar_meshes writes them,
-# an unused slot a speck inside the first) and unite them (add_wrapped_shank)
+# an unused slot repeats the smallest bar) and unite them (add_wrapped_shank)
 BAR_SLOTS = 4
 
 
@@ -211,7 +211,7 @@ def add_wrapped_shank(h: NotebookHelper, path_vars, wrap_var: str, inward_var: s
                       tolerance_var: str, label: str = "Shank") -> str:
     """The shank Python wrote as bars (ntopjewel.shank.ShankSpec.bar_meshes: X radial, Y along the
     ring, Z axial; `path_vars`: the text variables holding the shank.BAR_SLOTS paths, an unused
-    slot's a speck inside the first bar): per bar Import Mesh -> Implicit from Mesh -> the opening
+    slot repeating the smallest bar): per bar Import Mesh -> Implicit from Mesh -> the opening
     by the edge round (add_opening, on the bar, where the field is exact); Boolean Union of the
     opened bars (sharp: bodies that cross each other - a knot's strands, a split's halves, a double
     band's bridges - are united here, as implicits, never as meshes: a mesh union leaves faces

@@ -4,7 +4,7 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
 
     shank      the band as Python wrote it, bars (Shank Path .. Shank Path 4; plain, tapered, split,
                knotted - ntopjewel.shank.bar_meshes, bodies that cross each other in different bars, an
-               unused slot a speck inside the first): each Import Mesh -> Implicit from Mesh -> opened by
+               unused slot the smallest bar again): each Import Mesh -> Implicit from Mesh -> opened by
                the edge round, then united -> Remap Cylindrical (Wrap Length) = Band Body; the arches, less
                the slot cutter (Slot Path: the split's slot swept in the ring frame, a speck far outside
                when there is none), opened on their own and united afterwards
@@ -236,7 +236,7 @@ def prepare(spec, params: dict, test_dir: Path, tag: str) -> dict:
         spec.placed_head.windows_mesh().export(str(win))
     spec.write_engraving(eng)
     from .shank import write_bars
-    bars = write_bars(spec.shank_spec, test_dir, f"{tag}_test")                   # <tag>_test.bar.stl, .speck.stl
+    bars = write_bars(spec.shank_spec, test_dir, f"{tag}_test")                   # <tag>_test.bar.stl ...
     spec.slot_mesh().export(str(slot))
     v = spec.notebook_inputs(str(env), prongs_path=str(prongs) if spec.outline else "", engraving_path=str(eng),
                              windows_path=str(win) if spec.bezel else "", shank_paths=bars, slot_path=str(slot))

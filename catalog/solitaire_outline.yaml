@@ -17,13 +17,13 @@ inputs:
     doc: Absolute path of the first shank bar STL (ntopjewel.shank.write_bars - the band unrolled, X radial, Y along the ring, Z axial; plain or shaped; bodies that cross each other in different bars), written into the run directory.
   Shank Path 2:
     type: text
-    doc: The second bar (a split's upper half, a double band's bridges, a rope's or plait's second strand ...), or the speck inside the first bar when there is none.
+    doc: The second bar (a split's upper half, a double band's bridges, a rope's or plait's second strand ...), or the smallest bar again when there is none.
   Shank Path 3:
     type: text
-    doc: The third bar (a trinity shank's pad, a third strand), or the speck.
+    doc: The third bar (a trinity shank's pad, a third strand), or the smallest bar again.
   Shank Path 4:
     type: text
-    doc: The fourth bar (a plait's fourth strand), or the speck.
+    doc: The fourth bar (a plait's fourth strand), or the smallest bar again.
   Wrap Length:
     type: scalar
     units: mm

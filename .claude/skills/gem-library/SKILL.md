@@ -109,8 +109,7 @@ python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-widt
 ```
 
 The shank is always the bars Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
-`<stem>.bar.stl`, `.bar2.stl` ... and `<stem>.speck.stl` for the unused slots in the run
-directory; `Shank Path` .. `Shank Path 4` / `Wrap Length` inputs, catalogs 0.8 / 0.4): each
+`<stem>.bar.stl`, `.bar2.stl` ... in the run directory, the smallest repeated in unused slots; `Shank Path` .. `Shank Path 4` / `Wrap Length` inputs, catalogs 0.8 / 0.4): each
 Import Mesh → Implicit from Mesh → opened by the edge round, then united → Remap Cylindrical =
 Band Body; the arches are opened on their own and united with it. Ring 01 (the marquise on the
 trinity shank) built PASSED in nTop on 2 Nov; its 7 "shells" were the mesher's zero-volume

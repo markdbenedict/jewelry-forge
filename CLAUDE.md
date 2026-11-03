@@ -121,8 +121,9 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   import turn into intersections - no cleaning fixes that (`geom.clean` merges coplanar facets into
   mm-long triangles, which a vertex-wise unwrap turns into self-intersections; the edge collapse
   helps nothing). **So no bar carries a mesh union**: bodies that cross each other go to nTop in
-  separate bars (`ShankSpec.bar_meshes`, `Shank Path` .. `Shank Path 4`, a 0.25 mm speck inside the
-  first bar in an unused slot) and nTop's Boolean Union joins the implicits; pieces that continue
+  separate bars (`ShankSpec.bar_meshes`, `Shank Path` .. `Shank Path 4`; an unused slot imports the
+  smallest bar again - a speck in its place vanished under the opening's erosion and nothing
+  downstream built, 2026-11-02) and nTop's Boolean Union joins the implicits; pieces that continue
   each other overlap by a 0.1 mm plug, never share a face. The simulated nTop unites the wrapped
   bars in the ring frame (`shank.bars_from_inputs`). Verified 2026-11-02: the trinity shank, the
   trinity solitaire and the plait all built in one shell.
@@ -289,7 +290,7 @@ python -m ntopjewel api build outline_head                           # ntop\bloc
 python -m ntopjewel api build solitaire_outline                      # ntop\notebooks\solitaire_outline.ntop: the solitaire with the outline head (pear ...)
 python -m ntopjewel api build bezel_head                             # ntop\blocks\bezel_head.ntop (wall + cup round any outline, light windows) + its harness
 python -m ntopjewel api build solitaire_bezel                        # ntop\notebooks\solitaire_bezel.ntop: the solitaire with the bezel
-python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bars Python writes, united in nTop (prepare() writes the test bar + speck)
+python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bars Python writes, united in nTop (prepare() writes the test bar)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running

@@ -11,7 +11,7 @@ Phase 3, step 1 (ntopjewel.shank).
                           split's halves, a double band's bridges, a rope's, plait's or trinity knot's strands -
                           come in separate bars and are united HERE, as implicits (a mesh union left faces
                           micrometres apart along its seams, which the import read as self-intersecting,
-                          2026-11-02); an unused slot holds a speck inside the first bar, which changes nothing
+                          2026-11-02); an unused slot imports the smallest bar again, which changes nothing
                        -> Remap Cylindrical Body (Y mapping length = Wrap Length)   the bar wrapped round Z
                        -> Shank Body -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance),
                           Export Mesh (Output Path)
@@ -37,7 +37,7 @@ from ntopjewel.nb_jewel import SLOT_NAMES
 HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
 TEST_DIR = REPO / "out" / "api"
-TEST_STEM = "ring_shank_test"                                     # prepare() writes ring_shank_test.bar.stl, .speck.stl
+TEST_STEM = "ring_shank_test"                                     # prepare() writes ring_shank_test.bar.stl
 
 INPUT_ORDER = [*SLOT_NAMES, "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance", "Output Path"]
 
@@ -65,7 +65,7 @@ DEFAULTS = {
 
 def prepare(params: dict, work_dir: Path) -> dict:
     """Laptop side: write the test bars the notebook imports (the tapered shank: one bar and the
-    speck for the other slots), and every input value."""
+    same file in the other slots), and every input value."""
     from ntopjewel import shank
     spec = _spec()
     TEST_DIR.mkdir(parents=True, exist_ok=True)

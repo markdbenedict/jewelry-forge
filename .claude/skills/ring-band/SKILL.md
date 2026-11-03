@@ -208,8 +208,8 @@ bottom (no crease at the shoulders or the bottom). The thin end must itself be a
 (floors, edge round): a 1.0 mm court bottom needs `--edge-round 0.15`.
 
 **Bodies that cross each other travel in separate bars** (`ShankSpec.bar_meshes`, up to four:
-`Shank Path` .. `Shank Path 4`, catalog 0.3; an unused slot imports a 0.25 mm speck inside the
-first bar), each opened by the edge round on its own, and nTop's Boolean Union joins the opened
+`Shank Path` .. `Shank Path 4`, catalog 0.3; an unused slot imports the smallest bar again),
+each opened by the edge round on its own, and nTop's Boolean Union joins the opened
 implicits before the wrap (opening the union eroded a 0.05 mm groove along a split's seam: a
 union's field measures to a buried face inside an overlap): a split's
 two halves, a double band's strands and its bridges, a rope's or a plait's strands one each, a
@@ -229,7 +229,7 @@ trip: 0.057 mm at 0.1), half of it elsewhere.
 The gate: the band checks measured about the axis (bore Ø, the widest width, the largest
 outer Ø, walls against the thinnest station's edge), volume vs nTop, **section shape** (above)
 and the design volume against the independent sweep of the same sections (no bar, no wrap). Files: `out\shank\<stem>\<run id>\` with the bars
-(`<stem>.bar.stl`, `.bar2.stl` ..., `<stem>.speck.stl`) beside the STL; stem
+(`<stem>.bar.stl`, `.bar2.stl` ...) beside the STL; stem
 `ring_shank_<profile>_<label>_w<head>-<bottom>_t<head>-<bottom>[_contour1.5|_chevron2][_x2|_x2m][_split1.6]_<spec id>`,
 a rope `ring_shank_rope<strands>x<turns>_<label>_d<strand>_<spec id>`.
 

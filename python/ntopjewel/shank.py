@@ -80,8 +80,6 @@ MIN_EDGE_MM = 2e-4          # every union's result has its shorter edges collaps
                             # went with them (the trinity shank, 2026-11-01)
 PLUG_MM = 0.1               # a bar piece runs this far into the body that continues it (a knot's strand into its half, its other piece)
 PLUG_INSET = 0.04           # ... its section drawn in by this fraction over the plug, so the plug lies inside that body
-SPECK_MM = 0.25             # an unused bar slot imports a cube this big, inside the first bar's material (union_speck): five
-                            # voxels at the default Mesh Tolerance, so the notebook's per-bar mesh round trip keeps it whole
 KNOT_LIFT_MM = 0.1          # a trinity knot's ribbon runs this far above the bore (buried clear of the pad's bore where it enters it)
 KNOT_TAPER_MM = 1.5         # the tail narrows from the half's section to the knot's ribbon over this run
 PAD_STEP_DEG = 1.0          # stations along the pad a knot's lobes run into
@@ -929,7 +927,7 @@ class ShankSpec:
 
     def bar_meshes(self) -> list:
         """The unrolled shank for the notebook, as the bars it imports and unites (at most
-        BAR_SLOTS; write_bars fills the rest with a speck): one bar per set of bodies that touch
+        BAR_SLOTS; write_bars fills the rest with the smallest bar again): one bar per set of bodies that touch
         nothing else in it, so each bar is a clean mesh on its own and every union is nTop's. A
         plain shank is one bar; a double band's strands one each (a wishbone's meet at the head) and
         its bridges another; a rope's or a plait's strands one each; a split's halves one each
@@ -964,7 +962,7 @@ class ShankSpec:
 
     @property
     def bar_count(self) -> int:
-        """How many bars bar_meshes writes (the rest of the notebook's BAR_SLOTS get the speck)."""
+        """How many bars bar_meshes writes (the rest of the notebook's BAR_SLOTS repeat the smallest)."""
         if self.rope:
             return int(self.rope)
         if self.knot == "plait":
@@ -976,9 +974,10 @@ class ShankSpec:
         return int(self.lofts) + (1 if self.bridge_spans() else 0)
 
     def bar_placeholders(self) -> list[str]:
-        """What a dry run shows for the bar inputs: the files write_bars will write."""
+        """What a dry run shows for the bar inputs: the files write_bars will write (an unused slot
+        repeats the smallest bar; the dry run names the first)."""
         names = [f"<{self.stem}.bar.stl>"] + [f"<{self.stem}.bar{k + 1}.stl>" for k in range(1, self.bar_count)]
-        return names + [f"<{self.stem}.speck.stl>"] * (BAR_SLOTS - len(names))
+        return names + [names[0]] * (BAR_SLOTS - len(names))
 
     def bar_mesh(self):
         """Every bar in one, for the rope's and plait's section model (wrapped_ring) and for tests:
@@ -1593,32 +1592,6 @@ def plug_rings(rings, length: float = PLUG_MM, inset: float = PLUG_INSET):
     return np.concatenate(out)
 
 
-def union_speck(bar, wrap_length: float):
-    """A cube SPECK_MM across inside `bar`'s material at the bottom of the ring (Y = L/2, the point
-    of its section there farthest from any edge): what an unused bar slot imports, united into
-    metal that is there anyway - the field does not change. Big enough to come through the
-    notebook's per-bar mesh round trip (a 0.05 mm one would mesh to nothing, or to the 12-face
-    bubbles nTop makes of a 0.05 mm bead)."""
-    import numpy as np
-    import trimesh
-    from shapely.geometry import Polygon
-    from shapely.ops import polylabel
-    L = float(wrap_length)
-    sec = bar.section(plane_origin=[0.0, L / 2, 0.0], plane_normal=[0.0, 1.0, 0.0])
-    if sec is None:
-        raise ValueError("union_speck: the first bar has no material at the bottom of the ring")
-    loops = [np.asarray(loop) for loop in sec.discrete]
-    polys = [Polygon(loop[:, [0, 2]]) for loop in loops if len(loop) >= 4]
-    poly = max((p for p in polys if p.is_valid and not p.is_empty), key=lambda p: p.area)
-    p = polylabel(poly, tolerance=0.01)
-    margin = poly.exterior.distance(p)
-    if margin < SPECK_MM * math.sqrt(3) / 2:                                 # the cube's half diagonal
-        raise ValueError(f"union_speck: the section at the bottom is too thin for a speck ({margin:.3f} mm to its edge)")
-    cube = trimesh.creation.box(extents=(SPECK_MM, SPECK_MM, SPECK_MM))
-    cube.apply_translation((p.x, L / 2, p.y))
-    return cube
-
-
 def bars_from_inputs(v: dict):
     """The shank a notebook's bar inputs describe, the way the simulated nTop builds it: every bar
     at Shank Path .. Shank Path 4 wrapped vertex-wise (wrap_bar) and the wrapped bars united in the
@@ -1639,8 +1612,11 @@ def bars_from_inputs(v: dict):
 
 def write_bars(spec: ShankSpec, directory: Path, stem: str) -> list[str]:
     """The notebook's BAR_SLOTS bar files for `spec` in `directory`: `<stem>.bar.stl`,
-    `<stem>.bar2.stl` ... (bar_meshes), the unused slots all pointing at `<stem>.speck.stl`
-    (union_speck inside the first bar). Returns the BAR_SLOTS paths in slot order."""
+    `<stem>.bar2.stl` ... (bar_meshes), the unused slots all pointing at the smallest of them
+    again - a body united with itself is itself, and it survives the notebook's per-bar opening
+    (a speck inside the first bar did not: eroded by the edge round it was empty, nTop's Mesh
+    block failed on it and nothing downstream built, 2026-11-02). Returns the BAR_SLOTS paths in
+    slot order."""
     directory = Path(directory)
     bars = spec.bar_meshes()
     if len(bars) > BAR_SLOTS:
@@ -1652,9 +1628,8 @@ def write_bars(spec: ShankSpec, directory: Path, stem: str) -> list[str]:
         bar.export(str(path))
         paths.append(str(path))
     if len(bars) < BAR_SLOTS:
-        speck = directory / f"{stem}.speck.stl"
-        union_speck(bars[0], spec.wrap_length_mm).export(str(speck))
-        paths += [str(speck)] * (BAR_SLOTS - len(bars))
+        smallest = paths[min(range(len(bars)), key=lambda k: len(bars[k].faces))]
+        paths += [smallest] * (BAR_SLOTS - len(bars))
     return paths
 
 
