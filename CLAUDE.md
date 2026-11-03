@@ -143,6 +143,14 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   body's cut face meets the surface, starting the edge round back from the cut, so a 0.1 mm
   overlap under a 0.25 mm round still left the halves' quarter-rounds meeting in a 0.055 mm groove
   (2026-11-03, opened per bar; `ShankSpec.split_overlap_mm` = edge round + mesh tolerance).
+- **A mesh Python wraps for nTop must be clean before and after the wrap**: never refine a mesh in 3-D
+  with trimesh's `subdivide_to_size` (a triangle soup with T-junctions, which the cylindrical wrap bends
+  into piercings: nTop read the artwork cutters as self-intersecting and left 0.013 mm needles on the
+  faces, 2026-11-03), and never warp a cap triangulated by earcut (its slivers fold under the chord sag
+  c²/8r: 96 crossing pairs in the leaves). Build structured meshes instead: boxes lofted station by
+  station (`artwork.prism_along_y`, `swept_slit`), outlines densified in 2-D and capped by the constrained
+  Delaunay in `artwork.quality_triangulate` (`radial_prism`, `axial_prism`). Every layer is read back
+  from its STL and refused if `geom.intersecting_faces` finds a pair (`ArtworkSpec.write_layers`).
 - **Mesh from Implicit Body leaves 12-face bubbles of no volume where two surfaces kiss** (a
   ribbon's rounded corner passing another's at a fused crossing, a rail's foot on the band's dome
   inside the blend): 2 on the plait, 7 on the trinity solitaire (2026-11-02). The gate counts a

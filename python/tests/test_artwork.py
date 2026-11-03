@@ -34,7 +34,7 @@ def test_the_leaf_row_fills_the_panel_and_the_vine_is_one_piece():
     a = seraphine()
     side, outer = a.panels[1], a.panels[0]
     leaves = a.motif(side)
-    assert len(leaves) == 6 and all(d["groove"] is not None for d in leaves)
+    assert len(leaves) == 6 and all(len(d["veins"]) == 1 for d in leaves)
     starts = sorted(d["poly"].bounds[0] for d in leaves)
     assert np.allclose(np.diff(starts), a.leaf_pitch * a.leaf_length("side+"))          # evenly pitched
     assert len(a.motif(outer)) == 1                                                       # spine, leaves and hooks united
@@ -119,3 +119,36 @@ def test_cli_artwork_dry_run(capsys):
     out = capsys.readouterr().out
     assert "vine scroll" in out and "6 leaves" in out and "Relief Path" in out
     assert cli.main(["artwork", "--rail", "0.2", "--dry-run"]) == 1
+
+
+@pytest.mark.parametrize("face", artwork.FACES)
+@pytest.mark.parametrize("motif", artwork.MOTIFS)
+def test_every_layer_survives_the_stl_round_trip_without_crossing_itself(face, motif, tmp_path):
+    """2026-11-03, the real run: nTop read the first cutter layer as self-intersecting (trimesh's
+    subdivide_to_size left T-junctions that the wrap bent into piercings) and left 0.013 mm needles
+    standing on the side faces; earcut's sliver caps folded under the wrap (96 pairs in the leaves).
+    Now lofted cutters, outlines densified in 2-D and caps from a constrained Delaunay: nothing
+    crosses, on any face, for any motif, as written (float32) and read back."""
+    import trimesh
+    from ntopjewel import geom
+    a = artwork.ArtworkSpec(shank.ShankSpec(flat()), [artwork.Panel(face, motif, 25.0, 120.0)])
+    cut, relief = a.write_layers(tmp_path, "t")                                 # refuses a dirty layer itself
+    for path in (cut, relief):
+        back = trimesh.load(path, force="mesh")
+        assert back.is_volume and len(geom.intersecting_faces(back, cell_mm=0.3)) == 0
+
+
+def test_the_constrained_triangulation_keeps_every_boundary_edge_and_no_slivers():
+    import numpy as np
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
+    # a leaf with a notch and a hole: the shapes a vine makes
+    poly = unary_union([artwork.leaf_polygon(1.0, 0.5), Point(0.9, 0.0).buffer(0.3)]).difference(Point(0.4, 0.0).buffer(0.08))
+    pts, tri, rings = artwork.quality_triangulate(poly)
+    assert len(rings) == 2 and len(tri) > 30
+    e1, e2 = pts[tri[:, 1]] - pts[tri[:, 0]], pts[tri[:, 2]] - pts[tri[:, 0]]
+    area = 0.5 * (e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0])
+    assert (area > 0).all()                                                      # all counter-clockwise, none flat
+    longest = np.max([np.linalg.norm(pts[tri[:, (i + 1) % 3]] - pts[tri[:, i]], axis=1) for i in range(3)], axis=0)
+    assert (2 * area / longest).min() > 0.01                                     # no sliver under 10 µm tall
+    assert abs(area.sum() - artwork.densified(poly).area) < 1e-6                 # the triangles tile the polygon exactly

@@ -120,9 +120,15 @@ VEIN_DEPTH_MM), `vine` (a gentle S-curve spine with a leaf at each crest and a h
 polygon, clipped to the channel), `volute` (a spiral scroll), `plain` (the channel alone). A new motif
 is one function returning `[{"poly", "groove"}]`.
 
-Geometry is built in the bar frame (X radial, Y along the ring, Z axial), subdivided to
-`MAX_EDGE_MM` and wrapped vertex-wise (geom.remap_cylindrical, what nTop's Remap Cylindrical does): a
-side-face motif is stretched along the ring in proportion to the radius (±10 % over a 2 mm thick band).
+Geometry: the cutters are boxes lofted station by station along the ring and wrapped vertex-wise
+(geom.remap_cylindrical, what nTop's Remap Cylindrical does); a relief body's outline is densified in
+2-D, capped by a constrained Delaunay triangulation (`quality_triangulate`: boundary + an interior grid,
+every boundary edge recovered by edge flips, no slivers) and swept - radially on the outer face
+(`radial_prism`, every vertex wrapped), straight along the axis on a side face after the outline itself
+is wrapped (`axial_prism`, exact); a vein is a rectangle swept along its segment (`swept_slit`). Never
+a 3-D subdivision or an earcut cap under the wrap: T-junctions pierce and slivers fold (the first real
+run, 2026-11-03). `write_layers` reads each layer back and refuses one that crosses itself. A side-face
+motif is stretched along the ring in proportion to the radius (±10 % over a 2 mm thick band).
 Python writes `<stem>.cut.stl` (one body per panel copy) and `<stem>.relief.stl` (one body per leaf
 or scroll, each plugged `PLUG_MM` into the floor); the notebook builds `(shank − cuts) ∪ relief` -
 the band is opened by its edge round first, so the channel edges stay crisp and the relief is never

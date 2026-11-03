@@ -336,9 +336,12 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    channel on the outer or a side face over an arc, rails along its edges) with a 2-D motif in relief
    on the floor - `leaves`, `vine`, `volute`, `plain` - built in the bar frame and wrapped; Python
    writes the cutters and the relief, the notebook builds (shank − cuts) ∪ relief; the gate probes
-   every panel's floor, relief and rails on a grid. Passes on the simulated nTop. *Real check:*
-   `api build ring_artwork`, then `artwork --sides leaves --outer vine` - PASSED, and the 0.2 mm
-   veins and 0.25 mm relief looked at in the GUI at Mesh Tolerance 0.05. **Still missing for the
+   every panel's floor, relief and rails on a grid. **First real run (11:16): every panel probe passed
+   and the volume matched to 0.03 %, but 4 needle shells stood on the side faces - nTop read the cutter
+   layer as self-intersecting (3-D subdivision's T-junctions bent by the wrap; earcut's sliver caps fold
+   too). Layers are now structured lofts and constrained-Delaunay prisms, and refused at write time if
+   they cross themselves.** *Real check:* `artwork --sides leaves --outer vine` again (no rebuild) -
+   PASSED, one shell, and the 0.2 mm veins and 0.25 mm relief looked at in the GUI. **Still missing for the
    Seraphine:** the panels under a solitaire's head (Cut/Relief Path on the solitaire notebooks), the
    knots standing on a continuous band (ours are woven from a split), the volutes under the head,
    double-claw prongs and the heart gallery (6).)* Scroll and floral relief panels, leaf borders,

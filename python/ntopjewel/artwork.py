@@ -58,12 +58,26 @@ def leaf_polygon(length: float, width: float):
     return MultiPoint(list(base.exterior.coords) + [(length, 0.0)]).convex_hull
 
 
-def leaf_vein(length: float, width: float | None = None):
-    """The shallow groove down a leaf's middle: from a quarter along to short of the tip, VEIN_WIDTH_MM
-    wide or a fifth of the leaf's width on a small leaf."""
-    from shapely.geometry import LineString
+def leaf_vein(length: float, width: float | None = None) -> tuple:
+    """The shallow groove down a leaf's middle as a segment ((u0, v0), (u1, v1), width): from a
+    quarter along to short of the tip, VEIN_WIDTH_MM wide or a fifth of the leaf's width on a small
+    leaf. A vein is a straight slit, so it is swept, never triangulated (vein_polygon draws it)."""
     w = VEIN_WIDTH_MM if width is None else min(VEIN_WIDTH_MM, 0.2 * width)
-    return LineString([(0.25 * length, 0.0), (0.82 * length, 0.0)]).buffer(w / 2, cap_style="round")
+    return ((0.25 * length, 0.0), (0.82 * length, 0.0), w)
+
+
+def vein_polygon(seg: tuple):
+    from shapely.geometry import LineString
+    (a, b, w) = seg
+    return LineString([a, b]).buffer(w / 2, cap_style="round")
+
+
+def _move_seg(seg: tuple, angle_deg: float, du: float, dv: float) -> tuple:
+    """A vein segment rotated about the origin and shifted, as shapely's rotate + translate."""
+    c, s = math.cos(math.radians(angle_deg)), math.sin(math.radians(angle_deg))
+    (a, b, w) = seg
+    rot = lambda q: (c * q[0] - s * q[1] + du, s * q[0] + c * q[1] + dv)             # noqa: E731
+    return (rot(a), rot(b), w)
 
 
 def motif_leaves(length_u: float, width_v: float, leaf: float, pitch: float, vein: bool) -> list[dict]:
@@ -76,8 +90,7 @@ def motif_leaves(length_u: float, width_v: float, leaf: float, pitch: float, vei
     for k in range(n):
         u0 = slack + k * pitch
         poly = translate(leaf_polygon(leaf, width), u0, 0.0)
-        groove = translate(leaf_vein(leaf), u0, 0.0) if vein else None
-        out.append({"poly": poly, "groove": groove})
+        out.append({"poly": poly, "veins": [_move_seg(leaf_vein(leaf), 0.0, u0, 0.0)] if vein else []})
     return out
 
 
@@ -97,7 +110,7 @@ def motif_volute(length_u: float, width_v: float, stroke: float) -> list[dict]:
     pts = pts + [R + stroke / 2, 0.0]
     tail = [(float(pts[-1, 0]), float(pts[-1, 1])), (length_u - stroke / 2, 0.0)] if length_u > 2 * R + stroke else []
     line = LineString(list(map(tuple, pts)) + tail)
-    return [{"poly": line.buffer(stroke / 2, cap_style="round", join_style="round"), "groove": None}]
+    return [{"poly": line.buffer(stroke / 2, cap_style="round", join_style="round"), "veins": []}]
 
 
 def motif_vine(length_u: float, width_v: float, stroke: float, leaf: float, vein: bool) -> list[dict]:
@@ -116,7 +129,7 @@ def motif_vine(length_u: float, width_v: float, stroke: float, leaf: float, vein
     u = np.linspace(0.0, length_u, max(20, int(length_u / 0.1)))
     v = A * np.sin(2 * math.pi * u / period)
     spine = LineString(np.column_stack([u, v])).buffer(stroke / 2, cap_style="round", join_style="round")
-    parts, grooves = [spine], []
+    parts, veins = [spine], []
     leaf_w = 0.5 * leaf
     for k in range(n_half):
         uc = (k + 0.5) * period / 2                                     # a crest
@@ -124,7 +137,7 @@ def motif_vine(length_u: float, width_v: float, stroke: float, leaf: float, vein
         ang, at = 32.0 * side, (uc - 0.1 * leaf, side * (A - 0.08))
         parts.append(translate(rotate(leaf_polygon(leaf, leaf_w), ang, origin=(0.0, 0.0)), *at))
         if vein:
-            grooves.append(translate(rotate(leaf_vein(leaf, leaf_w), ang, origin=(0.0, 0.0)), *at))
+            veins.append(_move_seg(leaf_vein(leaf, leaf_w), ang, *at))
     curl_r = max(0.25, min(half - stroke / 2 - 0.05, 0.6 * leaf))
     for end, sign in ((0.0, 1.0), (length_u, -1.0)):               # a hook at each end (a full spiral fills in at this stroke)
         pts = _spiral(0.75, 0.55 * curl_r, curl_r, 36)
@@ -132,9 +145,295 @@ def motif_vine(length_u: float, width_v: float, stroke: float, leaf: float, vein
         parts.append(LineString(list(map(tuple, pts))).buffer(stroke / 2, cap_style="round", join_style="round"))
     clip = box(0.0, -half + 0.08, length_u, half - 0.08)
     poly = unary_union(parts).intersection(clip)
-    groove = unary_union(grooves).intersection(clip) if grooves else None
     polys = [q for q in getattr(poly, "geoms", [poly]) if q.area > 0.02]
-    return [{"poly": q, "groove": groove.intersection(q.buffer(-0.02)) if groove is not None else None} for q in polys]
+    out = []
+    for q in polys:                                                     # a vein stays where its leaf survived the clip
+        keep = [v for v in veins if q.buffer(-0.03).contains(vein_polygon(v))]
+        out.append({"poly": q, "veins": keep})
+    return out
+
+
+
+# ---- clean meshes for the wrap --------------------------------------------------------------------
+def prism_along_y(x0: float, x1: float, z0: float, z1: float, y0: float, y1: float, dy: float):
+    """A box lofted along Y: a rectangle (x0..x1, z0..z1) at every station y0..y1 (at most `dy`
+    apart), the four walls quad strips between stations, the ends two triangles - a structured
+    watertight mesh whose every face spans one station, so the wrap bends it cleanly."""
+    import numpy as np
+    import trimesh
+    n = max(2, int(math.ceil((y1 - y0) / dy)) + 1)
+    ys = np.linspace(y0, y1, n)
+    corners = np.array([[x0, z0], [x1, z0], [x1, z1], [x0, z1]])
+    V = np.array([[cx, y, cz] for y in ys for cx, cz in corners])
+    F = []
+    for k in range(n - 1):
+        a, b = 4 * k, 4 * (k + 1)
+        for i in range(4):
+            j = (i + 1) % 4
+            F += [[a + i, b + i, b + j], [a + i, b + j, a + j]]
+    F += [[0, 2, 1], [0, 3, 2]]                                   # the y0 end
+    e = 4 * (n - 1)
+    F += [[e, e + 1, e + 2], [e, e + 2, e + 3]]                   # the y1 end
+    m = trimesh.Trimesh(V, np.array(F), process=False)
+    trimesh.repair.fix_winding(m)
+    if m.volume < 0:
+        m.invert()
+    return m
+
+
+def densified(poly, step: float = MAX_EDGE_MM):
+    """The polygon with a vertex at least every `step` along its boundary (shapely segmentize), so
+    an extrusion's every wall quad is short and bends cleanly under the wrap; its caps need no
+    refinement (planar after the wrap on a side face; on the outer face a cap triangle a leaf wide
+    sags 0.01 mm under the cylinder at r 10). No 3-D subdivision: trimesh's subdivide_to_size
+    leaves T-junctions that pierce their neighbours once wrapped, and uniform subdivision of
+    earcut's sliver caps gave 18,000 intersecting pairs after float32 (2026-11-03)."""
+    import shapely
+    return shapely.segmentize(shapely.simplify(poly, 0.01, preserve_topology=True), step)   # a union's or clip's
+                                                                                            # near-duplicate points out first
+
+
+
+def swept_slit(p0, p1, width: float, r0: float, r1: float, wrap_length: float, step: float = MAX_EDGE_MM):
+    """A rectangle `width` across x (r1 - r0) radial, swept along the segment p0 -> p1 in the bar
+    frame's (y, z) at stations at most `step` apart, every vertex wrapped round Z: a vein's slit
+    cutter on the outer face. Structured like prism_along_y, so it bends cleanly."""
+    import numpy as np
+    import trimesh
+    p0, p1 = np.asarray(p0, float), np.asarray(p1, float)
+    d = p1 - p0
+    L = float(np.linalg.norm(d))
+    n = max(2, int(math.ceil(L / step)) + 1)
+    t_ = d / L
+    nrm = np.array([-t_[1], t_[0]])
+    V = []
+    for k in np.linspace(0.0, 1.0, n):
+        c = p0 + k * d
+        for yz, r in ((c - nrm * width / 2, r0), (c + nrm * width / 2, r0), (c + nrm * width / 2, r1), (c - nrm * width / 2, r1)):
+            th = 2 * math.pi * yz[0] / wrap_length
+            V.append([r * math.cos(th), r * math.sin(th), yz[1]])
+    F = []
+    for k in range(n - 1):
+        a, b = 4 * k, 4 * (k + 1)
+        for i in range(4):
+            j = (i + 1) % 4
+            F += [[a + i, b + i, b + j], [a + i, b + j, a + j]]
+    F += [[0, 2, 1], [0, 3, 2]]
+    e = 4 * (n - 1)
+    F += [[e, e + 1, e + 2], [e, e + 2, e + 3]]
+    m = trimesh.Trimesh(np.array(V), np.array(F), process=False)
+    trimesh.repair.fix_winding(m)
+    if m.volume < 0:
+        m.invert()
+    return m
+
+
+class _Tri:
+    """A triangulation with edge flips: triangles as index triples (counter-clockwise), an
+    edge -> triangles map, Lawson flips to Delaunay quality and Sloan's constraint recovery."""
+
+    def __init__(self, pts, tris):
+        import numpy as np
+        self.pts = np.asarray(pts, float)
+        self.tris = {}
+        self.edges = {}
+        for k, t in enumerate(np.asarray(tris)):
+            self._add(k, [int(x) for x in t])
+        self.next_id = len(self.tris)
+
+    @staticmethod
+    def _key(u, v):
+        return (u, v) if u < v else (v, u)
+
+    def _add(self, k, t):
+        a, b, c = t
+        p = self.pts
+        if (p[b, 0] - p[a, 0]) * (p[c, 1] - p[a, 1]) - (p[b, 1] - p[a, 1]) * (p[c, 0] - p[a, 0]) < 0:
+            t = [a, c, b]
+        self.tris[k] = t
+        for u, v in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            self.edges.setdefault(self._key(u, v), set()).add(k)
+
+    def _remove(self, k):
+        t = self.tris.pop(k)
+        for u, v in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            s = self.edges[self._key(u, v)]
+            s.discard(k)
+            if not s:
+                del self.edges[self._key(u, v)]
+
+    def _new(self, t):
+        self.next_id += 1
+        self._add(self.next_id, t)
+        return self.next_id
+
+    @staticmethod
+    def _cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    def _segments_cross(self, a, b, c, d):
+        """Proper crossing of segments ab and cd (no shared endpoints)."""
+        p = self.pts
+        if len({a, b, c, d}) < 4:
+            return False
+        d1, d2 = self._cross(p[c], p[d], p[a]), self._cross(p[c], p[d], p[b])
+        d3, d4 = self._cross(p[a], p[b], p[c]), self._cross(p[a], p[b], p[d])
+        return (d1 * d2 < 0) and (d3 * d4 < 0)
+
+    def flip(self, u, v):
+        """Flip the edge uv shared by two triangles into the other diagonal; the new edge, or
+        None when the quad is not convex (or uv is a boundary edge)."""
+        ts = self.edges.get(self._key(u, v), set())
+        if len(ts) != 2:
+            return None
+        k1, k2 = sorted(ts)
+        e = [x for x in self.tris[k1] if x not in (u, v)][0]
+        f = [x for x in self.tris[k2] if x not in (u, v)][0]
+        if not self._segments_cross(u, v, e, f):
+            return None
+        self._remove(k1)
+        self._remove(k2)
+        self._new([e, f, u])
+        self._new([f, e, v])
+        return (e, f)
+
+    def _circum_violates(self, u, v):
+        ts = self.edges.get(self._key(u, v), set())
+        if len(ts) != 2:
+            return False
+        k1, k2 = sorted(ts)
+        a, b, c = self.tris[k1]
+        d = [x for x in self.tris[k2] if x not in (u, v)][0]
+        p = self.pts
+        ax, ay = p[a] - p[d]
+        bx, by = p[b] - p[d]
+        cx, cy = p[c] - p[d]
+        det = ((ax * ax + ay * ay) * (bx * cy - cx * by) - (bx * bx + by * by) * (ax * cy - cx * ay)
+               + (cx * cx + cy * cy) * (ax * by - bx * ay))
+        return det > 1e-12
+
+    def recover(self, a, b):
+        """Make ab an edge by flipping the edges that cross it (Sloan)."""
+        for _ in range(10000):
+            if self._key(a, b) in self.edges:
+                return True
+            crossing = [k for k in self.edges if self._segments_cross(a, b, k[0], k[1])]
+            if not crossing:
+                return False
+            done = False
+            for u, v in crossing:
+                if self.flip(u, v) is not None:
+                    done = True
+                    break
+            if not done:
+                return False
+        return False
+
+    def delaunay(self, constraints: set, rounds: int = 20):
+        """Lawson flips on every non-constraint edge until none violates the circumcircle test."""
+        for _ in range(rounds):
+            flipped = 0
+            for key in list(self.edges):
+                if key in constraints or key not in self.edges:
+                    continue
+                if self._circum_violates(*key) and self.flip(*key) is not None:
+                    flipped += 1
+            if not flipped:
+                break
+
+
+def quality_triangulate(poly, step: float = MAX_EDGE_MM):
+    """A sliver-free constrained Delaunay triangulation of a polygon (holes allowed): Delaunay over
+    its boundary densified every `step` plus an interior grid, every boundary edge recovered by edge
+    flips, triangles outside dropped, the rest flipped back to Delaunay quality. Returns (points,
+    triangles, rings) with each boundary ring's point indices in order; every boundary edge is the
+    edge of exactly one triangle (else ValueError). Boundary triangles then stand at least a few
+    hundredths of a millimetre tall, so a cap of them survives the cylindrical wrap (unconstrained
+    Delaunay crossed or doubled an edge at a leaf's notch, 2026-11-03)."""
+    import numpy as np
+    import shapely
+    from scipy.spatial import Delaunay
+    poly = densified(poly, step)
+    rings_xy = [np.asarray(poly.exterior.coords)[:-1]] + [np.asarray(h.coords)[:-1] for h in poly.interiors]
+    pts = np.vstack(rings_xy)
+    rings, k = [], 0
+    for r in rings_xy:
+        rings.append(np.arange(k, k + len(r)))
+        k += len(r)
+    inner = poly.buffer(-0.45 * step)
+    x0, y0, x1, y1 = poly.bounds
+    gx, gy = np.meshgrid(np.arange(x0 + 0.137 * step, x1, 0.8 * step), np.arange(y0 + 0.213 * step, y1, 0.8 * step))
+    g = np.column_stack([gx.ravel(), gy.ravel()])
+    if not inner.is_empty and len(g):
+        g = g[shapely.contains_xy(inner, g[:, 0], g[:, 1])]
+        if len(g):
+            pts = np.vstack([pts, g])
+    T = _Tri(pts, Delaunay(pts).simplices)
+    constraints = set()
+    for r in rings:
+        for i in range(len(r)):
+            a, b = int(r[i]), int(r[(i + 1) % len(r)])
+            constraints.add(T._key(a, b))
+            if not T.recover(a, b):
+                raise ValueError("quality_triangulate: a boundary edge could not be recovered")
+    tri = np.array(list(T.tris.values()))
+    cent = pts[tri].mean(axis=1)
+    e1, e2 = pts[tri[:, 1]] - pts[tri[:, 0]], pts[tri[:, 2]] - pts[tri[:, 0]]
+    area2 = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0])
+    tri = tri[shapely.contains_xy(poly, cent[:, 0], cent[:, 1]) & (area2 > 1e-9)]   # flat triangles of three collinear
+    T = _Tri(pts, tri)                                                                  # boundary points out (a straight clip edge)
+    T.delaunay(constraints)
+    tri = np.array(list(T.tris.values()))
+    count: dict = {}
+    for a, b, c in tri:
+        for u, v in ((a, b), (b, c), (c, a)):
+            count[T._key(int(u), int(v))] = count.get(T._key(int(u), int(v)), 0) + 1
+    for key in constraints:
+        if count.get(key, 0) != 1:
+            raise ValueError("quality_triangulate: a boundary edge is not the edge of exactly one triangle")
+    return pts, tri, rings
+
+
+def _prism(pts, tri, rings, lo, hi):
+    """A watertight body from a cap triangulation placed twice: `lo` and `hi` are (n, 3) arrays
+    of the cap points' 3-D positions; walls join the rings' consecutive points."""
+    import numpy as np
+    import trimesh
+    n = len(pts)
+    V = np.vstack([lo, hi])
+    F = [list(t[::-1]) for t in tri] + [[t[0] + n, t[1] + n, t[2] + n] for t in tri]
+    for r in rings:
+        for i in range(len(r)):
+            a, b = int(r[i]), int(r[(i + 1) % len(r)])
+            F += [[a, b, b + n], [a, b + n, a + n]]
+    m = trimesh.Trimesh(V, np.array(F), process=False)
+    trimesh.repair.fix_winding(m)
+    if m.volume < 0:
+        m.invert()
+    return m
+
+
+def radial_prism(poly_yz, r0: float, r1: float, wrap_length: float):
+    """A polygon in the bar frame's (y, z) swept radially from r0 to r1 and wrapped round Z
+    (y -> angle, y = wrap_length a turn): caps on the two cylinders, walls between the rings'
+    consecutive points. Watertight, outward-wound."""
+    import numpy as np
+    pts, tri, rings = quality_triangulate(poly_yz)
+    th = 2 * math.pi * pts[:, 0] / wrap_length
+    lo = np.column_stack([r0 * np.cos(th), r0 * np.sin(th), pts[:, 1]])
+    hi = np.column_stack([r1 * np.cos(th), r1 * np.sin(th), pts[:, 1]])
+    return _prism(pts, tri, rings, lo, hi)
+
+
+def axial_prism(poly_xy, z0: float, z1: float):
+    """A ring-frame polygon in (X, Y) extruded along the ring axis from z0 to z1, its caps
+    triangulated by quality_triangulate (trimesh's earcut extrusion crossed itself on a cap with
+    a hole, a vine's closed hook, 2026-11-03)."""
+    import numpy as np
+    pts, tri, rings = quality_triangulate(poly_xy)
+    lo = np.column_stack([pts, np.full(len(pts), min(z0, z1))])
+    hi = np.column_stack([pts, np.full(len(pts), max(z0, z1))])
+    return _prism(pts, tri, rings, lo, hi)
 
 
 # ---- the spec ----------------------------------------------------------------------------------------
@@ -195,19 +494,15 @@ class ArtworkSpec:
             if p.motif == "leaves":
                 leaf = self.leaf_length(p.face)
                 m = motif_leaves(Lu - 0.3, w - 0.2, leaf, self.leaf_pitch * leaf, self.vein)
-                from shapely.affinity import translate
-                m = [{"poly": translate(d["poly"], 0.15, 0.0), "groove": translate(d["groove"], 0.15, 0.0) if d["groove"] is not None else None} for d in m]
             elif p.motif == "vine":
                 leaf = min(0.8 * self.leaf_length(p.face), 0.45 * (w - 0.2))
                 m = motif_vine(Lu - 0.3, w - 0.2, self.stroke_mm, leaf, self.vein)
-                from shapely.affinity import translate
-                m = [{"poly": translate(d["poly"], 0.15, 0.0), "groove": translate(d["groove"], 0.15, 0.0) if d["groove"] is not None else None} for d in m]
             elif p.motif == "volute":
                 m = motif_volute(Lu - 0.3, w - 0.2, self.stroke_mm)
-                from shapely.affinity import translate
-                m = [{"poly": translate(d["poly"], 0.15, 0.0), "groove": None} for d in m]
             else:
                 m = []
+            from shapely.affinity import translate                     # 0.15 mm in from the channel's head end
+            m = [{"poly": translate(d["poly"], 0.15, 0.0), "veins": [_move_seg(v, 0.0, 0.15, 0.0) for v in d["veins"]]} for d in m]
             self._cache[key] = m
         return self._cache[key]
 
@@ -216,45 +511,56 @@ class ArtworkSpec:
         return [1.0, -1.0] if p.mirror else [1.0]
 
     # ---- bar-frame geometry --------------------------------------------------------------------
-    def _to_bar(self, face: str, sign: float, poly, h0: float, h1: float):
-        """A panel-frame polygon extruded from height h0 to h1 above the channel floor (negative:
-        into the band), placed in the bar frame on `face`, copy `sign`, and wrapped."""
+    def _relief_body(self, p: Panel, sign: float, poly, h0: float, h1: float):
+        """A panel-frame polygon from height h0 to h1 above the channel floor (negative: into the
+        band), as a ring-frame body. On a side face the outline is wrapped in 2-D (the polar map
+        of the face plane, injective) and extruded straight along the ring axis: an exact prism,
+        nothing warped. On the outer face the outline is triangulated without slivers
+        (quality_triangulate) and swept radially (radial_prism), every vertex wrapped: a cap
+        triangle's chord sags under the cylinder by c²/8r, under 0.001 mm at the 0.25 mm edges,
+        far less than any triangle's height, so nothing folds. (Extruding in the bar frame and
+        warping the mesh folded earcut's sliver caps: 96 self-intersecting pairs in the leaves,
+        2026-11-03.)"""
         import numpy as np
+        import shapely
         import trimesh
         b = self.band
-        if face == "outer":
+        y0 = sign * self.y_of(p.start_deg)
+        poly = densified(poly)
+        if p.face == "outer":
             floor = b.outer_radius_mm - self.channel_mm
-            # panel frame (u, v) -> bar (y, z); extrude along x (radial)
-            m = trimesh.creation.extrude_polygon(poly, h1 - h0)
-            v = m.vertices.copy()
-            u, vv, hh = v[:, 0], v[:, 1], v[:, 2]
-            m.vertices = np.column_stack([floor + h0 + hh, sign * u, vv])
-        else:
-            zface = b.width_mm / 2 if face == "side+" else -b.width_mm / 2
-            out = 1.0 if face == "side+" else -1.0
-            floor = zface - out * self.channel_mm
-            # (u, v) -> bar (y, x); extrude along z (axial, outward)
-            m = trimesh.creation.extrude_polygon(poly, h1 - h0)
-            v = m.vertices.copy()
-            u, vv, hh = v[:, 0], v[:, 1], v[:, 2]
-            xmid = (b.bore_radius_mm + b.outer_radius_mm) / 2
-            m.vertices = np.column_stack([xmid + vv, sign * u, floor + out * (h0 + hh)])
-        if m.volume < 0:
-            m.invert()
-        return m
+            yz = shapely.transform(poly, lambda c: np.column_stack([y0 + sign * c[:, 0], c[:, 1]]))
+            return radial_prism(yz, floor + h0, floor + h1, self.L)
+        out = 1.0 if p.face == "side+" else -1.0
+        floor = out * (b.width_mm / 2 - self.channel_mm)
+        xmid = (b.bore_radius_mm + b.outer_radius_mm) / 2
 
-    def _place(self, p: Panel, sign: float, m):
-        """Shift a bar-frame body to the panel's start angle and wrap it."""
-        m = m.copy()
-        m.apply_translation([0.0, sign * self.y_of(p.start_deg), 0.0])
-        m = m.subdivide_to_size(MAX_EDGE_MM)
-        return geom.remap_cylindrical(m, self.L)
+        def wrap(c):
+            r, y = xmid + c[:, 1], y0 + sign * c[:, 0]
+            th = 2 * math.pi * y / self.L
+            return np.column_stack([r * np.cos(th), r * np.sin(th)])
+        ring = shapely.transform(poly, wrap)
+        return axial_prism(ring, floor + out * h0, floor + out * h1)
 
     def cutter(self, p: Panel, sign: float):
-        """The panel's channel: a box the channel's width and length, from the floor out past the face."""
-        from shapely.geometry import box
+        """The panel's channel: a box the channel's width and length, from the floor out past the
+        face, lofted station by station along the ring (a clean quad grid, nothing to refine)."""
+        b = self.band
         w, Lu = self.channel_width(p.face), self.panel_length(p)
-        return self._place(p, sign, self._to_bar(p.face, sign, box(0.0, -w / 2, Lu, w / 2), 0.0, self.channel_mm + 1.0))
+        if p.face == "outer":
+            floor = b.outer_radius_mm - self.channel_mm
+            m = prism_along_y(floor, floor + self.channel_mm + 1.0, -w / 2, w / 2, 0.0, Lu, MAX_EDGE_MM)
+        else:
+            out = 1.0 if p.face == "side+" else -1.0
+            zface = out * b.width_mm / 2
+            xmid = (b.bore_radius_mm + b.outer_radius_mm) / 2
+            z0, z1 = sorted((zface - out * self.channel_mm, zface + out * 1.0))
+            m = prism_along_y(xmid - w / 2, xmid + w / 2, z0, z1, 0.0, Lu, MAX_EDGE_MM)
+        if sign < 0:
+            m.vertices[:, 1] *= -1.0
+            m.invert()
+        m.apply_translation([0.0, sign * self.y_of(p.start_deg), 0.0])
+        return geom.remap_cylindrical(m, self.L)                       # every face spans one station: it bends cleanly
 
     def relief_bodies(self, p: Panel, sign: float) -> list:
         """The motif's bodies: each polygon from PLUG_MM below the floor to relief_mm above it,
@@ -262,15 +568,26 @@ class ArtworkSpec:
         import trimesh
         out = []
         for d in self.motif(p):
-            body = self._to_bar(p.face, sign, d["poly"], -PLUG_MM, self.relief_mm)
-            if d["groove"] is not None and not d["groove"].is_empty:
-                for g in getattr(d["groove"], "geoms", [d["groove"]]):           # one shallow slit at a time
-                    if g.is_empty or g.area < 1e-4:
-                        continue
-                    cut = self._to_bar(p.face, sign, g, self.relief_mm - VEIN_DEPTH_MM, self.relief_mm + 0.5)
-                    body = trimesh.boolean.difference([body, cut], engine="manifold")
-            out.append(self._place(p, sign, body))
+            body = self._relief_body(p, sign, d["poly"], -PLUG_MM, self.relief_mm)
+            for v in d["veins"]:                                                   # one shallow slit at a time
+                cut = self._vein_body(p, sign, v, self.relief_mm - VEIN_DEPTH_MM, self.relief_mm + 0.5)
+                body = trimesh.boolean.difference([body, cut], engine="manifold")
+            out.append(body)
         return out
+
+    def _vein_body(self, p: Panel, sign: float, seg: tuple, h0: float, h1: float):
+        """A vein's slit cutter from h0 to h1 above the floor: on a side face the capsule, wrapped in
+        2-D and extruded along the axis (exact); on the outer face a rectangle swept along the
+        segment station by station (swept_slit), which bends cleanly - a 0.1 mm capsule is too
+        thin to triangulate on a grid."""
+        if p.face != "outer":
+            return self._relief_body(p, sign, vein_polygon(seg), h0, h1)
+        b = self.band
+        floor = b.outer_radius_mm - self.channel_mm
+        y0 = sign * self.y_of(p.start_deg)
+        (a, c, w) = seg
+        pa, pc = (y0 + sign * a[0], a[1]), (y0 + sign * c[0], c[1])
+        return swept_slit(pa, pc, w, floor + h0, floor + h1, self.L)
 
     def cutters_mesh(self):
         import trimesh
@@ -307,11 +624,22 @@ class ArtworkSpec:
         return self.design_volume_mm3() - self.shank.sharp_edge_round_mm3() - self.shank.opening_overcut_mm3()
 
     def write_layers(self, directory: Path, stem: str) -> tuple[str, str]:
+        """Writes <stem>.cut.stl and <stem>.relief.stl, each read back and refused if it crosses
+        itself the way nTop would read it (float32; geom.intersecting_faces): a self-intersecting
+        layer builds a wrong implicit - the first real run's cutters left needles on the faces."""
+        import trimesh
         directory = Path(directory)
-        cut, relief = directory / f"{stem}.cut.stl", directory / f"{stem}.relief.stl"
-        self.cutters_mesh().export(str(cut))
-        self.relief_mesh().export(str(relief))
-        return str(cut), str(relief)
+        out = []
+        for name, mesh in (("cut", self.cutters_mesh()), ("relief", self.relief_mesh())):
+            path = directory / f"{stem}.{name}.stl"
+            mesh.export(str(path))
+            back = trimesh.load(str(path), force="mesh")
+            pairs = geom.intersecting_faces(back, cell_mm=0.3)
+            if len(pairs) or not back.is_volume:
+                raise ValueError(f"the {name} layer crosses itself ({len(pairs)} face pairs) or is not a volume as written to "
+                                 f"{path.name}: nTop would read a wrong implicit from it")
+            out.append(str(path))
+        return out[0], out[1]
 
     def notebook_inputs(self, bar_paths, cut_path: str, relief_path: str, output_path: str = "") -> dict:
         v = self.shank.notebook_inputs(bar_paths, output_path)
