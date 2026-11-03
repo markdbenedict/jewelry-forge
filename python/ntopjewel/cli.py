@@ -520,6 +520,7 @@ def cmd_api(a: argparse.Namespace) -> int:
             print(e)
             return 2
         _print_build_result(res)
+        _stamp_saved(res)                 # a build that finished after its client gave up (nTop in the background) is stamped here
         return 0
     # build
     params = _parse_set(a.param)
@@ -543,15 +544,17 @@ def cmd_api(a: argparse.Namespace) -> int:
     try:
         _console(a).check(timeout=45)
     except notebook_api.ConsoleError as e:
-        print(f"nTop's console did not answer within 45 s: a build may still be running inside nTop (a timed-out "
-              f"`api build` keeps going in there). Close nTop, reopen it with View > Python Console, `api check`, then build again.")
+        print(f"nTop's console did not answer within 45 s. nTop runs its Python at a crawl while another window has "
+              f"the focus (a build took all night in the background, 2026-11-03), and a timed-out `api build` keeps going "
+              f"in there: bring nTop to the foreground and leave it there, or close and reopen it, `api check`, then build again.")
         print(summary.error_line(f"api build {script.stem}", "nTop busy or hung - restart it"))
         return 2
     slow = _time.time() - t0
     if slow > 10:
         print(f"note      : the console took {slow:.0f} s to answer; nTop is busy. If this build stalls, restart nTop.")
     print(f"building  : {script.stem} in nTop's open session (a fresh notebook; the canvas fills as blocks are "
-          f"added, then it is saved to {params.get('save_to') or 'the recipe default'})", flush=True)
+          f"added, then it is saved to {params.get('save_to') or 'the recipe default'}). Keep nTop in the foreground: "
+          f"it throttles its Python when another window has the focus.", flush=True)
     progress = work_dir / f"{script.stem}.progress.log"
     started = _time.time()
     try:
@@ -570,6 +573,24 @@ def cmd_api(a: argparse.Namespace) -> int:
         print(f"stamped   : {_runs.build_stamp_path(nb).name} (the runner checks it against the catalog's rebuild_since)")
     print(summary.paint(f"==> BUILT   {script.stem}", summary.GREEN))
     return 0
+
+
+def _stamp_saved(res: dict) -> None:
+    """Stamp the notebook a collected build result says it saved (every block e_OK, the export
+    written), so a build that finished only once nTop was brought to the foreground counts."""
+    from . import runs as _runs
+    r = res.get("result") or {}
+    states = {k: v for k, v in (r.get("states") or {}).items() if v != "input"}
+    saved = r.get("saved")
+    if res.get("status") != "ok" or not saved or not Path(saved).exists() or any(not str(v).startswith("e_OK") for v in states.values()):
+        print("not stamped: the result is not a clean, saved build")
+        return
+    stamp = _runs.write_build_stamp(Path(saved))
+    if stamp:
+        print(f"stamped   : {_runs.build_stamp_path(Path(saved)).name} for {stamp['catalogs']}")
+        print(summary.paint(f"==> BUILT   {Path(saved).stem}", summary.GREEN))
+    else:
+        print(f"no catalog names {Path(saved).name}: nothing to stamp")
 
 
 def cmd_runs(a: argparse.Namespace) -> int:
