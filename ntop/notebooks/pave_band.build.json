@@ -1,0 +1,10 @@
+{
+  "notebook": "pave_band.ntop",
+  "sha256": "5032bb27a41c51beb9440af37b0bc94cfed77606eadab110c9ade5f72cb808b7",
+  "built": "2026-11-04T17:42:50.074786+00:00",
+  "catalogs": {
+    "pave_band": "0.1.0"
+  },
+  "git_commit": "e8f6864025fc",
+  "ntopjewel": "0.3.0"
+}

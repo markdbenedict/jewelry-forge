@@ -1,0 +1,10 @@
+{
+  "notebook": "outline_head_harness.ntop",
+  "sha256": "4c05aeee7f1c5dc6f544fa82861881090f6260920f586be01958d3a4faecb739",
+  "built": "2026-11-04T17:39:09.040397+00:00",
+  "catalogs": {
+    "outline_head_harness": "0.2.0"
+  },
+  "git_commit": "e8f6864025fc",
+  "ntopjewel": "0.3.0"
+}

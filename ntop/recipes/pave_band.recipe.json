@@ -1,0 +1,811 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
+        "id": "inst178",
+        "inputs": [
+          {
+            "type": "blend_enum",
+            "value": {
+              "enum": 0
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {
+                "length": 1
+              },
+              "val": 0.0
+            }
+          },
+          {
+            "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
+            "id": "inst174",
+            "inputs": [
+              {
+                "type": "blend_enum",
+                "value": {
+                  "enum": 0
+                }
+              },
+              {
+                "type": "real",
+                "value": {
+                  "isFinite": true,
+                  "units": {
+                    "length": 1
+                  },
+                  "val": 0.0
+                }
+              },
+              {
+                "func": "core.list<implicit>",
+                "id": "inst173",
+                "inputs": [
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst164"
+                    }
+                  },
+                  {
+                    "func": "implicit_from_mesh<mesh>",
+                    "id": "inst167",
+                    "inputs": [
+                      {
+                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                        "id": "inst166",
+                        "inputs": [
+                          {
+                            "input": 9,
+                            "props": []
+                          },
+                          {
+                            "type": "unit_length_enum",
+                            "value": {
+                              "id": "mm"
+                            }
+                          }
+                        ],
+                        "name": "Mesh_8",
+                        "type": "mesh"
+                      }
+                    ],
+                    "name": "Implicit Body_18",
+                    "type": "implicit"
+                  }
+                ],
+                "name": "Implicit Body List_1",
+                "type": "list<implicit>"
+              }
+            ],
+            "metadata": {
+              "description": "The beads stand on the opened band (not rounded: the opening would melt them)."
+            },
+            "name": "Implicit Body_20",
+            "type": "implicit"
+          },
+          {
+            "func": "core.list<implicit>",
+            "id": "inst177",
+            "inputs": [
+              {
+                "func": "implicit_from_mesh<mesh>",
+                "id": "inst170",
+                "inputs": [
+                  {
+                    "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                    "id": "inst169",
+                    "inputs": [
+                      {
+                        "input": 8,
+                        "props": []
+                      },
+                      {
+                        "type": "unit_length_enum",
+                        "value": {
+                          "id": "mm"
+                        }
+                      }
+                    ],
+                    "name": "Mesh_9",
+                    "type": "mesh"
+                  }
+                ],
+                "name": "Implicit Body_19",
+                "type": "implicit"
+              }
+            ],
+            "name": "Implicit Body List_2",
+            "type": "list<implicit>"
+          }
+        ],
+        "metadata": {
+          "description": "The seats are cut AFTER the beads go on: every drop-in path is clear, a bead in a tight gap is trimmed by the openings, as on the bench."
+        },
+        "name": "Implicit Body_21",
+        "type": "implicit"
+      },
+      "id": "inst179",
+      "metadata": {
+        "description": "The seats are cut AFTER the beads go on: every drop-in path is clear, a bead in a tight gap is trimmed by the openings, as on the bench."
+      },
+      "name": "Ring Body",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "volume_integral<implicit,real_field,real>",
+        "id": "inst181",
+        "inputs": [
+          {
+            "props": [],
+            "ref": {
+              "id": "inst179"
+            }
+          },
+          {
+            "props": [],
+            "ref": {
+              "id": "inst182"
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {},
+              "val": 0.01
+            }
+          }
+        ],
+        "metadata": {
+          "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+        },
+        "name": "Scalar_0",
+        "type": "real"
+      },
+      "id": "inst189",
+      "metadata": {
+        "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+      },
+      "name": "Volume",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {},
+          "val": 1.0
+        }
+      },
+      "id": "inst182",
+      "name": "One",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "func": "export_mesh<file_path,mesh,unit_length_enum>",
+      "id": "inst188",
+      "inputs": [
+        {
+          "input": 10,
+          "props": []
+        },
+        {
+          "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+          "id": "inst186",
+          "inputs": [
+            {
+              "props": [],
+              "ref": {
+                "id": "inst179"
+              }
+            },
+            {
+              "input": 7,
+              "props": []
+            },
+            null,
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            },
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            }
+          ],
+          "name": "Mesh_10",
+          "type": "mesh"
+        },
+        {
+          "type": "unit_length_enum",
+          "value": {
+            "id": "mm"
+          }
+        }
+      ],
+      "name": "Mesh File Data_0",
+      "type": "mesh_file_data"
+    },
+    {
+      "contents": {
+        "func": "remap_cylindrical_implicit<implicit,real>",
+        "id": "inst163",
+        "inputs": [
+          {
+            "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
+            "id": "inst162",
+            "inputs": [
+              {
+                "type": "blend_enum",
+                "value": {
+                  "enum": 0
+                }
+              },
+              {
+                "type": "real",
+                "value": {
+                  "isFinite": true,
+                  "units": {
+                    "length": 1
+                  },
+                  "val": 0.0
+                }
+              },
+              {
+                "func": "core.list<implicit>",
+                "id": "inst161",
+                "inputs": [
+                  {
+                    "func": "offset_implicit<implicit,real_field>",
+                    "id": "inst131",
+                    "inputs": [
+                      {
+                        "func": "implicit_from_mesh<mesh>",
+                        "id": "inst130",
+                        "inputs": [
+                          {
+                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+                            "id": "inst129",
+                            "inputs": [
+                              {
+                                "func": "offset_implicit<implicit,real_field>",
+                                "id": "inst126",
+                                "inputs": [
+                                  {
+                                    "func": "implicit_from_mesh<mesh>",
+                                    "id": "inst125",
+                                    "inputs": [
+                                      {
+                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                                        "id": "inst124",
+                                        "inputs": [
+                                          {
+                                            "input": 0,
+                                            "props": []
+                                          },
+                                          {
+                                            "type": "unit_length_enum",
+                                            "value": {
+                                              "id": "mm"
+                                            }
+                                          }
+                                        ],
+                                        "name": "Mesh_0",
+                                        "type": "mesh"
+                                      }
+                                    ],
+                                    "name": "Implicit Body_0",
+                                    "type": "implicit"
+                                  },
+                                  {
+                                    "input": 6,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Implicit Body_1",
+                                "type": "implicit"
+                              },
+                              {
+                                "input": 7,
+                                "props": []
+                              },
+                              null,
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              },
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              }
+                            ],
+                            "name": "Mesh_1",
+                            "type": "mesh"
+                          }
+                        ],
+                        "name": "Implicit Body_2",
+                        "type": "implicit"
+                      },
+                      {
+                        "input": 5,
+                        "props": []
+                      }
+                    ],
+                    "metadata": {
+                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
+                    },
+                    "name": "Implicit Body_3",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "offset_implicit<implicit,real_field>",
+                    "id": "inst140",
+                    "inputs": [
+                      {
+                        "func": "implicit_from_mesh<mesh>",
+                        "id": "inst139",
+                        "inputs": [
+                          {
+                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+                            "id": "inst138",
+                            "inputs": [
+                              {
+                                "func": "offset_implicit<implicit,real_field>",
+                                "id": "inst135",
+                                "inputs": [
+                                  {
+                                    "func": "implicit_from_mesh<mesh>",
+                                    "id": "inst134",
+                                    "inputs": [
+                                      {
+                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                                        "id": "inst133",
+                                        "inputs": [
+                                          {
+                                            "input": 1,
+                                            "props": []
+                                          },
+                                          {
+                                            "type": "unit_length_enum",
+                                            "value": {
+                                              "id": "mm"
+                                            }
+                                          }
+                                        ],
+                                        "name": "Mesh_2",
+                                        "type": "mesh"
+                                      }
+                                    ],
+                                    "name": "Implicit Body_4",
+                                    "type": "implicit"
+                                  },
+                                  {
+                                    "input": 6,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Implicit Body_5",
+                                "type": "implicit"
+                              },
+                              {
+                                "input": 7,
+                                "props": []
+                              },
+                              null,
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              },
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              }
+                            ],
+                            "name": "Mesh_3",
+                            "type": "mesh"
+                          }
+                        ],
+                        "name": "Implicit Body_6",
+                        "type": "implicit"
+                      },
+                      {
+                        "input": 5,
+                        "props": []
+                      }
+                    ],
+                    "metadata": {
+                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
+                    },
+                    "name": "Implicit Body_7",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "offset_implicit<implicit,real_field>",
+                    "id": "inst149",
+                    "inputs": [
+                      {
+                        "func": "implicit_from_mesh<mesh>",
+                        "id": "inst148",
+                        "inputs": [
+                          {
+                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+                            "id": "inst147",
+                            "inputs": [
+                              {
+                                "func": "offset_implicit<implicit,real_field>",
+                                "id": "inst144",
+                                "inputs": [
+                                  {
+                                    "func": "implicit_from_mesh<mesh>",
+                                    "id": "inst143",
+                                    "inputs": [
+                                      {
+                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                                        "id": "inst142",
+                                        "inputs": [
+                                          {
+                                            "input": 2,
+                                            "props": []
+                                          },
+                                          {
+                                            "type": "unit_length_enum",
+                                            "value": {
+                                              "id": "mm"
+                                            }
+                                          }
+                                        ],
+                                        "name": "Mesh_4",
+                                        "type": "mesh"
+                                      }
+                                    ],
+                                    "name": "Implicit Body_8",
+                                    "type": "implicit"
+                                  },
+                                  {
+                                    "input": 6,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Implicit Body_9",
+                                "type": "implicit"
+                              },
+                              {
+                                "input": 7,
+                                "props": []
+                              },
+                              null,
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              },
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              }
+                            ],
+                            "name": "Mesh_5",
+                            "type": "mesh"
+                          }
+                        ],
+                        "name": "Implicit Body_10",
+                        "type": "implicit"
+                      },
+                      {
+                        "input": 5,
+                        "props": []
+                      }
+                    ],
+                    "metadata": {
+                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
+                    },
+                    "name": "Implicit Body_11",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "offset_implicit<implicit,real_field>",
+                    "id": "inst158",
+                    "inputs": [
+                      {
+                        "func": "implicit_from_mesh<mesh>",
+                        "id": "inst157",
+                        "inputs": [
+                          {
+                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+                            "id": "inst156",
+                            "inputs": [
+                              {
+                                "func": "offset_implicit<implicit,real_field>",
+                                "id": "inst153",
+                                "inputs": [
+                                  {
+                                    "func": "implicit_from_mesh<mesh>",
+                                    "id": "inst152",
+                                    "inputs": [
+                                      {
+                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                                        "id": "inst151",
+                                        "inputs": [
+                                          {
+                                            "input": 3,
+                                            "props": []
+                                          },
+                                          {
+                                            "type": "unit_length_enum",
+                                            "value": {
+                                              "id": "mm"
+                                            }
+                                          }
+                                        ],
+                                        "name": "Mesh_6",
+                                        "type": "mesh"
+                                      }
+                                    ],
+                                    "name": "Implicit Body_12",
+                                    "type": "implicit"
+                                  },
+                                  {
+                                    "input": 6,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Implicit Body_13",
+                                "type": "implicit"
+                              },
+                              {
+                                "input": 7,
+                                "props": []
+                              },
+                              null,
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              },
+                              {
+                                "type": "bool",
+                                "value": {
+                                  "val": false
+                                }
+                              }
+                            ],
+                            "name": "Mesh_7",
+                            "type": "mesh"
+                          }
+                        ],
+                        "name": "Implicit Body_14",
+                        "type": "implicit"
+                      },
+                      {
+                        "input": 5,
+                        "props": []
+                      }
+                    ],
+                    "metadata": {
+                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
+                    },
+                    "name": "Implicit Body_15",
+                    "type": "implicit"
+                  }
+                ],
+                "name": "Implicit Body List_0",
+                "type": "list<implicit>"
+              }
+            ],
+            "metadata": {
+              "description": "The opened bars united as implicits (sharp). Bodies that cross each other come in separate bars: a mesh union's seams import as self-intersections. An unused slot repeats the smallest bar."
+            },
+            "name": "Implicit Body_16",
+            "type": "implicit"
+          },
+          {
+            "input": 4,
+            "props": []
+          }
+        ],
+        "metadata": {
+          "description": "The bar (X radial, Y along the ring, Z axial) wrapped round the ring axis: one turn = Wrap Length."
+        },
+        "name": "Implicit Body_17",
+        "type": "implicit"
+      },
+      "id": "inst164",
+      "metadata": {
+        "description": "The bar (X radial, Y along the ring, Z axial) wrapped round the ring axis: one turn = Wrap Length."
+      },
+      "name": "Shank Body",
+      "type": "implicit",
+      "variable": true
+    }
+  ],
+  "description": "",
+  "displayname": "pave_band",
+  "inputs": [
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\pave_band_test.bar.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Shank Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\pave_band_test.bar.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Shank Path 2",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\pave_band_test.bar.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Shank Path 3",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\pave_band_test.bar.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Shank Path 4",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0568842
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Wrap Length",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0002
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.0002
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round Inward",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 5e-05
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Mesh Tolerance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\pave_band_test.seats.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Pave Seats Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\pave_band_test.beads.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Pave Beads Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\pave_band_test.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Output Path",
+      "type": "text"
+    }
+  ],
+  "name": "user_func_6b4e87e0_a1d0_4b6f_acc3_5c89d34e23d2",
+  "output": {
+    "id": "inst189"
+  }
+}

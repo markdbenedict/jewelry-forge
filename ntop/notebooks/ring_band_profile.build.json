@@ -1,0 +1,10 @@
+{
+  "notebook": "ring_band_profile.ntop",
+  "sha256": "47ba5f8a3555ac0707be78d0286e3e7131013c6ee88c37a45673cdc6c0aceae4",
+  "built": "2026-11-04T17:40:43.466747+00:00",
+  "catalogs": {
+    "ring_band_profile": "0.2.1"
+  },
+  "git_commit": "e8f6864025fc",
+  "ntopjewel": "0.3.0"
+}

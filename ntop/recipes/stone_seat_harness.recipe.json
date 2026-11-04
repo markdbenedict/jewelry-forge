@@ -2,8 +2,8 @@
   "body": [
     {
       "contents": {
-        "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
-        "id": "inst113",
+        "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
+        "id": "inst111",
         "inputs": [
           {
             "input": 0,
@@ -17,7 +17,7 @@
         "name": "Implicit Body_0",
         "type": "implicit"
       },
-      "id": "inst114",
+      "id": "inst112",
       "name": "Seat",
       "type": "implicit",
       "variable": true
@@ -25,18 +25,18 @@
     {
       "contents": {
         "func": "volume_integral<implicit,real_field,real>",
-        "id": "inst116",
+        "id": "inst114",
         "inputs": [
           {
             "props": [],
             "ref": {
-              "id": "inst114"
+              "id": "inst112"
             }
           },
           {
             "props": [],
             "ref": {
-              "id": "inst117"
+              "id": "inst115"
             }
           },
           {
@@ -48,10 +48,16 @@
             }
           }
         ],
+        "metadata": {
+          "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+        },
         "name": "Scalar_0",
         "type": "real"
       },
-      "id": "inst124",
+      "id": "inst122",
+      "metadata": {
+        "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+      },
       "name": "Volume",
       "type": "real",
       "variable": true
@@ -65,14 +71,14 @@
           "val": 1.0
         }
       },
-      "id": "inst117",
+      "id": "inst115",
       "name": "One",
       "type": "real",
       "variable": true
     },
     {
       "func": "export_mesh<file_path,mesh,unit_length_enum>",
-      "id": "inst123",
+      "id": "inst121",
       "inputs": [
         {
           "input": 3,
@@ -80,12 +86,12 @@
         },
         {
           "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-          "id": "inst121",
+          "id": "inst119",
           "inputs": [
             {
               "props": [],
               "ref": {
-                "id": "inst114"
+                "id": "inst112"
               }
             },
             {
@@ -184,8 +190,8 @@
       "type": "text"
     }
   ],
-  "name": "user_func_a4dcd949_7a84_46f8_a54e_4509679ca6ce",
+  "name": "user_func_b43cd17e_1e80_4be5_91a3_19023d138982",
   "output": {
-    "id": "inst124"
+    "id": "inst122"
   }
 }

@@ -1,0 +1,10 @@
+{
+  "notebook": "ring_features.ntop",
+  "sha256": "79e1f6da9c72be8c996bcbc5c09e121b743fbb07c11d04178d9b59225e3e3605",
+  "built": "2026-11-04T17:41:31.962338+00:00",
+  "catalogs": {
+    "ring_features": "0.1.1"
+  },
+  "git_commit": "e8f6864025fc",
+  "ntopjewel": "0.3.0"
+}

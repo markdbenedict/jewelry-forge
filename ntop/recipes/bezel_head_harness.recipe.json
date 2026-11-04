@@ -2,12 +2,12 @@
   "body": [
     {
       "contents": {
-        "func": "user_func_48dc7c01_85cb_4f06_bc92_3f0a0b48021d<implicit,text,real,real,real,real>",
-        "id": "inst130",
+        "func": "user_func_eac3b82e_e492_4fe7_baf6_5cf415b82f50<implicit,text,real,real,real,real>",
+        "id": "inst127",
         "inputs": [
           {
-            "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
-            "id": "inst124",
+            "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
+            "id": "inst121",
             "inputs": [
               {
                 "input": 0,
@@ -45,7 +45,7 @@
         "name": "Implicit Body_1",
         "type": "implicit"
       },
-      "id": "inst131",
+      "id": "inst128",
       "name": "Result",
       "type": "implicit",
       "variable": true
@@ -53,18 +53,18 @@
     {
       "contents": {
         "func": "volume_integral<implicit,real_field,real>",
-        "id": "inst133",
+        "id": "inst130",
         "inputs": [
           {
             "props": [],
             "ref": {
-              "id": "inst131"
+              "id": "inst128"
             }
           },
           {
             "props": [],
             "ref": {
-              "id": "inst134"
+              "id": "inst131"
             }
           },
           {
@@ -76,10 +76,16 @@
             }
           }
         ],
+        "metadata": {
+          "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+        },
         "name": "Scalar_0",
         "type": "real"
       },
-      "id": "inst141",
+      "id": "inst138",
+      "metadata": {
+        "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+      },
       "name": "Volume",
       "type": "real",
       "variable": true
@@ -93,14 +99,14 @@
           "val": 1.0
         }
       },
-      "id": "inst134",
+      "id": "inst131",
       "name": "One",
       "type": "real",
       "variable": true
     },
     {
       "func": "export_mesh<file_path,mesh,unit_length_enum>",
-      "id": "inst140",
+      "id": "inst137",
       "inputs": [
         {
           "input": 8,
@@ -108,12 +114,12 @@
         },
         {
           "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-          "id": "inst138",
+          "id": "inst135",
           "inputs": [
             {
               "props": [],
               "ref": {
-                "id": "inst131"
+                "id": "inst128"
               }
             },
             {
@@ -296,8 +302,8 @@
       "type": "text"
     }
   ],
-  "name": "user_func_85f25b55_bf1a_4548_9928_f666a7330e70",
+  "name": "user_func_5ec3cd66_87eb_4424_8ad1_e1d3372175ab",
   "output": {
-    "id": "inst141"
+    "id": "inst138"
   }
 }

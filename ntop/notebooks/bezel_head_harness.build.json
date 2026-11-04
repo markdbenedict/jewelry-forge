@@ -1,0 +1,10 @@
+{
+  "notebook": "bezel_head_harness.ntop",
+  "sha256": "6011dbe8e8e3d55ed95075c079c760acee673189461a256291a8367d96f773ee",
+  "built": "2026-11-04T17:39:44.857985+00:00",
+  "catalogs": {
+    "bezel_head_harness": "0.2.0"
+  },
+  "git_commit": "e8f6864025fc",
+  "ntopjewel": "0.3.0"
+}

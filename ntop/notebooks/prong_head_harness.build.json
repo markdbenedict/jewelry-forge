@@ -1,0 +1,10 @@
+{
+  "notebook": "prong_head_harness.ntop",
+  "sha256": "ca63b825c6dd5d6e4e1672fa8e7df939f8438ca21d945261efb18484b93089e1",
+  "built": "2026-11-04T17:38:24.103269+00:00",
+  "catalogs": {
+    "prong_head_harness": "0.4.0"
+  },
+  "git_commit": "e8f6864025fc",
+  "ntopjewel": "0.3.0"
+}

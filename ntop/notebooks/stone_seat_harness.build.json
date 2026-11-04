@@ -1,0 +1,10 @@
+{
+  "notebook": "stone_seat_harness.ntop",
+  "sha256": "15baf11c557c9eae2301bbac75de0718a641639ffecff14146bacf4ab533f916",
+  "built": "2026-11-04T17:37:15.609081+00:00",
+  "catalogs": {
+    "stone_seat_harness": "0.3.0"
+  },
+  "git_commit": "e8f6864025fc",
+  "ntopjewel": "0.3.0"
+}

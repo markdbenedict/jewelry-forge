@@ -2,12 +2,12 @@
   "body": [
     {
       "contents": {
-        "func": "user_func_c1b12bc9_4521_4af8_bd51_7a9b782f6a93<implicit,integer,real,real,real,real,real,real,real,real,real,real,real,real,real,real>",
-        "id": "inst159",
+        "func": "user_func_dd56f25f_c60f_40a6_b03b_4115638a1624<implicit,integer,real,real,real,real,real,real,real,real,real,real,real,real,real,real>",
+        "id": "inst157",
         "inputs": [
           {
-            "func": "user_func_eea441d9_66b9_47d0_a5c8_94e56938c8c4<text,real>",
-            "id": "inst143",
+            "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
+            "id": "inst141",
             "inputs": [
               {
                 "input": 0,
@@ -85,7 +85,7 @@
         "name": "Implicit Body_1",
         "type": "implicit"
       },
-      "id": "inst160",
+      "id": "inst158",
       "name": "Result",
       "type": "implicit",
       "variable": true
@@ -93,18 +93,18 @@
     {
       "contents": {
         "func": "volume_integral<implicit,real_field,real>",
-        "id": "inst162",
+        "id": "inst160",
         "inputs": [
           {
             "props": [],
             "ref": {
-              "id": "inst160"
+              "id": "inst158"
             }
           },
           {
             "props": [],
             "ref": {
-              "id": "inst163"
+              "id": "inst161"
             }
           },
           {
@@ -116,10 +116,16 @@
             }
           }
         ],
+        "metadata": {
+          "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+        },
         "name": "Scalar_0",
         "type": "real"
       },
-      "id": "inst170",
+      "id": "inst168",
+      "metadata": {
+        "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+      },
       "name": "Volume",
       "type": "real",
       "variable": true
@@ -133,14 +139,14 @@
           "val": 1.0
         }
       },
-      "id": "inst163",
+      "id": "inst161",
       "name": "One",
       "type": "real",
       "variable": true
     },
     {
       "func": "export_mesh<file_path,mesh,unit_length_enum>",
-      "id": "inst169",
+      "id": "inst167",
       "inputs": [
         {
           "input": 18,
@@ -148,12 +154,12 @@
         },
         {
           "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-          "id": "inst167",
+          "id": "inst165",
           "inputs": [
             {
               "props": [],
               "ref": {
-                "id": "inst160"
+                "id": "inst158"
               }
             },
             {
@@ -516,8 +522,8 @@
       "type": "text"
     }
   ],
-  "name": "user_func_029b0f87_f8d6_43b6_8a81_c143df180f98",
+  "name": "user_func_425d27ba_fd4d_4524_a760_710e40aeae75",
   "output": {
-    "id": "inst170"
+    "id": "inst168"
   }
 }
