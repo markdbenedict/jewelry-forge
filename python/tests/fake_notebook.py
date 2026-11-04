@@ -100,6 +100,10 @@ class FakeNotebook:
         self.fresh = 0
         self.paused = False
         self.fail_blocks = set(fail_blocks)
+        self.sections: list[dict] = [{"name": "Section 1", "id": "section_2"}]   # a fresh notebook's first id is section_2
+        self.section_of: dict[str, str] = {}    # block or variable id -> section id
+        self.comments: dict[str, str] = {}
+        self.collapsed: list[str] = []
 
     # ---- discovery ----------------------------------------------------------------
     def list_available_blocks(self, mask: str = ""):
@@ -109,7 +113,33 @@ class FakeNotebook:
         return hits
 
     def list_sections(self):
-        return [{"name": "Section 1", "id": "section_0"}]
+        return [dict(x) for x in self.sections]
+
+    # sections and comments (Notebook API v0.14 names; nTop 6.3.3's argument lists unverified - the helper
+    # logs the real signatures and carries on without sections when a call is refused)
+    def add_section(self, name: str):
+        sid = f"section_{len(self.sections) + 2}"
+        self.sections.append({"name": name, "id": sid})
+        return {"name": name, "id": sid}
+
+    def _section(self, section_id: str) -> str:
+        if section_id and section_id not in {x["id"] for x in self.sections}:
+            raise ValueError(f"no section with id '{section_id}'")
+        return section_id
+
+    def move_block(self, block_id: str, section_id: str):
+        self._resolve(block_id)
+        self.section_of[block_id] = self._section(section_id)
+
+    def set_block_comment(self, block_id: str, comment: str):
+        self._resolve(block_id)
+        self.comments[block_id] = str(comment)
+
+    def get_block_comment(self, block_id: str) -> str:
+        return self.comments.get(block_id, "")
+
+    def collapse_section(self, section_id: str):
+        self.collapsed.append(self._section(section_id))
 
     def list_blocks(self, section_id: str = ""):
         return [{"name": b["name"], "id": i, "funcId": b["funcId"]} for i, b in self.blocks.items()]
@@ -128,11 +158,16 @@ class FakeNotebook:
         if identifier not in self.available_ids:
             raise ValueError(f"'{identifier}' is not a block available to this notebook")
         name, inputs, out = SIGNATURES[identifier]
+        self._section(section_id)
         if identifier.startswith("core.var<"):              # a typed variable block; its id is a display name
             bid = self._new_id(DISPLAY_BASE.get(out, out.title()))
             self.variables[bid] = {"value": None, "units": "", "wraps": None, "typed": out, "funcId": identifier}
+            if section_id:
+                self.section_of[bid] = section_id
             return {"name": name, "id": bid, "funcId": identifier}
         bid = self._new_id(DISPLAY_BASE.get(out, out.title()))
+        if section_id:
+            self.section_of[bid] = section_id
         self.blocks[bid] = {"funcId": identifier, "name": name, "inputs": {}, "lists": {}, "wired": {}, "out": out,
                             "defs": inputs}
         return {"name": name, "id": bid, "funcId": identifier}
@@ -278,7 +313,10 @@ class FakeNotebook:
             raise ValueError(f"'{new_name}' is already used")
         if units not in VARIABLE_UNITS:
             raise ValueError(f'Unknown unit "{units}" for a scalar variable.')
+        self._section(section_id)
         self.variables[new_name] = {"value": float(value), "units": units, "wraps": None, "typed": "real", "funcId": "core.var<real>"}
+        if section_id:
+            self.section_of[new_name] = section_id
         return {"name": "Scalar Variable", "id": new_name, "funcId": "core.var<real>"}
 
     def add_variable(self, new_name: str, block_id: str = ""):
@@ -297,6 +335,8 @@ class FakeNotebook:
         if new_block_id in self.variables or new_block_id in self.blocks:
             raise ValueError(f"'{new_block_id}' is already used")
         self.variables[new_block_id] = self.variables.pop(block_id)
+        if block_id in self.section_of:
+            self.section_of[new_block_id] = self.section_of.pop(block_id)
         return {"name": new_block_id, "id": new_block_id, "funcId": "core.var"}
 
     def move_block_to_input(self, block_id: str):

@@ -634,8 +634,15 @@ def _print_build_result(res: dict) -> None:
         for k, v in r["identifiers"].items():
             print(f"    {k:<16} {v}")
     log = r.get("log", [])
+    layout = [ln for ln in log if ln.startswith(("sections off", "comments off", "collapse_section"))]
+    if r.get("sections"):
+        print(f"sections  : {', '.join(r['sections'])}")
+    if layout:                                   # organisation only: the notebook builds the same without it
+        print("layout    : " + "\n            ".join(layout))
+        print("api calls : " + "\n            ".join(ln[5:] for ln in log if ln.startswith("api: ")))
     fallbacks = [ln for ln in log if ln.startswith("fallback:")]
-    problems = [ln for ln in log if not ln.startswith("fallback:") and any(k in ln for k in ("failed", "refused", "not set"))]
+    problems = [ln for ln in log if not ln.startswith("fallback:") and ln not in layout
+                and any(k in ln for k in ("failed", "refused", "not set"))]
     if fallbacks:
         print("handled fallbacks (no action needed):\n    " + "\n    ".join(fallbacks))
     if problems:
@@ -720,10 +727,35 @@ def cmd_api(a: argparse.Namespace) -> int:
     _print_build_result(res)
     print(f"\nfull result: {work_dir / (script.stem + '.result.json')}")
     from . import runs as _runs
-    for nb in _runs.stamp_fresh_builds(started):
+    stamped = _runs.stamp_fresh_builds(started)
+    for nb in stamped:
         print(f"stamped   : {_runs.build_stamp_path(nb).name} (the runner checks it against the catalog's rebuild_since)")
+    tracked = _files_to_commit(res, stamped)
+    if tracked:
+        print("commit    : git add " + " ".join(tracked) + "   (the notebook itself stays out of git)")
     print(summary.paint(f"==> BUILT   {script.stem}", summary.GREEN))
     return 0
+
+
+def _files_to_commit(res: dict, stamped) -> list[str]:
+    """The tracked products of a build, repo-relative: the recipe JSON(s), the build stamps and a
+    library block's .ntop (small, tracked) - committed together, so the recipe in git is the one
+    the stamped notebook was built from."""
+    from . import runs as _runs
+    root = Path(__file__).resolve().parents[2]
+    r = res.get("result") or {}
+    block = r.get("block") or {}
+    paths = [r.get("recipe"), block.get("recipe"), block.get("saved")] + [str(_runs.build_stamp_path(nb)) for nb in stamped]
+    out = []
+    for raw in paths:
+        if not raw:
+            continue
+        path = Path(raw).resolve()
+        if path.exists() and path.is_relative_to(root) and not path.match("ntop/notebooks/*.ntop"):
+            rel = path.relative_to(root).as_posix()
+            if rel not in out and not rel.startswith("out/"):            # a --scratch build: nothing to commit
+                out.append(rel)
+    return out
 
 
 def _stamp_saved(res: dict) -> None:

@@ -2,7 +2,6 @@
 
     python -m ntopjewel api build stone_seat             # first, if ntop/blocks/stone_seat.ntop is not there
     python -m ntopjewel api build prong_head             # nTop open, View > Python Console open
-    python -m ntopjewel api build prong_head --param bisect=true   # each build stage as its own block, test-embedded
 
 1. Block `ntop/blocks/prong_head.ntop` (Seat Cutter is an implicit INPUT; no block inside):
        one prong   Cylinder Base -> Tip (Prong Radius) ∪ a sphere on each end
@@ -26,7 +25,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from ntopjewel import nb_jewel as nj
-from ntopjewel.notebook_api import ConsoleError, NotebookHelper
 
 HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
@@ -79,203 +77,38 @@ def prepare(params: dict, work_dir: Path) -> dict:
     return params
 
 
-STAGES = ("point_sphere", "prong", "array", "basket", "cut_only", "full")
-
-
-def _head_body(notebook, values: dict, stage: str = "full"):
-    """Build the head block's body in a fresh notebook up to `stage`; returns (helper, body block,
-    the input variables that stage uses). Stages, cumulative except cut_only:
-        point_sphere  a sphere at the Base point (3 wired inputs) of Prong Radius
-        prong         + Tip point, the rod, both end spheres, their union
-        array         + Count, Spacing, Z axis, the polar array
-        basket        + both rails and the basket union
-        cut_only      a sphere at the origin minus the Seat Cutter input (the cutter on its own)
-        full          the basket minus the Seat Cutter input: the block"""
-    h = NotebookHelper(notebook)
+def _head_body(notebook, values: dict):
+    """Fresh notebook -> (helper, head body, input ids in order)."""
+    h = nj.Helper(notebook)
     notebook.new_notebook()
-    used = []
-
-    def inp(name):
-        if name not in h.blocks:
-            kind = dict(GEOMETRY_SPECS)[name]
-            nj.add_typed_inputs(h, [(name, kind)], values)
-        if h.blocks[name] not in used:
-            used.append(h.blocks[name])
-        return h.blocks[name]
-
-    def cutter_input():
-        cut = notebook.add_block("core.var<implicit>")
-        cid = cut["id"] if cut["id"] == CUTTER_INPUT else notebook.rename_variable(cut["id"], CUTTER_INPUT)["id"]
-        h.blocks[CUTTER_INPUT] = cid
-        h.identifiers[CUTTER_INPUT] = "core.var<implicit>"
-        h.log.append(f"var {CUTTER_INPUT}: core.var<implicit> (an input: the seat cutter)")
-        used.insert(0, cid)
-        return cid
-
-    def sphere(label, centre):
-        s_ = h.add(label, nj.SPHERE, mask="sphere", must=[["sphere<point,real>"], ["sphere", "point", "real"]])
-        h.wire(centre, s_, ["Center Point", "Center", "Point"])
-        h.wire(inp("Prong Radius"), s_, ["Radius"])
-        return s_
-
-    if stage == "cut_only":
-        cutter = cutter_input()
-        ball = sphere("Ball", nj.point_block(h, "Origin"))
-        body = h.add("Seated", mask="subtract", must=nj.SUBTRACT)
-        h.wire(ball, body, ["Primary Body", "Body"])
-        h.to_list(cutter, body, ["Subtraction Bodies", "Bodies"])
-        return h, body, used
-
-    cutter = cutter_input() if stage == "full" else None
+    cutter = nj.implicit_input(h, CUTTER_INPUT)
+    ids = nj.add_typed_inputs(h, GEOMETRY_SPECS, values)
     # a block output used twice goes through a variable - in a custom block this is not optional:
-    # the stage that fed one Point to both the rod and a sphere was refused (bisect, 2026-10-28)
-    base = h.wrap_var("Base Point", nj.point_from_vars(h, "Base", inp("Base X"), inp("Base Y"), inp("Base Z")))
-    foot = sphere("Prong Foot", base)
-    if stage == "point_sphere":
-        return h, foot, used
-    tip = h.wrap_var("Tip Point", nj.point_from_vars(h, "Tip", inp("Tip X"), inp("Tip Y"), inp("Tip Z")))
-    rod = h.add("Prong Rod", nj.CYLINDER, mask="cylinder", must=[["cylinder", "point,point,real"]])
-    h.wire(base, rod, ["Point 1"])
-    h.wire(tip, rod, ["Point 2"])
-    h.wire(inp("Prong Radius"), rod, ["Radius"])
-    tip_ball = sphere("Prong Tip", tip)
-    prong = h.add("Prong", mask="union", must=nj.UNION)
-    for b in (rod, foot, tip_ball):
-        h.to_list(b, prong, ["Bodies"])
-    if stage == "prong":
-        return h, prong, used
-    prongs = h.add("Prongs", mask="polar_array", must=nj.POLAR_ARRAY)
-    h.wire(prong, prongs, ["Body"])
-    h.wire(inp("Prong Spacing"), prongs, ["Angular Spacing", "Angular spacing", "Angle", "Spacing"])
-    h.wire(inp("Prong Count"), prongs, ["Count", "Number", "Copies"])
-    h.wire(nj.z_axis(h), prongs, ["Axis"])
-    if stage == "array":
-        return h, prongs, used
-    rails = []
-    for label, zk, rk in (("Upper Rail", "Upper Rail Z", "Upper Rail Radius"), ("Lower Rail", "Lower Rail Z", "Lower Rail Radius")):
-        c = nj.point_block(h, f"{label} Centre", z_var=inp(zk))
-        t = h.add(label, nj.TORUS, mask="torus", must=[["torus", "point", "vector"], ["torus"]])
-        h.wire(c, t, ["Center"])
-        nj.set_axis(h, t)
-        h.wire(inp(rk), t, ["Radius"])
-        h.wire(inp("Rail Tube Radius"), t, ["Torus Radius", "Torus radius", "Tube"])
-        rails.append(t)
-    basket = h.add("Basket", mask="union", must=nj.UNION)
-    for b in (prongs, *rails):
-        h.to_list(b, basket, ["Bodies"])
-    nj.wire_blend(h, basket, inp("Blend Radius"))              # prongs melt into the rails (a real_field: wired, not set)
-    if stage == "basket":
-        return h, basket, used
-    head = h.add("Seated", mask="subtract", must=nj.SUBTRACT)
-    h.wire(basket, head, ["Primary Body", "Body"])
-    h.to_list(cutter, head, ["Subtraction Bodies", "Bodies"])
-    return h, head, used
-
-
-def _finish_block(notebook, h, body, used, path: str, recipe: str | None = None) -> list[str]:
-    """Typed Output, inputs in the catalog's order, save (and recipe); returns warnings."""
-    out = h.wrap_var("Head", body)
-    order = [h.blocks[CUTTER_INPUT]] if CUTTER_INPUT in h.blocks else []
-    order += [h.blocks[n] for n, _ in GEOMETRY_SPECS if n in h.blocks]
-    h.declare_inputs([i for i in order if i in used])
-    h.set_output(out)
-    warnings = nj.settle(h, body, "the block's Output")
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    notebook.save_notebook_as(path)
-    if recipe:
-        try:
-            notebook.export_as_recipe(recipe, True)
-        except Exception as e:
-            h.log.append(f"export_as_recipe (block) failed: {e}")
-    if not Path(path).exists():
-        raise ConsoleError(f"the block was not saved to {path}")
-    return warnings
-
-
-def bisect(notebook, values: dict, out_dir: Path) -> dict:
-    """Build each stage as its own block notebook and test-embed it: the first refused stage names
-    the construct nTop will not take in a custom block."""
-    summary, results = [], {}
-    for stage in STAGES:
-        rec = {}
-        try:
-            h, body, used = _head_body(notebook, values, stage)
-            path = str(Path(out_dir) / f"head_stage_{stage}.ntop")
-            rec["warnings"] = _finish_block(notebook, h, body, used, path)
-            rec["inputs"] = len(used)
-            try:
-                rec["embed"] = embed_self_test(notebook, path)
-            except ConsoleError as e:
-                rec["embed"] = f"REFUSED: {e}"[:400]
-        except Exception as e:
-            rec["build_error"] = f"{type(e).__name__}: {e}"[:400]
-        results[stage] = rec
-        emb = rec.get("embed")
-        summary.append(f"{stage:13} inputs {rec.get('inputs', '-'):>2}  " +
-                       ("embed: ok" if isinstance(emb, dict) else f"embed: {emb or rec.get('build_error')}"))
-    return {"summary": summary, "results": results}
+    # a block notebook that fed one Point to both the rod and a sphere was refused (bisected 2026-10-28)
+    base = h.wrap_var("Base Point", nj.point_from_vars(h, "Base", ids["Base X"], ids["Base Y"], ids["Base Z"]))
+    tip = h.wrap_var("Tip Point", nj.point_from_vars(h, "Tip", ids["Tip X"], ids["Tip Y"], ids["Tip Z"]))
+    radius = ids["Prong Radius"]
+    rod = h.cylinder("Prong Rod", base, tip, radius)
+    prong = h.union("Prong", [rod, h.sphere("Prong Foot", base, radius), h.sphere("Prong Tip", tip, radius)])
+    prongs = h.polar_array("Prongs", prong, ids["Prong Spacing"], ids["Prong Count"], nj.z_axis(h))
+    rails = [h.torus(rail, ids[f"{rail} Radius"], ids["Rail Tube Radius"],
+                     centre=nj.point_block(h, f"{rail} Centre", z_var=ids[f"{rail} Z"]))
+             for rail in ("Upper Rail", "Lower Rail")]
+    basket = h.union("Basket", [prongs, *rails], blend=ids["Blend Radius"])        # prongs melt into the rails
+    head = h.subtract("Seated", basket, [cutter])
+    return h, head, [cutter] + [ids[n] for n, _ in GEOMETRY_SPECS]
 
 
 def build_block(notebook, p: dict, values: dict) -> dict:
     """The head block: Seat Cutter (implicit input) + 14 numbers -> Head. It holds no other block;
     a bezel can reuse the same seat cutter."""
-    h, head, used = _head_body(notebook, values, "full")
-    warnings = _finish_block(notebook, h, head, used, p["block_to"], p["block_recipe_to"])
-    self_test = embed_self_test(notebook, p["block_to"])
-    h.log.append(f"self-test: {self_test}")
-    return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers, "warnings": warnings,
-            "self_test": self_test, "blocks": h.blocks, "states": h.states(0), "log": h.log}
+    h, head, order = _head_body(notebook, values)
+    return nj.save_block(notebook, h, head, order, "Head", p)
 
 
-def embed_self_test(notebook, block_path: str) -> dict:
-    """Embed the saved block into a fresh notebook at once, so a block nTop will not accept is
-    named here rather than as a harness failure later."""
-    notebook.new_notebook()
-    try:
-        notebook.embed_custom_block(block_path)
-    except Exception as e:
-        raise ConsoleError(f"nTop refuses the saved block as a custom block: {e}") from e
-    blocks = [b for b in notebook.list_custom_blocks() if b.get("name") == Path(block_path).stem]
-    if not blocks:
-        raise ConsoleError(f"embedded {block_path} but list_custom_blocks() does not name it")
-    return {"accepted": True, "id": blocks[0]["id"]}
-
-
-def _harness(h, p, values, test_output):
-    """Harness: the stone_seat block cuts, the prong_head block takes that cutter + its numbers."""
-    ids = nj.add_typed_inputs(h, BLOCK_SPECS + [("Mesh Tolerance", "mm")], values)
-    out_var = nj.path_variable(h, "Output Path", test_output)
-    seat = h.add("Stone Seat", h.embed_block(p["seat_block"]))
-    for name, _ in SEAT_SPECS:
-        h.wire(ids[name], seat, [name])
-    head = h.add("Prong Head", h.embed_block(p["block_to"]))
-    h.wire(seat, head, [CUTTER_INPUT])
-    for name, _ in GEOMETRY_SPECS:
-        h.wire(ids[name], head, [name])
-    body = h.wrap_var("Result", head)
-    integ, _mesh, export = nj.add_measure_mesh_export(h, body, out_var, ids["Mesh Tolerance"])
-    return integ, export
+_harness = nj.seat_head_harness("Prong Head", SEAT_SPECS, GEOMETRY_SPECS, CUTTER_INPUT)
 
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build prong_head`: the block, then its harness."""
-    params = dict(params or {})
-    if "save_to" in params and "block_to" not in params:          # --scratch: the block beside the harness
-        params["block_to"] = str(Path(params["save_to"]).parent / "prong_head.ntop")
-        params.setdefault("block_recipe_to", str(Path(params["save_to"]).parent / "prong_head.block.recipe.json"))
-    p = {**DEFAULTS, **params}
-    values = {**DEFAULTS["values"], **(p.get("values") or {})}
-    if not values:
-        raise ConsoleError("no input values: run through `python -m ntopjewel api build prong_head` (prepare() computes them)")
-    for key in ("block_to", "block_recipe_to", "seat_block"):
-        p[key] = nj.absolute(p[key])
-    if not Path(p["seat_block"]).exists():
-        raise ConsoleError(f"{p['seat_block']} is missing: run `python -m ntopjewel api build stone_seat` first")
-    p["values"] = values
-    if p.get("bisect"):                     # `api build prong_head --param bisect=true`
-        return bisect(notebook, values, REPO / "out" / "api" / "head_stages")
-    block = build_block(notebook, p, values)
-    res = nj.run_build(notebook, p, {**DEFAULTS, "values": values}, _harness)
-    res["block"] = block
-    res["warnings"] = block.get("warnings", []) + res.get("warnings", [])
-    return res
+    return nj.block_build(notebook, params, DEFAULTS, "prong_head", build_block, _harness)

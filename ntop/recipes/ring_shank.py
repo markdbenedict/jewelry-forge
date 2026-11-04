@@ -7,7 +7,7 @@ Phase 3, step 1 (ntopjewel.shank).
                           (a split's slot, a bridge's ends); the band's own edges are rounded that much in the
                           section already. On the bar, where the field is exact - and on each bar apart, since a
                           union's field erodes into its overlaps (a 0.05 mm groove along a split's seam, 2026-11-02)
-                       -> Boolean Union of the four opened bars (Shank Bars): bodies that cross each other - a
+                       -> Boolean Union of the four opened bars (Bars): bodies that cross each other - a
                           split's halves, a double band's bridges, a rope's, plait's or trinity knot's strands -
                           come in separate bars and are united HERE, as implicits (a mesh union left faces
                           micrometres apart along its seams, which the import read as self-intersecting,
@@ -39,7 +39,8 @@ REPO = HERE.parents[2]
 TEST_DIR = REPO / "out" / "api"
 TEST_STEM = "ring_shank_test"                                     # prepare() writes ring_shank_test.bar.stl
 
-INPUT_ORDER = [*SLOT_NAMES, "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance", "Output Path"]
+SPECS = nj.SHANK_SPECS
+INPUT_ORDER = nj.input_order(SPECS)
 
 
 def _spec():
@@ -76,15 +77,14 @@ def prepare(params: dict, work_dir: Path) -> dict:
 
 
 def _body(h, p, values, test_output):
-    bar_paths = [nj.path_variable(h, name, nj.absolute(values[name], h, name)) for name in SLOT_NAMES]
-    for name in ("Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance"):
-        h.real_var(name, float(values[name]), "mm")
+    ids = nj.add_typed_inputs(h, SPECS, values)
     out_var = nj.path_variable(h, "Output Path", test_output)
-
-    wrapped = nj.add_wrapped_shank(h, bar_paths, h.blocks["Wrap Length"], h.blocks["Edge Round Inward"], h.blocks["Edge Round"],
-                                   h.blocks["Mesh Tolerance"])
-    ring = h.wrap_var("Shank Body", wrapped)
-    integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, h.blocks["Mesh Tolerance"])
+    with h.section("Shank"):
+        wrapped = nj.add_wrapped_shank(h, [ids[n] for n in SLOT_NAMES], ids["Wrap Length"], ids["Edge Round Inward"],
+                                       ids["Edge Round"], ids["Mesh Tolerance"])
+    with h.section("Result"):
+        ring = h.wrap_var("Shank Body", wrapped)
+        integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, ids["Mesh Tolerance"])
     return integ, export
 
 

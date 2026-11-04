@@ -416,6 +416,22 @@ explore the ring space fully before pendants, bracelets and chains; blends first
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the
    shank where they are simple; Blender sculpts imported as meshes where they are not.
 
+## Notebook readability (2026-11-04)
+
+Mark's ask: the notebooks simpler and readable by a person, without restructuring the codebase. Done:
+(1) every runner notebook is laid out as an outline - named sections in build order (`Shank`, `Artwork`,
+`Arches`, `Head`, `Milgrain`, `Engraving`, `Ring` / `Result`; multistone `Head 1` .. `Head 5`), all but the
+last collapsed, comments on the junctions that need a reason (the opening, seats cut after the blended
+join, the beads on the opened band), labels that say what a block is (`Bar 2 Opened`, `Head 3 On Ring`);
+(2) the recipes are written in `nj.Helper` verbs, declare their inputs as `SPECS` and share
+`nj.standard_build` / `nj.block_build` / `nj.save_block` / `nj.seat_head_harness` (prong_head's stage
+bisection, a one-off diagnosis from 28 Oct, is gone); (3) `api build` names the tracked files it wrote
+(`commit    : git add ...`) so the recipe JSON goes into git with the stamp it was built with. Checked
+offline: every recipe built on the fake before and after gives the same blocks, wiring, list order,
+inputs and Output in all 17 notebooks (geometry unchanged, so no `rebuild_since` bump). *Real check
+pending:* rebuild all 13 recipes; the `sections` line, or a `layout` note with the real signatures of
+`add_section` / `move_block` / `set_block_comment` if 6.3.3 refuses them; commit the files it names.
+
 ## Next acceptance milestone — the Phase 1 gate
 
 1. `python -m ntopjewel api build ring_features`; commit `ntop\notebooks\ring_features.ntop`

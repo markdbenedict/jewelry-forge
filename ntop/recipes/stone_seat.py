@@ -21,7 +21,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from ntopjewel import nb_jewel as nj
-from ntopjewel.notebook_api import ConsoleError, NotebookHelper
 
 HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
@@ -56,32 +55,15 @@ def prepare(params: dict, work_dir: Path) -> dict:
 
 
 def build_block(notebook, p: dict, values: dict) -> dict:
-    """The block notebook: Seat Path, Clearance -> Seat Cutter (implicit). Saved, not embedded."""
-    h = NotebookHelper(notebook)
+    """The block notebook: Seat Path, Clearance -> Seat Cutter (implicit). Saved; the head blocks
+    and the runners embed it."""
+    h = nj.Helper(notebook)
     notebook.new_notebook()
     path_var = nj.path_variable(h, "Seat Path", nj.absolute(values["Seat Path"], h, "Seat Path"))
     clearance = h.real_var("Clearance", float(values["Clearance"]), "mm")
-    imp = h.add("Seat Mesh", mask="import_mesh", must=nj.IMPORT_MESH)
-    h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
-    body = h.add("Seat Body", mask="implicit_from_mesh", must=nj.IMPLICIT_FROM_MESH)
-    h.wire(imp, body, ["Mesh"])
-    cutter = h.add("Seat Offset", mask="offset", must=nj.OFFSET)
-    h.wire(body, cutter, ["Body"])
-    h.wire(clearance, cutter, ["Distance", "Offset"])
-    out = h.wrap_var("Seat Cutter", cutter)          # core.var<implicit>: what a head subtracts
-    h.declare_inputs([path_var, clearance])
-    h.set_output(out)
-    warnings = nj.settle(h, cutter, "the block's Output")
-    Path(p["block_to"]).parent.mkdir(parents=True, exist_ok=True)
-    notebook.save_notebook_as(p["block_to"])
-    try:
-        notebook.export_as_recipe(p["block_recipe_to"], True)
-    except Exception as e:
-        h.log.append(f"export_as_recipe (block) failed: {e}")
-    if not Path(p["block_to"]).exists():
-        raise ConsoleError(f"the block was not saved to {p['block_to']}")
-    return {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers, "warnings": warnings,
-            "blocks": h.blocks, "states": h.states(0), "log": h.log}
+    body = h.import_body("Seat Body", path_var)
+    cutter = h.offset("Seat Offset", body, clearance)                     # the envelope grown by the clearance
+    return nj.save_block(notebook, h, cutter, [path_var, clearance], "Seat Cutter", p, self_test=False)
 
 
 def _harness(h, p, values, test_output):
@@ -89,8 +71,7 @@ def _harness(h, p, values, test_output):
     clearance = h.real_var("Clearance", float(values["Clearance"]), "mm")
     tolerance = h.real_var("Mesh Tolerance", float(values["Mesh Tolerance"]), "mm")
     out_var = nj.path_variable(h, "Output Path", test_output)
-    ident = h.embed_block(p["block_to"])
-    seat = h.add("Stone Seat", ident)
+    seat = h.add("Stone Seat", h.embed_block(p["block_to"]))
     h.wire(seat_path, seat, ["Seat Path"])
     h.wire(clearance, seat, ["Clearance"])
     cutter = h.wrap_var("Seat", seat)
@@ -100,15 +81,4 @@ def _harness(h, p, values, test_output):
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build stone_seat`: the block, then its harness."""
-    params = dict(params or {})
-    if "save_to" in params and "block_to" not in params:          # --scratch: keep the block beside it
-        params["block_to"] = str(Path(params["save_to"]).parent / "stone_seat.ntop")
-        params.setdefault("block_recipe_to", str(Path(params["save_to"]).parent / "stone_seat.block.recipe.json"))
-    p = {**DEFAULTS, **params}
-    values = {**DEFAULTS["values"], **(p.get("values") or {})}
-    p["block_to"] = nj.absolute(p["block_to"])
-    p["block_recipe_to"] = nj.absolute(p["block_recipe_to"])
-    block = build_block(notebook, p, values)
-    harness = nj.run_build(notebook, p, DEFAULTS, _harness)
-    harness["block"] = block
-    return harness
+    return nj.block_build(notebook, params, DEFAULTS, "stone_seat", build_block, _harness, needs_seat=False)

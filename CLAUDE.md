@@ -263,6 +263,20 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   refused by `embed_custom_block` ("Not a valid custom block"; bisected 2026-10-28). Variables may
   feed any number of inputs. Variables are notebook inputs once
   `move_block_to_input` is called; one `set_block_as_output`.
+- **Recipes are written in `nj.Helper` verbs** (2026-11-04): `h.union / intersect / subtract / offset /
+  import_body / mesh / remap_cylindrical / rotation / transform / cylinder / torus / sphere / polar_array`,
+  one call per block, each wiring its inputs by nTop's names; a recipe declares its inputs as `SPECS`
+  (`nj.add_typed_inputs`) and ends in `nj.standard_build` (runners) or `nj.block_build` + `nj.save_block`
+  (library blocks; `nj.seat_head_harness` for a head's harness). Labels say what a block is (`Bar 2 Opened`,
+  `Head 3 On Ring`, `Band Eroded` / `Band Re-distanced`). **A runner notebook reads as an outline**: blocks go
+  into named sections (`with h.section("Shank"):`), `h.comment` notes why a junction is where it is (the
+  opening, seats cut after the blended join), and `finish` collapses every section but the last. Block
+  notebooks get no sections (nothing untried in a custom block). Sections and comments are layout only:
+  `add_section`, `move_block`, `set_block_comment`, `collapse_section` are in the API but their 6.3.3
+  argument lists are unverified, so every call is guarded - the first refusal is logged with the method's
+  real signature (`api:` lines in the build's log) and the build carries on without them. The refactor was
+  checked by building every recipe on the fake before and after and comparing the graphs: the same blocks,
+  wiring, list order, inputs and Output in all 17 notebooks.
 - **Blends**: Boolean Union / Intersect take `Blend Radius` (a `real_field`: wire a `core.var<real>`,
   `nj.wire_blend`); the Blend Type enum stays at nTop's default. A smooth union fills every corner two
   surfaces make within its radius, so **the seat and the engraving are subtracted after the blended

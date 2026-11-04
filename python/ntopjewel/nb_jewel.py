@@ -6,11 +6,20 @@ rules"): identifiers are snake_case + the input type list with the HIGHEST versi
 file inputs are `core.var<text>` variables, `real_field` inputs are fed by wired variables,
 measurement blocks build only once a typed variable consumes them, and the volume is a
 `volume_integral` of a unitless 1 (a fresh notebook's unit table knows only mm).
+
+A build script talks to nTop through `Helper` (below): verbs that each add one kind of block and
+wire it - `h.union("Joined", [shank, heads], blend=var)`, `h.subtract("Ring", joined, [seat])`,
+`h.import_body("Relief", path_var)` - so a notebook body reads like the docstring that describes it.
+The candidate input names (nTop's spellings and their fallbacks) live in the verbs, once. A body is
+grouped into named sections (`with h.section("Arches"):`) and the blocks that carry a rule get a
+comment (`h.comment(block, "why")`), so the canvas explains itself.
 """
 from __future__ import annotations
 
+import inspect
 import json
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable
 
@@ -39,6 +48,21 @@ BOX_FROM_CORNERS = [["box_from_corners<point,point>"], ["box_from_corners"]]
 PATH_VARS = ("core.var<text>",)      # file inputs: 6.3.3 cannot set a file_path variable, and a text one serves (nTopCL types it text)
 INTEGER_VARS = ("core.var<integer>", "core.var<int>")
 
+# the input names nTop 6.3.3 gives these blocks, first, then the spellings we met on the way (2026-10-26/28)
+PRIMARY = ["Primary Body", "Body"]
+CUTS = ["Subtraction Bodies", "Bodies"]
+BODIES = ["Bodies"]
+PATH_IN = ["Path", "File Path", "File", "Filename"]
+EXPORT_PATH_IN = ["File Path", "File", "Path", "Filename", "Output"]
+DISTANCE = ["Distance", "Offset"]
+BLEND = ["Blend Radius", "Blend radius", "Radius", "Blend"]
+MAPPING_LENGTH = ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"]
+TUBE = ["Torus Radius", "Torus radius", "Tube"]
+CENTRE = ["Center Point", "Center", "Point"]
+SPACING = ["Angular Spacing", "Angular spacing", "Angle", "Spacing"]
+COUNT = ["Count", "Number", "Copies"]
+AXIS_POINT = ["Point", "Origin", "Center", "Position"]
+
 # the profiled band's inputs, in catalog order (ring_band_profile.yaml); Output Path follows
 BAND_INPUTS = ["Outer Radius", "Bore Radius", "Z Top", "Z Bottom", "Dome Ring Radius", "Dome Tube Radius",
                "Comfort Ring Radius", "Comfort Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]
@@ -54,6 +78,279 @@ def slot_name(k: int) -> str:
 
 
 SLOT_NAMES = tuple(slot_name(k) for k in range(BAR_SLOTS))
+# the inputs of a notebook built on the bars, in catalog order (ring_shank, pave_band, ring_artwork, multistone)
+SHANK_SPECS = [(n, "path") for n in SLOT_NAMES] + [("Wrap Length", "mm"), ("Edge Round", "mm"), ("Edge Round Inward", "mm"),
+                                                   ("Mesh Tolerance", "mm")]
+
+
+def input_order(specs: list[tuple[str, str]]) -> list[str]:
+    """A runner notebook's inputs in catalog order: its specs, then Output Path."""
+    return [n for n, _ in specs] + ["Output Path"]
+
+
+# ---- the helper: verbs, sections, comments ------------------------------------------------------
+class Helper(NotebookHelper):
+    """NotebookHelper plus one verb per kind of block we build, named sections and block comments.
+
+    Sections and comments are organisation only - nTopCL builds the same graph without them - and
+    their argument lists on nTop 6.3.3 were not verified when this was written (2026-11-04): every
+    call is guarded, the first refusal is logged with the method's real signature and the build
+    carries on without them. A build never fails for a section or a comment."""
+
+    def __init__(self, notebook):
+        super().__init__(notebook)
+        self.section_id = ""                        # where add() puts new blocks ("" = nTop's default)
+        self.section_ids: dict[str, str] = {}       # our section name -> nTop id, in order
+        self.sections_ok = True
+        self.comments_ok = True
+        self._signatures_logged = False
+
+    # ---- organisation -----------------------------------------------------------------
+    def _log_signatures(self) -> None:
+        if self._signatures_logged:
+            return
+        self._signatures_logged = True
+        for name in ("add_section", "move_block", "set_block_comment", "collapse_section", "list_sections"):
+            fn = getattr(self.nb, name, None)
+            if fn is None:
+                self.log.append(f"api: {name} - not on this notebook object")
+                continue
+            try:
+                sig = str(inspect.signature(fn))
+            except (TypeError, ValueError):
+                sig = "(signature not introspectable)"
+            doc = (getattr(fn, "__doc__", "") or "").strip().splitlines()
+            self.log.append(f"api: {name}{sig}" + (f" - {doc[0][:160]}" if doc else ""))
+
+    def _sections_off(self, why: str) -> None:
+        if self.sections_ok:
+            self.sections_ok = False
+            self.log.append(f"sections off for this build (organisation only, the geometry is unaffected): {why}")
+        self.section_id = ""
+
+    def _new_section(self, name: str) -> str:
+        """nTop's id for a new section called `name` ("" when sections are off)."""
+        self._log_signatures()
+        if not self.sections_ok:
+            return ""
+        if name in self.section_ids:
+            return self.section_ids[name]
+        fn = getattr(self.nb, "add_section", None)
+        if not callable(fn):
+            self._sections_off("this API has no add_section")
+            return ""
+        try:
+            before = {s.get("id") for s in self.nb.list_sections()}
+            info = fn(name)
+            sid = info.get("id") if isinstance(info, dict) else (info if isinstance(info, str) else "")
+            if not sid:                                   # the call returned nothing useful: find the new one
+                new = [s for s in self.nb.list_sections() if s.get("id") not in before]
+                sid = new[-1]["id"] if new else ""
+            if not sid:
+                raise ConsoleError(f"add_section({name!r}) returned {info!r} and no new section appeared")
+        except Exception as e:
+            self._sections_off(f"add_section({name!r}) refused: {e}")
+            return ""
+        self.section_ids[name] = sid
+        self.log.append(f"section {name}: {sid}")
+        return sid
+
+    @contextmanager
+    def section(self, name: str):
+        """Blocks added inside go into the section called `name` (made on first use)."""
+        outer = self.section_id
+        self.section_id = self._new_section(name)
+        try:
+            yield self.section_id
+        finally:
+            self.section_id = outer if self.sections_ok else ""
+
+    def place(self, block_id: str) -> None:
+        """Move an existing block or variable into the current section (variables are made outside
+        any section by the API calls that create them)."""
+        if not (self.sections_ok and self.section_id):
+            return
+        fn = getattr(self.nb, "move_block", None)
+        if not callable(fn):
+            self._sections_off("this API has no move_block")
+            return
+        try:
+            fn(block_id, self.section_id)
+        except Exception as e:
+            self._sections_off(f"move_block({block_id!r}, {self.section_id!r}) refused: {e}")
+
+    def comment(self, block_id: str, text: str) -> None:
+        """A note on the block, shown with it in nTop: why it is there or why it comes in this order."""
+        if not self.comments_ok:
+            return
+        fn = getattr(self.nb, "set_block_comment", None)
+        try:
+            if not callable(fn):
+                raise ConsoleError("this API has no set_block_comment")
+            fn(block_id, text)
+        except Exception as e:
+            self._log_signatures()
+            self.comments_ok = False
+            self.log.append(f"comments off for this build (organisation only): set_block_comment refused: {e}")
+
+    def collapse_all_but(self, keep: Iterable[str] = ()) -> None:
+        """Collapse every section we made except `keep` (the notebook then reads as an outline)."""
+        fn = getattr(self.nb, "collapse_section", None)
+        if not (self.sections_ok and callable(fn)):
+            return
+        keep = set(keep)
+        for name, sid in self.section_ids.items():
+            if name in keep:
+                continue
+            try:
+                fn(sid)
+            except Exception as e:
+                self.log.append(f"collapse_section({sid!r}) refused: {e}; sections left expanded")
+                return
+
+    # ---- blocks, in the current section --------------------------------------------------
+    def add(self, label: str, *candidates: str, mask: str = "", must: Iterable[str] = (), section_id: str = "") -> str:
+        sid = section_id or (self.section_id if self.sections_ok else "")
+        if not sid:
+            return super().add(label, *candidates, mask=mask, must=must)
+        if label in self.blocks:
+            return super().add(label, *candidates, mask=mask, must=must)     # raises the clash
+        try:
+            return super().add(label, *candidates, mask=mask, must=must, section_id=sid)
+        except ConsoleError:
+            raise
+        except Exception as e:                       # add_block(ident, section_id) refused: without sections
+            if label in self.blocks:
+                raise
+            self._sections_off(f"add_block(..., {sid!r}) refused: {e}")
+            return super().add(label, *candidates, mask=mask, must=must)
+
+    def real_var(self, name: str, value: float, units: str = "mm") -> str:
+        vid = super().real_var(name, value, units)
+        self.place(vid)
+        return vid
+
+    def wrap_var(self, name: str, block_id: str) -> str:
+        vid = super().wrap_var(name, block_id)
+        self.place(vid)
+        return vid
+
+    # ---- verbs ---------------------------------------------------------------------------
+    def union(self, label: str, bodies: Iterable[str], blend: str | None = None, comment: str = "") -> str:
+        """Boolean Union of `bodies`; `blend`: a mm variable wired to its Blend Radius (a smooth union)."""
+        u = self.add(label, mask="union", must=UNION)
+        for b in bodies:
+            self.to_list(b, u, BODIES)
+        if blend is not None:
+            wire_blend(self, u, blend)
+        if comment:
+            self.comment(u, comment)
+        return u
+
+    def intersect(self, label: str, bodies: Iterable[str], blend: str | None = None, comment: str = "") -> str:
+        x = self.add(label, mask="intersect", must=INTERSECT)
+        for b in bodies:
+            self.to_list(b, x, BODIES)
+        if blend is not None:
+            wire_blend(self, x, blend)
+        if comment:
+            self.comment(x, comment)
+        return x
+
+    def subtract(self, label: str, body: str, cuts: Iterable[str], comment: str = "") -> str:
+        """Boolean Subtract: `body` less every body in `cuts` (sharp)."""
+        s = self.add(label, mask="subtract", must=SUBTRACT)
+        self.wire(body, s, PRIMARY)
+        for c in cuts:
+            self.to_list(c, s, CUTS)
+        if comment:
+            self.comment(s, comment)
+        return s
+
+    def offset(self, label: str, body: str, distance_var: str) -> str:
+        o = self.add(label, mask="offset", must=OFFSET)
+        self.wire(body, o, ["Body"])
+        self.wire(distance_var, o, DISTANCE)
+        return o
+
+    def import_body(self, label: str, path_var: str) -> str:
+        """A ring-frame body Python wrote: Import Mesh (`<label> Mesh`, Path from the text variable)
+        -> Implicit from Mesh (`<label>`). Returns the implicit's id."""
+        imp = self.add(f"{label} Mesh", mask="import_mesh", must=IMPORT_MESH)
+        self.wire(path_var, imp, PATH_IN)
+        body = self.add(label, mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
+        self.wire(imp, body, ["Mesh"])
+        return body
+
+    def mesh(self, label: str, body: str, tolerance_var: str) -> str:
+        m = self.add(label, mask="mesh", must=MESH)
+        self.wire(body, m, ["Body"])
+        self.wire(tolerance_var, m, ["Tolerance"])
+        return m
+
+    def remap_cylindrical(self, label: str, body: str, length_var: str) -> str:
+        """Remap Cylindrical Body: a bar (X radial, Y along the ring, Z axial) wrapped round Z."""
+        w = self.add(label, mask="remap_cylindrical", must=REMAP_CYLINDRICAL)
+        self.wire(body, w, ["Body"])
+        self.wire(length_var, w, MAPPING_LENGTH)
+        return w
+
+    def rotation(self, label: str, angle_var: str, axis=(0.0, 0.0, 1.0), point: str | None = None) -> str:
+        """Rotation Transform about `axis` through `point` (a Point block or variable; the origin when None)."""
+        rot = self.add(label, mask="rotation_transform", must=ROTATION_TRANSFORM)
+        if point is None:
+            self.set(rot, [self.input_of_type(rot, "point")], [0.0, 0.0, 0.0], "mm")
+        else:
+            self.wire(point, rot, [self.input_of_type(rot, "point")])
+        self.set(rot, [self.input_of_type(rot, "vector")], list(axis))
+        self.wire(angle_var, rot, [self.input_of_type(rot, "real")])
+        return rot
+
+    def transform(self, label: str, body: str, transformation: str) -> str:
+        """Transform Object: `body` moved by a transformation block or variable."""
+        t = self.add(label, mask="transform_object", must=TRANSFORM_OBJECT)
+        self.wire(body, t, [self.input_of_type(t, "spatial3d")])
+        self.wire(transformation, t, [self.input_of_type(t, "transformation")])
+        return t
+
+    def cylinder(self, label: str, p1: str | None, p2: str | None, radius_var: str,
+                 z_span: tuple[float, float] | None = None) -> str:
+        """Cylinder Point 1 -> Point 2 (blocks or variables), or along Z over `z_span` (mm) when the points are None."""
+        c = self.add(label, CYLINDER, mask="cylinder", must=[["cylinder", "point,point,real"], ["cylinder", "point", "real"]])
+        if z_span is not None:
+            self.set(c, ["Point 1"], [0.0, 0.0, float(z_span[0])], "mm")
+            self.set(c, ["Point 2"], [0.0, 0.0, float(z_span[1])], "mm")
+        else:
+            self.wire(p1, c, ["Point 1"])
+            self.wire(p2, c, ["Point 2"])
+        self.wire(radius_var, c, ["Radius"])
+        return c
+
+    def torus(self, label: str, ring_var: str, tube_var: str, centre: str | None = None) -> str:
+        """Torus about +Z: Radius (ring) and Torus Radius (tube) from variables, centred at the origin or `centre`."""
+        t = self.add(label, TORUS, mask="torus", must=[["torus", "point", "vector"], ["torus"]])
+        if centre is None:
+            self.set(t, ["Center"], [0.0, 0.0, 0.0], "mm")
+        else:
+            self.wire(centre, t, ["Center"])
+        set_axis(self, t)
+        self.wire(ring_var, t, ["Radius"])
+        self.wire(tube_var, t, TUBE)
+        return t
+
+    def sphere(self, label: str, centre: str, radius_var: str) -> str:
+        s = self.add(label, SPHERE, mask="sphere", must=[["sphere<point,real>"], ["sphere", "point", "real"]])
+        self.wire(centre, s, CENTRE)
+        self.wire(radius_var, s, ["Radius"])
+        return s
+
+    def polar_array(self, label: str, body: str, spacing_var: str, count_var: str, axis: str) -> str:
+        a = self.add(label, mask="polar_array", must=POLAR_ARRAY)
+        self.wire(body, a, ["Body"])
+        self.wire(spacing_var, a, SPACING)
+        self.wire(count_var, a, COUNT)
+        self.wire(axis, a, ["Axis"])
+        return a
 
 
 # ---- variables ----------------------------------------------------------------------------------
@@ -61,56 +358,39 @@ def path_variable(h: NotebookHelper, name: str, value: str) -> str:
     """A file-path notebook input: a typed variable renamed to `name`. nTop 6.3.3's API cannot
     set a `file_path` parameter ("only real, vector, point, bool, integer and text"), so this is
     a `core.var<text>`, which Export/Import blocks accept on their file_path input and which
-    nTopCL's template spells `text`. The file_path variable is not probed any more (it was, and
-    every build printed a fallback per path for nothing; a text input loses nothing)."""
-    nb = h.nb
-    avail = h.available()
-    errors = []
-    for ident in PATH_VARS:
-        if ident not in avail:
-            errors.append(f"{ident}: not available")
-            continue
-        info = None
-        try:
-            info = nb.add_block(ident)
-            nb.set_block_input(info["id"], "Input", value)
-            var_id = info["id"] if info["id"] == name else nb.rename_variable(info["id"], name)["id"]
-            h.blocks[name] = var_id
-            h.identifiers[name] = ident
-            h.log.append(f"var {name} = {value!r} via {ident} (id {var_id})")
-            return var_id
-        except Exception as e:
-            h.log.append(f"fallback: {ident} cannot hold {name} through this API, trying the next variable type - nTop said: {e}")
-            errors.append(f"{ident}: {e}")
-            if info:                              # an unset block left behind fails the nTopCL run
-                h.remove(info["id"])
-    raise ConsoleError(f"no variable type could hold the {name} input: " + "; ".join(errors))
+    nTopCL's template spells `text`."""
+    return _typed_variable(h, name, value, PATH_VARS, str, "the {name} input")
 
 
 def integer_variable(h: NotebookHelper, name: str, value: int) -> str:
     """An integer notebook input: a `core.var<integer>` block renamed to `name` (there is no
     add_integer_variable; integer parameters can be set)."""
+    return _typed_variable(h, name, value, INTEGER_VARS, int, "the integer input {name}")
+
+
+def _typed_variable(h: NotebookHelper, name: str, value, idents, cast, what: str) -> str:
     nb = h.nb
     avail = h.available()
     errors = []
-    for ident in INTEGER_VARS:
+    for ident in idents:
         if ident not in avail:
             errors.append(f"{ident}: not available")
             continue
         info = None
         try:
             info = nb.add_block(ident)
-            nb.set_block_input(info["id"], "Input", int(value))
+            nb.set_block_input(info["id"], "Input", cast(value))
             var_id = info["id"] if info["id"] == name else nb.rename_variable(info["id"], name)["id"]
             h.blocks[name] = var_id
             h.identifiers[name] = ident
-            h.log.append(f"var {name} = {int(value)} via {ident} (id {var_id})")
+            h.log.append(f"var {name} = {cast(value)!r} via {ident} (id {var_id})")
             return var_id
         except Exception as e:
+            h.log.append(f"fallback: {ident} cannot hold {name} through this API - nTop said: {e}")
             errors.append(f"{ident}: {e}")
-            if info:
+            if info:                              # an unset block left behind fails the nTopCL run
                 h.remove(info["id"])
-    raise ConsoleError(f"no variable type could hold the integer input {name}: " + "; ".join(errors))
+    raise ConsoleError(f"no variable type could hold {what.format(name=name)}: " + "; ".join(errors))
 
 
 def angle_variable(h: NotebookHelper, name: str, degrees: float) -> str:
@@ -157,97 +437,130 @@ def point_block(h: NotebookHelper, label: str, x_var: str | None = None, z_var: 
     return pid
 
 
-def z_axis(h: NotebookHelper, label: str = "Z Axis") -> str:
-    """An Axis through the origin along +Z (for polar arrays): `axis<point,vector>`, inputs
-    `Point` and `Vector` (verified 2026-10-27)."""
+def point_from_vars(h: NotebookHelper, label: str, x_var: str, y_var: str, z_var: str) -> str:
+    """A Point block whose three components are wired from real variables."""
+    pid = h.add(label, POINT, mask="point", must=[["point<real,real,real"], ["point", "real,real,real"]])
+    h.wire(x_var, pid, ["X"])
+    h.wire(y_var, pid, ["Y"])
+    h.wire(z_var, pid, ["Z"])
+    return pid
+
+
+def z_axis(h: NotebookHelper, label: str = "Z Axis", point: str | None = None) -> str:
+    """An Axis along +Z through the origin, or through `point` (a Point block): `axis<point,vector>`,
+    inputs `Point` and `Vector` (verified 2026-10-27)."""
     ax = h.add(label, mask="axis", must=AXIS)
-    try:
-        h.set(ax, ["Point", "Origin", "Center", "Position"], [0.0, 0.0, 0.0], "mm")
-    except Exception as e:
-        h.log.append(f"axis origin not set ({e}); default kept")
+    if point is None:
+        try:
+            h.set(ax, AXIS_POINT, [0.0, 0.0, 0.0], "mm")
+        except Exception as e:
+            h.log.append(f"axis origin not set ({e}); default kept")
+    else:
+        h.wire(point, ax, AXIS_POINT)
     set_axis(h, ax, name=h.input_name(ax, "Vector", "Direction", "Axis", "Normal"))
     return ax
 
 
-# ---- the profiled band --------------------------------------------------------------------------
+def implicit_input(h: NotebookHelper, name: str) -> str:
+    """A `core.var<implicit>` called `name`, for a block notebook to declare as an input (the seat
+    cutter a head subtracts): a block takes another block's result this way instead of embedding it."""
+    info = h.nb.add_block("core.var<implicit>")
+    vid = info["id"] if info["id"] == name else h.nb.rename_variable(info["id"], name)["id"]
+    h.blocks[name] = vid
+    h.identifiers[name] = "core.var<implicit>"
+    h.log.append(f"var {name}: core.var<implicit> (an input)")
+    return vid
+
+
+# ---- typed input lists (block notebooks and their harnesses declare the same ones) ----------
+def add_typed_inputs(h: NotebookHelper, specs: list[tuple[str, str]], values: dict) -> dict[str, str]:
+    """Create one variable per (name, kind) with the value from `values`: kind `mm` (real in mm),
+    `deg` (angle), `int` (integer), `path` (a file path: text variable), `` (unitless real).
+    Returns {name: variable id}, in order."""
+    ids = {}
+    for name, kind in specs:
+        v = values[name]
+        if kind == "path":
+            ids[name] = path_variable(h, name, absolute(v, h, name))
+        elif kind == "int":
+            ids[name] = integer_variable(h, name, int(v))
+        elif kind == "deg":
+            ids[name] = angle_variable(h, name, float(v))
+        else:
+            ids[name] = h.real_var(name, float(v), kind)
+    return ids
+
+
 def add_band_inputs(h: NotebookHelper, values: dict) -> None:
     """The 11 real inputs of the profiled band, in catalog order, as mm variables."""
     for name in BAND_INPUTS:
         h.real_var(name, float(values[name]), "mm")
 
 
-def add_redistance(h: NotebookHelper, name: str, body: str, tolerance_var: str) -> str:
+# ---- geometry shared by the notebooks -----------------------------------------------------------
+OPENING_NOTE = ("The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to "
+                "the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the "
+                "radius and leaves the rest where it was.")
+
+
+def add_redistance(h: Helper, base: str, body: str, tolerance_var: str) -> str:
     """Mesh from Implicit Body (at the notebook's Mesh Tolerance) -> Implicit Body from Mesh: the
-    same body with a true distance field. nTop's Offset Body adds a constant to the field it is
-    given, so two offsets in a row (-e then +e, the opening that rounds every convex edge) cancel
-    exactly unless the field is re-distanced between them: five band profiles built with the
-    offsets back to back matched their UNopened sections to 0.05 % (2026-10-30, nTop 6.3.3). No
-    block re-distances an implicit; a mesh round trip does (the mesh is as fine as the export).
-    Returns the id of the re-distanced implicit."""
-    mesh = h.add(f"{name} Mesh", mask="mesh", must=MESH)
-    h.wire(body, mesh, ["Body"])
-    h.wire(tolerance_var, mesh, ["Tolerance"])
-    out = h.add(name, mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
+    same body with a true distance field (`<base> Re-distanced Mesh` -> `<base> Re-distanced`). nTop's
+    Offset Body adds a constant to the field it is given, so two offsets in a row (-e then +e, the
+    opening that rounds every convex edge) cancel exactly unless the field is re-distanced between
+    them: five band profiles built with the offsets back to back matched their UNopened sections to
+    0.05 % (2026-10-30, nTop 6.3.3). Returns the id of the re-distanced implicit."""
+    mesh = h.mesh(f"{base} Re-distanced Mesh", body, tolerance_var)
+    out = h.add(f"{base} Re-distanced", mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
     h.wire(mesh, out, ["Mesh"])
     return out
 
 
-def add_opening(h: NotebookHelper, body: str, inward_var: str, outward_var: str, tolerance_var: str,
-                name: str = "Opened", shrunk_name: str = "Shrunk") -> str:
-    """The morphological opening of a body by the edge round: Offset Body (-e) -> re-distance
-    (add_redistance) -> Offset Body (+e). Rounds every convex edge sharper than the radius and
-    leaves everything else exactly where it was; returns the id of the +e offset block."""
-    shrunk = h.add(shrunk_name, mask="offset", must=OFFSET)
-    h.wire(body, shrunk, ["Body"])
-    h.wire(inward_var, shrunk, ["Distance", "Offset"])
-    exact = add_redistance(h, f"{shrunk_name} Body", shrunk, tolerance_var)
-    opened = h.add(name, mask="offset", must=OFFSET)
-    h.wire(exact, opened, ["Body"])
-    h.wire(outward_var, opened, ["Distance", "Offset"])
+def add_opening(h: Helper, body: str, inward_var: str, outward_var: str, tolerance_var: str,
+                name: str, base: str | None = None) -> str:
+    """The morphological opening of a body by the edge round: `<base> Eroded` (Offset Body, -e) ->
+    re-distance (add_redistance) -> `name` (Offset Body, +e). Rounds every convex edge sharper than
+    the radius and leaves everything else exactly where it was; returns the id of the +e offset."""
+    base = base or name
+    eroded = h.offset(f"{base} Eroded", body, inward_var)
+    exact = add_redistance(h, base, eroded, tolerance_var)
+    opened = h.offset(name, exact, outward_var)
+    h.comment(opened, OPENING_NOTE)
     return opened
 
 
-def add_mesh_body(h: NotebookHelper, name: str, path_var: str) -> str:
-    """A ring-frame body Python wrote: Import Mesh (`<name> Mesh`, Path from the text variable)
-    -> Implicit from Mesh (`<name>`). Returns the implicit's id."""
-    imp = h.add(f"{name} Mesh", mask="import_mesh", must=IMPORT_MESH)
-    h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
-    body = h.add(name, mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
-    h.wire(imp, body, ["Mesh"])
-    return body
+def add_mesh_body(h: Helper, name: str, path_var: str) -> str:
+    """A ring-frame body Python wrote (Helper.import_body)."""
+    return h.import_body(name, path_var)
 
 
-def add_carved(h: NotebookHelper, body_var: str, cut_var: str, relief_var: str, label: str = "Carved",
+def add_carved(h: Helper, body_var: str, cut_var: str, relief_var: str, label: str = "Carved",
                knot_vars=()) -> str:
     """Artwork on a band (ntopjewel.artwork): (`body_var` − the panel cutters at Cut Path) ∪ the
     relief at Relief Path, as ring_artwork.ntop builds it - the band is opened before this, so the
     channel edges stay crisp and the relief is never rounded - ∪ the knot ornaments' layers at
     `knot_vars` (ntopjewel.ornament: two files, the pieces that cross each other apart). Returns
     the union's id."""
-    cuts = add_mesh_body(h, "Panel Cuts", cut_var)
-    relief = add_mesh_body(h, "Relief", relief_var)
-    carved = h.add(label, mask="subtract", must=SUBTRACT)
-    h.wire(body_var, carved, ["Primary Body", "Body"])
-    h.to_list(cuts, carved, ["Subtraction Bodies", "Bodies"])
-    joined = h.add(f"{label} + Relief", mask="union", must=UNION)
-    h.to_list(carved, joined, ["Bodies"])
-    h.to_list(relief, joined, ["Bodies"])
-    for k, var in enumerate(knot_vars):
-        h.to_list(add_mesh_body(h, "Knot" if k == 0 else f"Knot {k + 1}", var), joined, ["Bodies"])
-    return joined
+    cuts = h.import_body("Panel Cuts", cut_var)
+    relief = h.import_body("Relief", relief_var)
+    knots = [h.import_body("Knot" if k == 0 else f"Knot {k + 1}", var) for k, var in enumerate(knot_vars)]
+    carved = h.subtract(label, body_var, [cuts],
+                        comment="The panel channels, cut from the band after its opening: their edges stay crisp.")
+    return h.union(f"{label} + Relief", [carved, relief, *knots],
+                   comment="The motifs standing in the channels (and the knots on the face), never rounded.")
 
 
-def add_wrapped_shank(h: NotebookHelper, path_vars, wrap_var: str, inward_var: str, outward_var: str,
+def add_wrapped_shank(h: Helper, path_vars, wrap_var: str, inward_var: str, outward_var: str,
                       tolerance_var: str, label: str = "Shank") -> str:
     """The shank Python wrote as bars (ntopjewel.shank.ShankSpec.bar_meshes: X radial, Y along the
     ring, Z axial; `path_vars`: the text variables holding the shank.BAR_SLOTS paths, an unused
-    slot repeating the smallest bar): per bar Import Mesh -> Implicit from Mesh -> the opening
-    by the edge round (add_opening, on the bar, where the field is exact); Boolean Union of the
-    opened bars (sharp: bodies that cross each other - a knot's strands, a split's halves, a double
-    band's bridges - are united here, as implicits, never as meshes: a mesh union leaves faces
-    micrometres apart along its seams, which nTop's import read as self-intersecting, 2026-11-02)
-    -> Remap Cylindrical Body (Y mapping length = wrap_var). Returns the id of the remap block,
-    the ring-shaped shank.
+    slot repeating the smallest bar): per bar Import Mesh -> Implicit from Mesh (`Bar k`) -> the
+    opening by the edge round (add_opening, on the bar, where the field is exact) = `Bar k Opened`;
+    Boolean Union of the opened bars (`Bars`, sharp: bodies that cross each other - a knot's
+    strands, a split's halves, a double band's bridges - are united here, as implicits, never as
+    meshes: a mesh union leaves faces micrometres apart along its seams, which nTop's import read as
+    self-intersecting, 2026-11-02) -> Remap Cylindrical Body (`label`, Y mapping length = wrap_var).
+    Returns the id of the remap block, the ring-shaped shank.
 
     Each bar is opened on its own, BEFORE the union: a union's field is the minimum of its bars'
     fields, so inside an overlap it measures to a bar's buried face, not to the part's surface,
@@ -258,28 +571,24 @@ def add_wrapped_shank(h: NotebookHelper, path_vars, wrap_var: str, inward_var: s
     path_vars = [path_vars] if isinstance(path_vars, str) else list(path_vars)
     opened = []
     for k, path_var in enumerate(path_vars):
-        tag = "" if k == 0 else f" {k + 1}"
-        imp = h.add(f"{label} Mesh{tag}", mask="import_mesh", must=IMPORT_MESH)
-        h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
-        body = h.add(f"{label} Bar{tag}", mask="implicit_from_mesh", must=IMPLICIT_FROM_MESH)
-        h.wire(imp, body, ["Mesh"])
-        opened.append(add_opening(h, body, inward_var, outward_var, tolerance_var, name=f"Opened{tag}", shrunk_name=f"Shrunk{tag}"))
+        bar = f"Bar {k + 1}"
+        body = h.import_body(bar, path_var)
+        opened.append(add_opening(h, body, inward_var, outward_var, tolerance_var, name=f"{bar} Opened", base=bar))
     if len(opened) == 1:
         joined = opened[0]
     else:
-        joined = h.add(f"{label} Bars", mask="union", must=UNION)
-        for body in opened:
-            h.to_list(body, joined, ["Bodies"])
-    wrapped = h.add(label, mask="remap_cylindrical", must=REMAP_CYLINDRICAL)
-    h.wire(joined, wrapped, ["Body"])
-    h.wire(wrap_var, wrapped, ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"])
+        joined = h.union("Bars", opened, comment=(
+            "The opened bars united as implicits (sharp). Bodies that cross each other come in separate bars: "
+            "a mesh union's seams import as self-intersections. An unused slot repeats the smallest bar."))
+    wrapped = h.remap_cylindrical(label, joined, wrap_var)
+    h.comment(wrapped, "The bar (X radial, Y along the ring, Z axial) wrapped round the ring axis: one turn = Wrap Length.")
     return wrapped
 
 
-def add_profiled_band(h: NotebookHelper, extra=None) -> str:
+def add_profiled_band(h: Helper, extra=None) -> str:
     """Outer/Bore cylinders -> subtract -> ∩ dome torus ∩ comfort torus -> the opening by the edge
-    round (offset -e, re-distance, offset +e: add_opening). Expects the BAND_INPUTS variables
-    (Mesh Tolerance included) to exist. Returns the id of the "Band Body" variable.
+    round (add_opening). Expects the BAND_INPUTS variables (Mesh Tolerance included) to exist.
+    Returns the id of the "Band Body" variable.
 
     `extra(h) -> body id`: a body united with the shaped band BEFORE the opening, so one rounding
     runs over both. Not for a body whose surface lies on the band's (the solitaire's arches did,
@@ -291,73 +600,46 @@ def add_profiled_band(h: NotebookHelper, extra=None) -> str:
     Subtracting the comfort torus removes the band (its tube covers the section) - 2026-10-26."""
     point_block(h, "P Bottom", z_var=h.blocks["Z Bottom"])
     point_block(h, "P Top", z_var=h.blocks["Z Top"])
-
-    outer = h.add("Outer", CYLINDER, mask="cylinder", must=[["cylinder", "point,point,real"], ["cylinder", "point", "real"]])
-    h.wire(h.blocks["P Bottom"], outer, ["Point 1"])
-    h.wire(h.blocks["P Top"], outer, ["Point 2"])
-    h.wire(h.blocks["Outer Radius"], outer, ["Radius"])
-
-    bore = h.add("Bore", CYLINDER, mask="cylinder", must=[["cylinder", "point,point,real"], ["cylinder", "point", "real"]])
-    h.set(bore, ["Point 1"], [0.0, 0.0, -10.0], "mm")
-    h.set(bore, ["Point 2"], [0.0, 0.0, 10.0], "mm")
-    h.wire(h.blocks["Bore Radius"], bore, ["Radius"])
-
-    band = h.add("Band", mask="subtract", must=SUBTRACT)
-    h.wire(outer, band, ["Primary Body", "Body"])
-    h.to_list(bore, band, ["Subtraction Bodies", "Bodies"])
-
-    tori = []
-    for label, ring, tube in (("Dome Torus", "Dome Ring Radius", "Dome Tube Radius"),
-                              ("Comfort Torus", "Comfort Ring Radius", "Comfort Tube Radius")):
-        t = h.add(label, TORUS, mask="torus", must=[["torus", "point", "vector"], ["torus"]])
-        h.set(t, ["Center"], [0.0, 0.0, 0.0], "mm")
-        set_axis(h, t)
-        h.wire(h.blocks[ring], t, ["Radius"])
-        h.wire(h.blocks[tube], t, ["Torus radius", "Torus Radius", "Tube"])
-        tori.append(t)
-
-    shaped = h.add("Shaped", mask="intersect", must=INTERSECT)
-    for body_id in (band, *tori):
-        h.to_list(body_id, shaped, ["Bodies"])
-
+    outer = h.cylinder("Outer", h.blocks["P Bottom"], h.blocks["P Top"], h.blocks["Outer Radius"])
+    bore = h.cylinder("Bore", None, None, h.blocks["Bore Radius"], z_span=(-10.0, 10.0))
+    band = h.subtract("Band", outer, [bore])
+    tori = [h.torus(label, h.blocks[ring], h.blocks[tube])
+            for label, ring, tube in (("Dome Torus", "Dome Ring Radius", "Dome Tube Radius"),
+                                      ("Comfort Torus", "Comfort Ring Radius", "Comfort Tube Radius"))]
+    shaped = h.intersect("Shaped", [band, *tori], comment=(
+        "Both tori INTERSECTED: the dome torus keeps the domed outside, the comfort torus the barrel bore."))
     if extra is not None:
-        joined = h.add("Band + Extra", mask="union", must=UNION)
-        h.to_list(shaped, joined, ["Bodies"])
-        h.to_list(extra(h), joined, ["Bodies"])
-        shaped = joined
+        shaped = h.union("Band + Extra", [shaped, extra(h)])
     profile = add_opening(h, shaped, h.blocks["Edge Round Inward"], h.blocks["Edge Round"], h.blocks["Mesh Tolerance"],
-                          name="Band Profile")
+                          name="Band Profile", base="Band")
     return h.wrap_var("Band Body", profile)      # a variable: the body is consumed by more than one block
 
 
 def wire_blend(h: NotebookHelper, block_id: str, var_id: str) -> str:
     """Feed a boolean's Blend Radius (a real_field: unsettable, wireable) from a mm variable. The
     Blend Type enum is left at nTop's default."""
-    return h.wire(var_id, block_id, ["Blend Radius", "Blend radius", "Radius", "Blend"])
+    return h.wire(var_id, block_id, BLEND)
 
 
 # ---- measure, mesh, export, finish --------------------------------------------------------------
-def add_measure_mesh_export(h: NotebookHelper, body_var: str, out_var: str, tolerance_var: str) -> tuple[str, str, str]:
+def add_measure_mesh_export(h: Helper, body_var: str, out_var: str, tolerance_var: str) -> tuple[str, str, str]:
     """Volume Integral of 1 over the body (the Output), Mesh from Implicit Body, Export Mesh."""
     integ = h.add("Volume Integral", mask="volume_integral", must=VOLUME_INTEGRAL)
     h.wire(body_var, integ, h.input_of_type(integ, "implicit"))
     one = h.real_var("One", 1.0, "")           # dimensionless integrand: ∫ 1 dV = volume, no units needed
     h.wire(one, integ, h.input_of_type(integ, "real_field"))
-
-    mesh = h.add("Mesh", mask="mesh", must=MESH)
-    h.wire(body_var, mesh, ["Body"])
-    h.wire(tolerance_var, mesh, ["Tolerance"])
-
+    h.comment(integ, "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units).")
+    mesh = h.mesh("Mesh", body_var, tolerance_var)
     export = h.add("Export Mesh", mask="export", must=EXPORT)
     h.wire(mesh, export, ["Mesh"])
-    h.wire(out_var, export, ["File Path", "File", "Path", "Filename", "Output"])
+    h.wire(out_var, export, EXPORT_PATH_IN)
     return integ, mesh, export
 
 
-def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], integ: str, export: str,
+def finish(h: Helper, notebook, p: dict, input_order: Iterable[str], integ: str, export: str,
            test_output: str, volume_hint: str) -> dict:
     """Wrap the integral as the typed Output, declare the inputs, wait for the export, coax the
-    measurement, check every block, save, export the recipe; return the result dict."""
+    measurement, check every block, tidy the sections, save, export the recipe; return the result."""
     vol_var = h.wrap_var("Volume", integ)        # typed (real, mm³): what nTopCL -t and the Output need
     h.declare_inputs(h.blocks[name] for name in input_order)
     h.set_output(vol_var)
@@ -385,6 +667,8 @@ def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], int
     if failed:
         raise ConsoleError("blocks failed to build: " + json.dumps(failed, indent=2))
     display = h.display_only(p["show"]) if p.get("show") else None     # a preview shows the finished body only
+    if isinstance(h, Helper) and h.section_ids:
+        h.collapse_all_but([list(h.section_ids)[-1]])                    # an outline: the result section open
     notebook.save_notebook_as(p["save_to"])
     try:
         notebook.export_as_recipe(p["recipe_to"], True)
@@ -403,6 +687,7 @@ def finish(h: NotebookHelper, notebook, p: dict, input_order: Iterable[str], int
         "identifiers": h.identifiers,
         "states": states,
         "display": display,
+        "sections": dict(getattr(h, "section_ids", {})),
         "log": h.log,
     }
 
@@ -427,7 +712,7 @@ def absolute(path, h: NotebookHelper | None = None, what: str = "path") -> str:
 def run_build(notebook, params: dict | None, defaults: dict, body_fn) -> dict:
     """Common `build()` shell: merge params, make folders, fresh notebook, pause, run `body_fn(h, p,
     values, out_var)` -> (integ, export), finish; on any error raise with the helper's diagnostics."""
-    h = NotebookHelper(notebook)
+    h = Helper(notebook)
     try:
         p = {**defaults, **(params or {})}
         values = {**defaults["values"], **(p.get("values") or {})}
@@ -450,32 +735,107 @@ def run_build(notebook, params: dict | None, defaults: dict, body_fn) -> dict:
                            f"{json.dumps(h.diagnostics(), indent=1, default=str)[:8000]}") from e
 
 
-# ---- typed input lists (block notebooks and their harnesses declare the same ones) ----------
-def add_typed_inputs(h: NotebookHelper, specs: list[tuple[str, str]], values: dict) -> dict[str, str]:
-    """Create one variable per (name, kind) with the value from `values`: kind `mm` (real in mm),
-    `deg` (angle), `int` (integer), `path` (a file path: text variable), `` (unitless real).
-    Returns {name: variable id}, in order."""
-    ids = {}
-    for name, kind in specs:
-        v = values[name]
-        if kind == "path":
-            ids[name] = path_variable(h, name, absolute(v, h, name))
-        elif kind == "int":
-            ids[name] = integer_variable(h, name, int(v))
-        elif kind == "deg":
-            ids[name] = angle_variable(h, name, float(v))
-        else:
-            ids[name] = h.real_var(name, float(v), kind)
-    return ids
+def standard_build(notebook, params: dict | None, defaults: dict, body_fn, name: str, blocks: Iterable[str] = ()) -> dict:
+    """`build()` for a runner notebook: merge the params, refuse to run without input values (only
+    prepare() on the laptop computes them), make each block path in `blocks` (param keys:
+    "seat_block", "head_block") absolute and refuse a missing one, then run_build."""
+    p = {**defaults, **(params or {})}
+    values = {**defaults["values"], **(p.get("values") or {})}
+    if not values:
+        raise ConsoleError(f"no input values: run through `python -m ntopjewel api build {name}` (prepare() computes them)")
+    for key in blocks:
+        p[key] = absolute(p[key])
+        if not Path(p[key]).exists():
+            raise ConsoleError(f"{p[key]} is missing: build it first (api build {Path(p[key]).stem})")
+    p["values"] = values
+    return run_build(notebook, p, {**defaults, "values": values}, body_fn)
 
 
-def point_from_vars(h: NotebookHelper, label: str, x_var: str, y_var: str, z_var: str) -> str:
-    """A Point block whose three components are wired from real variables."""
-    pid = h.add(label, POINT, mask="point", must=[["point<real,real,real"], ["point", "real,real,real"]])
-    h.wire(x_var, pid, ["X"])
-    h.wire(y_var, pid, ["Y"])
-    h.wire(z_var, pid, ["Z"])
-    return pid
+# ---- library blocks: save, self-test, harness ---------------------------------------------------
+def embed_self_test(notebook, block_path: str) -> dict:
+    """Embed the saved block into a fresh notebook at once, so a block nTop will not accept is
+    named here rather than as a harness failure later."""
+    notebook.new_notebook()
+    try:
+        notebook.embed_custom_block(block_path)
+    except Exception as e:
+        raise ConsoleError(f"nTop refuses the saved block as a custom block: {e}") from e
+    found = [b for b in notebook.list_custom_blocks() if b.get("name") == Path(block_path).stem]
+    if not found:
+        raise ConsoleError(f"embedded {block_path} but list_custom_blocks() does not name it")
+    return {"accepted": True, "id": found[0]["id"]}
+
+
+def save_block(notebook, h: NotebookHelper, body: str, inputs: Iterable[str], output_name: str, p: dict,
+               self_test: bool = True) -> dict:
+    """Finish a library block notebook: `body` wrapped as the typed Output `output_name`, `inputs`
+    declared in order, saved to p["block_to"] (its recipe to p["block_recipe_to"]), then embedded
+    in a fresh notebook as a self-test. A block notebook has no sections: nothing but its inputs,
+    its few blocks and its Output, and a custom block's validity rules are strict enough (a block
+    output used twice was refused, 2026-10-28) not to add anything untried."""
+    out = h.wrap_var(output_name, body)
+    h.declare_inputs(list(inputs))
+    h.set_output(out)
+    warnings = settle(h, body, "the block's Output")
+    Path(p["block_to"]).parent.mkdir(parents=True, exist_ok=True)
+    notebook.save_notebook_as(p["block_to"])
+    try:
+        notebook.export_as_recipe(p["block_recipe_to"], True)
+    except Exception as e:
+        h.log.append(f"export_as_recipe (block) failed: {e}")
+    if not Path(p["block_to"]).exists():
+        raise ConsoleError(f"the block was not saved to {p['block_to']}")
+    res = {"saved": p["block_to"], "recipe": p["block_recipe_to"], "identifiers": h.identifiers, "warnings": warnings,
+           "blocks": h.blocks, "states": h.states(0), "log": h.log}
+    if self_test:
+        res["self_test"] = embed_self_test(notebook, p["block_to"])
+        h.log.append(f"self-test: {res['self_test']}")
+    return res
+
+
+def block_build(notebook, params: dict | None, defaults: dict, name: str, build_block_fn, harness_fn,
+                needs_seat: bool = True) -> dict:
+    """`build()` for a library block recipe: the block (`build_block_fn(notebook, p, values)`), then
+    its harness (`harness_fn`, through run_build). `--scratch` puts the block beside the harness."""
+    params = dict(params or {})
+    if "save_to" in params and "block_to" not in params:          # --scratch: the block beside the harness
+        params["block_to"] = str(Path(params["save_to"]).parent / f"{name}.ntop")
+        params.setdefault("block_recipe_to", str(Path(params["save_to"]).parent / f"{name}.block.recipe.json"))
+    p = {**defaults, **params}
+    values = {**defaults["values"], **(p.get("values") or {})}
+    if not values:
+        raise ConsoleError(f"no input values: run through `python -m ntopjewel api build {name}` (prepare() computes them)")
+    keys = ("block_to", "block_recipe_to") + (("seat_block",) if needs_seat else ())
+    for key in keys:
+        p[key] = absolute(p[key])
+    if needs_seat and not Path(p["seat_block"]).exists():
+        raise ConsoleError(f"{p['seat_block']} is missing: run `python -m ntopjewel api build stone_seat` first")
+    p["values"] = values
+    block = build_block_fn(notebook, p, values)
+    res = run_build(notebook, p, {**defaults, "values": values}, harness_fn)
+    res["block"] = block
+    res["warnings"] = block.get("warnings", []) + res.get("warnings", [])
+    return res
+
+
+def seat_head_harness(head_label: str, seat_specs, geometry_specs, cutter_input: str, mesh_tolerance: bool = True):
+    """The harness body of a head block: its inputs as notebook inputs, an embedded stone_seat fed
+    Seat Path + Clearance, the embedded head fed the seat's cutter and its numbers, the result
+    measured, meshed and exported."""
+    def _harness(h, p, values, test_output):
+        ids = add_typed_inputs(h, list(seat_specs) + list(geometry_specs) + [("Mesh Tolerance", "mm")], values)
+        out_var = path_variable(h, "Output Path", test_output)
+        seat = h.add("Stone Seat", h.embed_block(p["seat_block"]))
+        for n, _ in seat_specs:
+            h.wire(ids[n], seat, [n])
+        head = h.add(head_label, h.embed_block(p["block_to"]))
+        h.wire(seat, head, [cutter_input])
+        for n, _ in geometry_specs:
+            h.wire(ids[n], head, [n])
+        body = h.wrap_var("Result", head)
+        integ, _mesh, export = add_measure_mesh_export(h, body, out_var, ids["Mesh Tolerance"])
+        return integ, export
+    return _harness
 
 
 def harness(h: NotebookHelper, p: dict, values: dict, test_output: str, block_path: str,

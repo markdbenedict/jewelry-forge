@@ -33,8 +33,8 @@ REPO = HERE.parents[2]
 TEST_DIR = REPO / "out" / "api"
 TEST_STEM = "pave_band_test"
 
-INPUT_ORDER = [*SLOT_NAMES, "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance",
-               "Pave Seats Path", "Pave Beads Path", "Output Path"]
+SPECS = nj.SHANK_SPECS + [("Pave Seats Path", "path"), ("Pave Beads Path", "path")]
+INPUT_ORDER = nj.input_order(SPECS)
 
 
 def _spec():
@@ -70,42 +70,25 @@ def prepare(params: dict, work_dir: Path) -> dict:
     return params
 
 
-def _layer(h, name: str, path_var: str) -> str:
-    imp = h.add(f"{name} Mesh", mask="import_mesh", must=nj.IMPORT_MESH)
-    h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
-    body = h.add(f"{name}", mask="implicit_from_mesh", must=nj.IMPLICIT_FROM_MESH)
-    h.wire(imp, body, ["Mesh"])
-    return body
-
-
 def _body(h, p, values, test_output):
-    bar_paths = [nj.path_variable(h, name, nj.absolute(values[name], h, name)) for name in SLOT_NAMES]
-    for name in ("Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance"):
-        h.real_var(name, float(values[name]), "mm")
-    seats_var = nj.path_variable(h, "Pave Seats Path", nj.absolute(values["Pave Seats Path"], h, "Pave Seats Path"))
-    beads_var = nj.path_variable(h, "Pave Beads Path", nj.absolute(values["Pave Beads Path"], h, "Pave Beads Path"))
+    ids = nj.add_typed_inputs(h, SPECS, values)
     out_var = nj.path_variable(h, "Output Path", test_output)
-
-    wrapped = nj.add_wrapped_shank(h, bar_paths, h.blocks["Wrap Length"], h.blocks["Edge Round Inward"], h.blocks["Edge Round"],
-                                   h.blocks["Mesh Tolerance"])
-    shank_body = h.wrap_var("Shank Body", wrapped)
-    beads = _layer(h, "Pave Beads", beads_var)
-    seats = _layer(h, "Pave Seats", seats_var)
-    beaded = h.add("Beaded", mask="union", must=nj.UNION)
-    h.to_list(shank_body, beaded, ["Bodies"])
-    h.to_list(beads, beaded, ["Bodies"])
-    ring = h.add("Ring", mask="subtract", must=nj.SUBTRACT)
-    h.wire(beaded, ring, ["Primary Body", "Body"])
-    h.to_list(seats, ring, ["Subtraction Bodies", "Bodies"])
-    out = h.wrap_var("Ring Body", ring)
-    integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, h.blocks["Mesh Tolerance"])
+    with h.section("Shank"):
+        shank_body = h.wrap_var("Shank Body", nj.add_wrapped_shank(h, [ids[n] for n in SLOT_NAMES], ids["Wrap Length"],
+                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))
+    with h.section("Pavé"):
+        beads = h.import_body("Pave Beads", ids["Pave Beads Path"])
+        seats = h.import_body("Pave Seats", ids["Pave Seats Path"])
+        beaded = h.union("Beaded", [shank_body, beads], comment="The beads stand on the opened band (not rounded: the opening would melt them).")
+        ring = h.subtract("Ring", beaded, [seats], comment=(
+            "The seats are cut AFTER the beads go on: every drop-in path is clear, a bead in a tight gap is trimmed by "
+            "the openings, as on the bench."))
+    with h.section("Result"):
+        out = h.wrap_var("Ring Body", ring)
+        integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, ids["Mesh Tolerance"])
     return integ, export
 
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build pave_band`; see the module docstring."""
-    p = {**DEFAULTS, **(params or {})}
-    if not (p.get("values") or {}):
-        from ntopjewel.notebook_api import ConsoleError
-        raise ConsoleError("no input values: run through `python -m ntopjewel api build pave_band` (prepare() computes them)")
-    return nj.run_build(notebook, params, DEFAULTS, _body)
+    return nj.standard_build(notebook, params, DEFAULTS, _body, "pave_band")

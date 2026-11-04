@@ -65,8 +65,10 @@ DEFAULTS = {
 def _body(h, p, values, test_output):
     nj.add_band_inputs(h, values)
     out_var = nj.path_variable(h, "Output Path", test_output)
-    body = nj.add_profiled_band(h)
-    integ, _mesh, export = nj.add_measure_mesh_export(h, body, out_var, h.blocks["Mesh Tolerance"])
+    with h.section("Band"):
+        body = nj.add_profiled_band(h)
+    with h.section("Result"):
+        integ, _mesh, export = nj.add_measure_mesh_export(h, body, out_var, h.blocks["Mesh Tolerance"])
     return integ, export
 
 

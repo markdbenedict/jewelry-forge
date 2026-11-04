@@ -107,15 +107,15 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     assert "Domed" not in res["blocks"]
     for t in ("Dome Torus", "Comfort Torus"):
         assert b[res["blocks"][t]]["inputs"]["Axis"] == ([0.0, 0.0, 1.0], "") and b[res["blocks"][t]]["wired"]["Torus Radius"]
-    assert b[res["blocks"]["Shrunk"]]["wired"]["Body"][0] == shaped
+    assert b[res["blocks"]["Band Eroded"]]["wired"]["Body"][0] == shaped
     prof = res["blocks"]["Band Profile"]
     assert b[prof]["wired"]["Distance"][0] == "Edge Round"
-    assert b[res["blocks"]["Shrunk"]]["wired"]["Distance"][0] == "Edge Round Inward"
+    assert b[res["blocks"]["Band Eroded"]]["wired"]["Distance"][0] == "Edge Round Inward"
     # the opening re-distances between its offsets (a mesh round trip): offsets back to back cancel in nTop
-    assert b[res["blocks"]["Shrunk Body Mesh"]]["wired"]["Body"][0] == res["blocks"]["Shrunk"]
-    assert b[res["blocks"]["Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
-    assert b[res["blocks"]["Shrunk Body"]]["wired"]["Mesh"][0] == res["blocks"]["Shrunk Body Mesh"]
-    assert b[prof]["wired"]["Body"][0] == res["blocks"]["Shrunk Body"]
+    assert b[res["blocks"]["Band Re-distanced Mesh"]]["wired"]["Body"][0] == res["blocks"]["Band Eroded"]
+    assert b[res["blocks"]["Band Re-distanced Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
+    assert b[res["blocks"]["Band Re-distanced"]]["wired"]["Mesh"][0] == res["blocks"]["Band Re-distanced Mesh"]
+    assert b[prof]["wired"]["Body"][0] == res["blocks"]["Band Re-distanced"]
     # tail: Volume = ∫ 1 dV over the body (no density, no units), the Output wraps that block
     integ = res["blocks"]["Volume Integral"]
     assert b[integ]["wired"]["Body"][0] == "Band Body" and b[integ]["wired"]["Integrand"][0] == "One"
@@ -137,7 +137,7 @@ def test_band_profile_builds_on_fake_notebook(tmp_path):
     ids = res["identifiers"]
     assert ids["Band"] == "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]"
     assert ids["Shaped"] == "boolean_intersect<blend_enum,real_field,list<implicit>>[5.44.0]"
-    assert ids["Shrunk"] == "offset_implicit<implicit,real_field>"
+    assert ids["Band Eroded"] == "offset_implicit<implicit,real_field>"
     assert ids["Volume Integral"] == "volume_integral<implicit,real_field,real>"
     # what nTopCL complained about on 2026-10-27: an unset leftover Path_0 (and, before, an unset Density);
     # since 2026-10-31 no file_path variable is tried, so none is left behind to remove
@@ -436,3 +436,76 @@ def test_block_rules_probe_runs_every_variant(tmp_path, monkeypatch):
     res = mod.build(FakeNotebook())
     assert set(res["results"]) == {"base", "integer", "angle", "combo", "nested", "implicit_in"}
     assert all(r.get("embed") == "ok" for r in res["results"].values())       # the fake accepts all; nTop decides
+
+
+# ---- organisation: sections and comments (layout only; the graph is the same without them) -------
+def _build_pave_band(tmp_path, nb):
+    mod = load_recipe("pave_band")
+    params = mod.prepare({}, tmp_path)
+    params.update({"save_to": str(tmp_path / "p.ntop"), "recipe_to": str(tmp_path / "p.json"), "test_output": str(tmp_path / "p.stl")})
+    return mod, mod.build(nb, params)
+
+
+def test_a_runner_notebook_reads_as_an_outline(tmp_path):
+    """Every block in a named section, the sections in build order, all but the last collapsed,
+    the junctions that need a reason commented, the real signatures logged once."""
+    nb = FakeNotebook()
+    mod, res = _build_pave_band(tmp_path, nb)
+    assert list(res["sections"]) == ["Shank", "Pavé", "Result"]
+    named = {s["id"]: s["name"] for s in nb.sections}
+    assert all(b in nb.section_of for b in nb.blocks)                       # no block left in nTop's default section
+    assert named[nb.section_of[res["blocks"]["Bar 1 Opened"]]] == "Shank"
+    assert named[nb.section_of[res["blocks"]["Ring"]]] == "Pavé"
+    assert named[nb.section_of[res["blocks"]["Export Mesh"]]] == "Result"
+    assert [named[c] for c in nb.collapsed] == ["Shank", "Pavé"]
+    assert "re-distance" in nb.comments[res["blocks"]["Bar 1 Opened"]].lower()
+    assert nb.comments[res["blocks"]["Bars"]] and nb.comments[res["blocks"]["Ring"]]
+    assert sum(ln.startswith("api: ") for ln in res["log"]) == 5
+    assert nb.inputs == mod.INPUT_ORDER and nb.lint() == []
+
+
+def test_a_refused_section_call_leaves_the_same_notebook(tmp_path):
+    """nTop 6.3.3's section and comment argument lists are unverified: a refusal turns them off for
+    the build, logged, and the notebook comes out with the same blocks, wiring and inputs."""
+    class NoSections(FakeNotebook):
+        def add_section(self, name):
+            raise TypeError("add_section() takes 1 positional argument but 2 were given")
+
+        def set_block_comment(self, block_id, comment):
+            raise ValueError("unknown method")
+    plain, organised = NoSections(), FakeNotebook()
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    _, res = _build_pave_band(tmp_path / "a", plain)
+    _, ref = _build_pave_band(tmp_path / "b", organised)
+    assert res["sections"] == {} and plain.section_of == {} and plain.comments == {}
+    assert any(ln.startswith("sections off") for ln in res["log"]) and any(ln.startswith("comments off") for ln in res["log"])
+    assert res["warnings"] == [] and plain.inputs == organised.inputs and plain.output == organised.output
+    assert sorted(res["blocks"]) == sorted(ref["blocks"])
+    for label, bid in res["blocks"].items():
+        twin = ref["blocks"][label]
+        a = plain.blocks.get(bid) or plain.variables.get(bid) or {}
+        b = organised.blocks.get(twin) or organised.variables.get(twin) or {}
+        assert a.get("funcId") == b.get("funcId"), label
+
+
+def test_api_build_names_the_tracked_files_to_commit(tmp_path):
+    """The recipe JSON, the block and the stamp go into git together; the runner notebook and a
+    --scratch build under out/ do not."""
+    from ntopjewel import cli
+    root = Path(cli.__file__).resolve().parents[2]
+    made = [root / "ntop" / "recipes" / "zz_probe.recipe.json", root / "ntop" / "blocks" / "zz_probe.ntop",
+            root / "ntop" / "recipes" / "zz_probe.block.recipe.json", root / "ntop" / "notebooks" / "zz_probe.ntop",
+            root / "ntop" / "notebooks" / "zz_probe.build.json", root / "out" / "zz_probe.recipe.json"]
+    try:
+        for f in made:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text("{}")
+        res = {"result": {"recipe": str(made[0]), "saved": str(made[3]),
+                          "block": {"recipe": str(made[2]), "saved": str(made[1])}}}
+        assert cli._files_to_commit(res, [made[3]]) == ["ntop/recipes/zz_probe.recipe.json", "ntop/recipes/zz_probe.block.recipe.json",
+                                                         "ntop/blocks/zz_probe.ntop", "ntop/notebooks/zz_probe.build.json"]
+        assert cli._files_to_commit({"result": {"recipe": str(made[5])}}, []) == []
+    finally:
+        for f in made:
+            f.unlink(missing_ok=True)

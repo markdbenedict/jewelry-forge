@@ -217,7 +217,7 @@ def main(argv: list[str]) -> int:
                                    engrave=shape != "noengrave", ops=ops, shank_mesh=shank_mesh)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Mesh", "Shank Bar", "Shank", "Band Body", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Arches", "Ring", "Mesh", "Export Mesh"):
+        for name in ("Bar 1 Mesh", "Bar 1", "Bars", "Shank", "Band Body", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Arches", "Ring", "Mesh", "Export Mesh"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
@@ -258,7 +258,7 @@ def main(argv: list[str]) -> int:
         import trimesh
         from ntopjewel import heads
         if not Path(values["Seat Path"]).exists():
-            fail("Seat Mesh: file not found")
+            fail("Seat Body Mesh: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
         mesh = heads.head_mesh(values, envelope, cut_seat=shape != "noseat", ops=ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
@@ -271,11 +271,11 @@ def main(argv: list[str]) -> int:
     elif "seat" in nb.name:
         import trimesh
         if not Path(values["Seat Path"]).exists():
-            fail("Seat Mesh: file not found")
+            fail("Seat Body Mesh: file not found")
         mesh = offset_convex(trimesh.load(str(values["Seat Path"]), force="mesh"), float(values["Clearance"]))
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Seat Mesh", "Seat Body", "Stone Seat", "Mesh", "Export Mesh", "Volume Integral"):
+        for name in ("Seat Body Mesh", "Seat Body", "Stone Seat", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
@@ -300,7 +300,7 @@ def main(argv: list[str]) -> int:
         mesh = multistone.ring_from_inputs(values, ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Placed Head 1 3", "Heads", "Joined", "Ring",
+        for name in ("Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Head 1 On Ring", "Heads", "Joined", "Ring",
                      "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
@@ -322,7 +322,7 @@ def main(argv: list[str]) -> int:
             mesh = trimesh.boolean.union([mesh, relief], engine="manifold")
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Mesh", "Shank Bar", "Shank Bars", "Opened", "Shank", "Panel Cuts Mesh", "Panel Cuts",
+        for name in ("Bar 1 Mesh", "Bar 1", "Bar 1 Opened", "Bars", "Shank", "Panel Cuts Mesh", "Panel Cuts",
                      "Relief Mesh", "Relief", "Carved", "Ring", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
@@ -348,7 +348,7 @@ def main(argv: list[str]) -> int:
             mesh = trimesh.boolean.difference([mesh, seats], engine="manifold")
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Mesh", "Shank Bar", "Shank Bars", "Opened", "Shank", "Pave Beads Mesh", "Pave Beads",
+        for name in ("Bar 1 Mesh", "Bar 1", "Bar 1 Opened", "Bars", "Shank", "Pave Beads Mesh", "Pave Beads",
                      "Pave Seats Mesh", "Pave Seats", "Beaded", "Ring", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
@@ -373,14 +373,14 @@ def main(argv: list[str]) -> int:
             mesh = bars_from_inputs(values)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Shank Mesh", "Shank Bar", "Shank Mesh 2", "Shank Bar 2", "Shank Bars", "Shrunk", "Shrunk Body Mesh", "Shrunk Body", "Opened", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
+        for name in ("Bar 1 Mesh", "Bar 1", "Bar 2 Mesh", "Bar 2", "Bar 1 Eroded", "Bar 1 Re-distanced Mesh", "Bar 1 Re-distanced", "Bar 1 Opened", "Bars", "Shank", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
                         "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
     elif "band" in nb.name or "features" in nb.name:
         if "Bead Count" in values and not Path(values["Engraving Path"]).exists():
-            fail("Engraving Mesh: file not found")
+            fail("Engraving Body Mesh: file not found")
         mesh = build_mesh(values, shape)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])

@@ -29,8 +29,8 @@ REPO = HERE.parents[2]
 TEST_DIR = REPO / "out" / "api"
 TEST_STEM = "ring_artwork_test"
 
-INPUT_ORDER = [*SLOT_NAMES, "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance",
-               "Cut Path", "Relief Path", "Output Path"]
+SPECS = nj.SHANK_SPECS + [("Cut Path", "path"), ("Relief Path", "path")]
+INPUT_ORDER = nj.input_order(SPECS)
 
 
 def _spec():
@@ -66,42 +66,23 @@ def prepare(params: dict, work_dir: Path) -> dict:
     return params
 
 
-def _layer(h, name: str, path_var: str) -> str:
-    imp = h.add(f"{name} Mesh", mask="import_mesh", must=nj.IMPORT_MESH)
-    h.wire(path_var, imp, ["Path", "File Path", "File", "Filename"])
-    body = h.add(f"{name}", mask="implicit_from_mesh", must=nj.IMPLICIT_FROM_MESH)
-    h.wire(imp, body, ["Mesh"])
-    return body
-
-
 def _body(h, p, values, test_output):
-    bar_paths = [nj.path_variable(h, name, nj.absolute(values[name], h, name)) for name in SLOT_NAMES]
-    for name in ("Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance"):
-        h.real_var(name, float(values[name]), "mm")
-    cut_var = nj.path_variable(h, "Cut Path", nj.absolute(values["Cut Path"], h, "Cut Path"))
-    relief_var = nj.path_variable(h, "Relief Path", nj.absolute(values["Relief Path"], h, "Relief Path"))
+    ids = nj.add_typed_inputs(h, SPECS, values)
     out_var = nj.path_variable(h, "Output Path", test_output)
-
-    wrapped = nj.add_wrapped_shank(h, bar_paths, h.blocks["Wrap Length"], h.blocks["Edge Round Inward"], h.blocks["Edge Round"],
-                                   h.blocks["Mesh Tolerance"])
-    shank_body = h.wrap_var("Shank Body", wrapped)
-    cuts = _layer(h, "Panel Cuts", cut_var)
-    relief = _layer(h, "Relief", relief_var)
-    carved = h.add("Carved", mask="subtract", must=nj.SUBTRACT)       # the channels cut from the opened band ...
-    h.wire(shank_body, carved, ["Primary Body", "Body"])
-    h.to_list(cuts, carved, ["Subtraction Bodies", "Bodies"])
-    ring = h.add("Ring", mask="union", must=nj.UNION)                  # ... then the relief standing in them
-    h.to_list(carved, ring, ["Bodies"])
-    h.to_list(relief, ring, ["Bodies"])
-    out = h.wrap_var("Ring Body", ring)
-    integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, h.blocks["Mesh Tolerance"])
+    with h.section("Shank"):
+        shank_body = h.wrap_var("Shank Body", nj.add_wrapped_shank(h, [ids[n] for n in SLOT_NAMES], ids["Wrap Length"],
+                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))
+    with h.section("Artwork"):
+        cuts = h.import_body("Panel Cuts", ids["Cut Path"])
+        relief = h.import_body("Relief", ids["Relief Path"])
+        carved = h.subtract("Carved", shank_body, [cuts], comment="The panel channels, cut from the opened band: their edges stay crisp.")
+        ring = h.union("Ring", [carved, relief], comment="The motifs standing in the channels, never rounded.")
+    with h.section("Result"):
+        out = h.wrap_var("Ring Body", ring)
+        integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, ids["Mesh Tolerance"])
     return integ, export
 
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build ring_artwork`; see the module docstring."""
-    p = {**DEFAULTS, **(params or {})}
-    if not (p.get("values") or {}):
-        from ntopjewel.notebook_api import ConsoleError
-        raise ConsoleError("no input values: run through `python -m ntopjewel api build ring_artwork` (prepare() computes them)")
-    return nj.run_build(notebook, params, DEFAULTS, _body)
+    return nj.standard_build(notebook, params, DEFAULTS, _body, "ring_artwork")

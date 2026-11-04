@@ -93,55 +93,28 @@ def _body(h, p, values, test_output):
     nj.integer_variable(h, "Bead Count", int(values["Bead Count"]))
     engr_path = nj.path_variable(h, "Engraving Path", str(values["Engraving Path"]))
     out_var = nj.path_variable(h, "Output Path", test_output)
-
-    band = nj.add_profiled_band(h)
-
-    # ---- milgrain: a bead on each edge, arrayed round the axis ------------------------------
-    beads = []
-    for label, zvar in (("Bead+", "Bead Z"), ("Bead-", "Bead Z Minus")):
-        pt = nj.point_block(h, f"{label} P", x_var=h.blocks["Bead Ring Radius"], z_var=h.blocks[zvar])
-        s = h.add(label, nj.SPHERE, mask="sphere", must=[["sphere<point,real>"], ["sphere", "point", "real"]])
-        h.wire(pt, s, ["Center Point", "Center", "Point"])
-        h.wire(h.blocks["Bead Radius"], s, ["Radius"])
-        beads.append(s)
-    pair = h.add("Bead Pair", mask="union", must=nj.UNION)
-    for s in beads:
-        h.to_list(s, pair, ["Bodies"])
-    axis = nj.z_axis(h)
-    milgrain = h.add("Milgrain", mask="polar_array", must=nj.POLAR_ARRAY)
-    h.wire(pair, milgrain, ["Body"])
-    h.wire(h.blocks["Bead Spacing"], milgrain, ["Angular spacing", "Angular Spacing", "Angle", "Spacing"])
-    h.wire(h.blocks["Bead Count"], milgrain, ["Count", "Number", "Copies"])
-    h.wire(axis, milgrain, ["Axis"])
-    beaded = h.add("Beaded", mask="union", must=nj.UNION)
-    h.to_list(band, beaded, ["Bodies"])
-    h.to_list(milgrain, beaded, ["Bodies"])
-
-    # ---- groove: a torus subtracted ---------------------------------------------------------
-    gp = nj.point_block(h, "Groove P", z_var=h.blocks["Groove Z"])
-    gt = h.add("Groove Torus", nj.TORUS, mask="torus", must=[["torus", "point", "vector"], ["torus"]])
-    h.wire(gp, gt, ["Center"])
-    nj.set_axis(h, gt)
-    h.wire(h.blocks["Groove Ring Radius"], gt, ["Radius"])
-    h.wire(h.blocks["Groove Tube Radius"], gt, ["Torus radius", "Torus Radius", "Tube"])
-    grooved = h.add("Grooved", mask="subtract", must=nj.SUBTRACT)
-    h.wire(beaded, grooved, ["Primary Body", "Body"])
-    h.to_list(gt, grooved, ["Subtraction Bodies", "Bodies"])
-
-    # ---- engraving: imported mesh -> implicit -> wrapped round the ring -> subtracted --------
-    imp = h.add("Engraving Mesh", mask="import_mesh", must=nj.IMPORT_MESH)
-    h.wire(engr_path, imp, ["Path", "File Path", "File", "Filename"])
-    efi = h.add("Engraving Body", mask="implicit_from_mesh", must=nj.IMPLICIT_FROM_MESH)
-    h.wire(imp, efi, ["Mesh"])
-    wrapped = h.add("Engraving Wrapped", mask="remap_cylindrical", must=nj.REMAP_CYLINDRICAL)
-    h.wire(efi, wrapped, ["Body"])
-    h.wire(h.blocks["Engraving Wrap Length"], wrapped, ["Y mapping length", "Y Mapping Length", "Mapping Length", "Length"])
-    engraved = h.add("Engraved", mask="subtract", must=nj.SUBTRACT)
-    h.wire(grooved, engraved, ["Primary Body", "Body"])
-    h.to_list(wrapped, engraved, ["Subtraction Bodies", "Bodies"])
-
-    ring = h.wrap_var("Ring Body", engraved)
-    integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, h.blocks["Mesh Tolerance"])
+    v = h.blocks
+    with h.section("Band"):
+        band = nj.add_profiled_band(h)
+    with h.section("Milgrain"):                                  # a bead on each edge, arrayed round the axis
+        beads = []
+        for label, zvar in (("Bead+", "Bead Z"), ("Bead-", "Bead Z Minus")):
+            pt = nj.point_block(h, f"{label} P", x_var=v["Bead Ring Radius"], z_var=v[zvar])
+            beads.append(h.sphere(label, pt, v["Bead Radius"]))
+        pair = h.union("Bead Pair", beads)
+        milgrain = h.polar_array("Milgrain", pair, v["Bead Spacing"], v["Bead Count"], nj.z_axis(h))
+        beaded = h.union("Beaded", [band, milgrain])
+    with h.section("Groove"):                                    # a torus subtracted
+        gp = nj.point_block(h, "Groove P", z_var=v["Groove Z"])
+        gt = h.torus("Groove Torus", v["Groove Ring Radius"], v["Groove Tube Radius"], centre=gp)
+        grooved = h.subtract("Grooved", beaded, [gt])
+    with h.section("Engraving"):                                 # imported mesh -> implicit -> wrapped round the ring -> subtracted
+        text = h.import_body("Engraving Body", engr_path)
+        wrapped = h.remap_cylindrical("Engraving Wrapped", text, v["Engraving Wrap Length"])
+        engraved = h.subtract("Engraved", grooved, [wrapped], comment="The text wrapped round the ring and cut in, last.")
+    with h.section("Result"):
+        ring = h.wrap_var("Ring Body", engraved)
+        integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, v["Mesh Tolerance"])
     return integ, export
 
 

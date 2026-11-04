@@ -119,20 +119,19 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
     assert mod.INPUT_ORDER[:4] == ["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"]
     for k, name in enumerate(["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"]):   # four bars imported ...
-        tag = "" if k == 0 else f" {k + 1}"
-        assert nb.blocks[b[f"Shank Mesh{tag}"]]["wired"]["Path"][0] == b[name]
-        assert nb.blocks[b[f"Shank Bar{tag}"]]["wired"]["Mesh"][0] == b[f"Shank Mesh{tag}"]
+        assert nb.blocks[b[f"Bar {k + 1} Mesh"]]["wired"]["Path"][0] == b[name]
+        assert nb.blocks[b[f"Bar {k + 1}"]]["wired"]["Mesh"][0] == b[f"Bar {k + 1} Mesh"]
     assert params["values"]["Shank Path 2"] == params["values"]["Shank Path 4"] == params["values"]["Shank Path"]   # the tapered shank: one bar in every slot
-    for tag in ("", " 2", " 3", " 4"):                                                    # ... each opened on its own ...
-        assert nb.blocks[b[f"Shrunk{tag}"]]["wired"]["Body"][0] == b[f"Shank Bar{tag}"]
-        assert nb.blocks[b[f"Shrunk{tag}"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
-        assert nb.blocks[b[f"Shrunk{tag} Body Mesh"]]["wired"]["Body"][0] == b[f"Shrunk{tag}"]   # ... re-distanced through a mesh
-        assert nb.blocks[b[f"Shrunk{tag} Body Mesh"]]["wired"]["Tolerance"][0] == b["Mesh Tolerance"]
-        assert nb.blocks[b[f"Shrunk{tag} Body"]]["wired"]["Mesh"][0] == b[f"Shrunk{tag} Body Mesh"]
-        assert nb.blocks[b[f"Opened{tag}"]]["wired"]["Body"][0] == b[f"Shrunk{tag} Body"]
-        assert nb.blocks[b[f"Opened{tag}"]]["wired"]["Distance"][0] == b["Edge Round"]
-    assert nb.blocks[b["Shank Bars"]]["lists"]["Bodies"] == [b["Opened"], b["Opened 2"], b["Opened 3"], b["Opened 4"]]   # ... united opened (a union's field erodes into its overlaps)
-    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Shank Bars"]                 # ... then the wrap
+    for k in range(4):                                                                    # ... each opened on its own ...
+        assert nb.blocks[b[f"Bar {k + 1} Eroded"]]["wired"]["Body"][0] == b[f"Bar {k + 1}"]
+        assert nb.blocks[b[f"Bar {k + 1} Eroded"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
+        assert nb.blocks[b[f"Bar {k + 1} Re-distanced Mesh"]]["wired"]["Body"][0] == b[f"Bar {k + 1} Eroded"]   # ... re-distanced through a mesh
+        assert nb.blocks[b[f"Bar {k + 1} Re-distanced Mesh"]]["wired"]["Tolerance"][0] == b["Mesh Tolerance"]
+        assert nb.blocks[b[f"Bar {k + 1} Re-distanced"]]["wired"]["Mesh"][0] == b[f"Bar {k + 1} Re-distanced Mesh"]
+        assert nb.blocks[b[f"Bar {k + 1} Opened"]]["wired"]["Body"][0] == b[f"Bar {k + 1} Re-distanced"]
+        assert nb.blocks[b[f"Bar {k + 1} Opened"]]["wired"]["Distance"][0] == b["Edge Round"]
+    assert nb.blocks[b["Bars"]]["lists"]["Bodies"] == [b[f"Bar {k} Opened"] for k in range(1, 5)]   # ... united opened (a union's field erodes into its overlaps)
+    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Bars"]                 # ... then the wrap
     assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == b["Wrap Length"]
 
 

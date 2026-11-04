@@ -110,7 +110,7 @@ def test_ring_features_builds_on_fake_notebook(tmp_path):
     b = nb.blocks
     ids = res["identifiers"]
     assert ids["Milgrain"] == "polar_array_implicit<implicit,real,integer,axis>"
-    assert ids["Engraving Mesh"] == "import_mesh<file_path,unit_length_enum>[1.1.0]"
+    assert ids["Engraving Body Mesh"] == "import_mesh<file_path,unit_length_enum>[1.1.0]"
     assert ids["Engraving Wrapped"] == "remap_cylindrical_implicit<implicit,real>"
     assert ids["Bead Count"] == "core.var<integer>" and nb.variables["Bead Count"]["value"] == 87
     assert nb.variables["Bead Spacing"]["units"] == "deg"
@@ -124,7 +124,7 @@ def test_ring_features_builds_on_fake_notebook(tmp_path):
     assert b[res["blocks"]["Grooved"]]["wired"]["Primary Body"][0] == res["blocks"]["Beaded"]
     assert b[res["blocks"]["Grooved"]]["lists"]["Subtraction Bodies"] == [res["blocks"]["Groove Torus"]]
     assert b[res["blocks"]["Groove Torus"]]["wired"]["Center"][0] == res["blocks"]["Groove P"]
-    assert b[res["blocks"]["Engraving Mesh"]]["wired"]["Path"][0] == "Engraving Path"
+    assert b[res["blocks"]["Engraving Body Mesh"]]["wired"]["Path"][0] == "Engraving Path"
     assert b[res["blocks"]["Engraving Wrapped"]]["wired"]["Y Mapping Length"][0] == "Engraving Wrap Length"
     assert b[res["blocks"]["Engraved"]]["lists"]["Subtraction Bodies"] == [res["blocks"]["Engraving Wrapped"]]
     assert nb.variables["Ring Body"]["wraps"] == res["blocks"]["Engraved"]

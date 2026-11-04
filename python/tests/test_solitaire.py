@@ -98,12 +98,12 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     assert nb.blocks[b["Placed Head"]]["wired"]["Transformation"][0] == "Placement"
     # the shank is the bar Python wrote: imported, opened on the bar (re-distanced), wrapped; the arches opened on
     # their own; both united sharp with the milgrain rows
-    assert nb.blocks[b["Shank Mesh"]]["wired"]["Path"][0] == "Shank Path"
-    assert nb.blocks[b["Shank Bar"]]["wired"]["Mesh"][0] == b["Shank Mesh"]
-    assert nb.blocks[b["Shank Mesh 4"]]["wired"]["Path"][0] == "Shank Path 4"                     # four bars, each opened, then united
-    assert nb.blocks[b["Shrunk"]]["wired"]["Body"][0] == b["Shank Bar"] and nb.blocks[b["Shrunk 4"]]["wired"]["Body"][0] == b["Shank Bar 4"]
-    assert nb.blocks[b["Shank Bars"]]["lists"]["Bodies"] == [b["Opened"], b["Opened 2"], b["Opened 3"], b["Opened 4"]]
-    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Shank Bars"] and "Band + Extra" not in b and "Outer" not in b
+    assert nb.blocks[b["Bar 1 Mesh"]]["wired"]["Path"][0] == "Shank Path"
+    assert nb.blocks[b["Bar 1"]]["wired"]["Mesh"][0] == b["Bar 1 Mesh"]
+    assert nb.blocks[b["Bar 4 Mesh"]]["wired"]["Path"][0] == "Shank Path 4"                     # four bars, each opened, then united
+    assert nb.blocks[b["Bar 1 Eroded"]]["wired"]["Body"][0] == b["Bar 1"] and nb.blocks[b["Bar 4 Eroded"]]["wired"]["Body"][0] == b["Bar 4"]
+    assert nb.blocks[b["Bars"]]["lists"]["Bodies"] == [b[f"Bar {k} Opened"] for k in range(1, 5)]
+    assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Bars"] and "Band + Extra" not in b and "Outer" not in b
     assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
     assert nb.variables["Band Body"]["wraps"] == b["Shank"]
     # the artwork carved into the opened band before anything joins it: (Band Body − Panel Cuts) ∪ Relief = Carved Band
@@ -112,11 +112,11 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     assert nb.blocks[b["Carved + Relief"]]["lists"]["Bodies"] == [b["Carved"], b["Relief"], b["Knot"], b["Knot 2"]]   # ... and the knots' two layers
     assert nb.blocks[b["Knot Mesh"]]["wired"]["Path"][0] == "Knot Path" and nb.blocks[b["Knot 2 Mesh"]]["wired"]["Path"][0] == "Knot Path 2"
     assert nb.variables["Carved Band"]["wraps"] == b["Carved + Relief"]
-    assert nb.blocks[b["Slot Mesh"]]["wired"]["Path"][0] == "Slot Path" and nb.blocks[b["Slot Cutter"]]["wired"]["Mesh"][0] == b["Slot Mesh"]
+    assert nb.blocks[b["Slot Cutter Mesh"]]["wired"]["Path"][0] == "Slot Path" and nb.blocks[b["Slot Cutter"]]["wired"]["Mesh"][0] == b["Slot Cutter Mesh"]
     assert nb.blocks[b["Split Arches"]]["wired"]["Primary Body"][0] == b["Shoulders"] and nb.blocks[b["Split Arches"]]["lists"]["Subtraction Bodies"] == [b["Slot Cutter"]]
-    assert nb.blocks[b["Arches Shrunk"]]["wired"]["Body"][0] == b["Split Arches"]
-    assert nb.blocks[b["Arches Shrunk Body Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
-    assert nb.blocks[b["Arches"]]["wired"]["Body"][0] == b["Arches Shrunk Body"] and nb.blocks[b["Arches"]]["wired"]["Distance"][0] == "Edge Round"
+    assert nb.blocks[b["Arches Eroded"]]["wired"]["Body"][0] == b["Split Arches"]
+    assert nb.blocks[b["Arches Re-distanced Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
+    assert nb.blocks[b["Arches"]]["wired"]["Body"][0] == b["Arches Re-distanced"] and nb.blocks[b["Arches"]]["wired"]["Distance"][0] == "Edge Round"
     assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Carved Band"} <= set(nb.blocks[b["Shank Union"]]["lists"]["Bodies"])
     assert "Band Body" not in nb.blocks[b["Shank Union"]]["lists"]["Bodies"]                     # the carved band, not the bare one
     assert nb.blocks[b["Milgrain+"]]["wired"]["Axis"][0] == b["Beads+ Axis"]

@@ -98,16 +98,16 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
         assert nb.blocks[b[f"Outline Head{tag}"]]["wired"]["Seat Cutter"][0] == b[f"Seat Local{tag}"]
         assert nb.blocks[b[f"Outline Head{tag}"]]["wired"]["Prongs Path"][0] == b[f"Prongs Path{sfx}"]
         # spin, then the quarter-turn onto +X, then the turn about the ring axis - for the head and its seat alike
-        for what, start in (("Placed Head", f"Outline Head{tag}"), ("Placed Seat", f"Seat Local{tag}")):
-            chain = [nb.blocks[b[f"{what}{tag} {i}"]] for i in (1, 2, 3)]
-            assert [c["wired"]["Transformation"][0] for c in chain] == [b[f"Spin Rotation{tag} T"], b[f"Placement{tag} T"], b[f"Turn Rotation{tag} T"]]
+        for what, start in (("Head", f"Outline Head{tag}"), ("Seat", f"Seat Local{tag}")):
+            chain = [nb.blocks[b[f"{what} {k} {step}"]] for step in ("Spun", "Placed", "On Ring")]
+            assert [c["wired"]["Transformation"][0] for c in chain] == [b[f"Head {k} Spin"], b[f"Head {k} Placement"], b[f"Head {k} Turn"]]
             assert chain[0]["wired"]["Object"][0] == b[start]
-    assert nb.blocks[b["Heads"]]["lists"]["Bodies"] == [b[f"Placed Head {k} 3"] for k in range(1, ms.SLOTS + 1)]
+    assert nb.blocks[b["Heads"]]["lists"]["Bodies"] == [b[f"Head {k} On Ring"] for k in range(1, ms.SLOTS + 1)]
     assert nb.blocks[b["Beaded Shank"]]["lists"]["Bodies"] == [b["Shank Body"], b["Pave Beads"]]   # the pavé's beads join the shank ...
     assert nb.blocks[b["Joined"]]["lists"]["Bodies"] == [b["Beaded Shank"], b["Heads"]]
     assert nb.blocks[b["Joined"]]["wired"]["Blend Radius"][0] == b["Shank Blend"]        # ... the heads melt into it ...
     assert nb.blocks[b["Ring"]]["wired"]["Primary Body"][0] == b["Joined"]               # ... THEN every seat is cut, the pavé's last
-    assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == [b[f"Placed Seat {k} 3"] for k in range(1, ms.SLOTS + 1)] + [b["Pave Seats"]]
+    assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == [b[f"Seat {k} On Ring"] for k in range(1, ms.SLOTS + 1)] + [b["Pave Seats"]]
     assert nb.blocks[b["Pave Beads Mesh"]]["wired"]["Path"][0] == b["Pave Beads Path"]
 
 
