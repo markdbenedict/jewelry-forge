@@ -68,8 +68,8 @@ def test_validation_names_what_does_not_fit():
     thin = band.BandSpec(size=6, width_mm=1.6, thickness_mm=2.0, profile="flat", mesh_tolerance_mm=0.05)
     assert any("between the side channels" in x for x in
                artwork.ArtworkSpec(shank.ShankSpec(thin), artwork.seraphine_panels(), channel_mm=0.6, rail_mm=0.7, relief_mm=0.5).validate())
-    tapered = shank.ShankSpec(flat(), width_bottom_mm=2.0)
-    assert any("plain band" in x for x in artwork.ArtworkSpec(tapered, artwork.seraphine_panels()).validate())
+    tapered = shank.ShankSpec(flat(), width_bottom_mm=2.0)                       # the taper's default 60° start is inside the panels
+    assert any("inside the panels" in x for x in artwork.ArtworkSpec(tapered, artwork.seraphine_panels()).validate())
     assert artwork.ArtworkSpec(shank.ShankSpec(flat()), []).validate() == ["no panels"]
 
 
