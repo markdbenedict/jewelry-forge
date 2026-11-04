@@ -378,9 +378,13 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    points at the head (`--knot-point`), the knot tucks under it (`knot_clear_deg` from the head's reach
    at the band's face, + 0.2 mm: 16.8°-36.3°), width band + 0.8, ribbon 0.6; `scroll-leaves` (a volute
    then leaves) and `--leaf-tip head` (the default); the side panels run on under the knots' overhang
-   from 25°, only the outer panel waits for the knot (37.3°). Values only, no rebuild - *real check:*
-   `solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves
-   --outer scroll --shoulder-knot trinity`. **Still missing for the Seraphine:** double-claw prong tips
+   from 25°, only the outer panel waits for the knot (37.3°). Values only, no rebuild. *Real check (4 Nov 05:14):* nTopCL 50 s, one shell + 6 specks, every
+   panel and ribbon probe in place, volume −0.09 %, section within 0.011 mm - and `knot surround`
+   102/106: the four probes between the head and the knot read the smooth union's 0.25 mm fillet round
+   the upper rail's foot, which the knot's apex is placed to melt into; the surround window now begins
+   past the head's reach + the shank blend (`knot_face_from_mm`), and every probe check names where its
+   worst probe lies. *Re-run pending:* `solitaire --profile flat --width 2.8 --thickness 2 --prongs 4
+   --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity`. **Still missing for the Seraphine:** double-claw prong tips
    and the heart-shaped gallery (6).)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the

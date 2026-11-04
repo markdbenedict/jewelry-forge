@@ -964,7 +964,7 @@ def artwork_checks(spec: ArtworkSpec, ring) -> list[gate.Check]:
     design = spec.design_mesh()
     tol = max(0.06, 1.5 * float(spec.band.mesh_tolerance_mm))
     totals = {"floor": [0, 0], "relief": [0, 0], "rail": [0, 0]}
-    worst = {"floor": 0.0, "relief": 0.0, "rail": 0.0}
+    worst = {k: (0.0, "") for k in totals}            # (difference, where it lies) per kind, for the detail
     bad_panels = set()
     for p in spec.panels:
         for s in spec.copies(p):
@@ -974,12 +974,15 @@ def artwork_checks(spec: ArtworkSpec, ring) -> list[gate.Check]:
             built, want = _first_hits(ring, o, d, lim), _first_hits(design, o, d, lim)
             diff = np.where(np.isfinite(built) & np.isfinite(want), np.abs(built - want), np.inf)
             for k in totals:
-                sel = kinds == k
-                n, bad = int(sel.sum()), int((diff[sel] > tol).sum())
+                sel = np.where(kinds == k)[0]
+                n, bad = len(sel), int((diff[sel] > tol).sum())
                 totals[k][0] += n
                 totals[k][1] += bad
                 if n:
-                    worst[k] = max(worst[k], float(np.nan_to_num(diff[sel][np.isfinite(diff[sel])].max() if np.isfinite(diff[sel]).any() else np.inf, posinf=9.0)))
+                    i = sel[int(np.argmax(np.where(np.isfinite(diff[sel]), diff[sel], 9.0)))]
+                    d_i = float(diff[i]) if np.isfinite(diff[i]) else 9.0
+                    if d_i > worst[k][0]:
+                        worst[k] = (d_i, probe_place(p, s, o[i]) + ("" if np.isfinite(diff[i]) else " (one ray missed)"))
                 if bad:
                     bad_panels.add(f"{p.face} {'+' if s > 0 else '-'}")
     checks = []
@@ -988,9 +991,20 @@ def artwork_checks(spec: ArtworkSpec, ring) -> list[gate.Check]:
         if n == 0:
             continue
         ok = bad == 0
-        checks.append(gate.Check(names[k], ok, f"{n - bad}/{n} probes where designed (within {tol:.2f} mm; worst {worst[k]:.3f})"
+        w, where = worst[k]
+        checks.append(gate.Check(names[k], ok, f"{n - bad}/{n} probes where designed (within {tol:.2f} mm; worst {w:.3f}{where})"
                                  + (f"; wrong on {', '.join(sorted(bad_panels))}" if not ok else "")))
     return checks
+
+
+def probe_place(p: Panel, s: int, origin) -> str:
+    """Where a probe lies, for a check's detail: its angle from the top and its position across the
+    face (z on the outer face, the radius on a side face) - a failure can then be placed from the
+    report alone."""
+    th = math.degrees(math.atan2(float(origin[1]), float(origin[0])))
+    if p.face == "outer":
+        return f" at {th:.1f}°, z {float(origin[2]):+.2f} ({p.face} {'+' if s > 0 else '-'})"
+    return f" at {th:.1f}°, r {math.hypot(float(origin[0]), float(origin[1])):.2f} ({p.face} {'+' if s > 0 else '-'})"
 
 
 def check_artwork(spec: ArtworkSpec, stl: Path, ntop_vol: float | None) -> gate.GateReport:

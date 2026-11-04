@@ -328,11 +328,13 @@ class KnotOrnament:
             return ok
         return keep
 
-    def probes(self, side: int):
+    def probes(self, side: int, face_from_mm: float = 0.0):
         """(origins, directions, limits, kinds) of the gate's rays over one knot: a grid over its
         footprint and the band beside it, from above the knot radially inward; kind 'ribbon' inside
         the ribbon's plan, 'face' on the band outside it, points within PROBE_MARGIN_MM of the
-        ribbon's edge skipped."""
+        ribbon's edge skipped, and no 'face' probe nearer the top of the ring than `face_from_mm`
+        along it (under a solitaire's head: the band within the shank blend of the head's metal is
+        the smooth union's fillet, not bare face - 0.25 mm high at the upper rail's foot, 2026-11-04)."""
         import numpy as np
         from shapely import contains_xy
         b = self.band
@@ -345,7 +347,7 @@ class KnotOrnament:
         Y, Z = Y.ravel(), Z.ravel()
         kinds = np.full(len(Y), "", dtype=object)
         kinds[contains_xy(inner, Y, Z)] = "ribbon"
-        on_band = np.abs(Z) <= b.width_mm / 2 - 0.1
+        on_band = (np.abs(Z) <= b.width_mm / 2 - 0.1) & (np.abs(Y) >= face_from_mm)
         kinds[~contains_xy(outer, Y, Z) & on_band] = "face"
         keep = kinds != ""
         Y, Z, kinds = Y[keep], Z[keep], kinds[keep]
@@ -357,33 +359,40 @@ class KnotOrnament:
         return origins, dirs, limits, kinds
 
 
-def ornament_checks(orn: KnotOrnament, ring, design) -> list[gate.Check]:
+def ornament_checks(orn: KnotOrnament, ring, design, face_from_mm: float = 0.0) -> list[gate.Check]:
     """The knots probed by rays cast identically on the built ring and the design: the ribbon at its
-    height (over passes lifted, under passes down) and the band bare beside it."""
+    height (over passes lifted, under passes down) and the band bare beside it - from `face_from_mm`
+    along the ring on (a solitaire passes the head's reach at the face plus the shank blend: the
+    fillet the smooth union lays round the head's foot is not the knot's to answer for). The detail
+    names where the worst probe lies, so a failure can be placed from the report alone."""
     import numpy as np
     from .artwork import _first_hits
     tol = max(0.06, 1.5 * float(orn.band.mesh_tolerance_mm))
     totals = {"ribbon": [0, 0], "face": [0, 0]}
-    worst = {"ribbon": 0.0, "face": 0.0}
+    worst = {"ribbon": (0.0, ""), "face": (0.0, "")}
     for side in orn.sides():
-        o, d, lim, kinds = orn.probes(side)
+        o, d, lim, kinds = orn.probes(side, face_from_mm)
         built, want = _first_hits(ring, o, d, lim), _first_hits(design, o, d, lim)
         both_miss = np.isinf(built) & np.isinf(want)
         diff = np.where(both_miss, 0.0, np.where(np.isfinite(built) & np.isfinite(want), np.abs(built - want), np.inf))
         for k in totals:
-            sel = kinds == k
-            n, bad = int(sel.sum()), int((diff[sel] > tol).sum())
+            sel = np.where(kinds == k)[0]
+            n, bad = len(sel), int((diff[sel] > tol).sum())
             totals[k][0] += n
             totals[k][1] += bad
             if n:
-                finite = diff[sel][np.isfinite(diff[sel])]
-                worst[k] = max(worst[k], float(finite.max()) if len(finite) else 9.0)
+                i = sel[int(np.argmax(np.where(np.isfinite(diff[sel]), diff[sel], 9.0)))]
+                d_i = float(diff[i]) if np.isfinite(diff[i]) else 9.0
+                if d_i > worst[k][0]:
+                    th = math.degrees(math.atan2(o[i, 1], o[i, 0]))
+                    worst[k] = (d_i, f" at {th:.1f}°, z {o[i, 2]:+.2f}" + ("" if np.isfinite(diff[i]) else " (one ray missed)"))
     checks = []
     names = {"ribbon": "knot ribbon", "face": "knot surround"}
     for k, (n, bad) in totals.items():
         if n == 0:
             continue
-        checks.append(gate.Check(names[k], bad == 0, f"{n - bad}/{n} probes where designed (within {tol:.2f} mm; worst {worst[k]:.3f})"))
+        w, where = worst[k]
+        checks.append(gate.Check(names[k], bad == 0, f"{n - bad}/{n} probes where designed (within {tol:.2f} mm; worst {w:.3f}{where})"))
     return checks
 
 

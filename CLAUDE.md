@@ -292,6 +292,11 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   36 µm inward under the head (2026-11-03; a court band's comfort relief had kept its rail away),
   so the solitaire's `bore` check measures outside the head's zone and `bore under the head` allows
   `BLEND_BORE_BULGE` x the shank blend, with a note naming the `--finger-clear` that would clear it.
+  **And it lays a fillet round the head's foot on the band's face**, reaching about the blend radius past
+  the head's metal: 0.25 mm high where the upper rail's rounded flank overhangs the face (2026-11-04, the
+  Seraphine's first knotted run: 4 `knot surround` probes read it). The knot's apex stands at the fillet's
+  toe by design (`KNOT_HEAD_CLEAR_MM`), so the surround probes begin past `knot_face_from_mm` (the head's
+  reach at the face + the shank blend); every probe check's detail now names where its worst probe lies.
 - Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
   (`e_FAILED` carries `error`); do not trust a call that returned without raising.
 - `new_notebook()` discards the open notebook; `save_notebook_as` / `export_as_recipe`

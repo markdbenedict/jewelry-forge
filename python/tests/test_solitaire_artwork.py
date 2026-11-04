@@ -254,6 +254,44 @@ def test_knotted_design_passes_its_gate_and_a_lost_knot_layer_is_caught(fake_nto
     assert bad.status == "failed" and "knot ribbon" in {c.name for c in bad.gate.failures()}
 
 
+def test_the_knot_surround_starts_past_the_heads_fillet():
+    """nTop's smooth union lays a fillet round the head's foot on the band's face, reaching about the
+    shank blend beyond the head's metal (0.25 mm high at the upper rail's flank, the real Seraphine
+    2026-11-04: 4 surround probes in it). The gate's surround window begins past it - and still reads
+    metal on the bare face beside the knot."""
+    import math
+    import numpy as np
+    import trimesh
+    from ntopjewel import ornament
+    s = knotted(shank_blend_mm=0.3)
+    assert s.knot_face_from_mm() == pytest.approx(s.head_face_reach_mm() + 0.3)
+    assert knotted(cathedral=True, shoulder_knot="", panels=None).knot_face_from_mm() == 0.0
+    design = solitaire.design_mesh(s)
+    ro, orn = s.band.outer_radius_mm, s.ornament
+
+    def bump(y_from, y_to, h=0.25):       # a ridge standing h above the face across the band, y_from..y_to along the ring
+        th0, th1 = y_from / ro, y_to / ro
+        box = trimesh.creation.box(extents=(h + 0.05, y_to - y_from, 2.4))
+        box.apply_translation([ro + h / 2 - 0.025, 0.0, 0.0])
+        box.apply_transform(trimesh.transformations.rotation_matrix((th0 + th1) / 2, [0, 0, 1]))
+        return box
+
+    reach = s.head_face_reach_mm()
+    filleted = trimesh.util.concatenate([design, bump(reach - 0.1, reach + 0.25)])          # the fillet's foot
+    with_0 = {c.name: c for c in ornament.ornament_checks(orn, filleted, design)}
+    assert not with_0["knot surround"].ok and " at " in with_0["knot surround"].detail       # where the worst probe lies
+    with_window = {c.name: c for c in ornament.ornament_checks(orn, filleted, design, face_from_mm=s.knot_face_from_mm())}
+    assert with_window["knot surround"].ok and with_window["knot ribbon"].ok
+    n_face = int(with_window["knot surround"].detail.split("/")[1].split()[0])
+    assert 20 < n_face < int(with_0["knot surround"].detail.split("/")[1].split()[0])       # fewer probes, still a sample
+    lo, hi = orn.span_deg()
+    stray = trimesh.util.concatenate([design, bump(math.radians(hi + 0.3) * ro, math.radians(hi + 0.9) * ro)])   # metal past the knot
+    after = {c.name: c for c in ornament.ornament_checks(orn, stray, design, face_from_mm=s.knot_face_from_mm())}
+    assert not after["knot surround"].ok
+    where = float(after["knot surround"].detail.split(" at ")[1].split("°")[0])                # the worst probe is in the ridge
+    assert hi + 0.2 < abs(where) < hi + 1.0
+
+
 def test_no_knot_layers_are_buried_specks(tmp_path):
     import numpy as np
     import trimesh

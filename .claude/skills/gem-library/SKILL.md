@@ -200,10 +200,14 @@ past the knots' span (37.3° on the Seraphine); the side-face panels run on unde
 from `head_clear_deg` (25° there), as the reference ring's leaf rows do (`panel_start_min_deg(face)`).
 `validate` wants three open lobes at least 0.3 mm wide and the bore law to come down before the next
 under pass. Gate: `knot ribbon` / `knot surround` probes (a grid over the knot's footprint and the band
-beside it, cast on the built ring and the design alike), the section check sits the knots' span out,
-the wall sample skips it. Stem `..._art_knot_<id>`. Built PASSED in nTop 2026-11-03 (one shell + 1
-speck, 310/310 ribbon probes, volume −0.10 %) in the first placement; the photo comparison then moved
-the knot under the head and turned it - values only, no rebuild.
+beside it, cast on the built ring and the design alike; the surround from `knot_face_from_mm` on - the
+head's reach at the face + the shank blend - because the smooth union lays a 0.25 mm fillet round the
+head's foot there, which the knot's apex is meant to melt into; the detail names where the worst probe
+lies), the section check sits the knots' span out, the wall sample skips it. Stem `..._art_knot_<id>`.
+Built PASSED in nTop 2026-11-03 (one shell + 1 speck, 310/310 ribbon probes, volume −0.10 %) in the
+first placement; the photo comparison then moved the knot under the head and turned it - values only,
+no rebuild - and that run (2026-11-04) built in one shell with every ribbon and panel probe in place,
+failing only on the four surround probes inside the head's fillet.
 
 Band options are the `band` ones (`--width` is the band's; the stone's are `--stone-width`,
 `--stone-depth`). `--finger-clear` (default 0.6 mm, never under the wall floor) is the metal

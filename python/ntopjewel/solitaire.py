@@ -196,6 +196,15 @@ class SolitaireSpec:
         ro = self.band.outer_radius_mm
         return round(math.degrees(math.asin(min(1.0, self.head_face_reach_mm() / ro))) + math.degrees(KNOT_HEAD_CLEAR_MM / ro), 2)
 
+    def knot_face_from_mm(self) -> float:
+        """Where the band's face beside a shoulder knot is bare, from the top along the ring: past
+        the head's metal at the face by the shank blend. Within it the smooth union lays its fillet
+        round the head's foot (0.25 mm high at the upper rail's overhanging flank, 2026-11-04: the
+        knot's apex stands at its toe), which the gate's `knot surround` probes leave alone."""
+        if self.arches:
+            return 0.0
+        return self.head_face_reach_mm() + self.shank_blend
+
     @property
     def ornament(self) -> "ornmod.KnotOrnament | None":
         """The shoulder knots (ornament.KnotOrnament over shank_spec): centred where knot_at_deg says,
@@ -1104,7 +1113,8 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     if art is not None:
         rep.checks += artmod.artwork_checks(art, ring)                       # every panel probed, built against the carved band
     if spec.has_knot:
-        rep.checks += ornmod.ornament_checks(spec.ornament, ring, design)    # the knots probed, built against the design
+        rep.checks += ornmod.ornament_checks(spec.ornament, ring, design,     # the knots probed, built against the design,
+                                             face_from_mm=spec.knot_face_from_mm())   # the face from past the head's fillet
     if spec.has_engraving:
         turned = ring.copy()
         turned.apply_transform(trimesh.transformations.rotation_matrix(math.pi, [0, 0, 1]))   # the text back to +X
