@@ -11,7 +11,7 @@
           "val": 1.5707963267948966
         }
       },
-      "id": "inst291",
+      "id": "inst275",
       "name": "Quarter Turn",
       "type": "real",
       "variable": true
@@ -19,7 +19,7 @@
     {
       "contents": {
         "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
-        "id": "inst295",
+        "id": "inst279",
         "inputs": [
           {
             "input": 11,
@@ -30,194 +30,201 @@
             "props": []
           }
         ],
-        "name": "Implicit Body_21",
+        "name": "Implicit Body_9",
         "type": "implicit"
       },
-      "id": "inst296",
+      "id": "inst280",
       "name": "Seat Local 1",
       "type": "implicit",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst308",
+        "func": "combine_transforms<list<transformation>>",
+        "id": "inst312",
         "inputs": [
           {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 18,
-            "props": []
-          }
-        ],
-        "name": "Transformation_0",
-        "type": "transformation"
-      },
-      "id": "inst311",
-      "name": "Head 1 Spin",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst320",
-        "inputs": [
-          {
-            "func": "point<real,real,real>",
-            "id": "inst315",
+            "func": "core.list<transformation>",
+            "id": "inst311",
             "inputs": [
               {
-                "input": 19,
-                "props": []
-              },
-              {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst292",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
                   },
-                  "val": 0.0
-                }
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 18,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_0",
+                "type": "transformation"
               },
               {
-                "input": 20,
-                "props": []
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst303",
+                "inputs": [
+                  {
+                    "func": "point<real,real,real>",
+                    "id": "inst298",
+                    "inputs": [
+                      {
+                        "input": 19,
+                        "props": []
+                      },
+                      {
+                        "type": "real",
+                        "value": {
+                          "isFinite": true,
+                          "units": {
+                            "length": 1
+                          },
+                          "val": 0.0
+                        }
+                      },
+                      {
+                        "input": 20,
+                        "props": []
+                      }
+                    ],
+                    "name": "Point_0",
+                    "type": "point"
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst275"
+                    }
+                  }
+                ],
+                "name": "Transformation_1",
+                "type": "transformation"
+              },
+              {
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst308",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 21,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_2",
+                "type": "transformation"
               }
             ],
-            "name": "Point_0",
-            "type": "point"
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                }
-              ]
-            }
-          },
-          {
-            "props": [],
-            "ref": {
-              "id": "inst291"
-            }
+            "name": "Transformation List_0",
+            "type": "list<transformation>"
           }
         ],
-        "name": "Transformation_1",
+        "name": "Transformation_3",
         "type": "transformation"
       },
-      "id": "inst322",
+      "id": "inst313",
+      "metadata": {
+        "description": "Spun about its own axis, a quarter-turn onto +X about the line through the pivot ∥ +Y, turned about the ring axis to its angle - in that order, one transform. An unused slot repeats the centre: the same head in the same place."
+      },
       "name": "Head 1 Placement",
       "type": "transformation",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst326",
-        "inputs": [
-          {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 21,
-            "props": []
-          }
-        ],
-        "name": "Transformation_2",
-        "type": "transformation"
-      },
-      "id": "inst329",
-      "name": "Head 1 Turn",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
         "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
-        "id": "inst338",
+        "id": "inst318",
         "inputs": [
           {
             "input": 22,
@@ -228,194 +235,198 @@
             "props": []
           }
         ],
-        "name": "Implicit Body_23",
+        "name": "Implicit Body_11",
         "type": "implicit"
       },
-      "id": "inst339",
+      "id": "inst319",
       "name": "Seat Local 2",
       "type": "implicit",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
+        "func": "combine_transforms<list<transformation>>",
         "id": "inst351",
         "inputs": [
           {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 29,
-            "props": []
-          }
-        ],
-        "name": "Transformation_3",
-        "type": "transformation"
-      },
-      "id": "inst354",
-      "name": "Head 2 Spin",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst363",
-        "inputs": [
-          {
-            "func": "point<real,real,real>",
-            "id": "inst358",
+            "func": "core.list<transformation>",
+            "id": "inst350",
             "inputs": [
               {
-                "input": 30,
-                "props": []
-              },
-              {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst331",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
                   },
-                  "val": 0.0
-                }
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 29,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_4",
+                "type": "transformation"
               },
               {
-                "input": 31,
-                "props": []
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst342",
+                "inputs": [
+                  {
+                    "func": "point<real,real,real>",
+                    "id": "inst337",
+                    "inputs": [
+                      {
+                        "input": 30,
+                        "props": []
+                      },
+                      {
+                        "type": "real",
+                        "value": {
+                          "isFinite": true,
+                          "units": {
+                            "length": 1
+                          },
+                          "val": 0.0
+                        }
+                      },
+                      {
+                        "input": 31,
+                        "props": []
+                      }
+                    ],
+                    "name": "Point_1",
+                    "type": "point"
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst275"
+                    }
+                  }
+                ],
+                "name": "Transformation_5",
+                "type": "transformation"
+              },
+              {
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst347",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 32,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_6",
+                "type": "transformation"
               }
             ],
-            "name": "Point_1",
-            "type": "point"
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                }
-              ]
-            }
-          },
-          {
-            "props": [],
-            "ref": {
-              "id": "inst291"
-            }
+            "name": "Transformation List_1",
+            "type": "list<transformation>"
           }
         ],
-        "name": "Transformation_4",
+        "name": "Transformation_7",
         "type": "transformation"
       },
-      "id": "inst365",
+      "id": "inst352",
       "name": "Head 2 Placement",
       "type": "transformation",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst369",
-        "inputs": [
-          {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 32,
-            "props": []
-          }
-        ],
-        "name": "Transformation_5",
-        "type": "transformation"
-      },
-      "id": "inst372",
-      "name": "Head 2 Turn",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
         "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
-        "id": "inst381",
+        "id": "inst357",
         "inputs": [
           {
             "input": 33,
@@ -426,194 +437,198 @@
             "props": []
           }
         ],
-        "name": "Implicit Body_25",
+        "name": "Implicit Body_13",
         "type": "implicit"
       },
-      "id": "inst382",
+      "id": "inst358",
       "name": "Seat Local 3",
       "type": "implicit",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst394",
+        "func": "combine_transforms<list<transformation>>",
+        "id": "inst390",
         "inputs": [
           {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 40,
-            "props": []
-          }
-        ],
-        "name": "Transformation_6",
-        "type": "transformation"
-      },
-      "id": "inst397",
-      "name": "Head 3 Spin",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst406",
-        "inputs": [
-          {
-            "func": "point<real,real,real>",
-            "id": "inst401",
+            "func": "core.list<transformation>",
+            "id": "inst389",
             "inputs": [
               {
-                "input": 41,
-                "props": []
-              },
-              {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst370",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
                   },
-                  "val": 0.0
-                }
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 40,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_8",
+                "type": "transformation"
               },
               {
-                "input": 42,
-                "props": []
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst381",
+                "inputs": [
+                  {
+                    "func": "point<real,real,real>",
+                    "id": "inst376",
+                    "inputs": [
+                      {
+                        "input": 41,
+                        "props": []
+                      },
+                      {
+                        "type": "real",
+                        "value": {
+                          "isFinite": true,
+                          "units": {
+                            "length": 1
+                          },
+                          "val": 0.0
+                        }
+                      },
+                      {
+                        "input": 42,
+                        "props": []
+                      }
+                    ],
+                    "name": "Point_2",
+                    "type": "point"
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst275"
+                    }
+                  }
+                ],
+                "name": "Transformation_9",
+                "type": "transformation"
+              },
+              {
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst386",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 43,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_10",
+                "type": "transformation"
               }
             ],
-            "name": "Point_2",
-            "type": "point"
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                }
-              ]
-            }
-          },
-          {
-            "props": [],
-            "ref": {
-              "id": "inst291"
-            }
+            "name": "Transformation List_2",
+            "type": "list<transformation>"
           }
         ],
-        "name": "Transformation_7",
+        "name": "Transformation_11",
         "type": "transformation"
       },
-      "id": "inst408",
+      "id": "inst391",
       "name": "Head 3 Placement",
       "type": "transformation",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst412",
-        "inputs": [
-          {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 43,
-            "props": []
-          }
-        ],
-        "name": "Transformation_8",
-        "type": "transformation"
-      },
-      "id": "inst415",
-      "name": "Head 3 Turn",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
         "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
-        "id": "inst424",
+        "id": "inst396",
         "inputs": [
           {
             "input": 44,
@@ -624,194 +639,198 @@
             "props": []
           }
         ],
-        "name": "Implicit Body_27",
+        "name": "Implicit Body_15",
         "type": "implicit"
       },
-      "id": "inst425",
+      "id": "inst397",
       "name": "Seat Local 4",
       "type": "implicit",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst437",
+        "func": "combine_transforms<list<transformation>>",
+        "id": "inst429",
         "inputs": [
           {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 51,
-            "props": []
-          }
-        ],
-        "name": "Transformation_9",
-        "type": "transformation"
-      },
-      "id": "inst440",
-      "name": "Head 4 Spin",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst449",
-        "inputs": [
-          {
-            "func": "point<real,real,real>",
-            "id": "inst444",
+            "func": "core.list<transformation>",
+            "id": "inst428",
             "inputs": [
               {
-                "input": 52,
-                "props": []
-              },
-              {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst409",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
                   },
-                  "val": 0.0
-                }
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 51,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_12",
+                "type": "transformation"
               },
               {
-                "input": 53,
-                "props": []
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst420",
+                "inputs": [
+                  {
+                    "func": "point<real,real,real>",
+                    "id": "inst415",
+                    "inputs": [
+                      {
+                        "input": 52,
+                        "props": []
+                      },
+                      {
+                        "type": "real",
+                        "value": {
+                          "isFinite": true,
+                          "units": {
+                            "length": 1
+                          },
+                          "val": 0.0
+                        }
+                      },
+                      {
+                        "input": 53,
+                        "props": []
+                      }
+                    ],
+                    "name": "Point_3",
+                    "type": "point"
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst275"
+                    }
+                  }
+                ],
+                "name": "Transformation_13",
+                "type": "transformation"
+              },
+              {
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst425",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 54,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_14",
+                "type": "transformation"
               }
             ],
-            "name": "Point_3",
-            "type": "point"
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                }
-              ]
-            }
-          },
-          {
-            "props": [],
-            "ref": {
-              "id": "inst291"
-            }
+            "name": "Transformation List_3",
+            "type": "list<transformation>"
           }
         ],
-        "name": "Transformation_10",
+        "name": "Transformation_15",
         "type": "transformation"
       },
-      "id": "inst451",
+      "id": "inst430",
       "name": "Head 4 Placement",
       "type": "transformation",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst455",
-        "inputs": [
-          {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 54,
-            "props": []
-          }
-        ],
-        "name": "Transformation_11",
-        "type": "transformation"
-      },
-      "id": "inst458",
-      "name": "Head 4 Turn",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
         "func": "user_func_14c79051_bb54_4364_8024_2bae5e07baed<text,real>",
-        "id": "inst467",
+        "id": "inst435",
         "inputs": [
           {
             "input": 55,
@@ -822,194 +841,198 @@
             "props": []
           }
         ],
-        "name": "Implicit Body_29",
+        "name": "Implicit Body_17",
         "type": "implicit"
       },
-      "id": "inst468",
+      "id": "inst436",
       "name": "Seat Local 5",
       "type": "implicit",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst480",
+        "func": "combine_transforms<list<transformation>>",
+        "id": "inst468",
         "inputs": [
           {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 62,
-            "props": []
-          }
-        ],
-        "name": "Transformation_12",
-        "type": "transformation"
-      },
-      "id": "inst483",
-      "name": "Head 5 Spin",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst492",
-        "inputs": [
-          {
-            "func": "point<real,real,real>",
-            "id": "inst487",
+            "func": "core.list<transformation>",
+            "id": "inst467",
             "inputs": [
               {
-                "input": 63,
-                "props": []
-              },
-              {
-                "type": "real",
-                "value": {
-                  "isFinite": true,
-                  "units": {
-                    "length": 1
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst448",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
                   },
-                  "val": 0.0
-                }
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 62,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_16",
+                "type": "transformation"
               },
               {
-                "input": 64,
-                "props": []
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst459",
+                "inputs": [
+                  {
+                    "func": "point<real,real,real>",
+                    "id": "inst454",
+                    "inputs": [
+                      {
+                        "input": 63,
+                        "props": []
+                      },
+                      {
+                        "type": "real",
+                        "value": {
+                          "isFinite": true,
+                          "units": {
+                            "length": 1
+                          },
+                          "val": 0.0
+                        }
+                      },
+                      {
+                        "input": 64,
+                        "props": []
+                      }
+                    ],
+                    "name": "Point_4",
+                    "type": "point"
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst275"
+                    }
+                  }
+                ],
+                "name": "Transformation_17",
+                "type": "transformation"
+              },
+              {
+                "func": "rotation_transform<point,vector,real>",
+                "id": "inst464",
+                "inputs": [
+                  {
+                    "type": "point",
+                    "value": [
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      },
+                      {
+                        "isFinite": true,
+                        "val": 0.0
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vector",
+                    "value": {
+                      "units": {},
+                      "value": [
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 0.0
+                        },
+                        {
+                          "isFinite": true,
+                          "val": 1.0
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "input": 65,
+                    "props": []
+                  }
+                ],
+                "name": "Transformation_18",
+                "type": "transformation"
               }
             ],
-            "name": "Point_4",
-            "type": "point"
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                }
-              ]
-            }
-          },
-          {
-            "props": [],
-            "ref": {
-              "id": "inst291"
-            }
+            "name": "Transformation List_4",
+            "type": "list<transformation>"
           }
         ],
-        "name": "Transformation_13",
+        "name": "Transformation_19",
         "type": "transformation"
       },
-      "id": "inst494",
+      "id": "inst469",
       "name": "Head 5 Placement",
       "type": "transformation",
       "variable": true
     },
     {
       "contents": {
-        "func": "rotation_transform<point,vector,real>",
-        "id": "inst498",
-        "inputs": [
-          {
-            "type": "point",
-            "value": [
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              },
-              {
-                "isFinite": true,
-                "val": 0.0
-              }
-            ]
-          },
-          {
-            "type": "vector",
-            "value": {
-              "units": {},
-              "value": [
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 0.0
-                },
-                {
-                  "isFinite": true,
-                  "val": 1.0
-                }
-              ]
-            }
-          },
-          {
-            "input": 65,
-            "props": []
-          }
-        ],
-        "name": "Transformation_14",
-        "type": "transformation"
-      },
-      "id": "inst501",
-      "name": "Head 5 Turn",
-      "type": "transformation",
-      "variable": true
-    },
-    {
-      "contents": {
         "func": "boolean_subtract<blend_enum,real_field,implicit,list<implicit>>[5.44.0]",
-        "id": "inst519",
+        "id": "inst483",
         "inputs": [
           {
             "type": "blend_enum",
@@ -1029,7 +1052,7 @@
           },
           {
             "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
-            "id": "inst515",
+            "id": "inst479",
             "inputs": [
               {
                 "type": "blend_enum",
@@ -1043,11 +1066,11 @@
               },
               {
                 "func": "core.list<implicit>",
-                "id": "inst514",
+                "id": "inst478",
                 "inputs": [
                   {
                     "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
-                    "id": "inst290",
+                    "id": "inst274",
                     "inputs": [
                       {
                         "type": "blend_enum",
@@ -1067,21 +1090,21 @@
                       },
                       {
                         "func": "core.list<implicit>",
-                        "id": "inst289",
+                        "id": "inst273",
                         "inputs": [
                           {
                             "props": [],
                             "ref": {
-                              "id": "inst280"
+                              "id": "inst264"
                             }
                           },
                           {
                             "func": "implicit_from_mesh<mesh>",
-                            "id": "inst283",
+                            "id": "inst267",
                             "inputs": [
                               {
                                 "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                                "id": "inst282",
+                                "id": "inst266",
                                 "inputs": [
                                   {
                                     "input": 66,
@@ -1094,11 +1117,11 @@
                                     }
                                   }
                                 ],
-                                "name": "Mesh_8",
+                                "name": "Mesh_0",
                                 "type": "mesh"
                               }
                             ],
-                            "name": "Implicit Body_18",
+                            "name": "Implicit Body_6",
                             "type": "implicit"
                           }
                         ],
@@ -1109,12 +1132,12 @@
                     "metadata": {
                       "description": "The pavé's beads on the shank (sharp: they are the pavé's own geometry). No pavé: a speck buried in the band."
                     },
-                    "name": "Implicit Body_20",
+                    "name": "Implicit Body_8",
                     "type": "implicit"
                   },
                   {
                     "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
-                    "id": "inst511",
+                    "id": "inst475",
                     "inputs": [
                       {
                         "type": "blend_enum",
@@ -1134,429 +1157,286 @@
                       },
                       {
                         "func": "core.list<implicit>",
-                        "id": "inst510",
+                        "id": "inst474",
                         "inputs": [
                           {
                             "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                            "id": "inst332",
+                            "id": "inst314",
                             "inputs": [
                               {
-                                "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                "id": "inst331",
+                                "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
+                                "id": "inst288",
                                 "inputs": [
-                                  {
-                                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                    "id": "inst330",
-                                    "inputs": [
-                                      {
-                                        "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
-                                        "id": "inst304",
-                                        "inputs": [
-                                          {
-                                            "props": [],
-                                            "ref": {
-                                              "id": "inst296"
-                                            }
-                                          },
-                                          {
-                                            "input": 12,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 13,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 14,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 15,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 16,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 17,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 9,
-                                            "props": []
-                                          }
-                                        ],
-                                        "name": "Implicit Body_22",
-                                        "type": "implicit"
-                                      },
-                                      {
-                                        "props": [],
-                                        "ref": {
-                                          "id": "inst311"
-                                        }
-                                      }
-                                    ],
-                                    "name": "Any_0",
-                                    "type": "implicit"
-                                  },
                                   {
                                     "props": [],
                                     "ref": {
-                                      "id": "inst322"
+                                      "id": "inst280"
                                     }
+                                  },
+                                  {
+                                    "input": 12,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 13,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 14,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 15,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 16,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 17,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 9,
+                                    "props": []
                                   }
                                 ],
-                                "name": "Any_1",
+                                "name": "Implicit Body_10",
                                 "type": "implicit"
                               },
                               {
                                 "props": [],
                                 "ref": {
-                                  "id": "inst329"
+                                  "id": "inst313"
                                 }
                               }
                             ],
-                            "metadata": {
-                              "description": "Spun about its own axis, a quarter-turn onto +X, turned about the ring axis to its angle. An unused slot repeats the centre: the same head in the same place."
-                            },
+                            "name": "Any_0",
+                            "type": "implicit"
+                          },
+                          {
+                            "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                            "id": "inst353",
+                            "inputs": [
+                              {
+                                "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
+                                "id": "inst327",
+                                "inputs": [
+                                  {
+                                    "props": [],
+                                    "ref": {
+                                      "id": "inst319"
+                                    }
+                                  },
+                                  {
+                                    "input": 23,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 24,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 25,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 26,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 27,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 28,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 9,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Implicit Body_12",
+                                "type": "implicit"
+                              },
+                              {
+                                "props": [],
+                                "ref": {
+                                  "id": "inst352"
+                                }
+                              }
+                            ],
                             "name": "Any_2",
                             "type": "implicit"
                           },
                           {
                             "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                            "id": "inst375",
+                            "id": "inst392",
                             "inputs": [
                               {
-                                "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                "id": "inst374",
+                                "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
+                                "id": "inst366",
                                 "inputs": [
-                                  {
-                                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                    "id": "inst373",
-                                    "inputs": [
-                                      {
-                                        "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
-                                        "id": "inst347",
-                                        "inputs": [
-                                          {
-                                            "props": [],
-                                            "ref": {
-                                              "id": "inst339"
-                                            }
-                                          },
-                                          {
-                                            "input": 23,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 24,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 25,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 26,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 27,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 28,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 9,
-                                            "props": []
-                                          }
-                                        ],
-                                        "name": "Implicit Body_24",
-                                        "type": "implicit"
-                                      },
-                                      {
-                                        "props": [],
-                                        "ref": {
-                                          "id": "inst354"
-                                        }
-                                      }
-                                    ],
-                                    "name": "Any_6",
-                                    "type": "implicit"
-                                  },
                                   {
                                     "props": [],
                                     "ref": {
-                                      "id": "inst365"
+                                      "id": "inst358"
                                     }
+                                  },
+                                  {
+                                    "input": 34,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 35,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 36,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 37,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 38,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 39,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 9,
+                                    "props": []
                                   }
                                 ],
-                                "name": "Any_7",
+                                "name": "Implicit Body_14",
                                 "type": "implicit"
                               },
                               {
                                 "props": [],
                                 "ref": {
-                                  "id": "inst372"
+                                  "id": "inst391"
+                                }
+                              }
+                            ],
+                            "name": "Any_4",
+                            "type": "implicit"
+                          },
+                          {
+                            "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                            "id": "inst431",
+                            "inputs": [
+                              {
+                                "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
+                                "id": "inst405",
+                                "inputs": [
+                                  {
+                                    "props": [],
+                                    "ref": {
+                                      "id": "inst397"
+                                    }
+                                  },
+                                  {
+                                    "input": 45,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 46,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 47,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 48,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 49,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 50,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 9,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Implicit Body_16",
+                                "type": "implicit"
+                              },
+                              {
+                                "props": [],
+                                "ref": {
+                                  "id": "inst430"
+                                }
+                              }
+                            ],
+                            "name": "Any_6",
+                            "type": "implicit"
+                          },
+                          {
+                            "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                            "id": "inst470",
+                            "inputs": [
+                              {
+                                "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
+                                "id": "inst444",
+                                "inputs": [
+                                  {
+                                    "props": [],
+                                    "ref": {
+                                      "id": "inst436"
+                                    }
+                                  },
+                                  {
+                                    "input": 56,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 57,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 58,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 59,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 60,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 61,
+                                    "props": []
+                                  },
+                                  {
+                                    "input": 9,
+                                    "props": []
+                                  }
+                                ],
+                                "name": "Implicit Body_18",
+                                "type": "implicit"
+                              },
+                              {
+                                "props": [],
+                                "ref": {
+                                  "id": "inst469"
                                 }
                               }
                             ],
                             "name": "Any_8",
-                            "type": "implicit"
-                          },
-                          {
-                            "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                            "id": "inst418",
-                            "inputs": [
-                              {
-                                "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                "id": "inst417",
-                                "inputs": [
-                                  {
-                                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                    "id": "inst416",
-                                    "inputs": [
-                                      {
-                                        "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
-                                        "id": "inst390",
-                                        "inputs": [
-                                          {
-                                            "props": [],
-                                            "ref": {
-                                              "id": "inst382"
-                                            }
-                                          },
-                                          {
-                                            "input": 34,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 35,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 36,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 37,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 38,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 39,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 9,
-                                            "props": []
-                                          }
-                                        ],
-                                        "name": "Implicit Body_26",
-                                        "type": "implicit"
-                                      },
-                                      {
-                                        "props": [],
-                                        "ref": {
-                                          "id": "inst397"
-                                        }
-                                      }
-                                    ],
-                                    "name": "Any_12",
-                                    "type": "implicit"
-                                  },
-                                  {
-                                    "props": [],
-                                    "ref": {
-                                      "id": "inst408"
-                                    }
-                                  }
-                                ],
-                                "name": "Any_13",
-                                "type": "implicit"
-                              },
-                              {
-                                "props": [],
-                                "ref": {
-                                  "id": "inst415"
-                                }
-                              }
-                            ],
-                            "name": "Any_14",
-                            "type": "implicit"
-                          },
-                          {
-                            "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                            "id": "inst461",
-                            "inputs": [
-                              {
-                                "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                "id": "inst460",
-                                "inputs": [
-                                  {
-                                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                    "id": "inst459",
-                                    "inputs": [
-                                      {
-                                        "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
-                                        "id": "inst433",
-                                        "inputs": [
-                                          {
-                                            "props": [],
-                                            "ref": {
-                                              "id": "inst425"
-                                            }
-                                          },
-                                          {
-                                            "input": 45,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 46,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 47,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 48,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 49,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 50,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 9,
-                                            "props": []
-                                          }
-                                        ],
-                                        "name": "Implicit Body_28",
-                                        "type": "implicit"
-                                      },
-                                      {
-                                        "props": [],
-                                        "ref": {
-                                          "id": "inst440"
-                                        }
-                                      }
-                                    ],
-                                    "name": "Any_18",
-                                    "type": "implicit"
-                                  },
-                                  {
-                                    "props": [],
-                                    "ref": {
-                                      "id": "inst451"
-                                    }
-                                  }
-                                ],
-                                "name": "Any_19",
-                                "type": "implicit"
-                              },
-                              {
-                                "props": [],
-                                "ref": {
-                                  "id": "inst458"
-                                }
-                              }
-                            ],
-                            "name": "Any_20",
-                            "type": "implicit"
-                          },
-                          {
-                            "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                            "id": "inst504",
-                            "inputs": [
-                              {
-                                "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                "id": "inst503",
-                                "inputs": [
-                                  {
-                                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                                    "id": "inst502",
-                                    "inputs": [
-                                      {
-                                        "func": "user_func_d25982dd_ade7_4b07_86b6_bcc538219ef0<implicit,text,real,real,real,real,real,real>",
-                                        "id": "inst476",
-                                        "inputs": [
-                                          {
-                                            "props": [],
-                                            "ref": {
-                                              "id": "inst468"
-                                            }
-                                          },
-                                          {
-                                            "input": 56,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 57,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 58,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 59,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 60,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 61,
-                                            "props": []
-                                          },
-                                          {
-                                            "input": 9,
-                                            "props": []
-                                          }
-                                        ],
-                                        "name": "Implicit Body_30",
-                                        "type": "implicit"
-                                      },
-                                      {
-                                        "props": [],
-                                        "ref": {
-                                          "id": "inst483"
-                                        }
-                                      }
-                                    ],
-                                    "name": "Any_24",
-                                    "type": "implicit"
-                                  },
-                                  {
-                                    "props": [],
-                                    "ref": {
-                                      "id": "inst494"
-                                    }
-                                  }
-                                ],
-                                "name": "Any_25",
-                                "type": "implicit"
-                              },
-                              {
-                                "props": [],
-                                "ref": {
-                                  "id": "inst501"
-                                }
-                              }
-                            ],
-                            "name": "Any_26",
                             "type": "implicit"
                           }
                         ],
@@ -1564,7 +1444,7 @@
                         "type": "list<implicit>"
                       }
                     ],
-                    "name": "Implicit Body_31",
+                    "name": "Implicit Body_19",
                     "type": "implicit"
                   }
                 ],
@@ -1575,55 +1455,67 @@
             "metadata": {
               "description": "The heads melt into the shank (a smooth union). Every seat is cut AFTER it, the pavé's last."
             },
-            "name": "Implicit Body_32",
+            "name": "Implicit Body_20",
             "type": "implicit"
           },
           {
             "func": "core.list<implicit>",
-            "id": "inst518",
+            "id": "inst482",
             "inputs": [
               {
                 "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                "id": "inst335",
+                "id": "inst315",
                 "inputs": [
                   {
-                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                    "id": "inst334",
-                    "inputs": [
-                      {
-                        "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                        "id": "inst333",
-                        "inputs": [
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst296"
-                            }
-                          },
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst311"
-                            }
-                          }
-                        ],
-                        "name": "Any_3",
-                        "type": "implicit"
-                      },
-                      {
-                        "props": [],
-                        "ref": {
-                          "id": "inst322"
-                        }
-                      }
-                    ],
-                    "name": "Any_4",
-                    "type": "implicit"
+                    "props": [],
+                    "ref": {
+                      "id": "inst280"
+                    }
                   },
                   {
                     "props": [],
                     "ref": {
-                      "id": "inst329"
+                      "id": "inst313"
+                    }
+                  }
+                ],
+                "name": "Any_1",
+                "type": "implicit"
+              },
+              {
+                "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                "id": "inst354",
+                "inputs": [
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst319"
+                    }
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst352"
+                    }
+                  }
+                ],
+                "name": "Any_3",
+                "type": "implicit"
+              },
+              {
+                "func": "transform_object<spatial3d,transformation>[1.1.0]",
+                "id": "inst393",
+                "inputs": [
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst358"
+                    }
+                  },
+                  {
+                    "props": [],
+                    "ref": {
+                      "id": "inst391"
                     }
                   }
                 ],
@@ -1632,203 +1524,51 @@
               },
               {
                 "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                "id": "inst378",
+                "id": "inst432",
                 "inputs": [
                   {
-                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                    "id": "inst377",
-                    "inputs": [
-                      {
-                        "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                        "id": "inst376",
-                        "inputs": [
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst339"
-                            }
-                          },
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst354"
-                            }
-                          }
-                        ],
-                        "name": "Any_9",
-                        "type": "implicit"
-                      },
-                      {
-                        "props": [],
-                        "ref": {
-                          "id": "inst365"
-                        }
-                      }
-                    ],
-                    "name": "Any_10",
-                    "type": "implicit"
+                    "props": [],
+                    "ref": {
+                      "id": "inst397"
+                    }
                   },
                   {
                     "props": [],
                     "ref": {
-                      "id": "inst372"
+                      "id": "inst430"
                     }
                   }
                 ],
-                "name": "Any_11",
+                "name": "Any_7",
                 "type": "implicit"
               },
               {
                 "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                "id": "inst421",
+                "id": "inst471",
                 "inputs": [
                   {
-                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                    "id": "inst420",
-                    "inputs": [
-                      {
-                        "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                        "id": "inst419",
-                        "inputs": [
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst382"
-                            }
-                          },
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst397"
-                            }
-                          }
-                        ],
-                        "name": "Any_15",
-                        "type": "implicit"
-                      },
-                      {
-                        "props": [],
-                        "ref": {
-                          "id": "inst408"
-                        }
-                      }
-                    ],
-                    "name": "Any_16",
-                    "type": "implicit"
+                    "props": [],
+                    "ref": {
+                      "id": "inst436"
+                    }
                   },
                   {
                     "props": [],
                     "ref": {
-                      "id": "inst415"
+                      "id": "inst469"
                     }
                   }
                 ],
-                "name": "Any_17",
-                "type": "implicit"
-              },
-              {
-                "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                "id": "inst464",
-                "inputs": [
-                  {
-                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                    "id": "inst463",
-                    "inputs": [
-                      {
-                        "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                        "id": "inst462",
-                        "inputs": [
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst425"
-                            }
-                          },
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst440"
-                            }
-                          }
-                        ],
-                        "name": "Any_21",
-                        "type": "implicit"
-                      },
-                      {
-                        "props": [],
-                        "ref": {
-                          "id": "inst451"
-                        }
-                      }
-                    ],
-                    "name": "Any_22",
-                    "type": "implicit"
-                  },
-                  {
-                    "props": [],
-                    "ref": {
-                      "id": "inst458"
-                    }
-                  }
-                ],
-                "name": "Any_23",
-                "type": "implicit"
-              },
-              {
-                "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                "id": "inst507",
-                "inputs": [
-                  {
-                    "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                    "id": "inst506",
-                    "inputs": [
-                      {
-                        "func": "transform_object<spatial3d,transformation>[1.1.0]",
-                        "id": "inst505",
-                        "inputs": [
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst468"
-                            }
-                          },
-                          {
-                            "props": [],
-                            "ref": {
-                              "id": "inst483"
-                            }
-                          }
-                        ],
-                        "name": "Any_27",
-                        "type": "implicit"
-                      },
-                      {
-                        "props": [],
-                        "ref": {
-                          "id": "inst494"
-                        }
-                      }
-                    ],
-                    "name": "Any_28",
-                    "type": "implicit"
-                  },
-                  {
-                    "props": [],
-                    "ref": {
-                      "id": "inst501"
-                    }
-                  }
-                ],
-                "name": "Any_29",
+                "name": "Any_9",
                 "type": "implicit"
               },
               {
                 "func": "implicit_from_mesh<mesh>",
-                "id": "inst286",
+                "id": "inst270",
                 "inputs": [
                   {
                     "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                    "id": "inst285",
+                    "id": "inst269",
                     "inputs": [
                       {
                         "input": 67,
@@ -1841,11 +1581,11 @@
                         }
                       }
                     ],
-                    "name": "Mesh_9",
+                    "name": "Mesh_1",
                     "type": "mesh"
                   }
                 ],
-                "name": "Implicit Body_19",
+                "name": "Implicit Body_7",
                 "type": "implicit"
               }
             ],
@@ -1853,10 +1593,10 @@
             "type": "list<implicit>"
           }
         ],
-        "name": "Implicit Body_33",
+        "name": "Implicit Body_21",
         "type": "implicit"
       },
-      "id": "inst520",
+      "id": "inst484",
       "name": "Ring Body",
       "type": "implicit",
       "variable": true
@@ -1864,18 +1604,18 @@
     {
       "contents": {
         "func": "volume_integral<implicit,real_field,real>",
-        "id": "inst522",
+        "id": "inst486",
         "inputs": [
           {
             "props": [],
             "ref": {
-              "id": "inst520"
+              "id": "inst484"
             }
           },
           {
             "props": [],
             "ref": {
-              "id": "inst523"
+              "id": "inst487"
             }
           },
           {
@@ -1893,7 +1633,7 @@
         "name": "Scalar_0",
         "type": "real"
       },
-      "id": "inst530",
+      "id": "inst494",
       "metadata": {
         "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
       },
@@ -1910,14 +1650,14 @@
           "val": 1.0
         }
       },
-      "id": "inst523",
+      "id": "inst487",
       "name": "One",
       "type": "real",
       "variable": true
     },
     {
       "func": "export_mesh<file_path,mesh,unit_length_enum>",
-      "id": "inst529",
+      "id": "inst493",
       "inputs": [
         {
           "input": 68,
@@ -1925,12 +1665,12 @@
         },
         {
           "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-          "id": "inst527",
+          "id": "inst491",
           "inputs": [
             {
               "props": [],
               "ref": {
-                "id": "inst520"
+                "id": "inst484"
               }
             },
             {
@@ -1951,7 +1691,7 @@
               }
             }
           ],
-          "name": "Mesh_10",
+          "name": "Mesh_2",
           "type": "mesh"
         },
         {
@@ -1967,11 +1707,11 @@
     {
       "contents": {
         "func": "remap_cylindrical_implicit<implicit,real>",
-        "id": "inst279",
+        "id": "inst263",
         "inputs": [
           {
             "func": "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]",
-            "id": "inst278",
+            "id": "inst262",
             "inputs": [
               {
                 "type": "blend_enum",
@@ -1991,350 +1731,105 @@
               },
               {
                 "func": "core.list<implicit>",
-                "id": "inst277",
+                "id": "inst261",
                 "inputs": [
                   {
-                    "func": "offset_implicit<implicit,real_field>",
-                    "id": "inst247",
+                    "func": "user_func_2c73b463_17b8_44d0_b6b7_08ce0ba8e45f<text,real,real,real>",
+                    "id": "inst243",
                     "inputs": [
                       {
-                        "func": "implicit_from_mesh<mesh>",
-                        "id": "inst246",
-                        "inputs": [
-                          {
-                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-                            "id": "inst245",
-                            "inputs": [
-                              {
-                                "func": "offset_implicit<implicit,real_field>",
-                                "id": "inst242",
-                                "inputs": [
-                                  {
-                                    "func": "implicit_from_mesh<mesh>",
-                                    "id": "inst241",
-                                    "inputs": [
-                                      {
-                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                                        "id": "inst240",
-                                        "inputs": [
-                                          {
-                                            "input": 0,
-                                            "props": []
-                                          },
-                                          {
-                                            "type": "unit_length_enum",
-                                            "value": {
-                                              "id": "mm"
-                                            }
-                                          }
-                                        ],
-                                        "name": "Mesh_0",
-                                        "type": "mesh"
-                                      }
-                                    ],
-                                    "name": "Implicit Body_0",
-                                    "type": "implicit"
-                                  },
-                                  {
-                                    "input": 6,
-                                    "props": []
-                                  }
-                                ],
-                                "name": "Implicit Body_1",
-                                "type": "implicit"
-                              },
-                              {
-                                "input": 7,
-                                "props": []
-                              },
-                              null,
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              },
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              }
-                            ],
-                            "name": "Mesh_1",
-                            "type": "mesh"
-                          }
-                        ],
-                        "name": "Implicit Body_2",
-                        "type": "implicit"
+                        "input": 0,
+                        "props": []
+                      },
+                      {
+                        "input": 6,
+                        "props": []
                       },
                       {
                         "input": 5,
                         "props": []
+                      },
+                      {
+                        "input": 7,
+                        "props": []
                       }
                     ],
                     "metadata": {
-                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
+                      "description": "open_bar: the bar imported and opened by the edge round on its own (offset in, re-distance, offset out), before the union - one block per bar slot."
                     },
+                    "name": "Implicit Body_0",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "user_func_2c73b463_17b8_44d0_b6b7_08ce0ba8e45f<text,real,real,real>",
+                    "id": "inst248",
+                    "inputs": [
+                      {
+                        "input": 1,
+                        "props": []
+                      },
+                      {
+                        "input": 6,
+                        "props": []
+                      },
+                      {
+                        "input": 5,
+                        "props": []
+                      },
+                      {
+                        "input": 7,
+                        "props": []
+                      }
+                    ],
+                    "name": "Implicit Body_1",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "user_func_2c73b463_17b8_44d0_b6b7_08ce0ba8e45f<text,real,real,real>",
+                    "id": "inst253",
+                    "inputs": [
+                      {
+                        "input": 2,
+                        "props": []
+                      },
+                      {
+                        "input": 6,
+                        "props": []
+                      },
+                      {
+                        "input": 5,
+                        "props": []
+                      },
+                      {
+                        "input": 7,
+                        "props": []
+                      }
+                    ],
+                    "name": "Implicit Body_2",
+                    "type": "implicit"
+                  },
+                  {
+                    "func": "user_func_2c73b463_17b8_44d0_b6b7_08ce0ba8e45f<text,real,real,real>",
+                    "id": "inst258",
+                    "inputs": [
+                      {
+                        "input": 3,
+                        "props": []
+                      },
+                      {
+                        "input": 6,
+                        "props": []
+                      },
+                      {
+                        "input": 5,
+                        "props": []
+                      },
+                      {
+                        "input": 7,
+                        "props": []
+                      }
+                    ],
                     "name": "Implicit Body_3",
-                    "type": "implicit"
-                  },
-                  {
-                    "func": "offset_implicit<implicit,real_field>",
-                    "id": "inst256",
-                    "inputs": [
-                      {
-                        "func": "implicit_from_mesh<mesh>",
-                        "id": "inst255",
-                        "inputs": [
-                          {
-                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-                            "id": "inst254",
-                            "inputs": [
-                              {
-                                "func": "offset_implicit<implicit,real_field>",
-                                "id": "inst251",
-                                "inputs": [
-                                  {
-                                    "func": "implicit_from_mesh<mesh>",
-                                    "id": "inst250",
-                                    "inputs": [
-                                      {
-                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                                        "id": "inst249",
-                                        "inputs": [
-                                          {
-                                            "input": 1,
-                                            "props": []
-                                          },
-                                          {
-                                            "type": "unit_length_enum",
-                                            "value": {
-                                              "id": "mm"
-                                            }
-                                          }
-                                        ],
-                                        "name": "Mesh_2",
-                                        "type": "mesh"
-                                      }
-                                    ],
-                                    "name": "Implicit Body_4",
-                                    "type": "implicit"
-                                  },
-                                  {
-                                    "input": 6,
-                                    "props": []
-                                  }
-                                ],
-                                "name": "Implicit Body_5",
-                                "type": "implicit"
-                              },
-                              {
-                                "input": 7,
-                                "props": []
-                              },
-                              null,
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              },
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              }
-                            ],
-                            "name": "Mesh_3",
-                            "type": "mesh"
-                          }
-                        ],
-                        "name": "Implicit Body_6",
-                        "type": "implicit"
-                      },
-                      {
-                        "input": 5,
-                        "props": []
-                      }
-                    ],
-                    "metadata": {
-                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
-                    },
-                    "name": "Implicit Body_7",
-                    "type": "implicit"
-                  },
-                  {
-                    "func": "offset_implicit<implicit,real_field>",
-                    "id": "inst265",
-                    "inputs": [
-                      {
-                        "func": "implicit_from_mesh<mesh>",
-                        "id": "inst264",
-                        "inputs": [
-                          {
-                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-                            "id": "inst263",
-                            "inputs": [
-                              {
-                                "func": "offset_implicit<implicit,real_field>",
-                                "id": "inst260",
-                                "inputs": [
-                                  {
-                                    "func": "implicit_from_mesh<mesh>",
-                                    "id": "inst259",
-                                    "inputs": [
-                                      {
-                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                                        "id": "inst258",
-                                        "inputs": [
-                                          {
-                                            "input": 2,
-                                            "props": []
-                                          },
-                                          {
-                                            "type": "unit_length_enum",
-                                            "value": {
-                                              "id": "mm"
-                                            }
-                                          }
-                                        ],
-                                        "name": "Mesh_4",
-                                        "type": "mesh"
-                                      }
-                                    ],
-                                    "name": "Implicit Body_8",
-                                    "type": "implicit"
-                                  },
-                                  {
-                                    "input": 6,
-                                    "props": []
-                                  }
-                                ],
-                                "name": "Implicit Body_9",
-                                "type": "implicit"
-                              },
-                              {
-                                "input": 7,
-                                "props": []
-                              },
-                              null,
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              },
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              }
-                            ],
-                            "name": "Mesh_5",
-                            "type": "mesh"
-                          }
-                        ],
-                        "name": "Implicit Body_10",
-                        "type": "implicit"
-                      },
-                      {
-                        "input": 5,
-                        "props": []
-                      }
-                    ],
-                    "metadata": {
-                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
-                    },
-                    "name": "Implicit Body_11",
-                    "type": "implicit"
-                  },
-                  {
-                    "func": "offset_implicit<implicit,real_field>",
-                    "id": "inst274",
-                    "inputs": [
-                      {
-                        "func": "implicit_from_mesh<mesh>",
-                        "id": "inst273",
-                        "inputs": [
-                          {
-                            "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
-                            "id": "inst272",
-                            "inputs": [
-                              {
-                                "func": "offset_implicit<implicit,real_field>",
-                                "id": "inst269",
-                                "inputs": [
-                                  {
-                                    "func": "implicit_from_mesh<mesh>",
-                                    "id": "inst268",
-                                    "inputs": [
-                                      {
-                                        "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
-                                        "id": "inst267",
-                                        "inputs": [
-                                          {
-                                            "input": 3,
-                                            "props": []
-                                          },
-                                          {
-                                            "type": "unit_length_enum",
-                                            "value": {
-                                              "id": "mm"
-                                            }
-                                          }
-                                        ],
-                                        "name": "Mesh_6",
-                                        "type": "mesh"
-                                      }
-                                    ],
-                                    "name": "Implicit Body_12",
-                                    "type": "implicit"
-                                  },
-                                  {
-                                    "input": 6,
-                                    "props": []
-                                  }
-                                ],
-                                "name": "Implicit Body_13",
-                                "type": "implicit"
-                              },
-                              {
-                                "input": 7,
-                                "props": []
-                              },
-                              null,
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              },
-                              {
-                                "type": "bool",
-                                "value": {
-                                  "val": false
-                                }
-                              }
-                            ],
-                            "name": "Mesh_7",
-                            "type": "mesh"
-                          }
-                        ],
-                        "name": "Implicit Body_14",
-                        "type": "implicit"
-                      },
-                      {
-                        "input": 5,
-                        "props": []
-                      }
-                    ],
-                    "metadata": {
-                      "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
-                    },
-                    "name": "Implicit Body_15",
                     "type": "implicit"
                   }
                 ],
@@ -2345,7 +1840,7 @@
             "metadata": {
               "description": "The opened bars united as implicits (sharp). Bodies that cross each other come in separate bars: a mesh union's seams import as self-intersections. An unused slot repeats the smallest bar."
             },
-            "name": "Implicit Body_16",
+            "name": "Implicit Body_4",
             "type": "implicit"
           },
           {
@@ -2356,10 +1851,10 @@
         "metadata": {
           "description": "The bar (X radial, Y along the ring, Z axial) wrapped round the ring axis: one turn = Wrap Length."
         },
-        "name": "Implicit Body_17",
+        "name": "Implicit Body_5",
         "type": "implicit"
       },
-      "id": "inst280",
+      "id": "inst264",
       "metadata": {
         "description": "The bar (X radial, Y along the ring, Z axial) wrapped round the ring axis: one turn = Wrap Length."
       },
@@ -3512,8 +3007,8 @@
       "type": "text"
     }
   ],
-  "name": "user_func_b9db342a_f601_410b_bfb5_f150306a5ee5",
+  "name": "user_func_6c71346b_c735_4b02_86f3_2d53de091ec5",
   "output": {
-    "id": "inst530"
+    "id": "inst494"
   }
 }

@@ -1,10 +1,10 @@
 {
   "notebook": "ring_shank.ntop",
-  "sha256": "5d98ced7ac26c59547adf7ad6ed79a8e719f66500cb5a0a97582a048f844c7b2",
-  "built": "2026-11-04T17:41:55.742533+00:00",
+  "sha256": "42b002d117f50485386a3db59111c3990c84574b36f94987809b5bf13cdb59ec",
+  "built": "2026-11-04T19:07:20.791860+00:00",
   "catalogs": {
-    "ring_shank": "0.3.1"
+    "ring_shank": "0.3.2"
   },
-  "git_commit": "e8f6864025fc",
+  "git_commit": "ea70322c1d21",
   "ntopjewel": "0.3.0"
 }

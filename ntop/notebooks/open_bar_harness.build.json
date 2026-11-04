@@ -1,0 +1,10 @@
+{
+  "notebook": "open_bar_harness.ntop",
+  "sha256": "9a8962389ff04994ec13d60b84fe8c50b2726199ae6995d25bc39116f61338ba",
+  "built": "2026-11-04T19:06:13.432424+00:00",
+  "catalogs": {
+    "open_bar_harness": "0.1.0"
+  },
+  "git_commit": "ea70322c1d21",
+  "ntopjewel": "0.3.0"
+}

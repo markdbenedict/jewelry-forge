@@ -1,0 +1,173 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "offset_implicit<implicit,real_field>",
+        "id": "inst117",
+        "inputs": [
+          {
+            "func": "implicit_from_mesh<mesh>",
+            "id": "inst116",
+            "inputs": [
+              {
+                "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+                "id": "inst115",
+                "inputs": [
+                  {
+                    "func": "offset_implicit<implicit,real_field>",
+                    "id": "inst112",
+                    "inputs": [
+                      {
+                        "func": "implicit_from_mesh<mesh>",
+                        "id": "inst111",
+                        "inputs": [
+                          {
+                            "func": "import_mesh<file_path,unit_length_enum>[1.1.0]",
+                            "id": "inst110",
+                            "inputs": [
+                              {
+                                "input": 0,
+                                "props": []
+                              },
+                              {
+                                "type": "unit_length_enum",
+                                "value": {
+                                  "id": "mm"
+                                }
+                              }
+                            ],
+                            "name": "Mesh_0",
+                            "type": "mesh"
+                          }
+                        ],
+                        "name": "Implicit Body_0",
+                        "type": "implicit"
+                      },
+                      {
+                        "input": 1,
+                        "props": []
+                      }
+                    ],
+                    "name": "Implicit Body_1",
+                    "type": "implicit"
+                  },
+                  {
+                    "input": 3,
+                    "props": []
+                  },
+                  null,
+                  {
+                    "type": "bool",
+                    "value": {
+                      "val": false
+                    }
+                  },
+                  {
+                    "type": "bool",
+                    "value": {
+                      "val": false
+                    }
+                  }
+                ],
+                "name": "Mesh_1",
+                "type": "mesh"
+              }
+            ],
+            "name": "Implicit Body_2",
+            "type": "implicit"
+          },
+          {
+            "input": 2,
+            "props": []
+          }
+        ],
+        "metadata": {
+          "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
+        },
+        "name": "Implicit Body_3",
+        "type": "implicit"
+      },
+      "id": "inst118",
+      "metadata": {
+        "description": "The opening: offset in by the edge round, re-distance (a mesh round trip - Offset Body adds a constant to the field, so -e then +e would cancel), offset back out. Rounds every convex edge sharper than the radius and leaves the rest where it was."
+      },
+      "name": "Opened Bar",
+      "type": "implicit",
+      "variable": true
+    }
+  ],
+  "description": "",
+  "displayname": "open_bar",
+  "inputs": [
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\open_bar_test.bar.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Bar Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.00025
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round Inward",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.00025
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Mesh Tolerance",
+      "type": "real"
+    }
+  ],
+  "name": "user_func_2c73b463_17b8_44d0_b6b7_08ce0ba8e45f",
+  "output": {
+    "id": "inst118"
+  }
+}

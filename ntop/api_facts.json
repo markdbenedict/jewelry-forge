@@ -1,0 +1,6 @@
+{
+  "combine_transforms_order": "list",
+  "mirror_body": "ok",
+  "measured": "2026-11-04",
+  "how": "ntop/recipes/transform_probe.py, in nTop's session"
+}

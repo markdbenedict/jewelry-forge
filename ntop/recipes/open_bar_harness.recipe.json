@@ -1,0 +1,223 @@
+{
+  "body": [
+    {
+      "contents": {
+        "func": "user_func_2c73b463_17b8_44d0_b6b7_08ce0ba8e45f<text,real,real,real>",
+        "id": "inst115",
+        "inputs": [
+          {
+            "input": 0,
+            "props": []
+          },
+          {
+            "input": 1,
+            "props": []
+          },
+          {
+            "input": 2,
+            "props": []
+          },
+          {
+            "input": 3,
+            "props": []
+          }
+        ],
+        "name": "Implicit Body_0",
+        "type": "implicit"
+      },
+      "id": "inst116",
+      "name": "Result",
+      "type": "implicit",
+      "variable": true
+    },
+    {
+      "contents": {
+        "func": "volume_integral<implicit,real_field,real>",
+        "id": "inst118",
+        "inputs": [
+          {
+            "props": [],
+            "ref": {
+              "id": "inst116"
+            }
+          },
+          {
+            "props": [],
+            "ref": {
+              "id": "inst119"
+            }
+          },
+          {
+            "type": "real",
+            "value": {
+              "isFinite": true,
+              "units": {},
+              "val": 0.01
+            }
+          }
+        ],
+        "metadata": {
+          "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+        },
+        "name": "Scalar_0",
+        "type": "real"
+      },
+      "id": "inst126",
+      "metadata": {
+        "description": "The volume: ∫ 1 dV over the finished body (the notebook's Output; no density, no units)."
+      },
+      "name": "Volume",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {},
+          "val": 1.0
+        }
+      },
+      "id": "inst119",
+      "name": "One",
+      "type": "real",
+      "variable": true
+    },
+    {
+      "func": "export_mesh<file_path,mesh,unit_length_enum>",
+      "id": "inst125",
+      "inputs": [
+        {
+          "input": 4,
+          "props": []
+        },
+        {
+          "func": "implicit_to_mesh<implicit,real,real,bool,bool>[2.5.0]",
+          "id": "inst123",
+          "inputs": [
+            {
+              "props": [],
+              "ref": {
+                "id": "inst116"
+              }
+            },
+            {
+              "input": 3,
+              "props": []
+            },
+            null,
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            },
+            {
+              "type": "bool",
+              "value": {
+                "val": false
+              }
+            }
+          ],
+          "name": "Mesh_0",
+          "type": "mesh"
+        },
+        {
+          "type": "unit_length_enum",
+          "value": {
+            "id": "mm"
+          }
+        }
+      ],
+      "name": "Mesh File Data_0",
+      "type": "mesh_file_data"
+    }
+  ],
+  "description": "",
+  "displayname": "open_bar_harness",
+  "inputs": [
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\open_bar_test.bar.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Bar Path",
+      "type": "text"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": -0.00025
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round Inward",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.00025
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Edge Round",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "real",
+        "value": {
+          "isFinite": true,
+          "units": {
+            "length": 1
+          },
+          "val": 0.0001
+        }
+      },
+      "description": "",
+      "dimension": {
+        "length": 1
+      },
+      "name": "Mesh Tolerance",
+      "type": "real"
+    },
+    {
+      "contents": {
+        "type": "text",
+        "value": {
+          "string": "C:\\Users\\markd\\src\\jewelry-forge\\out\\api\\open_bar_test.stl"
+        }
+      },
+      "description": "",
+      "dimension": {},
+      "name": "Output Path",
+      "type": "text"
+    }
+  ],
+  "name": "user_func_ba116709_a008_4693_a343_3d3771774df1",
+  "output": {
+    "id": "inst126"
+  }
+}

@@ -1,10 +1,10 @@
 {
   "notebook": "solitaire_bezel.ntop",
-  "sha256": "47b19a83352efae93e602ee8aeda4372b64338d392a6f70d3b5c5c490085d52f",
-  "built": "2026-11-04T17:57:20.364698+00:00",
+  "sha256": "827825363264d51f4d1769ceefd750a63ba1ea37a4e8ecb985477222fd456ee6",
+  "built": "2026-11-04T19:20:45.295325+00:00",
   "catalogs": {
-    "solitaire_bezel": "0.6.0"
+    "solitaire_bezel": "0.7.0"
   },
-  "git_commit": "e8f6864025fc",
+  "git_commit": "ea70322c1d21",
   "ntopjewel": "0.3.0"
 }

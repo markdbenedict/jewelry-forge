@@ -1,10 +1,10 @@
 {
   "notebook": "ring_artwork.ntop",
-  "sha256": "4508835237a3f54a622ea89a0eb8b74b9c57059c5cf83b10b0683f7b95ad6f9e",
-  "built": "2026-11-04T17:43:45.727362+00:00",
+  "sha256": "3dd1c0fc751d468380a2b9f54ebad353757d50c3e26810d561a67ce6a670b209",
+  "built": "2026-11-04T19:10:06.049312+00:00",
   "catalogs": {
-    "ring_artwork": "0.1.0"
+    "ring_artwork": "0.1.1"
   },
-  "git_commit": "e8f6864025fc",
+  "git_commit": "ea70322c1d21",
   "ntopjewel": "0.3.0"
 }

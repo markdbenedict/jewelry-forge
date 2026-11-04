@@ -1,10 +1,10 @@
 {
   "notebook": "solitaire_outline.ntop",
-  "sha256": "d2ff80f7d782ae1203a94b4604f541a9a5a7e02d65bac84e3a59c245af4bf08b",
-  "built": "2026-11-04T17:53:00.244545+00:00",
+  "sha256": "7bb8b1369e6f7f925ababb869eee1d7fa0a4825150ffdfffb7f0fa3d76c7e657",
+  "built": "2026-11-04T19:17:12.464391+00:00",
   "catalogs": {
-    "solitaire_outline": "0.6.0"
+    "solitaire_outline": "0.7.0"
   },
-  "git_commit": "e8f6864025fc",
+  "git_commit": "ea70322c1d21",
   "ntopjewel": "0.3.0"
 }

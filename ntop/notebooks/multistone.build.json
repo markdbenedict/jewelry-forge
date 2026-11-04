@@ -1,10 +1,10 @@
 {
   "notebook": "multistone.ntop",
-  "sha256": "c03417b4edf60cea123dfff2d22bd8480761b5ee579e52e79396a91e5963685a",
-  "built": "2026-11-04T18:02:29.727347+00:00",
+  "sha256": "7f3ae56c7ff9caac330cfdd94cf2e168bf54dfd9f2ae3449dca68fb5d0c5ff0d",
+  "built": "2026-11-04T19:25:32.507802+00:00",
   "catalogs": {
-    "multistone": "0.2.0"
+    "multistone": "0.2.1"
   },
-  "git_commit": "e8f6864025fc",
+  "git_commit": "ea70322c1d21",
   "ntopjewel": "0.3.0"
 }

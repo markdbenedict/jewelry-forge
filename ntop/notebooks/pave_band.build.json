@@ -1,10 +1,10 @@
 {
   "notebook": "pave_band.ntop",
-  "sha256": "5032bb27a41c51beb9440af37b0bc94cfed77606eadab110c9ade5f72cb808b7",
-  "built": "2026-11-04T17:42:50.074786+00:00",
+  "sha256": "34d5a463ed5ed46954ad2161d689c8066216cd482ec5432d4c94adf4d864f451",
+  "built": "2026-11-04T19:08:40.903212+00:00",
   "catalogs": {
-    "pave_band": "0.1.0"
+    "pave_band": "0.1.1"
   },
-  "git_commit": "e8f6864025fc",
+  "git_commit": "ea70322c1d21",
   "ntopjewel": "0.3.0"
 }
