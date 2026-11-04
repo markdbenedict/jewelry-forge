@@ -390,7 +390,11 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    `Turntable` empty spinning one turn in 144 frames at 24 fps, Principled glass IOR 1.577 with volume
    absorption for the green, the sweep at 0.3 roughness, H.264 from Blender's FFmpeg output - note Blender
    5.2 wants `image_settings.media_type = "VIDEO"` before `file_format = "FFMPEG"`; ~8.5 s a frame on the
-   5070 Ti at 1080p / 128 samples). **Still missing for the Seraphine:** double-claw prong tips
+   5070 Ti at 1080p / 128 samples). Mark's next ask (4 Nov 05:55): the leaf rows with each leaf turned ±7.5°
+   in turn and a serpentine vine half the leaf's height connecting them - `--leaf-tilt 7.5 --leaf-stem 0.5`
+   (`motif_leaves`: the stem through every base, one united relief body per panel copy since pieces of two
+   heights can neither cross nor share a face in a layer; the relief probes keep off the step); offline
+   PASSED, *real check pending* on the Seraphine command with those two flags. **Still missing for the Seraphine:** double-claw prong tips
    and the heart-shaped gallery (6).)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the

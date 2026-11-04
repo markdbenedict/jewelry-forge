@@ -107,6 +107,7 @@ FAIL and INCOMPLETE is not a pass; neither is delivered.
 ```powershell
 python -m ntopjewel artwork --size 6 --sides leaves --outer vine                 # leaf rows on the sides, a vine outside (flat 2.8 x 2.0 band)
 python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll         # the Seraphine's faces: a volute then leaves (tips to the head) on the sides, the scroll outside
+python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf-tilt 7.5 --leaf-stem 0.5   # ... the leaves turned ±7.5° in turn on a serpentine stem half their height
 python -m ntopjewel artwork --size 6 --sides leaves --outer none --end 100       # leaf rows on the side faces only
 python -m ntopjewel artwork --size 6 --sides plain --outer volute --start 20 --end 60 --dry-run
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll   # the same panels under a head (gem-library)
@@ -124,7 +125,21 @@ at the base of the head above each leaf row), `vine` (a gentle S-curve spine wit
 polygon, clipped to the channel), `scroll` (the vine with a full volute the channel's width at its head
 end - the Seraphine's scrolls at the base of the head - the spine running on from the volute's outer
 turn), `volute` (a spiral scroll), `plain` (the channel alone). A new motif is one function returning
-`[{"poly", "veins"}]`. A side face is the band's **edge thickness** (the mid-plane thickness less the
+`[{"poly", "veins"}]` (and `"h_frac"`, the body's height as a fraction of the relief, when not the full height).
+**A leaf row on a stem** (`--leaf-tilt DEG`, `--leaf-stem FRAC`; `motif_leaves(tilt_deg, stem, stem_from)`):
+each leaf turned about the centre of its base, alternately + and − along the row (at most ±15°), and a
+serpentine stem `--stroke` wide standing FRAC of the relief (≥ 0.1 mm) threaded through the row - v = A sin(π
+(u − u_base0) / pitch), through every base, swinging `STEM_SWING` (0.65) of the free half-width out between
+them, the sign of its slope at a base the sign of that leaf's tilt, so the leaf grows on from it; on
+`scroll-leaves` it starts PLUG_MM inside the volute's far edge with a half-swing lead-in. The leaves come out
+narrower for it (the tilted tip must stay inside the channel; 0.62 of the free width with a stem, so it shows
+beside them) and a narrowed leaf's vein stops where the tip is still 0.12 wider than the slit (`leaf_vein(length,
+width)`). Pieces of two heights cannot share a layer as separate bodies (they would cross or share a face),
+so `relief_bodies` unites a panel copy's leaves and stem pieces into **one body** with manifold (the stem's
+bottom at half the plug, so no bottoms are coplanar; the seams are square); `write_layers` still reads the
+layer back and refuses any crossing. The gate's relief probes keep `PROBE_MARGIN_MM` off the step where a
+stem meets a leaf (the mesher's blur of a 0.125 step). Neither number enters the spec id when 0, so the
+straight rows keep their stems. A side face is the band's **edge thickness** (the mid-plane thickness less the
 dome and the comfort fit) less two rails, centred between the bore's and the dome's edges; on a domed
 (court) outer face the relief would stand proud where the face falls away at the channel's edge, so
 `validate` refuses it (a flat band, a deeper channel or a lower relief). A `plain` panel's relief file

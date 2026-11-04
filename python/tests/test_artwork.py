@@ -152,3 +152,42 @@ def test_the_constrained_triangulation_keeps_every_boundary_edge_and_no_slivers(
     longest = np.max([np.linalg.norm(pts[tri[:, (i + 1) % 3]] - pts[tri[:, i]], axis=1) for i in range(3)], axis=0)
     assert (2 * area / longest).min() > 0.01                                     # no sliver under 10 µm tall
     assert abs(area.sum() - artwork.densified(poly).area) < 1e-6                 # the triangles tile the polygon exactly
+
+
+def test_tilted_leaves_on_a_serpentine_stem(fake_ntopcl, tmp_path, out_dir):
+    """Each leaf turned ±7.5° in turn about its base and a stem half the relief high threaded through
+    the row: the stem's pieces plug into the leaves (and into the volute on a scroll-leaves face), every
+    panel copy's relief unites into one clean body, the gate's relief probes keep off the step, and the
+    ring passes its gate on the simulated nTop."""
+    a = seraphine(leaf_tilt_deg=7.5, leaf_stem=0.5)
+    assert a.validate() == []
+    side = a.panels[1]
+    dicts = a.motif(side)
+    leaves = [d for d in dicts if d["h_frac"] >= 1.0]
+    stems = [d for d in dicts if d["h_frac"] < 1.0]
+    assert len(leaves) == 7 and len(stems) >= 5 and all(d["h_frac"] == 0.5 for d in stems)
+    slopes = []
+    for d in leaves[1:]:                                                     # the volute has no vein; the leaves' veins follow the tilt
+        (p, q, _w) = d["veins"][0]
+        slopes.append((q[1] - p[1]) / (q[0] - p[0]))
+    assert all(abs(abs(s) - np.tan(np.radians(7.5))) < 0.02 for s in slopes)   # turned by 7.5° ...
+    assert all(s1 * s2 < 0 for s1, s2 in zip(slopes, slopes[1:]))             # ... alternately
+    for d in stems:                                                          # every piece reaches into what it joins
+        assert sum(d["poly"].intersection(q["poly"]).area > 1e-4 for q in leaves) >= 2
+    plain = seraphine()
+    assert a.motif(side)[1]["poly"].bounds[3] - a.motif(side)[1]["poly"].bounds[1] < \
+        plain.motif(side)[1]["poly"].bounds[3] - plain.motif(side)[1]["poly"].bounds[1]   # the leaves narrowed for the tilt and the stem
+    relief = a.relief_mesh()
+    assert relief.body_count == 6                                            # one united body per panel copy
+    for m in relief.split(only_watertight=False):
+        assert m.is_watertight and m.volume > 0
+    cut, rel = a.write_layers(tmp_path, "t")                                 # read back: nothing crosses
+    assert a.spec_id != plain.spec_id and plain.spec_id == seraphine(leaf_tilt_deg=0.0, leaf_stem=0.0).spec_id   # the built design keeps its id
+    o, d, lim, kinds = a.probes(side, 1.0)
+    assert (kinds == "relief").sum() > 20 and (kinds == "floor").sum() > 50
+    res = _build(out_dir, tmp_path, a)
+    assert res.ok, res.text()
+    assert any("at least 0.1 to cast" in x for x in seraphine(leaf_stem=0.3).validate())
+    assert any("at most" in x for x in seraphine(leaf_tilt_deg=20.0).validate())
+    from ntopjewel import cli
+    assert cli.main(["artwork", "--sides", "scroll-leaves", "--leaf-tilt", "7.5", "--leaf-stem", "0.5", "--dry-run"]) == 0

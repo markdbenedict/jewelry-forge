@@ -154,8 +154,9 @@ pocket. The text is part of the spec id but not the stem.
 **Artwork under the head** (`ring-features` has the panels themselves): `--sides` / `--outer` (a motif, or
 `none`, the default), `--start` / `--end`, `--channel`, `--rail`, `--relief`, `--leaf`, `--leaf-pitch`,
 `--stroke`, `--no-vein`, `--leaf-tip head|shank` (default head: the reference ring's leaves point at the
-head; `scroll-leaves` puts a volute at the head end of a leaf row, as its side faces) as the `artwork`
-command - `SolitaireSpec.panels` and the artwork numbers,
+head; `scroll-leaves` puts a volute at the head end of a leaf row, as its side faces), `--leaf-tilt` and
+`--leaf-stem` (the leaves turned ±DEG in turn on a serpentine stem FRAC of the relief high, `ring-features`)
+as the `artwork` command - `SolitaireSpec.panels` and the artwork numbers,
 `SolitaireSpec.artwork` the `ArtworkSpec` over the shank. The band is carved before anything joins it
 (the channel edges stay crisp, the relief is never rounded), so each panel's head end is held back
 (`panel_start_min_deg`): past the arches' wedge + 1° (inside it the arch fills the band's faces from
