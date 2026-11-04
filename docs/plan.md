@@ -393,8 +393,15 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    5070 Ti at 1080p / 128 samples). Mark's next ask (4 Nov 05:55): the leaf rows with each leaf turned ±7.5°
    in turn and a serpentine vine half the leaf's height connecting them - `--leaf-tilt 7.5 --leaf-stem 0.5`
    (`motif_leaves`: the stem through every base, one united relief body per panel copy since pieces of two
-   heights can neither cross nor share a face in a layer; the relief probes keep off the step); offline
-   PASSED, *real check pending* on the Seraphine command with those two flags. **Still missing for the Seraphine:** double-claw prong tips
+   heights can neither cross nor share a face in a layer; the relief probes keep off the step). *First real
+   run (07:10): nTop built the united relief in one shell* - and failed `relief 374/376` on the **outer**
+   face: the vein-shortening meant for the narrowed row leaves had reached the outer vine's small leaves,
+   whose 0.09 mm slits had never fitted before and which the mesher cannot resolve (0.102). Fixed by
+   restoring the vine's veins exactly (the two PASSED Seraphine designs' relief volume, bodies and ids are
+   now pinned by a test), keeping the relief probes off every vein slit, and probing a stem along its own
+   centreline; `--stem-width` (Mark: half the thickness, 0.15; a new `relief_line` floor 0.15 mm in the
+   tables, default). *Real check pending:* the Seraphine command with `--leaf-tilt 7.5 --leaf-stem 0.5
+   --stem-width 0.15`. **Still missing for the Seraphine:** double-claw prong tips
    and the heart-shaped gallery (6).)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the

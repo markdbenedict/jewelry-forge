@@ -66,15 +66,16 @@ def leaf_polygon(length: float, width: float):
     return MultiPoint(list(base.exterior.coords) + [(length, 0.0)]).convex_hull
 
 
-def leaf_vein(length: float, width: float | None = None) -> tuple:
+def leaf_vein(length: float, width: float | None = None, short_tip: bool = False) -> tuple:
     """The shallow groove down a leaf's middle as a segment ((u0, v0), (u1, v1), width): from a
     quarter along to short of the tip, VEIN_WIDTH_MM wide or a fifth of the leaf's width on a small
-    leaf - and, given the width, stopping where a slender leaf's tip is still 0.12 mm wider than the
-    slit on either side (a narrowed, tilted leaf would otherwise be split at its tip). A vein is a
-    straight slit, so it is swept, never triangulated (vein_polygon draws it)."""
+    leaf. `short_tip` (a narrowed, tilted row leaf) stops it where the tip is still 0.12 mm wider
+    than the slit on either side, or the slit would split the tip; the vine's leaves keep the plain
+    rule, so the built designs keep their geometry (2026-11-04). A vein is a straight slit, so it
+    is swept, never triangulated (vein_polygon draws it)."""
     w = VEIN_WIDTH_MM if width is None else min(VEIN_WIDTH_MM, 0.2 * width)
     short = 0.18 * length
-    if width is not None:                        # the teardrop's half-width grows from the tip at (width/2) / (length - width/2)
+    if short_tip and width is not None:          # the teardrop's half-width grows from the tip at (width/2) / (length - width/2)
         short = max(short, (w / 2 + 0.06) * (length - width / 2) / (width / 2))
     return ((0.25 * length, 0.0), (length - short, 0.0), w)
 
@@ -101,8 +102,9 @@ def motif_leaves(length_u: float, width_v: float, leaf: float, pitch: float, vei
     about the centre of its base, alternately + and − along the row (the leaves then fit the channel
     narrower, so the tip stays inside it). `stem` > 0 threads a serpentine stem through the row -
     through every leaf's base, swinging out to one side then the other between them, `stroke` wide,
-    standing `stem` of the relief's height (its dicts carry 'h_frac'); the leaves are narrower still
-    so the stem shows beside them. The stem's pieces end PLUG_MM inside the leaves they meet, and
+    standing `stem` of the relief's height (its dicts carry 'h_frac', and 'line', the centreline the
+    gate probes along, since a slender stem is too narrow for the probe grid); the leaves are
+    narrower still so the stem shows beside them. The stem's pieces end PLUG_MM inside the leaves they meet, and
     begin PLUG_MM inside whatever stands at `stem_from` (a volute's edge), so relief_bodies can unite
     them into one body - a layer's bodies may neither cross nor share a face otherwise."""
     import numpy as np
@@ -124,8 +126,8 @@ def motif_leaves(length_u: float, width_v: float, leaf: float, pitch: float, vei
     bases = []
     for k in range(n):
         u0 = u_from + slack + k * pitch
-        slender = width if (s or stem) else None                       # a narrowed leaf's vein stops short of its thin tip
-        poly, veins = leaf_polygon(leaf, width), [leaf_vein(leaf, slender)] if vein else []
+        slender = bool(s or stem)                                      # a narrowed leaf's vein stops short of its thin tip
+        poly, veins = leaf_polygon(leaf, width), [leaf_vein(leaf, width if slender else None, slender)] if vein else []
         if tip == "head":                                              # turned about the leaf's middle: the tip to -u
             poly = rotate(poly, 180.0, origin=(leaf / 2, 0.0))
             veins = [_move_seg(v, 180.0, leaf, 0.0) for v in veins]
@@ -152,24 +154,27 @@ def motif_leaves(length_u: float, width_v: float, leaf: float, pitch: float, vei
         lead = np.linspace(u_a, b0, max(6, int((b0 - u_a) / 0.05)), endpoint=False)
         us = np.concatenate([lead, us])
         vs = np.concatenate([-A * (b0 - u_a) / pitch * np.sin(math.pi * (lead - u_a) / (b0 - u_a)), vs])
-    line = LineString(np.column_stack([us, vs])).buffer(stroke / 2, cap_style="round", join_style="round")
+    path = LineString(np.column_stack([us, vs]))
+    line = path.buffer(stroke / 2, cap_style="round", join_style="round")
     leaves = unary_union([d["poly"] for d in out])
     pieces = line.difference(leaves.buffer(-PLUG_MM))                   # each piece ends PLUG_MM inside a leaf
     for q in getattr(pieces, "geoms", [pieces]):
         if q.area > 0.5 * stroke * stroke:                             # a sliver pinched between two leaves is nothing to cast
-            out.append({"poly": q, "veins": [], "h_frac": float(stem)})
+            centre = path.intersection(q.buffer(0.01))                 # the piece's own stretch of the centreline
+            out.append({"poly": q, "veins": [], "h_frac": float(stem), "line": centre})
     return out
 
 
 def motif_scroll_leaves(length_u: float, width_v: float, stroke: float, leaf: float, pitch: float, vein: bool,
-                        tip: str = "head", tilt_deg: float = 0.0, stem: float = 0.0) -> list[dict]:
+                        tip: str = "head", tilt_deg: float = 0.0, stem: float = 0.0, stem_width: float = 0.0) -> list[dict]:
     """A volute the channel's width at the head end, then the leaf row running on from it (the
-    reference ring's side faces); a stem, when asked for, grows out of the volute's edge."""
+    reference ring's side faces); a stem, when asked for, grows out of the volute's edge, `stem_width`
+    wide (the volute's stroke when 0)."""
     R = width_v / 2 - stroke / 2                                        # motif_volute's spiral: u from stroke/2 to 2R + stroke/2
     scroll = motif_volute(2 * R + stroke - 0.01, width_v, stroke)       # the spiral alone (no tail: the run is too short for one)
     edge = float(scroll[0]["poly"].bounds[2]) - PLUG_MM                 # the volute's far edge on the centre line, less the plug
-    return scroll + motif_leaves(length_u, width_v, leaf, pitch, vein, tip, u_from=2 * R + stroke + 0.3,
-                                 tilt_deg=tilt_deg, stem=stem, stroke=stroke, stem_from=edge if stem else None)
+    return scroll + motif_leaves(length_u, width_v, leaf, pitch, vein, tip, u_from=2 * R + stroke + 0.3, tilt_deg=tilt_deg,
+                                 stem=stem, stroke=stem_width or stroke, stem_from=edge if stem else None)
 
 
 def _spiral(turns: float, r0: float, r1: float, n: int = 90):
@@ -573,6 +578,7 @@ class ArtworkSpec:
     leaf_tip: str = "head"        # a leaf row's tips point at the head (LEAF_TIPS), as the reference ring's
     leaf_tilt_deg: float = 0.0    # each leaf turned about its base, alternately + and - along the row (0: all straight)
     leaf_stem: float = 0.0        # a serpentine stem threaded through the row, this fraction of the relief high (0: none)
+    stem_width_mm: float = 0.0    # the stem's width (0: the stroke); floored by the tables' relief_line
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     # ---- numbers ---------------------------------------------------------------------------
@@ -615,6 +621,11 @@ class ArtworkSpec:
         b = self.band
         return b.outer_radius_mm - b.outer_radius_at(self.channel_width(face) / 2)
 
+    @property
+    def stem_width(self) -> float:
+        """The leaf rows' stem width: stem_width_mm, or the stroke."""
+        return float(self.stem_width_mm) if self.stem_width_mm else float(self.stroke_mm)
+
     def leaf_length(self, face: str) -> float:
         return float(self.leaf_mm) if self.leaf_mm else round(min(1.35 * self.channel_width(face), 2.0), 3)
 
@@ -629,11 +640,11 @@ class ArtworkSpec:
             if p.motif == "leaves":
                 leaf = self.leaf_length(p.face)
                 m = motif_leaves(Lu - 0.3, w - 0.2, leaf, self.leaf_pitch * leaf, self.vein, self.leaf_tip,
-                                 tilt_deg=self.leaf_tilt_deg, stem=self.leaf_stem, stroke=self.stroke_mm)
+                                 tilt_deg=self.leaf_tilt_deg, stem=self.leaf_stem, stroke=self.stem_width)
             elif p.motif == "scroll-leaves":
                 leaf = self.leaf_length(p.face)
                 m = motif_scroll_leaves(Lu - 0.3, w - 0.2, self.stroke_mm, leaf, self.leaf_pitch * leaf, self.vein, self.leaf_tip,
-                                        tilt_deg=self.leaf_tilt_deg, stem=self.leaf_stem)
+                                        tilt_deg=self.leaf_tilt_deg, stem=self.leaf_stem, stem_width=self.stem_width)
             elif p.motif in ("vine", "scroll"):
                 leaf = min(0.8 * self.leaf_length(p.face), 0.45 * (w - 0.2))
                 m = motif_vine(Lu - 0.3, w - 0.2, self.stroke_mm, leaf, self.vein, volute=p.motif == "scroll")
@@ -642,7 +653,8 @@ class ArtworkSpec:
             else:
                 m = []
             from shapely.affinity import translate                     # 0.15 mm in from the channel's head end
-            m = [{**d, "poly": translate(d["poly"], 0.15, 0.0), "veins": [_move_seg(v, 0.0, 0.15, 0.0) for v in d["veins"]]} for d in m]
+            m = [{**d, "poly": translate(d["poly"], 0.15, 0.0), "veins": [_move_seg(v, 0.0, 0.15, 0.0) for v in d["veins"]],
+                  **({"line": translate(d["line"], 0.15, 0.0)} if d.get("line") is not None else {})} for d in m]
             self._cache[key] = m
         return self._cache[key]
 
@@ -803,7 +815,8 @@ class ArtworkSpec:
                 "relief": self.relief_mm, "leaf": self.leaf_mm, "leaf_pitch": self.leaf_pitch, "stroke": self.stroke_mm,
                 "vein": self.vein, "leaf_tip": self.leaf_tip, "vein_width": VEIN_WIDTH_MM, "vein_depth": VEIN_DEPTH_MM,
                 **({"leaf_tilt": self.leaf_tilt_deg} if self.leaf_tilt_deg else {}),
-                **({"leaf_stem": self.leaf_stem} if self.leaf_stem else {})}
+                **({"leaf_stem": self.leaf_stem} if self.leaf_stem else {}),
+                **({"stem_width": self.stem_width_mm} if self.stem_width_mm else {})}
 
     def design(self) -> dict:
         d = self.shank.design()
@@ -885,6 +898,9 @@ class ArtworkSpec:
             p.append(f"leaf stem {self.leaf_stem:g}: a fraction of the relief between 0 and 1 (0.5 = half the leaves' height)")
         if self.leaf_stem and self.leaf_stem * self.relief_mm < STEM_MIN_MM:
             p.append(f"the stem would stand {self.leaf_stem * self.relief_mm:.3f} mm: at least {STEM_MIN_MM:g} to cast and polish")
+        line_floor = tables.FLOORS.get("relief_line", 0.15)
+        if self.leaf_stem and self.stem_width < line_floor - 1e-9:
+            p.append(f"stem width {self.stem_width:g} mm under the {line_floor:g} mm floor for a raised line (tables: relief_line)")
         return p
 
     def warnings(self) -> list[str]:
@@ -901,7 +917,7 @@ class ArtworkSpec:
             n = len(self.motif(q))
             n_leaf = sum(1 for d in self.motif(q) if d.get("h_frac", 1.0) >= 1.0)
             row = (f"tips at the {self.leaf_tip}" + (f", turned ±{abs(self.leaf_tilt_deg):g}° in turn" if self.leaf_tilt_deg else "")
-                   + (f", on a serpentine stem {self.leaf_stem * self.relief_mm:.3f} high" if self.leaf_stem else ""))
+                   + (f", on a serpentine stem {self.stem_width:g} wide, {self.leaf_stem * self.relief_mm:.3f} high" if self.leaf_stem else ""))
             what = {"leaves": f"{n_leaf} leaves of {self.leaf_length(q.face):.2f} mm, {row}",
                     "scroll-leaves": f"a volute at the head end, then {n_leaf - 1} leaves of {self.leaf_length(q.face):.2f} mm, {row}",
                     "vine": "a vine scroll with leaves", "scroll": "a volute at the head end running into a vine with leaves",
@@ -997,6 +1013,8 @@ class ArtworkSpec:
         motif = unary_union([d["poly"] for d in dicts]) if dicts else None
         tall = [d["poly"] for d in dicts if float(d.get("h_frac", 1.0)) >= 1.0]
         tall = unary_union(tall) if tall and len(tall) < len(dicts) else None     # only when a lower stem stands beside
+        veins = [vein_polygon(v) for d in dicts for v in d["veins"]]
+        veins = unary_union(veins).buffer(PROBE_MARGIN_MM) if veins else None   # a slit is below the probes' resolution
         inner = motif.buffer(-PROBE_MARGIN_MM) if motif is not None else None
         outer = motif.buffer(PROBE_MARGIN_MM) if motif is not None else None
         us = np.arange(PROBE_MM, Lu, PROBE_MM)
@@ -1012,12 +1030,28 @@ class ArtworkSpec:
             if tall is not None:                                        # a probe within the margin of the step between a
                 step = contains_xy(tall.buffer(PROBE_MARGIN_MM), U, V) & ~contains_xy(tall.buffer(-PROBE_MARGIN_MM), U, V)
                 relief &= ~step                                         # stem and a leaf reads the mesher's blur of the step
+            if veins is not None:                                       # a 0.09-0.2 mm slit, 0.12 deep: the mesher's, not the gate's
+                relief &= ~contains_xy(veins, U, V)                     # (0.102 on the outer vine's leaves, 2026-11-04)
             kinds[in_channel & relief] = "relief"
             kinds[in_channel & ~contains_xy(outer, U, V)] = "floor"
         else:
             kinds[in_channel] = "floor"
         keep = kinds != ""
         U, V, kinds = U[keep], V[keep], kinds[keep]
+        # a stem is too narrow for the grid's margin: probe it along its own centreline, clear of the leaves
+        lines = [d["line"] for d in dicts if d.get("line") is not None and not d["line"].is_empty]
+        if lines:
+            pts = []
+            for line in lines:
+                for part in getattr(line, "geoms", [line]):
+                    n = max(2, int(part.length / (PROBE_MM / 2)) + 1)            # every 0.125 mm along it
+                    pts += [part.interpolate(k / (n - 1), normalized=True) for k in range(n)]
+            su = np.array([q.x for q in pts]); sv = np.array([q.y for q in pts])
+            ok = np.abs(sv) < w / 2 - 0.08
+            if tall is not None:
+                ok &= ~contains_xy(tall.buffer(PROBE_MARGIN_MM), su, sv)
+            U, V = np.concatenate([U, su[ok]]), np.concatenate([V, sv[ok]])
+            kinds = np.concatenate([kinds, np.full(int(ok.sum()), "relief", dtype=object)])
         y = sign * (self.y_of(p.start_deg) + U)
         th = 2 * math.pi * y / self.L
         if p.face == "outer":

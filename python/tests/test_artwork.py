@@ -191,3 +191,34 @@ def test_tilted_leaves_on_a_serpentine_stem(fake_ntopcl, tmp_path, out_dir):
     assert any("at most" in x for x in seraphine(leaf_tilt_deg=20.0).validate())
     from ntopjewel import cli
     assert cli.main(["artwork", "--sides", "scroll-leaves", "--leaf-tilt", "7.5", "--leaf-stem", "0.5", "--dry-run"]) == 0
+    # a slender stem (Mark's half-width ask, 2026-11-04): the tables' relief_line floor, and the gate probes it along its centreline
+    thin = seraphine(leaf_tilt_deg=7.5, leaf_stem=0.5, stem_width_mm=0.15)
+    assert thin.validate() == [] and thin.spec_id != a.spec_id
+    assert any("relief_line" in x for x in seraphine(leaf_stem=0.5, stem_width_mm=0.12).validate())
+    stems = [d for d in thin.motif(side) if d["h_frac"] < 1.0]
+    assert all(d["poly"].bounds[3] - d["poly"].bounds[1] < 0.8 for d in stems) and all(not d["line"].is_empty for d in stems)
+    o, d, lim, kinds = thin.probes(side, 1.0)
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
+    centre = unary_union([d_["line"] for d_ in stems])
+    th = np.degrees(np.arctan2(o[:, 1], o[:, 0]))                           # back to the panel frame (a side face: v is the radius)
+    u, v = (th - side.start_deg) / 360.0 * thin.L, np.hypot(o[:, 0], o[:, 1]) - thin.side_mid_radius
+    on_stem = [i for i in np.where(kinds == "relief")[0] if centre.distance(Point(u[i], v[i])) < 0.01]
+    assert len(on_stem) >= 12                                                # a row of probes along the stem where it shows between the leaves
+    assert thin.relief_mesh().body_count == 6
+    res = _build(out_dir, tmp_path, thin)
+    assert res.ok, res.text()
+
+
+def test_the_built_seraphine_designs_keep_their_geometry():
+    """The two Seraphine designs that PASSED in nTop (3-4 Nov) are pinned: the same numbers, the same
+    relief, the same ids. The outer vine's leaves carry no veins (its 0.09 mm slits never fit the
+    clipped leaves); the day they did, nTop could not resolve them (0.102 on the relief probes)."""
+    for sides, outer, vol, sid in (("scroll-leaves", "scroll", 15.5775, "c38ad852"), ("leaves", "scroll", 16.1836, "93cfdf76")):
+        a = artwork.ArtworkSpec(shank.ShankSpec(flat()), artwork.seraphine_panels(25.0, 120.0, outer=outer, sides=sides))
+        m = a.relief_mesh()
+        assert m.body_count == 30 and m.volume == pytest.approx(vol, abs=2e-4) and a.spec_id == sid
+        assert sum(len(d["veins"]) for d in a.motif(a.panels[0])) == 0
+        assert all(len(d["veins"]) == 1 for d in a.motif(a.panels[1]) if d["poly"].bounds[0] > 1.5)   # the row leaves keep theirs
+    # the vein a narrowed leaf gets is the only one that stops short of the tip
+    assert artwork.leaf_vein(1.7, 0.66)[1][0] == pytest.approx(0.82 * 1.7) and artwork.leaf_vein(1.7, 0.66, True)[1][0] < 0.72 * 1.7

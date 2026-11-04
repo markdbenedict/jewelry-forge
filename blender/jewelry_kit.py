@@ -48,6 +48,7 @@ _FALLBACK_TABLES = {   # verbatim copy of data/jewelry_tables.json: metals, floo
         "link_clearance":     {"mm": 0.35, "status": "default", "source": "printed-assembled chain links; resin printer guidance"},
         "band_min_thickness": {"mm": 1.0, "status": "default", "source": "a thinner band distorts in finishing"},
         "band_min_width":     {"mm": 1.5, "status": "default", "source": "bench practice"},
+        "relief_line":        {"mm": 0.15, "status": "default", "source": "a raised line in relief on a face (a leaf row's stem): three to five printer pixels at 30-50 um, and it lies on a surface the investment fills; thinner is a hairline that polishes off"},
     },
 }
 

@@ -310,6 +310,11 @@ def test_cli_knotted_solitaire_dry_run(capsys):
     assert cli.main(args) == 0
     out = capsys.readouterr().out
     assert "trinity knot on each shoulder" in out and "head and the knots" in out and "Knot Path 2: <knot path 2>" in out
+    args[args.index("leaves")] = "scroll-leaves"                       # the Seraphine that PASSED in nTop 2026-11-04 05:47: its id is pinned
+    assert cli.main(args) == 0
+    assert "solitaire_flat_US6_4prong_round_6p5x3p96_art_knot_2423e806" in capsys.readouterr().out
+    assert cli.main(args + ["--leaf-tilt", "7.5", "--leaf-stem", "0.5", "--stem-width", "0.15"]) == 0
+    assert "stem 0.15 wide" in capsys.readouterr().out
 
 
 def test_the_leaves_point_at_the_head_and_a_scroll_leads_the_side_rows(tmp_path):

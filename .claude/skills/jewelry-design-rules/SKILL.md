@@ -31,6 +31,7 @@ entry). Quote the table, not memory.
 | prong tip diameter | 0.8 mm | 0.9–1.2 mm typical |
 | milgrain / bead | 0.5 mm | beads touching their neighbour by ≥ 30 % |
 | engraving | ≥ 0.25 mm deep, ≥ 0.3 mm stroke | inside engraving 0.3 mm deep reads well |
+| raised line in relief (a leaf row's stem) | ≥ 0.15 mm wide (`floors.relief_line`, default) | three to five printer pixels; it lies on a surface the investment fills, unlike a free wall |
 | bezel wall | 0.5–0.8 mm | lip 0.3–0.5 mm above the stone girdle for burnishing |
 | moving chain link clearance | ≥ 0.35 mm | printed assembled; fused links for casting as one |
 | unsupported overhang detail | keep features > 0.3 mm | 50 µm pixel printers resolve ~0.1 mm but resin needs bulk |

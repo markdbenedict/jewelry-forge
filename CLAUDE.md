@@ -18,7 +18,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   computes radii and passes millimetres.
 - **Minimum walls (resin print + casting):** 0.5 mm marginal, 0.75 mm good. Prong tips
   ≥ 0.8 mm diameter, milgrain beads ≥ 0.5 mm, engraving ≥ 0.25 mm deep with ≥ 0.3 mm
-  strokes, moving chain links ≥ 0.35 mm clearance. **Every engineering number - floors, metal
+  strokes, a raised line in relief ≥ 0.15 mm wide, moving chain links ≥ 0.35 mm clearance. **Every engineering number - floors, metal
   densities, shrink, casting defaults, the sprue allowance - lives in
   `data/jewelry_tables.json`**, read by `ntopjewel.tables` and by `blender/jewelry_kit.py`
   (which carries an embedded copy a test keeps identical). Each entry says whether it is a
@@ -377,7 +377,7 @@ python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 
 python -m ntopjewel pave --size 6 --stone 1.3 --rows 2 --span 120     # a pavé band: rows of stones in seats with light holes, held by beads (out\pave; --eternity, --layout aligned)
 python -m ntopjewel multistone --shape cushion --length 7 --stone-width 6 --side-shape pear --side-length 6 --side-width 4   # ring 05: a centre + side stones, pears pointing in (out\multistone; --side-pairs 2 for five)
 python -m ntopjewel artwork --size 6 --sides leaves --outer vine     # artwork in relief in sunk panels: leaf rows on the side faces (tips to the head; --leaf-tip shank; scroll-leaves: a volute first), a vine (scroll: with a volute at the head end) outside, 25°-120° from the top (out\artwork)
-python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf-tilt 7.5 --leaf-stem 0.5   # the leaves turned ±7.5° in turn, threaded on a serpentine stem half their height (one united relief body per panel)
+python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf-tilt 7.5 --leaf-stem 0.5 --stem-width 0.15   # the leaves turned ±7.5° in turn, threaded on a serpentine stem half their height and 0.15 wide (one united relief body per panel; floor relief_line)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests

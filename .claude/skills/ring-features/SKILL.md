@@ -107,7 +107,7 @@ FAIL and INCOMPLETE is not a pass; neither is delivered.
 ```powershell
 python -m ntopjewel artwork --size 6 --sides leaves --outer vine                 # leaf rows on the sides, a vine outside (flat 2.8 x 2.0 band)
 python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll         # the Seraphine's faces: a volute then leaves (tips to the head) on the sides, the scroll outside
-python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf-tilt 7.5 --leaf-stem 0.5   # ... the leaves turned ±7.5° in turn on a serpentine stem half their height
+python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf-tilt 7.5 --leaf-stem 0.5 --stem-width 0.15   # ... the leaves turned ±7.5° in turn on a serpentine stem half their height, 0.15 wide
 python -m ntopjewel artwork --size 6 --sides leaves --outer none --end 100       # leaf rows on the side faces only
 python -m ntopjewel artwork --size 6 --sides plain --outer volute --start 20 --end 60 --dry-run
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll   # the same panels under a head (gem-library)
@@ -128,7 +128,9 @@ turn), `volute` (a spiral scroll), `plain` (the channel alone). A new motif is o
 `[{"poly", "veins"}]` (and `"h_frac"`, the body's height as a fraction of the relief, when not the full height).
 **A leaf row on a stem** (`--leaf-tilt DEG`, `--leaf-stem FRAC`; `motif_leaves(tilt_deg, stem, stem_from)`):
 each leaf turned about the centre of its base, alternately + and − along the row (at most ±15°), and a
-serpentine stem `--stroke` wide standing FRAC of the relief (≥ 0.1 mm) threaded through the row - v = A sin(π
+serpentine stem `--stem-width` wide (default the stroke; floor `relief_line` 0.15 mm in the tables - a raised
+line three to five printer pixels wide, lying on a surface the investment fills) standing FRAC of the relief
+(≥ 0.1 mm) threaded through the row - v = A sin(π
 (u − u_base0) / pitch), through every base, swinging `STEM_SWING` (0.65) of the free half-width out between
 them, the sign of its slope at a base the sign of that leaf's tilt, so the leaf grows on from it; on
 `scroll-leaves` it starts PLUG_MM inside the volute's far edge with a half-swing lead-in. The leaves come out
@@ -138,8 +140,14 @@ width)`). Pieces of two heights cannot share a layer as separate bodies (they wo
 so `relief_bodies` unites a panel copy's leaves and stem pieces into **one body** with manifold (the stem's
 bottom at half the plug, so no bottoms are coplanar; the seams are square); `write_layers` still reads the
 layer back and refuses any crossing. The gate's relief probes keep `PROBE_MARGIN_MM` off the step where a
-stem meets a leaf (the mesher's blur of a 0.125 step). Neither number enters the spec id when 0, so the
-straight rows keep their stems. A side face is the band's **edge thickness** (the mid-plane thickness less the
+stem meets a leaf (the mesher's blur of a 0.125 step) **and off every vein slit** (a 0.09-0.2 mm slit 0.12
+deep is below what the mesher resolves: 0.102 on the outer vine's leaves the one day they carried veins,
+2026-11-04), and probe a stem along its own centreline every 0.125 mm where it shows between the leaves
+(the grid's margin leaves nothing on a 0.15 mm line). None of the three numbers enters the spec id when 0,
+so the straight rows keep their stems - and `test_the_built_seraphine_designs_keep_their_geometry` pins the
+two PASSED Seraphine designs' relief volume, body count and id: the outer vine's leaves carry no veins
+(`leaf_vein`'s plain rule never fits their clipped tips; only a narrowed row leaf takes the `short_tip`
+rule), and a change that gives them some changes a built design. A side face is the band's **edge thickness** (the mid-plane thickness less the
 dome and the comfort fit) less two rails, centred between the bore's and the dome's edges; on a domed
 (court) outer face the relief would stand proud where the face falls away at the channel's edge, so
 `validate` refuses it (a flat band, a deeper channel or a lower relief). A `plain` panel's relief file

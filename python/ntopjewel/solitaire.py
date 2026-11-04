@@ -104,6 +104,7 @@ class SolitaireSpec:
     leaf_tip: str = "head"                  # the leaf rows' tips point at the head (artwork.LEAF_TIPS)
     leaf_tilt_deg: float = 0.0              # each leaf turned about its base, alternately + and - (artwork)
     leaf_stem: float = 0.0                  # a serpentine stem through the leaf rows, this fraction of the relief high
+    stem_width_mm: float = 0.0              # the stem's width (0: the stroke)
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self):
@@ -250,7 +251,7 @@ class SolitaireSpec:
                                                         rail_mm=self.rail_mm, relief_mm=self.relief_mm, leaf_mm=self.leaf_mm,
                                                         leaf_pitch=self.leaf_pitch, stroke_mm=self.stroke_mm, vein=self.vein,
                                                         leaf_tip=self.leaf_tip, leaf_tilt_deg=self.leaf_tilt_deg,
-                                                        leaf_stem=self.leaf_stem)
+                                                        leaf_stem=self.leaf_stem, stem_width_mm=self.stem_width_mm)
         return self._cache["artwork"]
 
     def write_artwork(self, directory: Path, stem: str) -> tuple[str, str]:
