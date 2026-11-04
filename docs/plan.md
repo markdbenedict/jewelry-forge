@@ -367,8 +367,12 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    scroll on the outer face, a 4-prong round standing on the flat 2.8 x 2.0 band. `solitaire_outline`
    and `solitaire_bezel` still want their `api build` (catalogs 0.5.0) before a fancy or bezel
    solitaire runs again.
-   **Still missing for the Seraphine:** the knots standing on a continuous band beside the head (ours are
-   woven from a split), double-claw prongs and the heart gallery (6).)* Scroll and floral relief panels,
+   **Knots on the shoulders (3 Nov, late):** `ntopjewel.ornament.KnotOrnament` - a closed trinity knot woven
+   in two pieces on the band's outer face, wider than the band, placed just past the head, the panels
+   held back past it; Knot Path / Knot Path 2 on the three solitaire notebooks (catalogs 0.10.0 / 0.6.0,
+   rebuild), two probe checks. *Real check:* `api build solitaire`, then the Seraphine command with
+   `--shoulder-knot trinity`. **Still missing for the Seraphine:** double-claw prongs and the heart
+   gallery (6); the knots' size and place against the photos once Mark re-attaches them.)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the
    shank where they are simple; Blender sculpts imported as meshes where they are not.

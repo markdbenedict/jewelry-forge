@@ -109,7 +109,9 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     # the artwork carved into the opened band before anything joins it: (Band Body − Panel Cuts) ∪ Relief = Carved Band
     assert nb.blocks[b["Panel Cuts Mesh"]]["wired"]["Path"][0] == "Cut Path" and nb.blocks[b["Relief Mesh"]]["wired"]["Path"][0] == "Relief Path"
     assert nb.blocks[b["Carved"]]["wired"]["Primary Body"][0] == "Band Body" and nb.blocks[b["Carved"]]["lists"]["Subtraction Bodies"] == [b["Panel Cuts"]]
-    assert nb.blocks[b["Carved + Relief"]]["lists"]["Bodies"] == [b["Carved"], b["Relief"]] and nb.variables["Carved Band"]["wraps"] == b["Carved + Relief"]
+    assert nb.blocks[b["Carved + Relief"]]["lists"]["Bodies"] == [b["Carved"], b["Relief"], b["Knot"], b["Knot 2"]]   # ... and the knots' two layers
+    assert nb.blocks[b["Knot Mesh"]]["wired"]["Path"][0] == "Knot Path" and nb.blocks[b["Knot 2 Mesh"]]["wired"]["Path"][0] == "Knot Path 2"
+    assert nb.variables["Carved Band"]["wraps"] == b["Carved + Relief"]
     assert nb.blocks[b["Slot Mesh"]]["wired"]["Path"][0] == "Slot Path" and nb.blocks[b["Slot Cutter"]]["wired"]["Mesh"][0] == b["Slot Mesh"]
     assert nb.blocks[b["Split Arches"]]["wired"]["Primary Body"][0] == b["Shoulders"] and nb.blocks[b["Split Arches"]]["lists"]["Subtraction Bodies"] == [b["Slot Cutter"]]
     assert nb.blocks[b["Arches Shrunk"]]["wired"]["Body"][0] == b["Split Arches"]

@@ -217,10 +217,13 @@ def add_mesh_body(h: NotebookHelper, name: str, path_var: str) -> str:
     return body
 
 
-def add_carved(h: NotebookHelper, body_var: str, cut_var: str, relief_var: str, label: str = "Carved") -> str:
+def add_carved(h: NotebookHelper, body_var: str, cut_var: str, relief_var: str, label: str = "Carved",
+               knot_vars=()) -> str:
     """Artwork on a band (ntopjewel.artwork): (`body_var` − the panel cutters at Cut Path) ∪ the
     relief at Relief Path, as ring_artwork.ntop builds it - the band is opened before this, so the
-    channel edges stay crisp and the relief is never rounded. Returns the union's id."""
+    channel edges stay crisp and the relief is never rounded - ∪ the knot ornaments' layers at
+    `knot_vars` (ntopjewel.ornament: two files, the pieces that cross each other apart). Returns
+    the union's id."""
     cuts = add_mesh_body(h, "Panel Cuts", cut_var)
     relief = add_mesh_body(h, "Relief", relief_var)
     carved = h.add(label, mask="subtract", must=SUBTRACT)
@@ -229,6 +232,8 @@ def add_carved(h: NotebookHelper, body_var: str, cut_var: str, relief_var: str, 
     joined = h.add(f"{label} + Relief", mask="union", must=UNION)
     h.to_list(carved, joined, ["Bodies"])
     h.to_list(relief, joined, ["Bodies"])
+    for k, var in enumerate(knot_vars):
+        h.to_list(add_mesh_body(h, "Knot" if k == 0 else f"Knot {k + 1}", var), joined, ["Bodies"])
     return joined
 
 

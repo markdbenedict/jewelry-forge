@@ -50,8 +50,8 @@ def test_plain():
         kind = {"solitaire": "round", "solitaire_outline": "outline", "solitaire_bezel": "bezel"}[name]
         from ntopjewel import nb_solitaire
         assert nb_solitaire.input_order(kind) == list(catalog.load(name).inputs)
-    v = s.notebook_inputs("E", "O", cut_path="C", relief_path="R")
-    assert v["Cut Path"] == "C" and v["Relief Path"] == "R" and list(v) == list(catalog.load("solitaire").inputs)
+    v = s.notebook_inputs("E", "O", cut_path="C", relief_path="R", knot_paths=("K", "K2"))
+    assert v["Cut Path"] == "C" and v["Relief Path"] == "R" and v["Knot Path 2"] == "K2" and list(v) == list(catalog.load("solitaire").inputs)
 
 
 def test_no_op_layers_change_nothing(tmp_path):
@@ -173,3 +173,92 @@ def test_the_bore_under_the_head_allows_the_shank_blends_bulge(tmp_path):
     sharp = seraphine()                                                            # a sharp join allows nothing extra
     rep = solitaire.check_solitaire(sharp, tmp_path / "r.stl", float(m.volume))
     assert not {c.name: c for c in rep.checks}["bore under the head"].ok
+
+
+# ---- the shoulder knots (ntopjewel.ornament) -------------------------------------------------------
+def knotted(**kw):
+    kw.setdefault("shoulder_knot", "trinity")
+    return seraphine(**kw)
+
+
+def test_the_trinity_ornament_weaves_lies_on_the_face_and_splits_into_clean_pieces(tmp_path):
+    import numpy as np
+    import trimesh
+    from ntopjewel import geom, ornament, shank
+    o = ornament.KnotOrnament(shank.ShankSpec(flat()), at_deg=32.0)
+    assert o.validate() == [] and o.width == pytest.approx(4.0) and 0.8 < o.radius < 1.5
+    lace = o.lace(1)
+    assert len(lace.crossings) == 3 and lace.over[0] == [True, False, True, False, True, False]   # alternating round the loop
+    assert len(o.footprint(1).interiors) == 4                                      # three lobes and the middle open
+    for side in (1, -1):
+        pieces = o.pieces_ring(side)
+        assert len(pieces) == 2 and all(m.is_watertight for m in pieces)
+        u = trimesh.boolean.union(pieces, engine="manifold")
+        assert u.body_count == 1 and u.volume < sum(m.volume for m in pieces)       # they fuse at the crossings
+        for m in o.pieces_plugged(side):
+            assert len(geom.intersecting_faces(m, cell_mm=0.3)) == 0 and m.is_volume
+        v = np.vstack([m.vertices for m in pieces])
+        r = np.hypot(v[:, 0], v[:, 1])
+        assert r.min() == pytest.approx(o.band.outer_radius_mm - ornament.PLUG_MM, abs=0.02)   # the underside sunk into the face
+        assert r.max() == pytest.approx(o.top_radius, abs=0.02)                                 # the over passes lifted
+        assert np.abs(v[:, 2]).max() == pytest.approx(o.width / 2 - ornament.LOBE_MARGIN_MM, abs=0.05)   # wider than the band
+    a, b = o.write_layers(tmp_path, "k")
+    assert trimesh.load(a, force="mesh").body_count == 2 and trimesh.load(b, force="mesh").body_count == 2   # both knots' firsts, both seconds
+    assert any("close up" in q or "opening" in q for q in ornament.KnotOrnament(shank.ShankSpec(flat()), width_mm=2.6).validate())
+    court = band.BandSpec(size=6, profile="court", mesh_tolerance_mm=0.05)
+    assert any("domed" in q for q in ornament.KnotOrnament(shank.ShankSpec(court)).validate())
+
+
+def test_knots_sit_past_the_head_and_push_the_panels_on():
+    s = knotted()
+    assert s.validate() == []
+    lo, hi = s.ornament.span_deg()
+    assert lo == pytest.approx(s.head_clear_deg() + solitaire.KNOT_HEAD_CLEAR_DEG, abs=0.05)
+    assert s.panel_start_min_deg() == pytest.approx(hi + solitaire.PANEL_KNOT_CLEAR_DEG, abs=0.05)
+    assert all(p.start_deg == s.panel_start_min_deg() for p in s.placed_panels())
+    assert "_art_knot_" in s.stem and s.design()["shoulder_knot"]["kind"] == "trinity"
+    v = s.notebook_inputs("E", "O", knot_paths=("K", "K2"))
+    assert list(v) == list(catalog.load("solitaire").inputs)
+    assert any("plain shoulders" in q for q in knotted(cathedral=True).validate())
+    assert any("inside the head" in q for q in knotted(knot_at_deg=20.0).validate())
+    late = knotted(knot_at_deg=50.0)
+    assert late.validate() == [] and late.ornament.at_deg == 50.0 and late.panel_start_min_deg() > 60.0
+    free = late.free_angles()
+    assert 61.37 not in free and 91.37 in free                                     # the knot's span sits the section check out
+
+
+def test_knotted_design_passes_its_gate_and_a_lost_knot_layer_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    s = knotted()
+    m = solitaire.design_mesh(s, ops=Blended())
+    m.export(tmp_path / "r.stl")
+    rep = solitaire.check_solitaire(s, tmp_path / "r.stl", float(m.volume))
+    assert rep.status == "passed", rep.text()
+    assert {"knot ribbon", "knot surround"} <= {c.name for c in rep.checks}
+    nb = tmp_path / "solitaire.ntop"
+    nb.write_bytes(b"fake")
+    res = solitaire.build(knotted(), out_dir, notebook=nb)
+    assert res.status == "passed", res.text()
+    assert (res.run_dir / f"{res.spec.stem}.knot2.stl").exists()
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noknot")
+    bad = solitaire.build(knotted(), out_dir, notebook=nb)
+    assert bad.status == "failed" and "knot ribbon" in {c.name for c in bad.gate.failures()}
+
+
+def test_no_knot_layers_are_buried_specks(tmp_path):
+    import numpy as np
+    import trimesh
+    s = plain()
+    a, b = s.write_knots(tmp_path, "t")
+    for path in (a, b):
+        speck = trimesh.load(path, force="mesh")
+        r = np.hypot(speck.vertices[:, 0], speck.vertices[:, 1])
+        assert s.band.bore_radius_mm + 0.5 < r.min() and r.max() < s.band.outer_radius_mm - 0.5 and speck.vertices[:, 0].max() < 0
+
+
+def test_cli_knotted_solitaire_dry_run(capsys):
+    from ntopjewel import cli
+    args = ["solitaire", "--profile", "flat", "--width", "2.8", "--thickness", "2", "--prongs", "4", "--no-arches",
+            "--sides", "leaves", "--outer", "scroll", "--shoulder-knot", "trinity", "--dry-run"]
+    assert cli.main(args) == 0
+    out = capsys.readouterr().out
+    assert "trinity knot on each shoulder" in out and "past the knots" in out and "Knot Path 2: <knot path 2>" in out

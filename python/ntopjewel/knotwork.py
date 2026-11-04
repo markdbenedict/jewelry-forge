@@ -64,8 +64,9 @@ TAIL_POINTS = 40               # samples along each tail (a cubic from the knot 
 @dataclass
 class Strand:
     """A centreline in the developed surface: (m, 2) points (y, z), y along the ring. Closed: the
-    points cover one turn and the last point's successor is the first, `period` further along y.
-    Open: a polyline whose ends run into other metal."""
+    points cover one turn and the last point's successor is the first, `period` further along y -
+    or, with `period` 0, a loop that closes on itself in place (a knot ornament standing on a band:
+    ornament.KnotOrnament). Open: a polyline whose ends run into other metal."""
     points: "numpy.ndarray"
     period: float = 0.0
     closed: bool = True
@@ -73,8 +74,8 @@ class Strand:
     def __post_init__(self):
         import numpy as np
         self.points = np.asarray(self.points, float)
-        if self.closed and not self.period > 0:
-            raise ValueError("a closed strand needs the period it repeats with")
+        if self.closed and self.period < 0:
+            raise ValueError("a closed strand's period is the length it repeats with (0: a loop closing in place)")
 
     @property
     def loop(self):

@@ -27,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, artwork, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, pave, runs, shank, solitaire, summary, tables
+from . import __version__, artwork, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, ornament, pave, runs, shank, solitaire, summary, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -201,8 +201,8 @@ def _add_knot_args(p: argparse.ArgumentParser, solitaire: bool = False) -> None:
         p.add_argument("--knot-pad", type=float, default=30.0, help="--knot trinity: the band runs this far either side of the head before its nose, degrees")
     p.add_argument("--strand-width", type=float, default=None,
                    help="--knot: a ribbon's width across the surface, mm (plait: 1.2; trinity: 0.9, the tails narrow the halves to it)")
-    p.add_argument("--knot-width", type=float, default=0.0, help="--knot trinity: the knot's width across the band, lobe edge to lobe edge, mm (default: the band's + 1.2)")
-    p.add_argument("--knot-thickness", type=float, default=0.0, help="--knot trinity: the ribbon's radial thickness, mm (default 0.7 x the band's)")
+    p.add_argument("--knot-width", type=float, default=0.0, help="--knot trinity / --shoulder-knot: the knot's width across the band, lobe edge to lobe edge, mm (default: the band's + 1.2)")
+    p.add_argument("--knot-thickness", type=float, default=0.0, help="--knot trinity: the ribbon's radial thickness, mm (default 0.7 x the band's); --shoulder-knot: 0.5")
     p.add_argument("--knot-ratio", type=float, default=shank.knotwork.TREFOIL_RATIO, help="--knot trinity: the trefoil's radial swing (0.3..0.7)")
     p.add_argument("--knot-tail", type=float, default=3.0, help="--knot trinity: the tails from the knot's crossings to the halves, mm")
 
@@ -451,7 +451,9 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                                    engrave_depth_mm=a.engrave_depth, shank_blend_mm=a.shank_blend, shank=shaped,
                                    cathedral=not a.no_arches, panels=panels, channel_mm=a.channel, rail_mm=a.rail,
                                    relief_mm=a.relief, leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke,
-                                   vein=not a.no_vein)
+                                   vein=not a.no_vein, shoulder_knot=a.shoulder_knot or "", knot_at_deg=a.knot_at,
+                                   knot_width_mm=a.knot_width or 0.0, knot_ribbon_mm=a.strand_width or 0.7,
+                                   knot_thickness_mm=a.knot_thickness or 0.5)
     probs = spec.validate()
     if probs:
         print("solitaire: problems: " + "; ".join(probs))
@@ -461,7 +463,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
         for k, v in spec.notebook_inputs("<envelope path>", "<output path>", prongs_path="<prongs path>" if spec.outline else "",
                                          engraving_path="<engraving path>", shank_paths=spec.shank_spec.bar_placeholders(),
                                          windows_path="<windows path>" if spec.bezel else "",
-                                         cut_path="<cut path>", relief_path="<relief path>").items():
+                                         cut_path="<cut path>", relief_path="<relief path>",
+                                         knot_paths=("<knot path>", "<knot path 2>")).items():
             print(f"    {k}: {v}")
         return 0
     try:
@@ -992,6 +995,9 @@ def main(argv: list[str] | None = None) -> int:
     _add_knot_args(so, solitaire=True)                            # trinity knots on a split shank's shoulders (step 1e)
     so.add_argument("--no-arches", action="store_true", help="plain shoulders: the head stands on the band (no cathedral arches, no arch milgrain)")
     _add_artwork_args(so, sides="none", outer="none")             # artwork panels on the band under the head (step 5)
+    so.add_argument("--shoulder-knot", choices=list(ornament.KINDS), help="a knot ornament standing on each shoulder between the head and "
+                    "the panels (plain shoulders; --knot-width, --strand-width and --knot-thickness size it)")
+    so.add_argument("--knot-at", type=float, default=0.0, help="--shoulder-knot: the knot's centre from the top, degrees (default: just past the head)")
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

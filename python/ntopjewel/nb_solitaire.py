@@ -8,11 +8,13 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
                the edge round, then united -> Remap Cylindrical (Wrap Length) = Band Body; the arches, less
                the slot cutter (Slot Path: the split's slot swept in the ring frame, a speck far outside
                when there is none), opened on their own and united afterwards
-    artwork    (Band Body − Panel Cuts) ∪ Relief = Carved Band (nj.add_carved, as ring_artwork.ntop): the
-               panel channels and the motifs in relief Python writes (Cut Path, Relief Path;
-               ntopjewel.artwork), carved into the opened band BEFORE the arches and the head join it
-               - the panels stop short of the arches' wedge, or of the head on a plain-shouldered ring.
-               No artwork: a cutter speck far outside the ring and a relief speck buried in the band
+    artwork    (Band Body − Panel Cuts) ∪ Relief ∪ Knot ∪ Knot 2 = Carved Band (nj.add_carved, as
+               ring_artwork.ntop): the panel channels and the motifs in relief Python writes (Cut Path,
+               Relief Path; ntopjewel.artwork) and the knot ornaments standing on the shoulders (Knot
+               Path / Knot Path 2: each knot's two pieces apart, ntopjewel.ornament), carved into and
+               united with the opened band BEFORE the arches and the head join it - the panels stop
+               short of the arches' wedge, or of the head (and the knots) on a plain-shouldered ring.
+               No artwork: a cutter speck far outside the ring and relief/knot specks buried in the band
     seat       stone_seat(Seat Path, Clearance), embedded -> Seat Local (head frame)
     head       prong_head(Seat Local + 14 numbers), outline_head(Seat Local, Prongs Path + 5 rail
                numbers) or bezel_head(Seat Local, Windows Path, Wall, Bezel Bottom/Top), embedded -> head frame
@@ -56,7 +58,7 @@ ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
 ENGRAVING = [("Engraving Path", "path"), ("Engraving Wrap Length", "mm")]
 ENGRAVING_TURN_DEG = 180.0
 SHANK = [(name, "path") for name in nj.SLOT_NAMES] + [("Wrap Length", "mm"), ("Slot Path", "path")]   # the bars nTop unites, then the wrap
-ARTWORK = [("Cut Path", "path"), ("Relief Path", "path")]                                                  # the panels carved into the band
+ARTWORK = [("Cut Path", "path"), ("Relief Path", "path"), ("Knot Path", "path"), ("Knot Path 2", "path")]   # the panels carved into the band, the knots on it
 BAND_FOR_ARCHES = ["Z Top", "Z Bottom", "Dome Tube Radius", "Edge Round", "Edge Round Inward", "Mesh Tolerance"]   # of nj.BAND_INPUTS
 
 
@@ -171,7 +173,8 @@ def body(kind: str):
         out_var = nj.path_variable(h, "Output Path", test_output)
         band = h.wrap_var("Band Body", nj.add_wrapped_shank(h, [ids[name] for name in nj.SLOT_NAMES], ids["Wrap Length"],
                                                             ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))   # the bars united, opened, wrapped
-        carved = h.wrap_var("Carved Band", nj.add_carved(h, band, ids["Cut Path"], ids["Relief Path"]))   # the artwork, before anything joins
+        carved = h.wrap_var("Carved Band", nj.add_carved(h, band, ids["Cut Path"], ids["Relief Path"],      # the artwork and the knots,
+                                                         knot_vars=[ids["Knot Path"], ids["Knot Path 2"]]))   # before anything joins
         # the arches rounded on their own and united sharp: opening the union (band + arches)
         # grew a 0.07 mm layer over the arch feet, where the arch dome lies on the band's dome
         # (2026-10-31: the re-distance mesh of two near-coincident surfaces); apart, each is plain
@@ -246,9 +249,10 @@ def prepare(spec, params: dict, test_dir: Path, tag: str) -> dict:
     bars = write_bars(spec.shank_spec, test_dir, f"{tag}_test")                   # <tag>_test.bar.stl ...
     spec.slot_mesh().export(str(slot))
     cut, relief = spec.write_artwork(test_dir, f"{tag}_test")                     # <tag>_test.cut.stl / .relief.stl (specks: no artwork)
+    knot, knot2 = spec.write_knots(test_dir, f"{tag}_test")                       # <tag>_test.knot.stl / .knot2.stl (specks: no knots)
     v = spec.notebook_inputs(str(env), prongs_path=str(prongs) if spec.outline else "", engraving_path=str(eng),
                              windows_path=str(win) if spec.bezel else "", shank_paths=bars, slot_path=str(slot),
-                             cut_path=cut, relief_path=relief)
+                             cut_path=cut, relief_path=relief, knot_paths=(knot, knot2))
     params["values"] = {**v, **(params.get("values") or {})}
     return params
 
