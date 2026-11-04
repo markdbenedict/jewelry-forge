@@ -235,10 +235,13 @@ Windows 11 laptops, Python per nTop's bundled console.
   `set_block_comment(block_id, block_comment)` and `collapse_section(section_id='')` worked.
 - Expected: a way to put any block or variable in a section by id (`move_block_to_section`), or a
   `section_id` on the variable calls.
-- Workaround: `Helper.place` moves each variable after the section's last block (or before its first).
+- Then: `move_block(v, block_in_section)` -> 'Block "Implicit Body_5" is not a top level block of the notebook;
+  a block can only be moved relative to a top level block.' So nothing can be moved into a section.
+- Workaround: blocks and real variables are created in their section (`add_block` / `add_real_variable`
+  take `section_id`); variables made by `add_variable(name, block_id)` stay at the top level.
 - Also: Combine Transforms' page says nothing about which end of its list applies first; we measure it
-  (`ntop/recipes/transform_probe.py`) and record it in `ntop/api_facts.json`. A sentence in the block doc
-  would do.
+  (`ntop/recipes/transform_probe.py`, `ntop/api_facts.json`): list order, the first applied first. A
+  sentence in the block doc would do.
 
 Template:
 

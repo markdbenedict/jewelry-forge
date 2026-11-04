@@ -275,15 +275,18 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   and every call is guarded (a refusal is logged and the build carries on without them). 6.3.3's real
   signatures (logged 2026-11-04): `add_section(section_name, before_section_id='') -> dict`, `add_block(ident,
   section_id)`, `set_block_comment(block_id, block_comment)`, `collapse_section(section_id='')`, and
-  **`move_block(block_id, targetBlockId, placeBefore=False)` moves a block NEXT TO another block** - a section
-  id there is 'No block with the id "section_3"'. Variables (made outside any section) are therefore moved
-  after the last block placed in the section, or before its first block while it is empty (`Helper.place`).
+  **`move_block(block_id, targetBlockId, placeBefore=False)` moves a block NEXT TO a top-level block** - a
+  section id there is 'No block with the id "section_3"', a block inside a section 'is not a top level block'.
+  So `add_block(ident, section_id)` and `add_real_variable(name, value, units, section_id)` put blocks and
+  real variables in a section, and a wrapping variable (`add_variable(name, block_id)`, no section) stays
+  at the notebook's top level (`Helper.place` notes it once).
 - **Shank bars are opened by the `open_bar` library block** (2026-11-04, `ntop/blocks/open_bar.ntop`: Bar
   Path, Edge Round Inward, Edge Round, Mesh Tolerance -> Opened Bar; import, -e, re-distance, +e inside):
   every runner with a shank embeds it once and places one per bar slot (`add_wrapped_shank(..., opener=)`),
   six blocks per bar become one. Rebuild the runners after changing it (`api build open_bar` first).
 - **Combine Transforms' list order is measured, not assumed**: nTop's block page does not say which end of
-  the list applies first, and multistone's heads land by it. `api build transform_probe` measures it (and
+  the list applies first, and multistone's heads land by it (measured 2026-11-04: **list order**, the first
+  applied first; Mirror Body correct). `api build transform_probe` measures it (and
   that Mirror Body across a Plane - Origin, X axis, Y axis - lands where it should) in the session and writes
   `ntop/api_facts.json` (committed); `Helper.combine(label, [first, second, ...])` lays the list out to match
   and refuses, naming the probe, without the file. Each multistone slot is one placement (spin, quarter-turn,

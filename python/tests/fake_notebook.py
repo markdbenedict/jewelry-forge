@@ -138,6 +138,9 @@ class FakeNotebook:
         self._resolve(block_id)
         if targetBlockId not in self.blocks and targetBlockId not in self.variables:
             raise ValueError(f'No block with the id "{targetBlockId}" exists in the notebook.')
+        if self.section_of.get(targetBlockId, self.sections[0]["id"]) != self.sections[0]["id"]:
+            raise ValueError(f'Block "{targetBlockId}" is not a top level block of the notebook; a block can only be '
+                             f'moved relative to a top level block.')
         self.section_of[block_id] = self.section_of.get(targetBlockId, self.sections[0]["id"])
         return {"id": block_id}
 

@@ -108,8 +108,7 @@ class Helper(NotebookHelper):
         super().__init__(notebook)
         self.section_id = ""                        # where add() puts new blocks ("" = nTop's default)
         self.section_ids: dict[str, str] = {}       # our section name -> nTop id, in order
-        self._last_in: dict[str, str] = {}          # section id -> the last block or variable placed in it
-        self._pending: dict[str, list[str]] = {}    # section id -> variables waiting for the section's first block
+        self._top_level_noted = False
         self.sections_ok = True
         self.comments_ok = True
         self._signatures_logged = False
@@ -176,40 +175,15 @@ class Helper(NotebookHelper):
             self.section_id = outer if self.sections_ok else ""
 
     def place(self, block_id: str) -> None:
-        """Move a variable just made into the current section. nTop's `move_block(block_id,
-        targetBlockId, placeBefore=False)` moves a block NEXT TO another block, not into a section
-        by id (6.3.3, 2026-11-04: `move_block(v, 'section_3')` -> 'No block with the id "section_3"'),
-        and the API's variable calls take no section: so the variable goes after the last block
-        placed in the section, or, in a section still empty, before its first block once it comes."""
-        sid = self.section_id
-        if not (self.sections_ok and sid):
-            return
-        anchor = self._last_in.get(sid)
-        if anchor is None:
-            self._pending.setdefault(sid, []).append(block_id)
-            return
-        if self._move(block_id, anchor, before=False):
-            self._last_in[sid] = block_id
-
-    def _move(self, block_id: str, target: str, before: bool) -> bool:
-        fn = getattr(self.nb, "move_block", None)
-        if not callable(fn):
-            self._sections_off("this API has no move_block")
-            return False
-        try:
-            fn(block_id, target, before)
-            return True
-        except Exception as e:
-            self._sections_off(f"move_block({block_id!r}, {target!r}, {before}) refused: {e}")
-            return False
-
-    def _placed_by_add(self, sid: str, block_id: str) -> None:
-        """A block add_block put in section `sid`: the anchor from now on; variables made while the
-        section was empty go before it."""
-        for vid in self._pending.pop(sid, []):
-            if not self._move(vid, block_id, before=True):
-                return
-        self._last_in[sid] = block_id
+        """Where a wrapping variable goes: nowhere - it stays at the notebook's top level. 6.3.3 gives
+        no way into a section for it (2026-11-04): `add_variable(new_name, block_id)` takes no section,
+        and `move_block(block_id, targetBlockId, placeBefore)` moves only next to a TOP-LEVEL block
+        ('Block "Implicit Body_5" is not a top level block of the notebook'), so a block inside a
+        section cannot be its target. Real variables are made in their section (`real_var`)."""
+        if self.sections_ok and self.section_id and not self._top_level_noted:
+            self._top_level_noted = True
+            self.log.append("note: wrapping variables stay at the top level (6.3.3: add_variable takes no section and "
+                            "move_block moves only next to top-level blocks)")
 
     def comment(self, block_id: str, text: str) -> None:
         """A note on the block, shown with it in nTop: why it is there or why it comes in this order."""
@@ -256,13 +230,20 @@ class Helper(NotebookHelper):
                 raise
             self._sections_off(f"add_block(..., {sid!r}) refused: {e}")
             return super().add(label, *candidates, mask=mask, must=must)
-        self._placed_by_add(sid, bid)
         return bid
 
     def real_var(self, name: str, value: float, units: str = "mm") -> str:
-        vid = super().real_var(name, value, units)
-        self.place(vid)
-        return vid
+        """A `core.var<real>`, made in the current section (6.3.3's add_real_variable takes section_id)."""
+        sid = self.section_id if self.sections_ok else ""
+        if sid and units:
+            try:
+                info = self.nb.add_real_variable(name, value, units, sid)
+                self.blocks[name] = info["id"]
+                self.log.append(f"var {name} = {value} {units} (in {sid})")
+                return info["id"]
+            except Exception as e:
+                self.log.append(f"add_real_variable({name!r}, ..., section_id={sid!r}) refused ({e}); made outside the section")
+        return super().real_var(name, value, units)
 
     def wrap_var(self, name: str, block_id: str) -> str:
         vid = super().wrap_var(name, block_id)

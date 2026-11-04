@@ -444,6 +444,11 @@ gone, solitaire 0.11.0 / outline and bezel 0.7.0, the model's arch and bead volu
 slot in every shank runner (ring_shank 29 -> 9 blocks, pave_band / ring_artwork 35 -> 15, the solitaires
 95 -> 63). *Real check pending:* `api build transform_probe` (both facts settled, file written), `api build
 open_bar`, then the seven shank runners; a solitaire and the ruby multistone re-run PASSED.
+*Real check (14:37): PASSED* - the probe measured list order and a correct mirror, every build and both
+check runs passed, and the solitaire and multistone notebooks measure the same volumes as before
+(287.96 / 278.07 mm³). The sections still switched off at the first wrapping variable: `move_block`
+moves only next to a top-level block. Now real variables are made in their section and wrapping
+variables stay at the top level (layout only; rebuild a runner to see its sections).
 
 ## Next acceptance milestone — the Phase 1 gate
 

@@ -455,9 +455,9 @@ def test_a_runner_notebook_reads_as_an_outline(tmp_path):
     assert list(res["sections"]) == ["Shank", "Pavé", "Result"]
     named = {s["id"]: s["name"] for s in nb.sections}
     assert all(b in nb.section_of for b in nb.blocks)                       # no block left in nTop's default section
-    placed_vars = [v for v in nb.variables if v not in nb.inputs and v != "Volume"]
-    assert placed_vars and all(v in nb.section_of for v in placed_vars)     # variables moved next to their blocks
-    assert named[nb.section_of["Shank Body"]] == "Shank"                     # (6.3.3's move_block: next to a block)
+    # 6.3.3: a real variable is made in its section; a wrapping variable stays at the top level (add_variable takes
+    # no section and move_block moves only next to top-level blocks) - and the sections stay on
+    assert "Shank Body" not in nb.section_of and any("stay at the top level" in ln for ln in res["log"])
     assert not any(ln.startswith("sections off") for ln in res["log"])
     assert named[nb.section_of[res["blocks"]["Bar 1 Opened"]]] == "Shank"
     assert named[nb.section_of[res["blocks"]["Ring"]]] == "Pavé"
