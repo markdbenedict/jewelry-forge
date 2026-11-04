@@ -10,6 +10,7 @@ SLOT_FIELDS = [("Seat Path", "path"), ("Prongs Path", "path"), ("Rail Offset", "
                ("Upper Rail Top", "mm"), ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm"),
                ("Spin", "deg"), ("Pivot X", "mm"), ("Pivot Z", "mm"), ("Turn", "deg")]
 COMMON = [("Clearance", "mm"), ("Head Blend", "mm"), ("Shank Blend", "mm")]
+PAVE = [("Pave Beads Path", "path"), ("Pave Seats Path", "path")]   # the pavé round the rest of the ring (0.2.0); no-op specks without
 
 
 def slot_input(name: str, k: int) -> str:
@@ -21,7 +22,7 @@ def specs() -> list[tuple[str, str]]:
     """Every notebook input but the output, in order (the catalog's order)."""
     shank_in = [(n, "path") for n in SLOT_NAMES] + [("Wrap Length", "mm"), ("Edge Round", "mm"),
                                                     ("Edge Round Inward", "mm"), ("Mesh Tolerance", "mm")]
-    return shank_in + COMMON + [(slot_input(n, k), t) for k in range(SLOTS) for n, t in SLOT_FIELDS]
+    return shank_in + COMMON + [(slot_input(n, k), t) for k in range(SLOTS) for n, t in SLOT_FIELDS] + PAVE
 
 
 def input_order() -> list[str]:

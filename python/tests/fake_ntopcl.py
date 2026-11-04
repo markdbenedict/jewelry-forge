@@ -283,9 +283,16 @@ def main(argv: list[str]) -> int:
     elif "multistone" in nb.name:
         from ntopjewel import multistone
         from ntopjewel.nb_jewel import SLOT_NAMES
-        for key in (*SLOT_NAMES, *(multistone.slot_input(n, k) for k in range(multistone.SLOTS) for n in ("Seat Path", "Prongs Path"))):
+        for key in (*SLOT_NAMES, *(multistone.slot_input(n, k) for k in range(multistone.SLOTS) for n in ("Seat Path", "Prongs Path")),
+                    "Pave Beads Path", "Pave Seats Path"):
             if not Path(values[key]).exists():
                 fail(f"{key.replace('Path', 'Mesh')}: file not found")
+        if shape == "nopave":                                 # a notebook that never cut the pavé's seats
+            from ntopjewel import artwork
+            from ntopjewel.band import BandSpec
+            sp = Path(values["Output Path"]).with_suffix(".nopave_seats.stl")
+            artwork.outside_speck(BandSpec(size=6)).export(str(sp))
+            values["Pave Seats Path"] = str(sp)
         if shape == "noside":                                 # a notebook whose slots 2.. never got their own values
             for k in range(1, multistone.SLOTS):
                 for n, _ in multistone.SLOT_FIELDS:

@@ -63,7 +63,7 @@ def test_five_stones_and_the_slot_limit():
 def test_unused_slots_repeat_the_centre_and_every_catalog_input_is_given():
     s = three()
     files = [(f"env{i}", f"prongs{i}") for i in range(s.stone_count)]
-    v = s.notebook_inputs("bar.stl", files, "out.stl")
+    v = s.notebook_inputs("bar.stl", files, "out.stl", pave_paths=("beads.stl", "seats.stl"))
     cat = catalog.load("multistone")
     assert set(v) == set(cat.inputs) and list(cat.inputs) == ms.input_order()
     for name, _ in ms.SLOT_FIELDS:
@@ -103,9 +103,12 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
             assert [c["wired"]["Transformation"][0] for c in chain] == [b[f"Spin Rotation{tag} T"], b[f"Placement{tag} T"], b[f"Turn Rotation{tag} T"]]
             assert chain[0]["wired"]["Object"][0] == b[start]
     assert nb.blocks[b["Heads"]]["lists"]["Bodies"] == [b[f"Placed Head {k} 3"] for k in range(1, ms.SLOTS + 1)]
-    assert nb.blocks[b["Joined"]]["wired"]["Blend Radius"][0] == b["Shank Blend"]        # the heads melt into the shank ...
-    assert nb.blocks[b["Ring"]]["wired"]["Primary Body"][0] == b["Joined"]               # ... THEN every seat is cut
-    assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == [b[f"Placed Seat {k} 3"] for k in range(1, ms.SLOTS + 1)]
+    assert nb.blocks[b["Beaded Shank"]]["lists"]["Bodies"] == [b["Shank Body"], b["Pave Beads"]]   # the pavé's beads join the shank ...
+    assert nb.blocks[b["Joined"]]["lists"]["Bodies"] == [b["Beaded Shank"], b["Heads"]]
+    assert nb.blocks[b["Joined"]]["wired"]["Blend Radius"][0] == b["Shank Blend"]        # ... the heads melt into it ...
+    assert nb.blocks[b["Ring"]]["wired"]["Primary Body"][0] == b["Joined"]               # ... THEN every seat is cut, the pavé's last
+    assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == [b[f"Placed Seat {k} 3"] for k in range(1, ms.SLOTS + 1)] + [b["Pave Seats"]]
+    assert nb.blocks[b["Pave Beads Mesh"]]["wired"]["Path"][0] == b["Pave Beads Path"]
 
 
 def _build(out_dir, tmp_path, spec):
@@ -172,3 +175,42 @@ def test_stones_sized_by_weight_and_pears_pointing_out():
     g = q.head.stone.girdle
     assert ms.prong_ledges(local, s.placed_head(q.head), -g / 2 - 0.3, under) == 5
     assert heads.outline_count(local, -g / 2 - 0.3, under) < 5                              # the piece count misses one
+
+
+
+def ruby():
+    """Mark's ring (2026-11-04): a marquise ruby (corundum: 'sapphire' in the tables) between two cushion
+    diamonds, diamond pavé round the rest of the ring."""
+    b = band.BandSpec(size=6, width_mm=2.6, thickness_mm=1.8, profile="comfort-flat", mesh_tolerance_mm=0.05)   # a court band's dome
+    return ms.MultiStoneSpec(b, heads.OutlineHeadSpec(gems.StoneSpec("marquise", 10.0, 5.0, material="sapphire")),   # left 0.2 mm lips
+                             heads.OutlineHeadSpec(gems.StoneSpec("cushion", 4.5, 4.5, material="diamond")), pave_stone_mm=1.3)
+
+
+def test_pave_round_a_three_stone_ring(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    """Pavé centred on the bottom, its first stones clear of the side heads, the beads before the heads
+    and the seats after, the pavé's gate checks on top of the three-stone ones; a lost seats layer caught."""
+    s = ruby()
+    assert s.validate() == [], s.validate()
+    pv = s.pave
+    assert pv.centre_deg == 180.0 and pv.stone_count >= 20
+    assert pv.reach_from_top_deg > s.head_face_reach_deg() + 2.0                  # the pavé starts past the heads' metal
+    assert "_pave1x1p3_" in s.stem and s.design()["pave"]["pave_stone"] == 1.3
+    assert s.design() != ruby().__class__(s.band, s.centre, s.side).design()      # the pavé is in the identity ...
+    plain = three()
+    assert "pave" not in plain.design()                                           # ... and the rings without keep theirs
+    beads, seats = plain.pave_layers()
+    assert beads.volume < 0.01 and seats.volume < 0.01                            # no pavé: the no-op specks
+    res = _build(out_dir, tmp_path, s)
+    assert res.ok, res.text()
+    names = {c.name for c in res.gate.checks}
+    assert {"pavé stones fit", "pavé seats", "pavé light holes open", "pavé beads", "pavé stones held", "stones fit"} <= names
+    assert abs(s.carats() - (0.87 + 2 * 0.40 + pv.carats())) < 0.05
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nopave")
+    bad = _build(out_dir, tmp_path, s)
+    assert not bad.ok and "pavé seats" in {c.name for c in bad.gate.checks if not c.ok}
+    from ntopjewel import cli
+    assert cli.main(["multistone", "--profile", "comfort-flat", "--width", "2.6", "--thickness", "1.8", "--shape", "marquise", "--length", "10",
+                     "--stone-width", "5", "--material", "sapphire", "--side-shape", "cushion", "--side-length", "4.5",
+                     "--side-width", "4.5", "--side-material", "diamond", "--pave", "1.3", "--dry-run"]) == 0
+    late = ms.MultiStoneSpec(s.band, s.centre, s.side, pave_stone_mm=1.3, pave_from_deg=30.0)
+    assert any("cut" in x and "side heads" in x for x in late.validate())          # a pavé started inside the side heads

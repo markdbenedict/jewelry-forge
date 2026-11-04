@@ -77,7 +77,8 @@ class PaveSpec:
     stone_mm: float = 1.3
     rows: int = 1
     layout: str = "staggered"
-    span_deg: float = 180.0                     # the arc the stones cover, centred on the head; 360 = full eternity
+    span_deg: float = 180.0                     # the arc the stones cover, centred on centre_deg; 360 = full eternity
+    centre_deg: float = 0.0                     # where the arc is centred: 0 the head (a pavé band), 180 the bottom (round a multi-stone ring)
     gap_mm: float | None = None                 # girdle to girdle; None = tables pave_stone_gap_mm
     bead_mm: float | None = None                # bead diameter; None = pave_bead_frac x stone, at least floors.bead_dia
     material: str = tables.DEFAULT_STONE
@@ -258,7 +259,7 @@ class PaveSpec:
         if self.full:
             return [(k + shift) * a for k in range(n)]
         m = n - 1 if shift else n
-        return [(k - (m - 1) / 2) * a for k in range(m)]
+        return [float(self.centre_deg) + (k - (m - 1) / 2) * a for k in range(m)]
 
     def stones(self, virtual: bool = False) -> list[Stone]:
         """Every placed stone; with `virtual`, a half eternity's rows carried one stone past each
@@ -475,6 +476,8 @@ class PaveSpec:
                   "pave_span_deg": 360.0 if self.full else self.span_deg, "pave_gap": self.gap, "pave_bead": 2 * self.bead_radius,
                   "pave_bead_gap": self.bead_gap, "pave_table_below": self.table_below, "pave_hole": 2 * self.hole_radius,
                   "seat_clearance": self.clearance, "pave_material": self.material})
+        if self.centre_deg:                                            # only when set: the pavé bands keep their ids
+            d["pave_centre_deg"] = self.centre_deg
         return d
 
     @property
@@ -514,11 +517,11 @@ class PaveSpec:
         if p:
             return p
         b = self.band
-        if not self.full and sh.width_bottom < b.width_mm - 1e-9 and self.span_deg / 2 + self.pitch_deg > sh.taper_from_deg:
+        if not self.full and self.centre_deg == 0.0 and sh.width_bottom < b.width_mm - 1e-9 and self.span_deg / 2 + self.pitch_deg > sh.taper_from_deg:
             p.append(f"the pavé reaches {self.span_deg / 2:g}° from the head, past where the taper begins ({sh.taper_from_deg:g}°): "
                      "shorten the span or move the taper")
-        if self.full and (sh.width_bottom < b.width_mm - 1e-9 or sh.thickness_bottom < b.thickness_mm - 1e-9):
-            p.append("a full eternity needs the same section all round (no taper)")
+        if (self.full or self.centre_deg != 0.0) and (sh.width_bottom < b.width_mm - 1e-9 or sh.thickness_bottom < b.thickness_mm - 1e-9):
+            p.append("a full eternity, or pavé round the bottom, needs the same section all round (no taper)")
         # the outer rows' openings must leave a wall to the band's edge
         wall = tables.FLOORS["wall_marginal"]
         zmax = max(abs(z) for z in self._row_z(self.across_mm)) + self.girdle_radius + self.clearance
@@ -562,7 +565,8 @@ class PaveSpec:
         b, s = self.band, self.stone
         counts = self.beads_per_stone()
         rows = ", ".join(str(len(self.row_columns(r))) for r in range(self.rows))
-        reach = "all round (full eternity)" if self.full else f"over {self.span_deg:g}° centred on the top"
+        where = "the top" if self.centre_deg == 0.0 else ("the bottom" if self.centre_deg == 180.0 else f"{self.centre_deg:g}°")
+        reach = "all round (full eternity)" if self.full else f"over {self.span_deg:g}° centred on {where}"
         return (f"{self.stem}: {b.label}, inner Ø {b.inner_diameter_mm:.3f}, {b.profile} {b.width_mm:g} x {b.thickness_mm:g} mm\n"
                 f"  pavé: {self.stone_count} round {s.material} stones of {self.stone_mm:g} mm ({self.carats():.2f} ct), "
                 f"{self.rows} row{'s' if self.rows > 1 else ''} ({rows}){', ' + self.layout if self.rows > 1 else ''}, {reach}; "
@@ -580,8 +584,16 @@ class PaveSpec:
         if self.full:
             return True
         m = self.pitch_deg if margin_deg is None else margin_deg
-        a = abs((float(theta_deg) + 180.0) % 360.0 - 180.0)
+        a = abs((float(theta_deg) - float(self.centre_deg) + 180.0) % 360.0 - 180.0)
         return a <= self.span_deg / 2 + m
+
+    @property
+    def reach_from_top_deg(self) -> float:
+        """How near the top of the ring (+X) the pavé's stones come, girdle edge included, degrees."""
+        if self.full:
+            return 0.0
+        near = min(abs((t + 180.0) % 360.0 - 180.0) for r in range(self.rows) for t in self.row_columns(r))
+        return max(0.0, near - math.degrees((self.girdle_radius + self.clearance) / self.band.outer_radius_mm))
 
     def gate_section(self, theta_deg: float):
         """The section the gate expects: the design mesh's through the pavé, the shank's elsewhere."""

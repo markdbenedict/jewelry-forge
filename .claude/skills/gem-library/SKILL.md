@@ -151,6 +151,19 @@ A non-round `--shape` runs `solitaire_outline.ntop`. `--engrave TEXT` cuts it in
 to fit the band (`--engrave-height`, `--engrave-depth`); the gate's `engraving` check finds the
 pocket. The text is part of the spec id but not the stem.
 
+**Pavé round a multi-stone ring** (`multistone --pave 1.3 [--pave-rows N --pave-layout --pave-from DEG --pave-material]`;
+`MultiStoneSpec.pave_stone_mm` ...): the `pave.PaveSpec` over the same shank, centred on the bottom (`centre_deg`
+180), its first girdle edge `PAVE_HEAD_CLEAR_MM` (0.4) + the shank blend past the side heads' metal at the band's
+surface (`head_face_reach_deg`, not the prongs' splay above) unless `--pave-from` says where. multistone.ntop 0.2.0
+takes `Pave Beads Path` / `Pave Seats Path`: the beads united with the shank before the heads (sharp), the seats cut
+with the heads' after the blended join - as pave_band.ntop; no pavé = a speck buried in the band and one far outside.
+`validate` refuses a taper under it, an arc too short for a row, and pavé seats that cut a side head. The gate adds
+the pavé's own checks (`pavé stones fit / light holes open / seats / drop-in clear / beads / stones held`), drops wall
+rays on the pavé's seats and beads, and compares the section through the pavé with the design's. **Not on a court
+band**: its dome falls away where the seat openings sit and leaves 0.2 mm lips at any width (p1 0.19-0.24); a
+comfort-flat band keeps 0.5-0.6. Stones of different materials: `--material` (the centre; a ruby is `sapphire`,
+corundum) and `--side-material`. Stem `ring_multi_3_<centre>_<side>_pave1x1p3_<size>_<id>`.
+
 **Artwork under the head** (`ring-features` has the panels themselves): `--sides` / `--outer` (a motif, or
 `none`, the default), `--start` / `--end`, `--channel`, `--rail`, `--relief`, `--leaf`, `--leaf-pitch`,
 `--stroke`, `--no-vein`, `--leaf-tip head|shank` (default head: the reference ring's leaves point at the

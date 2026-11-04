@@ -10,10 +10,13 @@ step 2 (ntopjewel.multistone; reference rings 05 and 02).
                  Placement k   Rotation Transform 90° about the line through (Pivot X k, 0, Pivot Z k) ∥ +Y
                  Turn k        Rotation Transform about the ring axis +Z through the origin
                An unused slot repeats the centre's values: the same head in the same place
-    ring       ((Shank Body ∪ every placed head), blended by Shank Blend) − every placed seat
-               -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance), Export Mesh (Output Path).
-               The seats are cut AFTER the blended join: a smooth union fills every corner within its
-               radius, the seats' included
+    pavé       Pave Beads Path / Pave Seats Path (0.2.0): the beads (Import Mesh -> Implicit Body) united
+               with the shank before the heads join it, the seats cut with the heads' seats at the end -
+               as pave_band.ntop does; no-op specks when the ring has no pavé
+    ring       (((Shank Body ∪ Pave Beads) ∪ every placed head), blended by Shank Blend) − every placed
+               seat − Pave Seats -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance), Export
+               Mesh (Output Path). The seats are cut AFTER the blended join: a smooth union fills every
+               corner within its radius, the seats' included
 
 Both blocks are embedded once (`api build stone_seat`, `api build outline_head` first) and placed five
 times; rebuild this notebook after either block changes. Every number comes from
@@ -70,7 +73,8 @@ def prepare(params: dict, work_dir: Path) -> dict:
     TEST_DIR.mkdir(parents=True, exist_ok=True)
     bars = shank.write_bars(spec.shank_spec, TEST_DIR, TEST_STEM)
     files = spec.write_slot_files(TEST_DIR, TEST_STEM)
-    v = spec.notebook_inputs(bars, files)
+    beads, seats = spec.write_pave_layers(TEST_DIR, TEST_STEM)
+    v = spec.notebook_inputs(bars, files, pave_paths=(beads, seats))
     v.pop("Output Path")
     params["values"] = {**v, **(params.get("values") or {})}
     return params
@@ -129,14 +133,20 @@ def _body(h, p, values, test_output):
     heads_union = h.add("Heads", mask="union", must=nj.UNION)
     for ph in placed_heads:
         h.to_list(ph, heads_union, ["Bodies"])
+    pave_beads = nj.add_mesh_body(h, "Pave Beads", ids["Pave Beads Path"])
+    pave_seats = nj.add_mesh_body(h, "Pave Seats", ids["Pave Seats Path"])
+    beaded = h.add("Beaded Shank", mask="union", must=nj.UNION)    # sharp: the beads are the pavé's own geometry
+    h.to_list(shank_body, beaded, ["Bodies"])
+    h.to_list(pave_beads, beaded, ["Bodies"])
     joined = h.add("Joined", mask="union", must=nj.UNION)
-    h.to_list(shank_body, joined, ["Bodies"])
+    h.to_list(beaded, joined, ["Bodies"])
     h.to_list(heads_union, joined, ["Bodies"])
     nj.wire_blend(h, joined, ids["Shank Blend"])
     ring = h.add("Ring", mask="subtract", must=nj.SUBTRACT)
     h.wire(joined, ring, ["Primary Body", "Body"])
     for ps in placed_seats:
         h.to_list(ps, ring, ["Subtraction Bodies", "Bodies"])
+    h.to_list(pave_seats, ring, ["Subtraction Bodies", "Bodies"])
     out = h.wrap_var("Ring Body", ring)
     integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, ids["Mesh Tolerance"])
     return integ, export

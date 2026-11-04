@@ -2,11 +2,12 @@
 # rings 05 and 02). The shank is the bars Python writes, wrapped and united as ring_shank.ntop does; five
 # head slots, each an embedded stone_seat + outline_head (any of the six shapes) spun about its own axis,
 # placed on +X like the solitaire's head and turned about the ring axis; an unused slot repeats the centre.
-# Ring = ((shank ∪ heads), blended by Shank Blend) − seats. Built by ntop/recipes/multistone.py.
+# Ring = (((shank ∪ pavé beads) ∪ heads), blended by Shank Blend) − seats − pavé seats (0.2.0: the pavé round the
+# rest of the ring; no-op specks without). Built by ntop/recipes/multistone.py.
 # Verify names: python -m ntopjewel templates ntop/notebooks/multistone.ntop --catalog multistone
 notebook: multistone.ntop
-version: 0.1.0   # 0.1.0: first build (2026-11-03)
-rebuild_since: 0.1.0
+version: 0.2.0   # 0.1.0: first build (2026-11-03); 0.2.0: Pave Beads Path / Pave Seats Path (2026-11-04)
+rebuild_since: 0.2.0
 title: Multi-stone ring - centre and side stones in outline heads on a shank
 output:
   name: Volume
@@ -298,6 +299,12 @@ inputs:
     min: -180.0
     max: 180.0
     doc: "Slot 5: rotation about the ring axis, the stone's angle from the top (+ towards +Y) (or the centre's again when unused)"
+  Pave Beads Path:
+    type: text
+    doc: "Absolute path of the pavé beads STL (ntopjewel.pave.PaveSpec.beads_mesh: disjoint spheres, ring frame), united with the shank before the heads; a speck buried in the band when there is no pavé."
+  Pave Seats Path:
+    type: text
+    doc: "Absolute path of the pavé seats STL (every stone's cutter with its light hole, disjoint), cut after the blended join; a speck far outside the ring when there is no pavé."
   Output Path:
     type: text
     doc: "Absolute path of the STL to write (Export Mesh block; a Text variable in nTop)."

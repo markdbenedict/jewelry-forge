@@ -491,22 +491,26 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
 
 
 def cmd_multistone(a: argparse.Namespace) -> int:
-    def head(shape, length, width, depth, prongs, carats=None):
+    def head(shape, length, width, depth, prongs, carats=None, material=None):
+        material = material or a.material
         if carats:                                                    # sized by weight; --length / --width give the ratio
             ratio = (length / width) if (width and length) else None
-            stone = gems.StoneSpec.for_carats(shape, carats, ratio, a.material)
+            stone = gems.StoneSpec.for_carats(shape, carats, ratio, material)
         else:
-            stone = gems.StoneSpec(shape=shape, length_mm=length, width_mm=width, depth_mm=depth, material=a.material)
+            stone = gems.StoneSpec(shape=shape, length_mm=length, width_mm=width, depth_mm=depth, material=material)
         return heads.OutlineHeadSpec(stone, prongs=prongs, clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
     centre = head(a.shape, a.length, a.stone_width, a.stone_depth, a.prongs, a.carats)
-    side = head(a.side_shape, a.side_length, a.side_width, a.side_depth, a.side_prongs, a.side_carats) if a.side_shape else None
+    side = (head(a.side_shape, a.side_length, a.side_width, a.side_depth, a.side_prongs, a.side_carats, a.side_material)
+            if a.side_shape else None)
     b = _band_spec(a)
     shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
                               taper_from_deg=_taper_from(a), stations=a.stations)
               if (a.width_bottom is not None or a.thickness_bottom is not None) else None)
     spec = multistone.MultiStoneSpec(b, centre, side, side_pairs=a.side_pairs, side_gap_mm=a.side_gap,
                                      centre_spin_deg=a.centre_spin, side_point=a.side_point, finger_clear_mm=a.finger_clear,
-                                     shank_blend_mm=a.shank_blend, shank=shaped)
+                                     shank_blend_mm=a.shank_blend, shank=shaped, pave_stone_mm=a.pave or 0.0,
+                                     pave_rows=a.pave_rows, pave_layout=a.pave_layout, pave_from_deg=a.pave_from or 0.0,
+                                     pave_material=a.pave_material)
     probs = spec.validate()
     if probs:
         print("multistone: problems: " + "; ".join(probs))
@@ -896,7 +900,14 @@ def main(argv: list[str] | None = None) -> int:
     mu.add_argument("--side-point", default="in", choices=["in", "out"], help="pear / marquise sides: point towards the centre or away")
     mu.add_argument("--side-pairs", type=int, default=1, help="side stones each side of the centre (1: three-stone, 2: five)")
     mu.add_argument("--side-gap", type=float, default=multistone.SIDE_GAP_MM, help="girdle to girdle between neighbours, mm")
-    mu.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    mu.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3),
+                    help="the centre stone's (and, unless --side-material says, the side stones'); ruby: sapphire (corundum)")
+    mu.add_argument("--side-material", choices=sorted(tables.STONE_DENSITY_G_CM3), help="the side stones' (default: --material)")
+    mu.add_argument("--pave", type=float, help="pavé round the rest of the ring: the stones' size, mm (0.8..3; default none)")
+    mu.add_argument("--pave-rows", type=int, default=1, help="pavé rows across the band (1..4)")
+    mu.add_argument("--pave-layout", default="staggered", choices=["staggered", "aligned"])
+    mu.add_argument("--pave-from", type=float, help="where the pavé begins, degrees from the top (default: just past the side heads)")
+    mu.add_argument("--pave-material", default="diamond", choices=sorted(tables.STONE_DENSITY_G_CM3))
     mu.add_argument("--clearance", type=float, help="seat clearance, mm (default: tables)")
     mu.add_argument("--finger-clear", type=float, help="metal between the bore and each culet, mm")
     mu.add_argument("--blend", type=float, help="head blend radius, mm (default: tables; 0 = sharp)")

@@ -23,6 +23,12 @@ stones repeats the centre in the unused slots - an identical head at the same pl
 nothing new and an identical seat cuts nothing more. The shank is the bars Python writes (any
 ShankSpec: plain, tapered ...), as every solitaire's. Ring = ((shank ∪ placed heads, blended by
 Shank Blend) − placed seats.
+
+Pavé round the rest of the ring (`pave`, a pave.PaveSpec over the same shank, centred on the bottom,
+180°): its beads join the shank before the heads, its seats are cut with the heads' (Pave Beads Path /
+Pave Seats Path, catalog 0.2.0); the arc ends PAVE_HEAD_CLEAR_MM short of the outermost head's metal
+at the band's surface, unless asked otherwise (`pave_from_deg`). No pavé: a speck buried in the band
+and a speck far outside it, which change nothing.
 """
 from __future__ import annotations
 
@@ -34,12 +40,13 @@ from pathlib import Path
 
 from . import band as bandmod, catalog, config, gate, gems, geom, heads, ntopcl, runs, tables
 from . import shank as shankmod
-from .nb_multistone import COMMON, SLOT_FIELDS, SLOTS, input_order, slot_input, specs  # noqa: F401  (console-safe)
+from .nb_multistone import COMMON, PAVE, SLOT_FIELDS, SLOTS, input_order, slot_input, specs  # noqa: F401  (console-safe)
 
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
 HEAD_ANGLE_DEG = 90.0
 SIDE_GAP_MM = 0.3                  # girdle to girdle between neighbouring stones (default)
 CUT_ALLOWED_MM3 = 1e-3             # a seat may take no more than this from a neighbour's head
+PAVE_HEAD_CLEAR_MM = 0.4           # the pavé's first girdle edge stands this far (at the outer surface) past the side heads' metal
 
 
 @dataclass
@@ -63,6 +70,11 @@ class MultiStoneSpec:
     finger_clear_mm: float | None = None
     shank_blend_mm: float | None = None
     shank: shankmod.ShankSpec | None = None
+    pave_stone_mm: float = 0.0                 # pavé round the rest of the ring: the stones' size (0: none)
+    pave_rows: int = 1
+    pave_layout: str = "staggered"
+    pave_from_deg: float = 0.0                 # where the pavé begins, from the top (0: just past the side heads)
+    pave_material: str = tables.DEFAULT_STONE
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self):
@@ -228,6 +240,67 @@ class MultiStoneSpec:
         v = self.placed_heads_mesh(0).vertices
         return float(np.degrees(np.abs(np.arctan2(v[:, 1], v[:, 0]))).max())
 
+    # ---- pavé round the rest of the ring ----------------------------------------------------------
+    @property
+    def has_pave(self) -> bool:
+        return bool(self.pave_stone_mm)
+
+    def head_face_reach_deg(self) -> float:
+        """How far from the top the heads' metal (and their seat cutters) reach at the band's outer
+        surface: the angle the pavé must clear (less than head_span_deg, the prongs' splay above)."""
+        import numpy as np
+        if "face_reach" not in self._cache:
+            ro = self.band.outer_radius_mm
+            reach = 0.0
+            for which in (0, 1):
+                v = self.placed_heads_mesh(which).vertices
+                near = np.hypot(v[:, 0], v[:, 1]) <= ro + 0.3
+                if near.any():
+                    reach = max(reach, float(np.degrees(np.abs(np.arctan2(v[near, 1], v[near, 0]))).max()))
+            self._cache["face_reach"] = reach
+        return self._cache["face_reach"]
+
+    def pave_start_deg(self) -> float:
+        """Where the pavé's first girdle edge may be, from the top: as asked, or past the heads' reach
+        at the surface by PAVE_HEAD_CLEAR_MM and the shank blend (the smooth union's fillet round the
+        heads' feet)."""
+        if self.pave_from_deg:
+            return float(self.pave_from_deg)
+        ro = self.band.outer_radius_mm
+        return self.head_face_reach_deg() + math.degrees((PAVE_HEAD_CLEAR_MM + self.shank_blend) / ro)
+
+    @property
+    def pave(self):
+        """The pavé (pave.PaveSpec) over the shank, centred on the bottom, its arc ending where
+        pave_start_deg says (the first stone's centre a girdle radius + clearance further on); None without."""
+        if not self.has_pave:
+            return None
+        if "pave" not in self._cache:
+            from . import pave as pavemod
+            probe = pavemod.PaveSpec(self.shank_spec, stone_mm=self.pave_stone_mm, rows=self.pave_rows, layout=self.pave_layout,
+                                     span_deg=10.0, centre_deg=180.0, material=self.pave_material)
+            edge = math.degrees((probe.girdle_radius + probe.clearance) / self.band.outer_radius_mm)
+            span = 2.0 * (180.0 - self.pave_start_deg() - edge)
+            self._cache["pave"] = pavemod.PaveSpec(self.shank_spec, stone_mm=self.pave_stone_mm, rows=self.pave_rows,
+                                                   layout=self.pave_layout, span_deg=round(span, 3), centre_deg=180.0,
+                                                   material=self.pave_material)
+        return self._cache["pave"]
+
+    def pave_layers(self):
+        """(beads, seats) meshes for the notebook: the pavé's, or the no-op specks."""
+        from . import artwork as artmod
+        if not self.has_pave:
+            return artmod.buried_speck(self.band), artmod.outside_speck(self.band)
+        return self.pave.beads_mesh(), self.pave.seats_mesh()
+
+    def write_pave_layers(self, directory: Path, stem: str) -> tuple[str, str]:
+        directory = Path(directory)
+        beads, seats = directory / f"{stem}.pave_beads.stl", directory / f"{stem}.pave_seats.stl"
+        b, c = self.pave_layers()
+        b.export(str(beads))
+        c.export(str(seats))
+        return str(beads), str(seats)
+
     # ---- notebook ----------------------------------------------------------------------------
     def slot_values(self, p: Placed, seat_path: str, prongs_path: str) -> dict:
         ph = self.placed_head(p.head)
@@ -237,7 +310,8 @@ class MultiStoneSpec:
                 **{k: ins[k] for k in ("Rail Offset", "Upper Rail Bottom", "Upper Rail Top", "Lower Rail Bottom", "Lower Rail Top")},
                 "Spin": round(p.spin_deg, 4), "Pivot X": round(px, 4), "Pivot Z": round(pz, 4), "Turn": round(p.theta_deg, 4)}
 
-    def notebook_inputs(self, shank_paths, slot_files: list[tuple[str, str]], output_path: str = "") -> dict:
+    def notebook_inputs(self, shank_paths, slot_files: list[tuple[str, str]], output_path: str = "",
+                        pave_paths: tuple[str, str] = ("<pave beads path>", "<pave seats path>")) -> dict:
         """`slot_files`: (seat envelope path, prongs path) per stone, in stones() order."""
         sh = self.shank_spec.notebook_inputs(shank_paths, "")
         v = {k: sh[k] for k in (*shankmod.SLOT_NAMES, "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance")}
@@ -249,6 +323,7 @@ class MultiStoneSpec:
             seat, prongs = slot_files[k] if k < len(stones) else slot_files[0]
             for name, val in self.slot_values(p, seat, prongs).items():
                 v[slot_input(name, k)] = val
+        v["Pave Beads Path"], v["Pave Seats Path"] = str(pave_paths[0]), str(pave_paths[1])
         v["Output Path"] = str(output_path)
         return v
 
@@ -276,6 +351,9 @@ class MultiStoneSpec:
                   "centre_spin": self.centre_spin_deg, "finger_clear": self.finger_clear, "shank_blend": self.shank_blend})
         if self.side_point != "in":                                   # only when set: earlier designs keep their ids
             d["side_point"] = self.side_point
+        if self.has_pave:
+            pv = self.pave.design()
+            d["pave"] = {k: v for k, v in pv.items() if k.startswith("pave_") or k == "seat_clearance"}
         return d
 
     @property
@@ -290,7 +368,8 @@ class MultiStoneSpec:
     @property
     def stem(self) -> str:
         side = f"_{self._short(self.side.stone)}" if self.side is not None else ""
-        return f"ring_multi_{self.stone_count}_{self._short(self.centre.stone)}{side}_{self.band.label}_{self.spec_id}"
+        pave = f"_pave{self.pave_rows}x{self.pave_stone_mm:g}".replace(".", "p") if self.has_pave else ""
+        return f"ring_multi_{self.stone_count}_{self._short(self.centre.stone)}{side}{pave}_{self.band.label}_{self.spec_id}"
 
     @property
     def catalog_name(self) -> str:
@@ -304,7 +383,12 @@ class MultiStoneSpec:
             stones = self.stones()
             hs = [self._placed(p.head, p.theta_deg, p.spin_deg, 0) for p in stones]
             cuts = [self._placed(p.head, p.theta_deg, p.spin_deg, 1) for p in stones]
-            ring = ops.union([self.shank_spec.design_mesh(), ops.union(hs)], self.shank_blend)
+            shank = self.shank_spec.design_mesh()
+            if self.has_pave:                                             # the beads join the shank before the heads
+                import trimesh
+                shank = trimesh.boolean.union([shank, self.pave.beads_mesh()], engine="manifold")
+                cuts = cuts + [self.pave.seats_mesh()]
+            ring = ops.union([shank, ops.union(hs)], self.shank_blend)
             mesh = ops.clean(ops.difference(ring, cuts))
             if key is None:
                 return mesh
@@ -359,13 +443,27 @@ class MultiStoneSpec:
             p.append(f"the heads reach {span:.0f}° from the top, past where the taper begins ({sh.taper_from_deg:g}°)")
         if span > 100.0:
             p.append(f"the heads reach {span:.0f}° from the top: fewer or smaller side stones")
+        if self.has_pave and not p:
+            pv = self.pave
+            if sh.tapered:
+                p.append("pavé round a multi-stone ring wants the same section all round (no taper)")
+            elif pv.span_deg < 2 * pv.pitch_deg:
+                p.append(f"the heads leave {pv.span_deg:.0f}° for the pavé: too little for a row")
+            else:
+                p += [f"pavé: {x}" for x in pv.validate()]
+            if not p:
+                import trimesh
+                hs = trimesh.boolean.union([self._placed(q.head, q.theta_deg, q.spin_deg, 0) for q in stones], engine="manifold")
+                cut = trimesh.boolean.intersection([hs, pv.seats_mesh()], engine="manifold")
+                if len(cut.faces) and cut.volume > CUT_ALLOWED_MM3:
+                    p.append(f"the pavé's seats cut {cut.volume:.3f} mm³ from the side heads: start it later (--pave-from)")
         return p
 
     def warnings(self) -> list[str]:
         return list(self.shank_spec.warnings())
 
     def carats(self) -> float:
-        return sum(p.head.stone.carats() for p in self.stones())
+        return sum(p.head.stone.carats() for p in self.stones()) + (self.pave.carats() if self.has_pave else 0.0)
 
     def describe(self) -> str:
         b = self.band
@@ -387,6 +485,13 @@ class MultiStoneSpec:
                     f"each side angle the smallest at which no seat cuts a neighbour's prongs); ")
         lines.append(f"  {self.stone_count} stones, {self.carats():.2f} ct; {gaps}heads reach ±{self.head_span_deg:.1f}°; "
                      f"culets at least {self.finger_clear:g} mm above the bore")
+        if self.has_pave:
+            pv = self.pave
+            rows = ", ".join(str(len(pv.row_columns(r))) for r in range(pv.rows))
+            lines.append(f"  pavé: {pv.stone_count} round {pv.material} stones of {pv.stone_mm:g} mm ({pv.carats():.2f} ct), "
+                         f"{pv.rows} row{'s' if pv.rows > 1 else ''} ({rows}) round the bottom from ±{pv.reach_from_top_deg:.1f}° "
+                         f"(the heads' metal at the surface reaches ±{self.head_face_reach_deg():.1f}°), {len(pv.beads())} beads "
+                         f"of Ø {2 * pv.bead_radius:.2f} mm")
         lines.append(f"  blends: head {self.centre.blend:g} mm, heads into shank {self.shank_blend:g} mm")
         return "\n".join(lines)
 
@@ -416,6 +521,10 @@ def ring_from_inputs(v: dict, ops: geom.Booleans = geom.SHARP):
         cutter = cutter.copy(); cutter.apply_transform(m)
         hs.append(head)
         cuts.append(cutter)
+    if v.get("Pave Beads Path"):                                       # 0.2.0: the pavé (or its no-op specks)
+        beads = trimesh.load(str(v["Pave Beads Path"]), force="mesh")
+        shank = trimesh.boolean.union([shank, beads], engine="manifold")
+        cuts.append(trimesh.load(str(v["Pave Seats Path"]), force="mesh"))
     ring = ops.union([shank, ops.union(hs)], float(v["Shank Blend"]))
     return ops.clean(ops.difference(ring, cuts))
 
@@ -471,13 +580,28 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
     def far(a):
         return abs((float(a) + 180.0) % 360.0 - 180.0) > span
 
+    pv = spec.pave
+    pave_keep = pv.wall_ray_filter() if pv is not None else None
+
     def shank_rays(pts, n):
-        return np.array([far(math.degrees(math.atan2(p[1], p[0]))) for p in pts])
+        ok = np.array([far(math.degrees(math.atan2(p[1], p[0]))) for p in pts])
+        if pave_keep is not None:                                     # a seat's wall measures the web to the next seat
+            ok &= pave_keep(pts, n)
+        return ok
 
     def shank_section(a):
-        return sh.gate_section(a) if far(a) else None
+        if not far(a):
+            return None
+        if pv is not None and pv.in_pave(a):                          # through the pavé: the design's own section
+            return gate.section_geometry(spec.design_mesh(), a)
+        return sh.gate_section(a)
+
+    def section_tol(a):
+        if pv is not None and pv.in_pave(a):
+            return pv.section_tolerance(a)
+        return sh.section_tolerance(a)
     rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=sh.wall_floor(), wall_ray_filter=shank_rays,
-                     section_design=shank_section, section_tol_mm=sh.section_tolerance, centre="origin")
+                     section_design=shank_section, section_tol_mm=section_tol, centre="origin")
     ring = gate.load_mesh(stl)
     r = np.hypot(ring.vertices[:, 0], ring.vertices[:, 1])
     bore = 2 * float(r.min())
@@ -518,6 +642,11 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
     rep.checks.append(gate.Check("seat ledges", not bad, "every stone: " + ", ".join(f"{n}/{w}" for n, w in ledges)
                                  + " prongs reach under the girdle"))
     rep.checks.append(gate.Check("drop-in clear", not any(drops), f"{sum(drops)} pieces inside a girdle line above its girdle"))
+    if pv is not None:                                                # the pavé's seats, holes, beads, held stones
+        from . import pave as pavemod
+        for c in pavemod.pave_checks(pv, ring):
+            c.name = f"pavé {c.name}"
+            rep.checks.append(c)
     from .band import blended_design_volume_check
     overcut = sh.opening_overcut_mm3() + sh.sharp_edge_round_mm3()
     c = blended_design_volume_check(float(design.volume) - overcut, spec.blend_volume_mm3(), ntop_vol, 3.0)
@@ -568,7 +697,8 @@ def build(spec: MultiStoneSpec, out_dir: Path | None = None, *, notebook: Path |
     stl = run_dir / f"{spec.stem}.stl"
     bars = shankmod.write_bars(spec.shank_spec, run_dir, spec.stem)
     files = spec.write_slot_files(run_dir, spec.stem)
-    values = spec.notebook_inputs(bars, files, str(stl))
+    pave_paths = spec.write_pave_layers(run_dir, spec.stem)
+    values = spec.notebook_inputs(bars, files, str(stl), pave_paths=pave_paths)
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(values), run_dir, tag=spec.stem)
     try:
@@ -585,6 +715,8 @@ def build(spec: MultiStoneSpec, out_dir: Path | None = None, *, notebook: Path |
     report = {"stem": spec.stem, "spec_id": spec.spec_id, "run_id": run_id, "status": res.status, "ok": res.ok,
               "design": spec.design(), "inputs": values, "stl": str(stl), "bars": bars,
               "stones": [{"role": p.role, "theta_deg": p.theta_deg, "spin_deg": p.spin_deg, "stone": asdict(p.head.stone)} for p in spec.stones()],
+              "pave": ({"stones": [{"row": q.row, "col": q.col, "theta_deg": q.theta_deg, "z_mm": q.z_mm} for q in spec.pave.stones()],
+                        "beads": len(spec.pave.beads()), "layers": pave_paths} if spec.has_pave else None),
               "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notes": res.notes,
               "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version())}
     (run_dir / f"{spec.stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")

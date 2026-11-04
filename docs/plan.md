@@ -329,6 +329,10 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    small polygon bezels (kite, hexagon); spacing and bead rules into the tables.
 4. **New stone bodies.** Pearl (sphere on a post in a cup), cabochon (dome on a flat base), asscher
    (emerald outline with a corner-cut ratio); their seats.
+   *Pavé round a multi-stone ring (4 Nov): Mark's marquise ruby between two cushion diamonds with diamond pavé
+   round the rest, in gold - multistone.ntop 0.2.0 takes Pave Beads / Seats Path (rebuild), the pavé centred on
+   the bottom and clear of the side heads; offline PASSED on comfort-flat 2.6 x 1.8 (a court band's dome left
+   0.2 mm lips beside the seats). Real check pending: `api build multistone`, then the ruby command.*
 5. **Artwork on the band.** *(3 Nov: started, from the Seraphine Celtic ring Mark photographed -
    leaf rows in channels on both side faces, a vine scroll in a channel on the outer face, 25°-120°
    from the top, Celtic knots on the shoulders, scroll volutes under a 4-prong head with double claws
