@@ -105,10 +105,11 @@ FAIL and INCOMPLETE is not a pass; neither is delivered.
 ## Artwork in relief (`artwork`, `ring_artwork.ntop`, `ntopjewel.artwork`, Phase 3 step 5)
 
 ```powershell
-python -m ntopjewel artwork --size 6 --sides leaves --outer vine                 # the Seraphine layout (flat 2.8 x 2.0 band)
+python -m ntopjewel artwork --size 6 --sides leaves --outer vine                 # leaf rows on the sides, a vine outside (flat 2.8 x 2.0 band)
+python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll         # the Seraphine's faces: a volute then leaves (tips to the head) on the sides, the scroll outside
 python -m ntopjewel artwork --size 6 --sides leaves --outer none --end 100       # leaf rows on the side faces only
 python -m ntopjewel artwork --size 6 --sides plain --outer volute --start 20 --end 60 --dry-run
-python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # the same panels under a head (gem-library)
+python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll   # the same panels under a head (gem-library)
 ```
 
 A **panel** is a channel `--channel` deep cut into one face of the band - the outer face or a side
@@ -116,8 +117,10 @@ face - from `--start` to `--end` degrees from the top (mirrored on the other sid
 a rail `--rail` wide along each edge, with a **motif** standing `--relief` high on the channel floor
 and so `channel − relief` below the face, protected by the rails. Motifs are 2-D shapely polygons in
 the panel's own frame (u along the ring from the head end, v across the channel): `leaves` (a row of
-teardrop leaves pointing away from the head, each with a shallow vein groove, VEIN_WIDTH_MM x
-VEIN_DEPTH_MM), `vine` (a gentle S-curve spine with a leaf at each crest and a hook at each end, one
+teardrop leaves, tips toward the head by default - the reference ring's - or away (`--leaf-tip head|shank`),
+each with a shallow vein groove, VEIN_WIDTH_MM x VEIN_DEPTH_MM), `scroll-leaves` (a volute the channel's
+width at the head end, then the leaf row from `2R + stroke + 0.3` on - the Seraphine's side faces, a volute
+at the base of the head above each leaf row), `vine` (a gentle S-curve spine with a leaf at each crest and a hook at each end, one
 polygon, clipped to the channel), `scroll` (the vine with a full volute the channel's width at its head
 end - the Seraphine's scrolls at the base of the head - the spine running on from the volute's outer
 turn), `volute` (a spiral scroll), `plain` (the channel alone). A new motif is one function returning

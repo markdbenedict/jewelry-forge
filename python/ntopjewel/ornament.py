@@ -7,8 +7,9 @@ This module builds such a knot as a closed Celtic ribbon lying on the band's OUT
 
   curve      the trefoil φ = 2t, ρ = R (1 + c cos 3t), t over a full turn (two turns in angle, three
              lobes, three self-crossings at radius R) about a centre on the band's mid-line at
-             `at_deg` from the top, one lobe pointing down the shank; the -Y shoulder's knot is its
-             mirror (knotwork.Strand closed in place; the weave solved by knotwork.interlace: at
+             `at_deg` from the top, its lone lobe pointing at the head and the other two spreading
+             across the band below it (the reference ring's; `point` "shank" turns it round); the -Y
+             shoulder's knot is its mirror (knotwork.Strand closed in place; the weave solved by knotwork.interlace: at
              every crossing one pass over, one under, alternating round the loop)
   law        the bore law (knotwork.Interlace.depth, "bore") about the band's outer face: the ribbon
              lies on the face with its underside PLUG_MM inside it, and lifts by 2h = thickness -
@@ -38,6 +39,8 @@ from pathlib import Path
 from . import band as bandmod, gate, geom, knotwork, shank as shankmod, tables
 
 KINDS = ("trinity",)
+POINTS_AT = ("head", "shank")  # where the trefoil's lone lobe points (the Seraphine's: at the head, the other two spread below it)
+OVERHANG_MM = 0.8             # the knot's default width past the band's (about 1.3 x the band on the reference ring)
 RAMP_MM = 1.0                 # the bore law's ramp down from an over pass: the lift's cosine then bends with a 0.5 mm radius,
                               # twice the ribbon's half-thickness (0.5 mm folded the sweep on itself, 2026-11-03)
 PLUG_MM = 0.1                 # the ribbon's underside sinks this far into the band's face
@@ -59,10 +62,11 @@ class KnotOrnament:
     shank: shankmod.ShankSpec
     kind: str = "trinity"
     at_deg: float = 32.0          # the knot's centre, from the top (a solitaire places it just past its head)
-    width_mm: float = 0.0         # across the band, lobe edge to lobe edge; 0 = the band's width + 1.2 (as ring 01)
-    ribbon_mm: float = 0.7        # the ribbon's width across the surface
+    width_mm: float = 0.0         # across the band, lobe edge to lobe edge; 0 = the band's width + OVERHANG_MM
+    ribbon_mm: float = 0.6        # the ribbon's width across the surface (0.7 closed the lobes of a 3.6 mm knot to 0.22)
     thickness_mm: float = 0.5     # ... and its radial thickness
     ratio: float = knotwork.TREFOIL_RATIO   # the trefoil's radial swing c: crossings 2 atan(1.5 c) apart
+    point: str = "head"           # the lone lobe points at the head (POINTS_AT), the other two spread across the band below
     mirror: bool = True           # the same knot on the -Y shoulder
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
@@ -73,7 +77,7 @@ class KnotOrnament:
 
     @property
     def width(self) -> float:
-        return float(self.width_mm) if self.width_mm else self.band.width_mm + 1.2
+        return float(self.width_mm) if self.width_mm else self.band.width_mm + OVERHANG_MM
 
     @property
     def radius(self) -> float:
@@ -120,7 +124,8 @@ class KnotOrnament:
     # ---- the curve and its weave ---------------------------------------------------------------
     def strand(self, side: int) -> knotwork.Strand:
         """The closed trefoil in the developed surface (y along the ring, z across), about
-        (±y_c, 0), its lobe pointing away from the head (+y on the +Y shoulder, -y on the other)."""
+        (±y_c, 0), its lone lobe pointing at the head (`point` "head": towards y = 0 on either
+        shoulder) or away from it down the shank."""
         import numpy as np
         key = ("strand", side)
         if key not in self._cache:
@@ -129,7 +134,8 @@ class KnotOrnament:
             t = np.linspace(0.0, 2 * math.pi, POINTS, endpoint=False)
             rho = R * (1 + c * np.cos(3 * t))
             phi = 2 * t
-            pts = np.column_stack([yc + side * rho * np.cos(phi), rho * np.sin(phi)])
+            away = side if self.point == "shank" else -side
+            pts = np.column_stack([yc + away * rho * np.cos(phi), rho * np.sin(phi)])
             self._cache[key] = knotwork.Strand(pts, period=0.0, closed=True)
         return self._cache[key]
 
@@ -262,7 +268,7 @@ class KnotOrnament:
     # ---- identity, checks -------------------------------------------------------------------------
     def design(self) -> dict:
         return {"kind": self.kind, "at_deg": self.at_deg, "width": self.width, "ribbon": self.ribbon_mm,
-                "thickness": self.thickness_mm, "ratio": self.ratio, "mirror": self.mirror, "ramp": RAMP_MM,
+                "thickness": self.thickness_mm, "ratio": self.ratio, "point": self.point, "mirror": self.mirror, "ramp": RAMP_MM,
                 "fuse": knotwork.KNOT_FUSE_MM, "plug": PLUG_MM}
 
     def validate(self) -> list[str]:
@@ -270,6 +276,8 @@ class KnotOrnament:
         b = self.band
         if self.kind not in KINDS:
             return [f"knot {self.kind!r}: one of {', '.join(KINDS)}"]
+        if self.point not in POINTS_AT:
+            return [f"knot points {self.point!r}: one of {', '.join(POINTS_AT)}"]
         if b.dome > bandmod.MIN_SAGITTA:
             p.append(f"a knot stands on a flat outer face: the {b.profile} band's is domed (a flat band)")
         if self.thickness_mm < 0.3:
@@ -301,9 +309,9 @@ class KnotOrnament:
 
     def describe(self) -> str:
         lo, hi = self.span_deg()
-        return (f"{self.kind} knot on each shoulder: {self.width:g} mm across (R {self.radius:.2f}), ribbon {self.ribbon_mm:g} x "
-                f"{self.thickness_mm:g}, centred {self.at_deg:g}° from the top ({lo:.1f}°..{hi:.1f}°), standing {self.top_radius - self.band.outer_radius_mm:.2f} mm "
-                f"above the face at its over passes; {len(self.lace(1).crossings)} self-crossings")
+        return (f"{self.kind} knot on each shoulder, its lobe at the {self.point}: {self.width:g} mm across (R {self.radius:.2f}), ribbon "
+                f"{self.ribbon_mm:g} x {self.thickness_mm:g}, centred {self.at_deg:g}° from the top ({lo:.1f}°..{hi:.1f}°), standing "
+                f"{self.top_radius - self.band.outer_radius_mm:.2f} mm above the face at its over passes; {len(self.lace(1).crossings)} self-crossings")
 
     # ---- the gate ----------------------------------------------------------------------------------
     def wall_ray_filter(self):

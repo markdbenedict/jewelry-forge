@@ -106,8 +106,8 @@ python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-widt
 python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank (Phase 3 step 1d)
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot runs under the head, through the arches
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: trinity knots on the shoulders
-python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # the Seraphine: artwork panels under the head
-python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll --shoulder-knot trinity   # ... and a trinity knot on each shoulder
+python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # artwork panels under the head, plain shoulders
+python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity   # the Seraphine: a trinity knot tucked under the head on each shoulder, a volute then leaves (tips to the head) on the sides, the scroll outside
 ```
 
 The shank is always the bars Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
@@ -153,7 +153,9 @@ pocket. The text is part of the spec id but not the stem.
 
 **Artwork under the head** (`ring-features` has the panels themselves): `--sides` / `--outer` (a motif, or
 `none`, the default), `--start` / `--end`, `--channel`, `--rail`, `--relief`, `--leaf`, `--leaf-pitch`,
-`--stroke`, `--no-vein` as the `artwork` command - `SolitaireSpec.panels` and the artwork numbers,
+`--stroke`, `--no-vein`, `--leaf-tip head|shank` (default head: the reference ring's leaves point at the
+head; `scroll-leaves` puts a volute at the head end of a leaf row, as its side faces) as the `artwork`
+command - `SolitaireSpec.panels` and the artwork numbers,
 `SolitaireSpec.artwork` the `ArtworkSpec` over the shank. The band is carved before anything joins it
 (the channel edges stay crisp, the relief is never rounded), so each panel's head end is held back
 (`panel_start_min_deg`): past the arches' wedge + 1° (inside it the arch fills the band's faces from
@@ -176,44 +178,32 @@ run's notes and names the `--finger-clear` that would clear it (0.75 on the Sera
 Stem `..._art_<id>`; `<stem>.cut.stl` / `.relief.stl` in the run directory, delivered with the part.
 
 **Shoulder knots** (`--shoulder-knot trinity`; `ntopjewel.ornament.KnotOrnament`): a closed Celtic trinity
-knot standing on the band's outer face on each shoulder, between the head and the panels, as the
-Seraphine's - the trefoil φ = 2t, ρ = R (1 + c cos 3t) about a point on the band's mid-line, one lobe
-pointing down the shank, the weave solved by `knotwork.interlace` and the ribbon lying on the face
-(its underside 0.1 inside it) under the bore law, lifting by thickness − fuse only to pass over itself
-(ramp 1.0 mm: a shorter one bent the sweep tighter than the ribbon's half-thickness and folded it).
-`--knot-width` (default the band's + 1.2: the lobes overhang the band, as ring 01's), `--strand-width`
-(ribbon 0.7), `--knot-thickness` (0.5), `--knot-at` (its centre from the top; default just past the
-head, `KNOT_HEAD_CLEAR_DEG` beyond `head_clear_deg`). Each knot is cut into two pieces between its
+knot standing on the band's outer face on each shoulder, tucked under the head as the Seraphine's - the
+trefoil φ = 2t, ρ = R (1 + c cos 3t) about a point on the band's mid-line, its lone lobe pointing at the
+head (`--knot-point head|shank`; the other two spread across the band below it), the weave solved by
+`knotwork.interlace` and the ribbon lying on the face (its underside 0.1 inside it) under the bore law,
+lifting by thickness − fuse only to pass over itself (ramp 1.0 mm: a shorter one bent the sweep tighter
+than the ribbon's half-thickness and folded it). `--knot-width` (default the band's + `OVERHANG_MM` 0.8,
+lobe edge to lobe edge: about 1.3 x the band, as the reference ring's), `--strand-width` (ribbon 0.6; 0.7
+closed the lobes to 0.22 mm at that width), `--knot-thickness` (0.5), `--knot-at` (its centre from the
+top; default the span begins at `knot_clear_deg`: the head's and the seat cutter's reach along the ring
+**at the band's face**, between the face and the knot's top - `head_face_reach_mm`, less than the full
+reach since the prong tips splay above - plus `KNOT_HEAD_CLEAR_MM` 0.2, so the shank blend melts the
+apex into the head's base: 16.8°-36.3° on the Seraphine). Each knot is cut into two pieces between its
 third/fourth and sixth/first passes, so each holds one pass of every crossing; both knots' first pieces
 go in `<stem>.knot.stl`, the seconds in `<stem>.knot2.stl` (`Knot Path` / `Knot Path 2`, catalogs
 0.10.0 / 0.6.0: pieces that cross each other never share a mesh), each read back and refused if it
 crosses itself; nTop unites them with the carved band (`nj.add_carved`'s union) after its opening - the
 ribbon's rounds are its own. Buried specks when there are no knots. Plain shoulders only (`--no-arches`),
-a flat outer face, a plain band; the panels are held back `PANEL_KNOT_CLEAR_DEG` past the knots'
-span. `validate` wants three open lobes at least 0.3 mm wide and the bore law to come down before the
-next under pass. Gate: `knot ribbon` / `knot surround` probes (a grid over the knot's footprint and the
-band beside it, cast on the built ring and the design alike), the section check sits the knots' span
-out, the wall sample skips it. Stem `..._art_knot_<id>`.
-
-**Shoulder knots** (`--shoulder-knot trinity`; `ntopjewel.ornament.KnotOrnament`): a closed Celtic trinity
-knot standing on the band's outer face on each shoulder, between the head and the panels, as the
-Seraphine's - the trefoil φ = 2t, ρ = R (1 + c cos 3t) about a point on the band's mid-line, one lobe
-pointing down the shank, the weave solved by `knotwork.interlace` and the ribbon lying on the face
-(its underside 0.1 inside it) under the bore law, lifting by thickness − fuse only to pass over itself
-(ramp 1.0 mm: a shorter one bent the sweep tighter than the ribbon's half-thickness and folded it).
-`--knot-width` (default the band's + 1.2: the lobes overhang the band, as ring 01's), `--strand-width`
-(ribbon 0.7), `--knot-thickness` (0.5), `--knot-at` (its centre from the top; default just past the
-head, `KNOT_HEAD_CLEAR_DEG` beyond `head_clear_deg`). Each knot is cut into two pieces between its
-third/fourth and sixth/first passes, so each holds one pass of every crossing; both knots' first pieces
-go in `<stem>.knot.stl`, the seconds in `<stem>.knot2.stl` (`Knot Path` / `Knot Path 2`, catalogs
-0.10.0 / 0.6.0: pieces that cross each other never share a mesh), each read back and refused if it
-crosses itself; nTop unites them with the carved band (`nj.add_carved`'s union) after its opening - the
-ribbon's rounds are its own. Buried specks when there are no knots. Plain shoulders only (`--no-arches`),
-a flat outer face, a plain band; the panels are held back `PANEL_KNOT_CLEAR_DEG` past the knots'
-span. `validate` wants three open lobes at least 0.3 mm wide and the bore law to come down before the
-next under pass. Gate: `knot ribbon` / `knot surround` probes (a grid over the knot's footprint and the
-band beside it, cast on the built ring and the design alike), the section check sits the knots' span
-out, the wall sample skips it. Stem `..._art_knot_<id>`.
+a flat outer face, a plain band. The panels: an outer-face panel is held back `PANEL_KNOT_CLEAR_DEG`
+past the knots' span (37.3° on the Seraphine); the side-face panels run on under the knots' overhang
+from `head_clear_deg` (25° there), as the reference ring's leaf rows do (`panel_start_min_deg(face)`).
+`validate` wants three open lobes at least 0.3 mm wide and the bore law to come down before the next
+under pass. Gate: `knot ribbon` / `knot surround` probes (a grid over the knot's footprint and the band
+beside it, cast on the built ring and the design alike), the section check sits the knots' span out,
+the wall sample skips it. Stem `..._art_knot_<id>`. Built PASSED in nTop 2026-11-03 (one shell + 1
+speck, 310/310 ribbon probes, volume −0.10 %) in the first placement; the photo comparison then moved
+the knot under the head and turned it - values only, no rebuild.
 
 Band options are the `band` ones (`--width` is the band's; the stone's are `--stone-width`,
 `--stone-depth`). `--finger-clear` (default 0.6 mm, never under the wall floor) is the metal

@@ -186,7 +186,7 @@ def test_the_trinity_ornament_weaves_lies_on_the_face_and_splits_into_clean_piec
     import trimesh
     from ntopjewel import geom, ornament, shank
     o = ornament.KnotOrnament(shank.ShankSpec(flat()), at_deg=32.0)
-    assert o.validate() == [] and o.width == pytest.approx(4.0) and 0.8 < o.radius < 1.5
+    assert o.validate() == [] and o.width == pytest.approx(2.8 + ornament.OVERHANG_MM) and 0.8 < o.radius < 1.5
     lace = o.lace(1)
     assert len(lace.crossings) == 3 and lace.over[0] == [True, False, True, False, True, False]   # alternating round the loop
     assert len(o.footprint(1).interiors) == 4                                      # three lobes and the middle open
@@ -209,22 +209,32 @@ def test_the_trinity_ornament_weaves_lies_on_the_face_and_splits_into_clean_piec
     assert any("domed" in q for q in ornament.KnotOrnament(shank.ShankSpec(court)).validate())
 
 
-def test_knots_sit_past_the_head_and_push_the_panels_on():
+def test_knots_sit_past_the_head_and_push_the_outer_panel_on():
     s = knotted()
     assert s.validate() == []
     lo, hi = s.ornament.span_deg()
-    assert lo == pytest.approx(s.head_clear_deg() + solitaire.KNOT_HEAD_CLEAR_DEG, abs=0.05)
-    assert s.panel_start_min_deg() == pytest.approx(hi + solitaire.PANEL_KNOT_CLEAR_DEG, abs=0.05)
-    assert all(p.start_deg == s.panel_start_min_deg() for p in s.placed_panels())
-    assert "_art_knot_" in s.stem and s.design()["shoulder_knot"]["kind"] == "trinity"
+    assert lo == pytest.approx(s.knot_clear_deg(), abs=0.05) and s.knot_clear_deg() < s.head_clear_deg()   # tucked under the head: its
+    assert 2.0 < s.head_face_reach_mm() < s.head_half_length()                       # reach at the face, not the prong tips'
+    assert s.panel_start_min_deg("outer") == pytest.approx(hi + solitaire.PANEL_KNOT_CLEAR_DEG, abs=0.05)
+    assert s.panel_start_min_deg("side+") == s.head_clear_deg() < s.panel_start_min_deg("outer")   # the sides run on under the knot
+    starts = {p.face: p.start_deg for p in s.placed_panels()}
+    assert starts["outer"] > starts["side+"] == starts["side-"] == 25.0            # the side panels keep their 25°
+    assert "_art_knot_" in s.stem and s.design()["shoulder_knot"]["kind"] == "trinity" and s.design()["shoulder_knot"]["point"] == "head"
     v = s.notebook_inputs("E", "O", knot_paths=("K", "K2"))
     assert list(v) == list(catalog.load("solitaire").inputs)
     assert any("plain shoulders" in q for q in knotted(cathedral=True).validate())
-    assert any("inside the head" in q for q in knotted(knot_at_deg=20.0).validate())
-    late = knotted(knot_at_deg=50.0)
-    assert late.validate() == [] and late.ornament.at_deg == 50.0 and late.panel_start_min_deg() > 60.0
+    assert any("inside the head" in q for q in knotted(knot_at_deg=12.0).validate())
+    late = knotted(knot_at_deg=52.0)
+    assert late.validate() == [] and late.ornament.at_deg == 52.0 and late.panel_start_min_deg("outer") > 60.0
     free = late.free_angles()
     assert 61.37 not in free and 91.37 in free                                     # the knot's span sits the section check out
+    # the knot's lone lobe points at the head: the +Y knot's nearest point to the top lies on the band's mid-line
+    import numpy as np
+    pts = s.ornament.strand(1).points
+    assert abs(pts[np.argmin(pts[:, 0]), 1]) < 0.05
+    turned = knotted(knot_point="shank")
+    pts = turned.ornament.strand(1).points
+    assert abs(pts[np.argmax(pts[:, 0]), 1]) < 0.05 and turned.stem != s.stem
 
 
 def test_knotted_design_passes_its_gate_and_a_lost_knot_layer_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
@@ -261,4 +271,26 @@ def test_cli_knotted_solitaire_dry_run(capsys):
             "--sides", "leaves", "--outer", "scroll", "--shoulder-knot", "trinity", "--dry-run"]
     assert cli.main(args) == 0
     out = capsys.readouterr().out
-    assert "trinity knot on each shoulder" in out and "past the knots" in out and "Knot Path 2: <knot path 2>" in out
+    assert "trinity knot on each shoulder" in out and "head and the knots" in out and "Knot Path 2: <knot path 2>" in out
+
+
+def test_the_leaves_point_at_the_head_and_a_scroll_leads_the_side_rows(tmp_path):
+    from shapely.geometry import box
+    a = seraphine().artwork
+    side = [q for q in a.panels if q.face == "side+"][0]
+    leaf = a.motif(side)[0]["poly"]
+    x0, y0, x1, y1 = leaf.bounds
+    head_end = leaf.intersection(box(x0, y0, x0 + 0.1 * (x1 - x0), y1)).area
+    far_end = leaf.intersection(box(x1 - 0.1 * (x1 - x0), y0, x1, y1)).area
+    assert head_end < far_end                                                      # the narrow tip towards u = 0, the head
+    away = artwork.ArtworkSpec(a.shank, a.panels, leaf_tip="shank")
+    leaf2 = away.motif(away.panels[1])[0]["poly"]
+    assert leaf2.bounds[0] == pytest.approx(x0, abs=1e-6) and leaf2.bounds[2] == pytest.approx(x1, abs=1e-6)
+    assert leaf2.intersection(box(x0, y0, x0 + 0.1 * (x1 - x0), y1)).area > head_end
+    assert any("leaf tips" in q for q in artwork.ArtworkSpec(a.shank, a.panels, leaf_tip="up").validate())
+    s = seraphine(panels=artwork.seraphine_panels(25.0, 120.0, outer="scroll", sides="scroll-leaves"), shoulder_knot="trinity")
+    assert s.validate() == []
+    sp = s.artwork.motif([q for q in s.artwork.panels if q.face == "side+"][0])
+    assert len(sp) >= 5 and sp[0]["poly"].bounds[2] < sp[1]["poly"].bounds[0]      # the volute, then the leaves
+    assert "a volute at the head end, then" in s.describe()
+    cut, relief = s.write_artwork(tmp_path, "t")                                   # the layers stay clean

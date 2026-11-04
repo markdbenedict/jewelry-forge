@@ -55,8 +55,8 @@ HEAD_ANGLE_DEG = 90.0
 KNOT_PAD_CLEAR_MM = 0.5          # a knot solitaire: the band's nose tip lies this far beyond the head's feet along the ring
 PANEL_HEAD_CLEAR_MM = 0.5        # artwork on plain shoulders: a panel starts this far past the head's reach + the shank blend
 PANEL_WEDGE_CLEAR_DEG = 1.0      # ... or this far past the arches' wedge
-KNOT_HEAD_CLEAR_DEG = 0.5        # a shoulder knot begins this far past the head's clearance ...
-PANEL_KNOT_CLEAR_DEG = 1.0       # ... and a panel this far past the knot
+KNOT_HEAD_CLEAR_MM = 0.2         # a shoulder knot begins this far past the head's metal at the band's face (it tucks under the head) ...
+PANEL_KNOT_CLEAR_DEG = 1.0       # ... and an outer-face panel this far past the knot
 HEAD_ZONE_PAD_DEG = 5.0          # the bore under the head: the head's reach along the ring, plus this
 BLEND_BORE_BULGE = 0.2           # the smooth union may bulge the bore under the head by this fraction of the shank blend
                                  # where the head's metal lies within the blend of it (0.12 of 0.3 at a 0.22 mm gap, 2026-11-03)
@@ -98,8 +98,10 @@ class SolitaireSpec:
     shoulder_knot: str = ""                 # a knot ornament on each shoulder: "trinity" (ornament.KINDS), or none
     knot_at_deg: float = 0.0                # its centre from the top; 0 = just past the head
     knot_width_mm: float = 0.0              # across the band, lobe edge to lobe edge; 0 = the band's width + 1.2
-    knot_ribbon_mm: float = 0.7
+    knot_ribbon_mm: float = 0.6
     knot_thickness_mm: float = 0.5
+    knot_point: str = "head"                # the knot's lone lobe points at the head (ornament.POINTS_AT)
+    leaf_tip: str = "head"                  # the leaf rows' tips point at the head (artwork.LEAF_TIPS)
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self):
@@ -150,11 +152,12 @@ class SolitaireSpec:
             self._cache["head_clear"] = round(deg, 2)
         return self._cache["head_clear"]
 
-    def panel_start_min_deg(self) -> float:
-        """Where a panel may begin: past the head and the arches (head_clear_deg), and past the
-        shoulder knots by PANEL_KNOT_CLEAR_DEG when there are any."""
+    def panel_start_min_deg(self, face: str = "outer") -> float:
+        """Where a panel on `face` may begin: past the head and the arches (head_clear_deg); an
+        outer-face panel also past the shoulder knots by PANEL_KNOT_CLEAR_DEG (the knots stand on the
+        outer face; the side faces run on under their overhang, as the reference ring's leaves do)."""
         lo = self.head_clear_deg()
-        if self.has_knot:
+        if self.has_knot and face == "outer":
             lo = max(lo, round(self.ornament.span_deg()[1] + PANEL_KNOT_CLEAR_DEG, 2))
         return lo
 
@@ -163,20 +166,50 @@ class SolitaireSpec:
     def has_knot(self) -> bool:
         return bool(self.shoulder_knot)
 
+    def head_face_reach_mm(self) -> float:
+        """How far the placed head's metal and its seat cutter reach along the ring at the band's
+        face - between the face and the knot's top (head frame z from outer radius - girdle radius
+        up by the knot's height + 0.2): what a knot standing on the face must clear. Less than the
+        head's full reach (the prong tips splay above)."""
+        import numpy as np
+        key = ("face_reach", round(self.knot_thickness_mm, 3))
+        if key not in self._cache:
+            ph = self.placed_head
+            m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
+            cutter = geom.offset_convex(self.head.seat.envelope(), self.head.clearance)
+            z_lo = self.band.outer_radius_mm - 0.3 - self.girdle_radius
+            z_hi = z_lo + 0.3 + 2 * self.knot_thickness_mm + 0.2
+            reach = 0.0
+            for v in (m.vertices, cutter.vertices):
+                band_ = v[(v[:, 2] >= z_lo) & (v[:, 2] <= z_hi)]
+                if len(band_):
+                    reach = max(reach, float(np.abs(band_[:, 1]).max()))
+            self._cache[key] = reach
+        return self._cache[key]
+
+    def knot_clear_deg(self) -> float:
+        """Where a shoulder knot may begin, from the top: the head's reach at the face plus
+        KNOT_HEAD_CLEAR_MM, at the outer radius (the shank blend then melts the knot's apex into
+        the head's base, as the reference ring's)."""
+        if self.arches:
+            return self.head_clear_deg()
+        ro = self.band.outer_radius_mm
+        return round(math.degrees(math.asin(min(1.0, self.head_face_reach_mm() / ro))) + math.degrees(KNOT_HEAD_CLEAR_MM / ro), 2)
+
     @property
     def ornament(self) -> "ornmod.KnotOrnament | None":
         """The shoulder knots (ornament.KnotOrnament over shank_spec): centred where knot_at_deg says,
-        or just past the head (its span begins KNOT_HEAD_CLEAR_DEG past head_clear_deg)."""
+        or just past the head (its span begins at knot_clear_deg)."""
         if not self.has_knot:
             return None
         if "ornament" not in self._cache:
             kw = dict(kind=self.shoulder_knot, width_mm=self.knot_width_mm, ribbon_mm=self.knot_ribbon_mm,
-                      thickness_mm=self.knot_thickness_mm)
+                      thickness_mm=self.knot_thickness_mm, point=self.knot_point)
             at = float(self.knot_at_deg)
             if not at:
                 probe = ornmod.KnotOrnament(self.shank_spec, at_deg=90.0, **kw)         # the span is the same anywhere
                 lo, hi = probe.span_deg()
-                at = round(self.head_clear_deg() + KNOT_HEAD_CLEAR_DEG + (90.0 - lo), 2)
+                at = round(self.knot_clear_deg() + (90.0 - lo), 2)
             self._cache["ornament"] = ornmod.KnotOrnament(self.shank_spec, at_deg=at, **kw)
         return self._cache["ornament"]
 
@@ -192,10 +225,9 @@ class SolitaireSpec:
         return str(paths[0]), str(paths[1])
 
     def placed_panels(self) -> list:
-        """The panels as they go on this ring: each one's head end held back to panel_start_min_deg."""
+        """The panels as they go on this ring: each one's head end held back to panel_start_min_deg(face)."""
         from dataclasses import replace
-        lo = self.panel_start_min_deg()
-        return [replace(p, start_deg=max(float(p.start_deg), lo)) for p in self.panels]
+        return [replace(p, start_deg=max(float(p.start_deg), self.panel_start_min_deg(p.face))) for p in self.panels]
 
     @property
     def artwork(self) -> "artmod.ArtworkSpec | None":
@@ -205,7 +237,8 @@ class SolitaireSpec:
         if "artwork" not in self._cache:
             self._cache["artwork"] = artmod.ArtworkSpec(self.shank_spec, self.placed_panels(), channel_mm=self.channel_mm,
                                                         rail_mm=self.rail_mm, relief_mm=self.relief_mm, leaf_mm=self.leaf_mm,
-                                                        leaf_pitch=self.leaf_pitch, stroke_mm=self.stroke_mm, vein=self.vein)
+                                                        leaf_pitch=self.leaf_pitch, stroke_mm=self.stroke_mm, vein=self.vein,
+                                                        leaf_tip=self.leaf_tip)
         return self._cache["artwork"]
 
     def write_artwork(self, directory: Path, stem: str) -> tuple[str, str]:
@@ -699,13 +732,13 @@ class SolitaireSpec:
             else:
                 p += [q for q in self.ornament.validate() if q not in p]
                 lo, hi = self.ornament.span_deg()
-                if lo < self.head_clear_deg():
-                    p.append(f"the knot begins at {lo:.1f}°, inside the head's clearance ({self.head_clear_deg():g}°): --knot-at later")
+                if lo < self.knot_clear_deg() - 0.01:
+                    p.append(f"the knot begins at {lo:.1f}°, inside the head's metal at the face ({self.knot_clear_deg():g}°): --knot-at later")
         if self.has_artwork and not p:
             art = self.artwork
             p += [q for q in art.validate() if q not in p]
-            lo = self.panel_start_min_deg()
             for q, placed in zip(self.panels, art.panels):
+                lo = self.panel_start_min_deg(q.face)
                 if placed.end_deg <= lo:
                     p.append(f"panel {q.face}: ends at {q.end_deg:g}°, inside the {'arches' if self.arches else 'head'} "
                              f"(a panel may begin at {lo:g}° at the earliest)")
@@ -777,8 +810,8 @@ class SolitaireSpec:
                    f"{self.engrave_depth_mm} mm deep, centred opposite the head" if self.has_engraving else "")
                 + f"\n  blends: head {self.placed_head.blend:g} mm, head into shank {self.shank_blend:g} mm"
                 + (f"\n  {self.ornament.describe()}" if self.has_knot else "")
-                + (f"\n  artwork (panels begin at {self.panel_start_min_deg():g}° at the earliest, past the "
-                   f"{'arches' if self.arches else ('knots' if self.has_knot else 'head')}):\n"
+                + (f"\n  artwork (panels begin at {self.panel_start_min_deg('side+'):g}° (sides) / {self.panel_start_min_deg('outer'):g}° (outer) "
+                   f"at the earliest, past the {'arches' if self.arches else ('head and the knots' if self.has_knot else 'head')}):\n"
                    + "\n".join("  " + line for line in self.artwork.describe().splitlines()[1:])
                    if self.has_artwork else ""))
 

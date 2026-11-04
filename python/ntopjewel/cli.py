@@ -171,6 +171,7 @@ def _add_artwork_args(p: argparse.ArgumentParser, sides: str, outer: str) -> Non
     p.add_argument("--leaf-pitch", type=float, default=1.3, help="leaf to leaf, in leaf lengths")
     p.add_argument("--stroke", type=float, default=0.3, help="a vine's or volute's stroke width, mm")
     p.add_argument("--no-vein", action="store_true", help="leaves without the vein groove")
+    p.add_argument("--leaf-tip", default="head", choices=list(artwork.LEAF_TIPS), help="which way a leaf row's tips point (default head)")
 
 
 def _add_taper_args(p: argparse.ArgumentParser) -> None:
@@ -452,8 +453,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                                    cathedral=not a.no_arches, panels=panels, channel_mm=a.channel, rail_mm=a.rail,
                                    relief_mm=a.relief, leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke,
                                    vein=not a.no_vein, shoulder_knot=a.shoulder_knot or "", knot_at_deg=a.knot_at,
-                                   knot_width_mm=a.knot_width or 0.0, knot_ribbon_mm=a.strand_width or 0.7,
-                                   knot_thickness_mm=a.knot_thickness or 0.5)
+                                   knot_width_mm=a.knot_width or 0.0, knot_ribbon_mm=a.strand_width or 0.6,
+                                   knot_thickness_mm=a.knot_thickness or 0.5, knot_point=a.knot_point, leaf_tip=a.leaf_tip)
     probs = spec.validate()
     if probs:
         print("solitaire: problems: " + "; ".join(probs))
@@ -528,7 +529,7 @@ def cmd_artwork(a: argparse.Namespace) -> int:
     b = _band_spec(a)
     panels = artwork.seraphine_panels(a.start, a.end, outer=a.outer, sides=a.sides)
     spec = artwork.ArtworkSpec(shank.ShankSpec(b), panels, channel_mm=a.channel, rail_mm=a.rail, relief_mm=a.relief,
-                               leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke, vein=not a.no_vein)
+                               leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke, vein=not a.no_vein, leaf_tip=a.leaf_tip)
     if a.dry_run:
         probs = spec.validate()
         print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
@@ -998,6 +999,7 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--shoulder-knot", choices=list(ornament.KINDS), help="a knot ornament standing on each shoulder between the head and "
                     "the panels (plain shoulders; --knot-width, --strand-width and --knot-thickness size it)")
     so.add_argument("--knot-at", type=float, default=0.0, help="--shoulder-knot: the knot's centre from the top, degrees (default: just past the head)")
+    so.add_argument("--knot-point", default="head", choices=list(ornament.POINTS_AT), help="--shoulder-knot: where its lone lobe points (default head)")
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

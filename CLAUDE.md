@@ -368,10 +368,10 @@ python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickne
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot under the head, through the arches (Slot Path)
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: the knots take the arches' place
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # the Seraphine: artwork panels carved into the band under the head, plain shoulders
-python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll --shoulder-knot trinity   # ... with a trinity knot standing on each shoulder between the head and the panels
+python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity   # ... the Seraphine proper: a trinity knot tucked under the head on each shoulder (apex at the head, 1.3 x the band), a volute then leaves (tips to the head) on the sides, the scroll outside past the knot
 python -m ntopjewel pave --size 6 --stone 1.3 --rows 2 --span 120     # a pavé band: rows of stones in seats with light holes, held by beads (out\pave; --eternity, --layout aligned)
 python -m ntopjewel multistone --shape cushion --length 7 --stone-width 6 --side-shape pear --side-length 6 --side-width 4   # ring 05: a centre + side stones, pears pointing in (out\multistone; --side-pairs 2 for five)
-python -m ntopjewel artwork --size 6 --sides leaves --outer vine     # artwork in relief in sunk panels: leaf rows on the side faces, a vine (scroll: with a volute at the head end) outside, 25°-120° from the top (out\artwork)
+python -m ntopjewel artwork --size 6 --sides leaves --outer vine     # artwork in relief in sunk panels: leaf rows on the side faces (tips to the head; --leaf-tip shank; scroll-leaves: a volute first), a vine (scroll: with a volute at the head end) outside, 25°-120° from the top (out\artwork)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests

@@ -37,7 +37,8 @@ from pathlib import Path
 from . import band, catalog, config, gate, geom, ntopcl, runs, tables
 from . import shank as shankmod
 
-MOTIFS = ("leaves", "vine", "scroll", "volute", "plain")
+MOTIFS = ("leaves", "scroll-leaves", "vine", "scroll", "volute", "plain")
+LEAF_TIPS = ("head", "shank")  # which way a leaf row's tips point (the reference ring's: at the head)
 FACES = ("outer", "side+", "side-")
 PLUG_MM = 0.1                 # relief bodies sink this far into the channel floor
 SPECK_MM = 0.2                # the no-op relief: a cube this size buried in the band (buried_speck)
@@ -84,18 +85,35 @@ def _move_seg(seg: tuple, angle_deg: float, du: float, dv: float) -> tuple:
     return (rot(a), rot(b), w)
 
 
-def motif_leaves(length_u: float, width_v: float, leaf: float, pitch: float, vein: bool) -> list[dict]:
-    """A row of leaves along the panel, pointing away from the head, each {'poly', 'groove'}."""
-    from shapely.affinity import translate
+def motif_leaves(length_u: float, width_v: float, leaf: float, pitch: float, vein: bool, tip: str = "head",
+                 u_from: float = 0.0) -> list[dict]:
+    """A row of leaves along the panel from `u_from` to its end, each {'poly', 'veins'}, their tips
+    pointing at the head (`tip` "head": towards u = 0) or away from it."""
+    from shapely.affinity import rotate, translate
     out = []
-    n = int(math.floor((length_u - leaf) / pitch + 1e-9)) + 1
-    slack = (length_u - leaf - (n - 1) * pitch) / 2                    # centred in the panel
+    span = length_u - u_from
+    n = int(math.floor((span - leaf) / pitch + 1e-9)) + 1
+    if n < 1:
+        return out
+    slack = (span - leaf - (n - 1) * pitch) / 2                        # centred in the run
     width = min(width_v, 0.85 * leaf)
     for k in range(n):
-        u0 = slack + k * pitch
-        poly = translate(leaf_polygon(leaf, width), u0, 0.0)
-        out.append({"poly": poly, "veins": [_move_seg(leaf_vein(leaf), 0.0, u0, 0.0)] if vein else []})
+        u0 = u_from + slack + k * pitch
+        poly, veins = leaf_polygon(leaf, width), [leaf_vein(leaf)] if vein else []
+        if tip == "head":                                              # turned about the leaf's middle: the tip to -u
+            poly = rotate(poly, 180.0, origin=(leaf / 2, 0.0))
+            veins = [_move_seg(v, 180.0, leaf, 0.0) for v in veins]
+        out.append({"poly": translate(poly, u0, 0.0), "veins": [_move_seg(v, 0.0, u0, 0.0) for v in veins]})
     return out
+
+
+def motif_scroll_leaves(length_u: float, width_v: float, stroke: float, leaf: float, pitch: float, vein: bool,
+                        tip: str = "head") -> list[dict]:
+    """A volute the channel's width at the head end, then the leaf row running on from it (the
+    reference ring's side faces)."""
+    R = width_v / 2 - stroke / 2                                        # motif_volute's spiral: u from stroke/2 to 2R + stroke/2
+    scroll = motif_volute(2 * R + stroke - 0.01, width_v, stroke)       # the spiral alone (no tail: the run is too short for one)
+    return scroll + motif_leaves(length_u, width_v, leaf, pitch, vein, tip, u_from=2 * R + stroke + 0.3)
 
 
 def _spiral(turns: float, r0: float, r1: float, n: int = 90):
@@ -496,6 +514,7 @@ class ArtworkSpec:
     leaf_pitch: float = 1.3       # leaf to leaf, in leaf lengths
     stroke_mm: float = 0.3        # a vine's or volute's stroke
     vein: bool = True
+    leaf_tip: str = "head"        # a leaf row's tips point at the head (LEAF_TIPS), as the reference ring's
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     # ---- numbers ---------------------------------------------------------------------------
@@ -551,7 +570,10 @@ class ArtworkSpec:
             w, Lu = self.channel_width(p.face), self.panel_length(p)
             if p.motif == "leaves":
                 leaf = self.leaf_length(p.face)
-                m = motif_leaves(Lu - 0.3, w - 0.2, leaf, self.leaf_pitch * leaf, self.vein)
+                m = motif_leaves(Lu - 0.3, w - 0.2, leaf, self.leaf_pitch * leaf, self.vein, self.leaf_tip)
+            elif p.motif == "scroll-leaves":
+                leaf = self.leaf_length(p.face)
+                m = motif_scroll_leaves(Lu - 0.3, w - 0.2, self.stroke_mm, leaf, self.leaf_pitch * leaf, self.vein, self.leaf_tip)
             elif p.motif in ("vine", "scroll"):
                 leaf = min(0.8 * self.leaf_length(p.face), 0.45 * (w - 0.2))
                 m = motif_vine(Lu - 0.3, w - 0.2, self.stroke_mm, leaf, self.vein, volute=p.motif == "scroll")
@@ -708,7 +730,7 @@ class ArtworkSpec:
         """The artwork's own numbers (the panels and every dimension), without the shank's."""
         return {"panels": [asdict(p) for p in self.panels], "channel": self.channel_mm, "rail": self.rail_mm,
                 "relief": self.relief_mm, "leaf": self.leaf_mm, "leaf_pitch": self.leaf_pitch, "stroke": self.stroke_mm,
-                "vein": self.vein, "vein_width": VEIN_WIDTH_MM, "vein_depth": VEIN_DEPTH_MM}
+                "vein": self.vein, "leaf_tip": self.leaf_tip, "vein_width": VEIN_WIDTH_MM, "vein_depth": VEIN_DEPTH_MM}
 
     def design(self) -> dict:
         d = self.shank.design()
@@ -743,6 +765,8 @@ class ArtworkSpec:
                 p.append(f"face {q.face!r}: one of {', '.join(FACES)}")
             if q.motif not in MOTIFS:
                 p.append(f"motif {q.motif!r}: one of {', '.join(MOTIFS)}")
+        if self.leaf_tip not in LEAF_TIPS:
+            p.append(f"leaf tips {self.leaf_tip!r}: one of {', '.join(LEAF_TIPS)}")
             if not 0.0 <= q.start_deg < q.end_deg <= 180.0:
                 p.append(f"panel {q.face}: angles {q.start_deg:g}..{q.end_deg:g} must run 0..180° from the top")
         if p:
@@ -796,8 +820,9 @@ class ArtworkSpec:
         lines = [f"{self.stem}: {b.label}, inner Ø {b.inner_diameter_mm:.3f}, {b.profile} {b.width_mm:g} x {b.thickness_mm:g} mm"]
         for q in self.panels:
             n = len(self.motif(q))
-            what = {"leaves": f"{n} leaves of {self.leaf_length(q.face):.2f} mm", "vine": "a vine scroll with leaves",
-                    "scroll": "a volute at the head end running into a vine with leaves",
+            what = {"leaves": f"{n} leaves of {self.leaf_length(q.face):.2f} mm, tips at the {self.leaf_tip}",
+                    "scroll-leaves": f"a volute at the head end, then {n - 1} leaves of {self.leaf_length(q.face):.2f} mm, tips at the {self.leaf_tip}",
+                    "vine": "a vine scroll with leaves", "scroll": "a volute at the head end running into a vine with leaves",
                     "volute": "a volute", "plain": "nothing (a sunk channel)"}[q.motif]
             lines.append(f"  {q.face} face: a channel {self.channel_width(q.face):.2f} wide x {self.channel_mm:g} deep from "
                          f"{q.start_deg:g}° to {q.end_deg:g}° ({self.panel_length(q):.1f} mm){' each side' if q.mirror else ''}, "
