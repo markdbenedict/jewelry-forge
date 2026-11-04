@@ -383,8 +383,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    102/106: the four probes between the head and the knot read the smooth union's 0.25 mm fillet round
    the upper rail's foot, which the knot's apex is placed to melt into; the surround window now begins
    past the head's reach + the shank blend (`knot_face_from_mm`), and every probe check names where its
-   worst probe lies. *Re-run pending:* `solitaire --profile flat --width 2.8 --thickness 2 --prongs 4
-   --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity`. **Still missing for the Seraphine:** double-claw prong tips
+   worst probe lies. **Re-run 05:47: PASSED** (`solitaire --profile flat --width 2.8 --thickness 2
+   --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity`; surround 48/48) -
+   the knotted Seraphine is a gated part. Rendered from the nTop STL as a turntable movie with an emerald
+   (`out\blender\seraphine\seraphine_emerald_turntable.blend` / `.mp4`: the ring and stone copies under a
+   `Turntable` empty spinning one turn in 144 frames at 24 fps, Principled glass IOR 1.577 with volume
+   absorption for the green, the sweep at 0.3 roughness, H.264 from Blender's FFmpeg output - note Blender
+   5.2 wants `image_settings.media_type = "VIDEO"` before `file_format = "FFMPEG"`; ~8.5 s a frame on the
+   5070 Ti at 1080p / 128 samples). **Still missing for the Seraphine:** double-claw prong tips
    and the heart-shaped gallery (6).)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the
