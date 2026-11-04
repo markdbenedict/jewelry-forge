@@ -104,3 +104,72 @@ def test_cli_artwork_solitaire_dry_run(capsys):
     assert "plain shoulders" in out and "volute at the head end" in out and "leaves of" in out and "Relief Path: <relief path>" in out
     assert cli.main(["solitaire", "--sides", "leaves", "--outer", "vine", "--dry-run"]) == 1   # the default court band: refused, with why
     assert "stand proud" in capsys.readouterr().out
+
+
+def test_the_section_window_inside_a_panel_is_the_bands_core():
+    from shapely.geometry import box
+    a = seraphine().artwork
+    b = a.band
+    assert a.section_clip(181.37) is None                                        # outside the panels: the whole section
+    w = a.section_clip(91.37)                                                    # inside: below every channel floor
+    assert w.equals(box(b.bore_radius_mm - 1.0, -(b.width_mm / 2 - a.channel_mm - artwork.CORE_CLIP_MM),
+                        b.outer_radius_mm - a.channel_mm - artwork.CORE_CLIP_MM, b.width_mm / 2 - a.channel_mm - artwork.CORE_CLIP_MM))
+    only_outer = artwork.ArtworkSpec(a.shank, [artwork.Panel("outer", "vine", 25.0, 120.0)])
+    w = only_outer.section_clip(91.37)
+    assert w.bounds[3] > b.width_mm / 2 and w.bounds[2] == pytest.approx(b.outer_radius_mm - a.channel_mm - artwork.CORE_CLIP_MM)
+
+
+def test_a_relief_edge_on_the_section_plane_no_longer_fails_the_section_check(tmp_path):
+    """2026-11-03, the real Seraphine run: 0.243 mm at 91° with every built point within 0.008 of the
+    design - the plane cut a leaf's edge in the design and missed it in the built mesh. The
+    relief is the probes' business; the section check compares the core."""
+    import numpy as np
+    import trimesh
+    from ntopjewel import gate
+    s = seraphine()
+    design = solitaire.design_mesh(s)
+    # the built ring: the design with one side leaf shaved by a hundredth along the ring, as the mesher blurs it
+    built = design.copy()
+    v = built.vertices.copy()
+    th = np.degrees(np.arctan2(v[:, 1], v[:, 0]))
+    relief = (np.abs(v[:, 2]) > s.band.width_mm / 2 - s.channel_mm + 0.01) & (np.abs(th - 91.37) < 1.0)
+    v[relief] = (trimesh.transformations.rotation_matrix(np.radians(0.08), [0, 0, 1])[:3, :3] @ v[relief].T).T
+    built.vertices = v
+    art = s.artwork
+    clipped = gate.section_shape_check(built, art.gate_section, angles=[91.37], tol_mm=art.section_tolerance, clip=art.section_clip)
+    assert clipped.ok, clipped.detail
+    # and the window still sees the core: the bore pushed in by 0.1 mm at that angle fails it
+    v2 = built.vertices.copy()
+    core = (np.hypot(v2[:, 0], v2[:, 1]) < s.band.bore_radius_mm + 0.01) & (np.abs(th - 91.37) < 3.0)
+    v2[core, :2] *= (s.band.bore_radius_mm - 0.1) / s.band.bore_radius_mm
+    built.vertices = v2
+    assert not gate.section_shape_check(built, art.gate_section, angles=[91.37], tol_mm=art.section_tolerance, clip=art.section_clip).ok
+
+
+def test_the_bore_under_the_head_allows_the_shank_blends_bulge(tmp_path):
+    """2026-11-03: nTop's smooth union bulged the flat band's bore 36 µm inward under the head, where
+    the lower rail runs 0.2 mm above it - a court band's comfort relief had hidden the same thing."""
+    import numpy as np
+    s = seraphine(shank_blend_mm=0.3)
+    assert s.head_bore_gap() == pytest.approx(0.2, abs=0.02) and "within the 0.3 mm shank blend" in s.blend_bore_note()
+    assert seraphine(finger_clear_mm=0.75).blend_bore_note() is None
+    m = solitaire.design_mesh(s).copy()                                           # sharp: the pseudo-blend's square fill
+    v = m.vertices.copy()                                                          # itself stands into the bore
+    r, th = np.hypot(v[:, 0], v[:, 1]), np.degrees(np.arctan2(v[:, 1], v[:, 0]))
+    bore = s.band.bore_radius_mm
+    bulge = (r < bore + 0.01) & (np.abs(th) < 10.0)
+    v[bulge, :2] *= (bore - 0.04) / bore                                           # 40 µm in, under the head only
+    m.vertices = v
+    m.export(tmp_path / "r.stl")
+    rep = solitaire.check_solitaire(s, tmp_path / "r.stl", float(m.volume))
+    by = {c.name: c for c in rep.checks}
+    assert by["bore"].ok and by["bore under the head"].ok and "blend's bulge" in by["bore under the head"].detail
+    v[bulge, :2] *= (bore - 0.12) / (bore - 0.04)                                 # 120 µm: more than any blend explains
+    m.vertices = v
+    m.export(tmp_path / "r2.stl")
+    rep = solitaire.check_solitaire(s, tmp_path / "r2.stl", float(m.volume))
+    by = {c.name: c for c in rep.checks}
+    assert by["bore"].ok and not by["bore under the head"].ok
+    sharp = seraphine()                                                            # a sharp join allows nothing extra
+    rep = solitaire.check_solitaire(sharp, tmp_path / "r.stl", float(m.volume))
+    assert not {c.name: c for c in rep.checks}["bore under the head"].ok

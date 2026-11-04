@@ -358,7 +358,12 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    was the arch stub buried under the head with `--no-arches`: two cylinders 4° apart whose
    intersection on this band was a 0.11 mm lens, which the flat band's 0.1 mm erosion all but emptied
    before the mesh round trip (the knot ring's edge round of 0 had hidden it); now one stub sized to
-   the band. Rerun pending.
+   the band. **Second attempt (17:17): nTopCL 51 s, one shell, no self-intersection warning, volume
+   −0.09 %, all 3,364 panel probes in place** - and two gate failures of the gate's own making: the
+   section at 91° (a leaf edge on the section plane; the check now compares the band's core inside a
+   panel) and the bore under the head (the shank blend's 36 µm bulge where the lower rail runs 0.2 mm
+   above a flat band's bore; now measured apart with the blend's allowance). The STL re-gated PASSED
+   here; the run itself to be repeated for the record.
    **Still missing for the Seraphine:** the knots standing on a continuous band beside the head (ours are
    woven from a split), double-claw prongs and the heart gallery (6).)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.

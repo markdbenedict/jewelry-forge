@@ -283,7 +283,15 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   opening the union of the band and its arches grew a 0.07 mm layer over the arch feet, where
   the arch dome lies on the band's dome. The gate's **section shape** check (the built outline
   at 12 angles against the designed 2-D section, Hausdorff within 0.03 mm or half the mesh
-  tolerance) is what catches an edge left sharp; a design-volume tolerance did not.
+  tolerance) is what catches an edge left sharp; a design-volume tolerance did not. Inside an
+  artwork panel it compares only the band's core below the channel floors (`section_clip`): a
+  relief edge lying on the section plane read as the relief's whole height (0.243 mm at 91° on the
+  Seraphine solitaire, every built point within 0.008 of the design, 2026-11-03); the panel probes
+  cover the relief. **A smooth union bulges a surface that another body's metal approaches within
+  the blend radius**: the solitaire's lower rail 0.2 mm above a flat band's bore pushed the bore
+  36 µm inward under the head (2026-11-03; a court band's comfort relief had kept its rail away),
+  so the solitaire's `bore` check measures outside the head's zone and `bore under the head` allows
+  `BLEND_BORE_BULGE` x the shank blend, with a note naming the `--finger-clear` that would clear it.
 - Bad inputs fail at **build** time: check `block_state(id)["buildState"]` is `e_OK`
   (`e_FAILED` carries `error`); do not trust a call that returned without raising.
 - `new_notebook()` discards the open notebook; `save_notebook_as` / `export_as_recipe`

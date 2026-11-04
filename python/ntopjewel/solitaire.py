@@ -51,6 +51,9 @@ HEAD_ANGLE_DEG = 90.0
 KNOT_PAD_CLEAR_MM = 0.5          # a knot solitaire: the band's nose tip lies this far beyond the head's feet along the ring
 PANEL_HEAD_CLEAR_MM = 0.5        # artwork on plain shoulders: a panel starts this far past the head's reach + the shank blend
 PANEL_WEDGE_CLEAR_DEG = 1.0      # ... or this far past the arches' wedge
+HEAD_ZONE_PAD_DEG = 5.0          # the bore under the head: the head's reach along the ring, plus this
+BLEND_BORE_BULGE = 0.2           # the smooth union may bulge the bore under the head by this fraction of the shank blend
+                                 # where the head's metal lies within the blend of it (0.12 of 0.3 at a 0.22 mm gap, 2026-11-03)
 BURIED_ARCH_RADIUS_MM = 0.7      # arches off: the stub buried under the head is at most this fat (and 0.1 inside the band's faces)
 BURIED_ARCH_MARGIN_MM = 0.1      # ... this far inside the bore and the outer face
 WEDGE_EXTRA_DEG = 2.0           # the arch is cut 2° past its tangent ray (it departs from the band by < 0.01 mm there)
@@ -454,9 +457,35 @@ class SolitaireSpec:
     def head_half_length(self) -> float:
         """How far the placed head reaches along the ring at all (the head frame's y)."""
         import numpy as np
-        ph = self.placed_head
-        m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
-        return float(np.abs(m.vertices[:, 1]).max())
+        if "head_half_length" not in self._cache:
+            ph = self.placed_head
+            m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
+            self._cache["head_half_length"] = float(np.abs(m.vertices[:, 1]).max())
+        return self._cache["head_half_length"]
+
+    def head_zone_deg(self) -> float:
+        """The angle either side of the head within which the head's metal (and the shank blend) can
+        touch the bore: its reach along the ring at the bore radius, plus HEAD_ZONE_PAD_DEG."""
+        return round(math.degrees(math.asin(min(1.0, self.head_half_length() / self.band.bore_radius_mm))) + HEAD_ZONE_PAD_DEG, 2)
+
+    def head_bore_gap(self) -> float:
+        """The placed head's lowest metal above the bore: the lower rail's underside (round) or the
+        head's floor (outline, bezel). Within the shank blend of the bore, the smooth union bulges
+        the bore under the head (36 µm on the flat Seraphine band at a 0.2 mm gap, 2026-11-03;
+        a court band's comfort relief had kept the rail away from its bore)."""
+        if self.floored:
+            low = self.girdle_radius + self.placed_head.lowest_z()
+        else:
+            low = self.girdle_radius + self.placed_head.layout()["z_base"] - self.head.rail_rho
+        return round(low - self.band.bore_radius_mm, 4)
+
+    def blend_bore_note(self) -> str | None:
+        gap = self.head_bore_gap()
+        if self.shank_blend > 0 and gap < self.shank_blend:
+            return (f"the head's lowest metal runs {gap:.2f} mm above the bore, within the {self.shank_blend:g} mm shank blend: the "
+                    f"smooth union bulges the bore under the head by a few hundredths (the gate allows {BLEND_BORE_BULGE * self.shank_blend:.3f} "
+                    f"on the radius there); --finger-clear {self.finger_clear + self.shank_blend - gap + 0.05:.2f} would clear it")
+        return None
 
     @property
     def engraving_wrap_length(self) -> float:
@@ -901,12 +930,23 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     def section_tol(a):
         return art.section_tolerance(a) if art is not None and art.in_panel(a) else sh.section_tolerance(a)
     rep = gate.check(stl, expect_volume=ntop_vol, wall_floor=sh.wall_floor(), wall_ray_filter=shank_rays,
-                     section_design=shank_section, section_tol_mm=section_tol)
+                     section_design=shank_section, section_tol_mm=section_tol,
+                     section_clip=art.section_clip if art is not None else None)
     ring = gate.load_mesh(stl)
     r = np.hypot(ring.vertices[:, 0], ring.vertices[:, 1])
-    bore = 2 * float(r.min())
+    th = np.degrees(np.arctan2(ring.vertices[:, 1], ring.vertices[:, 0]))
+    zone = spec.head_zone_deg()
+    under = np.abs(th) <= zone
+    bore = 2 * float(r[~under].min())
     rep.checks.append(gate.Check("bore", abs(bore - b.inner_diameter_mm) <= 0.05,
-                                 f"Ø {bore:.3f} vs {b.inner_diameter_mm:.3f} mm (about the ring axis)"))
+                                 f"Ø {bore:.3f} vs {b.inner_diameter_mm:.3f} mm (about the ring axis, outside ±{zone:g}° of the head)"))
+    # under the head the shank blend may bulge the bore inward where the head's metal lies within its
+    # radius; wider there is the design (a split's slot, a comfort relief at the halves' edges)
+    bore_head = 2 * float(r[under].min()) if under.any() else bore
+    allow = 0.05 + 2 * BLEND_BORE_BULGE * spec.shank_blend
+    rep.checks.append(gate.Check("bore under the head", b.inner_diameter_mm - bore_head <= allow,
+                                 f"Ø {bore_head:.3f} vs {b.inner_diameter_mm:.3f} mm within ±{zone:g}° (Δ {bore_head - b.inner_diameter_mm:+.3f}, "
+                                 f"at most {allow:.3f} under" + (f": the {spec.shank_blend:g} mm shank blend's bulge" if spec.shank_blend > 0 else "") + ")"))
     z_ray = (spec.shank.split_mm / 2 + 0.3) if spec.split else 0.0          # a split shank: through a half, not the slot
     hits, _, _ = ring.ray.intersects_location([[0.0, 0.0, z_ray]], [[1.0, 0.0, 0.0]], multiple_hits=False)
     first = float(np.hypot(hits[0][0], hits[0][1])) if len(hits) else float("inf")
@@ -1072,6 +1112,8 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     res.notes.append(f"stone {stone.carats():.2f} ct {stone.material}; metal " +
                      ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))
     res.notes += (spec.artwork.warnings() if spec.has_artwork else spec.band.warnings()) + built_notes
+    if spec.blend_bore_note():
+        res.notes.append(spec.blend_bore_note())
     report = {"stem": spec.stem, "spec_id": runs.spec_id(spec.design()), "run_id": run_id, "status": res.status,
               "design": spec.design(), "inputs": inputs, "stl": str(stl), "cut": cut, "relief": relief,
               "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notes": res.notes,

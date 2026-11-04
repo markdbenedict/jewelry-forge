@@ -147,7 +147,9 @@ wide, and the wall sampler skips every panelled face's channel zone (a ray throu
 channel read 0.35 mm). Mesh Tolerance 0.05.
 
 Gate (`artwork.check_artwork`): the band's checks with the panels' zones out of the wall sample and
-the section shape through the panels against the design's, the design volume, and three probe checks
+the section shape through the panels against the design's **core** (`section_clip`: below the channel
+floors - a relief edge lying on a section plane read as the relief's whole height on the Seraphine
+solitaire, 2026-11-03; the probes see to the relief), the design volume, and three probe checks
 cast identically on the built ring and the design - `channel floors`, `relief`, `rails` - on a 0.25 mm
 grid over every panel (points within 0.12 mm of a motif's edge skipped). A notebook that never cut
 the channels fails floors and volume; one that lost the relief fails `relief`.

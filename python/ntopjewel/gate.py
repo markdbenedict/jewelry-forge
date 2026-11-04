@@ -306,11 +306,12 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
           wall_floor: float = tables.FLOORS["wall_marginal"], wall_samples: int = 4000,
           axis: str | None = None, metals=tables.DEFAULT_WEIGHT_METALS,
           write_report: bool = True, wall_abs_axis_max: float | None = None, wall_ray_filter=None,
-          centre: str = "bbox", section_design=None, section_tol_mm=None) -> GateReport:
+          centre: str = "bbox", section_design=None, section_tol_mm=None, section_clip=None) -> GateReport:
     """The generic gate. `section_design(theta_deg)` -> the designed cross-section at that angle as
     a shapely geometry in (r, z) (None to skip the angle) adds the section-shape check
     (section_shape_check) at SHAPE_ANGLES_DEG, within `section_tol_mm` (a number or a function of
-    the angle; default SHAPE_TOL_MM)."""
+    the angle; default SHAPE_TOL_MM); `section_clip(theta_deg)` -> a geometry both sections are
+    clipped to first (None: the whole section)."""
     path = Path(path)
     mesh = load_mesh(path)
     rep = GateReport(path=str(path), triangles=int(len(mesh.faces)), vertices=int(len(mesh.vertices)))
@@ -372,7 +373,7 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
         pct = 100.0 * (rep.volume_mm3 - expect_volume) / expect_volume
         c.append(Check("volume", abs(pct) <= tol_volume_pct, f"{rep.volume_mm3:.2f} vs {expect_volume:.2f} mm³ ({pct:+.2f}%)"))
     if section_design is not None and ax is not None:
-        c.append(section_shape_check(mesh, section_design, tol_mm=section_tol_mm or SHAPE_TOL_MM, axis=ax))
+        c.append(section_shape_check(mesh, section_design, tol_mm=section_tol_mm or SHAPE_TOL_MM, axis=ax, clip=section_clip))
 
     if write_report:
         path.with_suffix(".gate.json").write_text(json.dumps(rep.to_dict(), indent=2), encoding="utf-8")
@@ -413,15 +414,19 @@ def section_geometry(mesh: trimesh.Trimesh, theta_deg: float, axis: int = 2):
 
 
 def section_shape_check(mesh: trimesh.Trimesh, design, angles=SHAPE_ANGLES_DEG, tol_mm=SHAPE_TOL_MM,
-                        axis: int = 2, name: str = "section shape") -> Check:
+                        axis: int = 2, name: str = "section shape", clip=None) -> Check:
     """The built section against the designed one at several angles: the Hausdorff distance
     between the two outlines (shapely, densified), at most `tol_mm` everywhere - a number, or a
     function of the angle (a knot's creases fill fuller than a plain band's). `design(theta)`
-    returns the designed section as a shapely geometry in (r, z), or None to skip that angle. A
-    corner the notebook left sharp where a round was designed stands off the fillet (0.065 mm on
-    a court band's 0.25 mm round: the real court band built while nTop's opening was a no-op read
-    0.049 against its opened section and 0.020 against the unopened one, 2026-10-30), a missing
-    strand or a filled slot far more; a wrong wrap length stretches every section."""
+    returns the designed section as a shapely geometry in (r, z), or None to skip that angle;
+    `clip(theta)` a geometry both sections are cut down to before the comparison, or None (a
+    relief's edge lying on the section plane reads as the relief's whole height when the mesher
+    blurs it by a hundredth: inside an artwork panel only the band's core is compared, the
+    probes see to the relief; 2026-11-03). A corner the notebook left sharp where a round was
+    designed stands off the fillet (0.065 mm on a court band's 0.25 mm round: the real court
+    band built while nTop's opening was a no-op read 0.049 against its opened section and 0.020
+    against the unopened one, 2026-10-30), a missing strand or a filled slot far more; a wrong
+    wrap length stretches every section."""
     import shapely
     tol_at = tol_mm if callable(tol_mm) else (lambda a: tol_mm)
     worst = (-1.0, None, "", 0.0, 0.0)                                      # by how far over its tolerance
@@ -434,6 +439,11 @@ def section_shape_check(mesh: trimesh.Trimesh, design, angles=SHAPE_ANGLES_DEG, 
         got = section_geometry(mesh, a, axis)
         if got is None or got.is_empty:
             return incomplete(name, f"no section at {a:.0f}°: the cut through the axis met nothing there")
+        window = clip(a) if clip is not None else None
+        if window is not None:
+            got, want = got.intersection(window), want.intersection(window)
+            if got.is_empty or want.is_empty:
+                return incomplete(name, f"nothing of the section at {a:.0f}° inside its comparison window")
         d = float(shapely.hausdorff_distance(got.boundary, want.boundary, densify=0.1))
         tol = float(tol_at(a))
         checked += 1

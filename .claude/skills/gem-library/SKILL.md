@@ -163,8 +163,15 @@ the 6.5 mm round 4-prong on the 2.8 x 2.0 flat band, so the Seraphine's panels f
 moved. A panel ending inside that is refused, as is an outside engraving with an outer panel, and the
 artwork's own rules apply (a court band's domed outer face refuses the relief: flat bands). The gate
 adds `channel floors` / `relief` / `rails`, keeps the channel zones out of the wall sample, compares
-the section shape inside the panels against the carved band (`artwork.gate_section`) and uses the
-carved band as the independent shank (`carved_shank_mesh`, design volume and blend estimate alike).
+the section shape inside the panels against the carved band's core (`artwork.gate_section` within
+`artwork.section_clip`: below the channel floors - a relief edge on the section plane read as the
+relief's height, 2026-11-03) and uses the carved band as the independent shank (`carved_shank_mesh`,
+design volume and blend estimate alike). The `bore` check measures outside the head's zone
+(`head_zone_deg`: its reach along the ring + 5°) and `bore under the head` within it, allowing
+`BLEND_BORE_BULGE` (0.2) x the shank blend on the radius: nTop's smooth union bulges the bore where
+the head's lowest metal runs within the blend of it (36 µm with the lower rail 0.2 mm above the flat
+band's bore; a court band's comfort relief keeps its rail away). `blend_bore_note` says so in the
+run's notes and names the `--finger-clear` that would clear it (0.75 on the Seraphine).
 Stem `..._art_<id>`; `<stem>.cut.stl` / `.relief.stl` in the run directory, delivered with the part.
 
 Band options are the `band` ones (`--width` is the band's; the stone's are `--stone-width`,

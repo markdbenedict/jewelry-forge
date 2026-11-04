@@ -47,6 +47,7 @@ VEIN_DEPTH_MM = 0.12
 PROBE_MM = 0.25               # the gate's probe grid over a panel
 PROBE_MARGIN_MM = 0.12        # probes this close to a motif's edge are skipped (the mesher's blur)
 RAIL_MIN_MM = 0.3             # a rail (a lip on a solid band, not a wall) must be at least this wide to cast
+CORE_CLIP_MM = 0.03           # the section-shape window inside a panel stops this far under the channel floors
 
 
 def setting(name: str, default: float) -> float:
@@ -823,6 +824,31 @@ class ArtworkSpec:
         t = self.shank.section_tolerance(theta_deg)
         return max(t, float(self.band.mesh_tolerance_mm)) if self.in_panel(theta_deg) else t
 
+    def section_clip(self, theta_deg: float):
+        """The window the section-shape check compares inside a panel: the band's core below the
+        channel floors (CORE_CLIP_MM under each floor, so the floor's own blur is out too) - the
+        bore and the band between the channels. The relief and the rails are the probes' business:
+        a leaf's edge lying on the section plane read as the leaf's whole height (0.243 mm at 91°
+        on the Seraphine solitaire, every built point within 0.008 of the design; 2026-11-03).
+        None outside the panels (the whole section)."""
+        from shapely.geometry import box
+        if not self.in_panel(theta_deg):
+            return None
+        b = self.band
+        a = (float(theta_deg) + 180.0) % 360.0 - 180.0
+        r_hi, z_lo, z_hi = b.outer_radius_mm + 1.0, -(b.width_mm / 2 + 1.0), b.width_mm / 2 + 1.0
+        for q in self.panels:
+            for s in self.copies(q):
+                if not (q.start_deg - 3.0 <= s * a <= q.end_deg + 3.0):
+                    continue
+                if q.face == "outer":
+                    r_hi = min(r_hi, b.outer_radius_mm - self.channel_mm - CORE_CLIP_MM)
+                elif q.face == "side+":
+                    z_hi = min(z_hi, b.width_mm / 2 - self.channel_mm - CORE_CLIP_MM)
+                else:
+                    z_lo = max(z_lo, -(b.width_mm / 2 - self.channel_mm - CORE_CLIP_MM))
+        return box(b.bore_radius_mm - 1.0, z_lo, r_hi, z_hi)
+
     def wall_ray_filter(self):
         """Drops sample points in the channel zone of every panelled face - the channel's floor, walls
         and relief AND the rails beside it, the whole depth of the channel across the face: a rail is a
@@ -947,7 +973,7 @@ def check_artwork(spec: ArtworkSpec, stl: Path, ntop_vol: float | None) -> gate.
     rep = gate.check(stl, expect_inner=b.inner_diameter_mm, expect_outer=2 * spec.shank.outer_radius_mm,
                      expect_width=spec.shank.overall_width_mm, expect_volume=ntop_vol, wall_floor=spec.shank.wall_floor(),
                      centre="origin", wall_ray_filter=spec.wall_ray_filter(),
-                     section_design=spec.gate_section, section_tol_mm=spec.section_tolerance)
+                     section_design=spec.gate_section, section_tol_mm=spec.section_tolerance, section_clip=spec.section_clip)
     c = band.design_volume_check(spec.expected_volume_mm3(), ntop_vol, 2.0)
     rounded, overcut = spec.shank.sharp_edge_round_mm3(), spec.shank.opening_overcut_mm3()
     if (rounded or overcut) and c.status != gate.INCOMPLETE:
