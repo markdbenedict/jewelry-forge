@@ -431,6 +431,19 @@ offline: every recipe built on the fake before and after gives the same blocks, 
 inputs and Output in all 17 notebooks (geometry unchanged, so no `rebuild_since` bump). *Real check
 pending:* rebuild all 13 recipes; the `sections` line, or a `layout` note with the real signatures of
 `add_section` / `move_block` / `set_block_comment` if 6.3.3 refuses them; commit the files it names.
+*Real check (12:40):* all 13 built; `add_section` and the comments worked, `move_block` refused a section id
+(6.3.3 moves a block next to another block), so the sections switched off after their first variable -
+fixed (variables go next to a block already in the section).
+
+Then (13:04) items 4-6: (4) each multistone slot one placement - Combine Transforms of spin, quarter-turn
+and turn - for the head and its seat (97 -> 62 blocks), the list order measured in nTop by
+`transform_probe` (`ntop/api_facts.json`) since nTop's docs do not state it; (5) the gothic arch its +y
+half ∩ the half's mirror, the -y bead rows the +y rows' mirror (Mirror Body across y = 0): four inputs
+gone, solitaire 0.11.0 / outline and bezel 0.7.0, the model's arch and bead volumes identical to the µm;
+(6) the `open_bar` library block - one bar imported and opened by the edge round - one instance per bar
+slot in every shank runner (ring_shank 29 -> 9 blocks, pave_band / ring_artwork 35 -> 15, the solitaires
+95 -> 63). *Real check pending:* `api build transform_probe` (both facts settled, file written), `api build
+open_bar`, then the seven shank runners; a solitaire and the ruby multistone re-run PASSED.
 
 ## Next acceptance milestone — the Phase 1 gate
 

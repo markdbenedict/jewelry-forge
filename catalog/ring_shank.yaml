@@ -5,8 +5,8 @@
 # Cylindrical Body (Y mapping length = Wrap Length, one turn). Built by ntop/recipes/ring_shank.py
 # through the Notebook API. Verify names: python -m ntopjewel templates ntop/notebooks/ring_shank.ntop --catalog ring_shank
 notebook: ring_shank.ntop
-version: 0.3.1   # 0.3.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); .3: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook (api build ring_shank)
-rebuild_since: 0.3.1   # the notebook body changed then (each bar opened before the union): a notebook built for an older version is refused (runs.require_built)
+version: 0.3.2   # 0.3.2: each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.3.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); .3: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook (api build ring_shank)
+rebuild_since: 0.3.2   # the notebook body changed then (each bar opened before the union): a notebook built for an older version is refused (runs.require_built)
 title: Shaped shank (tapered width and thickness) from wrapped bars
 output:
   name: Volume

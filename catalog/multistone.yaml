@@ -6,8 +6,8 @@
 # rest of the ring; no-op specks without). Built by ntop/recipes/multistone.py.
 # Verify names: python -m ntopjewel templates ntop/notebooks/multistone.ntop --catalog multistone
 notebook: multistone.ntop
-version: 0.2.0   # 0.1.0: first build (2026-11-03); 0.2.0: Pave Beads Path / Pave Seats Path (2026-11-04)
-rebuild_since: 0.2.0
+version: 0.2.1   # 0.2.1: one combined transform per head and seat, each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.1.0: first build (2026-11-03); 0.2.0: Pave Beads Path / Pave Seats Path (2026-11-04)
+rebuild_since: 0.2.1
 title: Multi-stone ring - centre and side stones in outline heads on a shank
 output:
   name: Volume

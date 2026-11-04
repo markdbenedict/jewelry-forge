@@ -140,7 +140,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   each other overlap by a 0.1 mm plug, never share a face. The simulated nTop unites the wrapped
   bars in the ring frame (`shank.bars_from_inputs`). Verified 2026-11-02: the trinity shank, the
   trinity solitaire and the plait all built in one shell.
-- **Open each bar on its own, then unite** (`nj.add_wrapped_shank`): a Boolean Union's field is the
+- **Open each bar on its own, then unite** (`nj.add_wrapped_shank`, one `open_bar` block per bar): a Boolean Union's field is the
   minimum of its bodies' fields, so inside an overlap it measures to a body's buried face, and the
   opening's erosion cut a 0.05 mm groove along a split's seam all round the bottom (2026-11-02,
   the halves' overlap wedge). Same rule as the arches: open apart, unite afterwards. **And bodies
@@ -271,12 +271,27 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   `Head 3 On Ring`, `Band Eroded` / `Band Re-distanced`). **A runner notebook reads as an outline**: blocks go
   into named sections (`with h.section("Shank"):`), `h.comment` notes why a junction is where it is (the
   opening, seats cut after the blended join), and `finish` collapses every section but the last. Block
-  notebooks get no sections (nothing untried in a custom block). Sections and comments are layout only:
-  `add_section`, `move_block`, `set_block_comment`, `collapse_section` are in the API but their 6.3.3
-  argument lists are unverified, so every call is guarded - the first refusal is logged with the method's
-  real signature (`api:` lines in the build's log) and the build carries on without them. The refactor was
-  checked by building every recipe on the fake before and after and comparing the graphs: the same blocks,
-  wiring, list order, inputs and Output in all 17 notebooks.
+  notebooks get no sections (nothing untried in a custom block). Sections and comments are layout only,
+  and every call is guarded (a refusal is logged and the build carries on without them). 6.3.3's real
+  signatures (logged 2026-11-04): `add_section(section_name, before_section_id='') -> dict`, `add_block(ident,
+  section_id)`, `set_block_comment(block_id, block_comment)`, `collapse_section(section_id='')`, and
+  **`move_block(block_id, targetBlockId, placeBefore=False)` moves a block NEXT TO another block** - a section
+  id there is 'No block with the id "section_3"'. Variables (made outside any section) are therefore moved
+  after the last block placed in the section, or before its first block while it is empty (`Helper.place`).
+- **Shank bars are opened by the `open_bar` library block** (2026-11-04, `ntop/blocks/open_bar.ntop`: Bar
+  Path, Edge Round Inward, Edge Round, Mesh Tolerance -> Opened Bar; import, -e, re-distance, +e inside):
+  every runner with a shank embeds it once and places one per bar slot (`add_wrapped_shank(..., opener=)`),
+  six blocks per bar become one. Rebuild the runners after changing it (`api build open_bar` first).
+- **Combine Transforms' list order is measured, not assumed**: nTop's block page does not say which end of
+  the list applies first, and multistone's heads land by it. `api build transform_probe` measures it (and
+  that Mirror Body across a Plane - Origin, X axis, Y axis - lands where it should) in the session and writes
+  `ntop/api_facts.json` (committed); `Helper.combine(label, [first, second, ...])` lays the list out to match
+  and refuses, naming the probe, without the file. Each multistone slot is one placement (spin, quarter-turn,
+  turn) for the head and its seat.
+- **A symmetric body is a half and its mirror** (`Helper.mirror`, `nb_solitaire.mirror_plane`: the plane y = 0):
+  the gothic arch is its +y half ∩ the half's mirror, the -y bead rows the +y rows' mirror - so the "Minus"
+  inputs are gone (solitaire 0.11.0). The independent model builds the same (arch and bead volumes identical
+  to the µm before and after, 2026-11-04). The knots are not mirrored in nTop: Python writes them.
 - **Blends**: Boolean Union / Intersect take `Blend Radius` (a `real_field`: wire a `core.var<real>`,
   `nj.wire_blend`); the Blend Type enum stays at nTop's default. A smooth union fills every corner two
   surfaces make within its radius, so **the seat and the engraving are subtracted after the blended
@@ -327,6 +342,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `ntop/blocks/` | Custom-block notebooks (`.ntop`), the library; nTop's My Blocks folder points here |
 | `ntop/notebooks/` | Automate-ready runner notebooks, one per product family |
 | `ntop/packages/` | `manifest.json` + README per block, nTop community-package layout |
+| `ntop/api_facts.json` | What `transform_probe` measured in nTop (Combine Transforms' order, Mirror Body); the recipes read it |
 | `ntop/ntop-beta-feedback.md` | What the Notebook API beta did and did not do for us, for nTop |
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
@@ -358,6 +374,8 @@ python -m ntopjewel api build outline_head                           # ntop\bloc
 python -m ntopjewel api build solitaire_outline                      # ntop\notebooks\solitaire_outline.ntop: the solitaire with the outline head (pear ...)
 python -m ntopjewel api build bezel_head                             # ntop\blocks\bezel_head.ntop (wall + cup round any outline, light windows) + its harness
 python -m ntopjewel api build solitaire_bezel                        # ntop\notebooks\solitaire_bezel.ntop: the solitaire with the bezel
+python -m ntopjewel api build transform_probe                        # measures Combine Transforms' list order + Mirror Body in the session -> ntop\api_facts.json (commit it)
+python -m ntopjewel api build open_bar                               # ntop\blocks\open_bar.ntop (one bar imported + opened by the edge round) + its harness; every shank runner embeds it
 python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bars Python writes, united in nTop (prepare() writes the test bar)
 python -m ntopjewel api build pave_band                              # ntop\notebooks\pave_band.ntop: the shank + the seats and beads Python writes, (shank ∪ beads) − seats
 python -m ntopjewel api build multistone                             # ntop\notebooks\multistone.ntop: five outline-head slots spun, placed and turned round the shank (embeds stone_seat + outline_head), pavé beads and seats round the rest

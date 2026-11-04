@@ -49,7 +49,7 @@ DEFAULTS = {
     "test_output": str(REPO / "out" / "api" / "pave_band_test.stl"),
     "save_to": str(REPO / "ntop" / "notebooks" / "pave_band.ntop"),
     "recipe_to": str(REPO / "ntop" / "recipes" / "pave_band.recipe.json"),
-    "pause": True,
+    "pause": False,                     # embeds the open_bar block: no paused updates
     "fresh": True,
     "wait_s": 300,
     "show": ["Ring Body"],
@@ -75,7 +75,8 @@ def _body(h, p, values, test_output):
     out_var = nj.path_variable(h, "Output Path", test_output)
     with h.section("Shank"):
         shank_body = h.wrap_var("Shank Body", nj.add_wrapped_shank(h, [ids[n] for n in SLOT_NAMES], ids["Wrap Length"],
-                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))
+                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"],
+                                                                   opener=h.embed_block(p["open_bar_block"])))
     with h.section("Pavé"):
         beads = h.import_body("Pave Beads", ids["Pave Beads Path"])
         seats = h.import_body("Pave Seats", ids["Pave Seats Path"])
@@ -91,4 +92,4 @@ def _body(h, p, values, test_output):
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build pave_band`; see the module docstring."""
-    return nj.standard_build(notebook, params, DEFAULTS, _body, "pave_band")
+    return nj.standard_build(notebook, params, DEFAULTS, _body, "pave_band", blocks=("open_bar_block",))

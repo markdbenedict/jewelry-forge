@@ -1,5 +1,6 @@
 """The one-line verdicts, the `runs` table, and the guard against running a notebook older than its catalog."""
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -62,11 +63,12 @@ def test_a_notebook_older_than_its_catalog_is_refused(tmp_path, monkeypatch):
     nb = tmp_path / "ring_shank.ntop"
     nb.write_bytes(b"built at 14:52")
     cat = catalog.load("ring_shank")
-    assert cat.notebook == nb and cat.rebuild_since == "0.3.1"
+    assert cat.notebook == nb and cat.rebuild_since >= "0.3.1"
     with pytest.raises(ValueError, match="no build stamp.*api build ring_shank"):
         runs.require_built(cat, nb)
     runs.build_stamp_path(nb).write_text(json.dumps({"sha256": runs.sha256(nb), "catalogs": {"ring_shank": "0.3.0"}}))
-    with pytest.raises(ValueError, match="built for ring_shank 0.3.0; the catalog is 0.3.1 and its notebook changed in 0.3.1"):
+    with pytest.raises(ValueError, match=re.escape(f"built for ring_shank 0.3.0; the catalog is {cat.version} and its notebook "
+                                                  f"changed in {cat.rebuild_since}")):
         runs.require_built(cat, nb)
     stamp = runs.write_build_stamp(nb, {"ring_shank": cat.version})            # what `api build` does after saving
     assert stamp["catalogs"] == {"ring_shank": cat.version} and runs.require_built(cat, nb) == []

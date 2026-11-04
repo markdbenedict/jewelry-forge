@@ -226,6 +226,20 @@ Windows 11 laptops, Python per nTop's bundled console.
 - Workaround: the models emulate the chamfer (`tables.opening_chamfer_voxels`, calibrated 1.0);
   bodies are opened one at a time and united afterwards.
 
+### 2026-11-04 — `move_block` moves next to a block, not into a section; Combine Transforms' order undocumented
+- Call: `notebook.move_block(variable_id, "section_3")` after `add_section("Shank")` returned `section_3`.
+- Happened: `No block with the id "section_3" exists in the notebook.` The real signature is
+  `move_block(block_id, targetBlockId, placeBefore=False)` (inspect, 6.3.3); `add_block(ident, section_id)`
+  does take a section, but `add_real_variable` / `add_variable` take none, so a variable can only reach a
+  section by being moved next to a block already in it. `add_section(section_name, before_section_id='')`,
+  `set_block_comment(block_id, block_comment)` and `collapse_section(section_id='')` worked.
+- Expected: a way to put any block or variable in a section by id (`move_block_to_section`), or a
+  `section_id` on the variable calls.
+- Workaround: `Helper.place` moves each variable after the section's last block (or before its first).
+- Also: Combine Transforms' page says nothing about which end of its list applies first; we measure it
+  (`ntop/recipes/transform_probe.py`) and record it in `ntop/api_facts.json`. A sentence in the block doc
+  would do.
+
 Template:
 
 ```

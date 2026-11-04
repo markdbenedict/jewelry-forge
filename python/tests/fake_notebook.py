@@ -55,6 +55,10 @@ SIGNATURES = {
     "rotation_transform<point,vector,real>": ("Rotation Transform", [("Origin", "point"), ("Axis", "vector"), ("Angle", "real")], "transformation"),
     "transform_object<spatial3d,transformation>[1.1.0]": ("Transform Object", [("Object", "spatial3d"), ("Transformation", "transformation")], "implicit"),
     "transform_object<spatial3d,transformation>": ("Transform Object", [("Object", "spatial3d"), ("Transformation", "transformation")], "implicit"),
+    "combine_transforms<list<transformation>>": ("Combine Transforms", [("Transforms", "list<transformation>")], "transformation"),
+    "translation_transform<vector>": ("Translation Transform", [("Translation", "vector")], "transformation"),
+    "mirror_body<implicit,plane>": ("Mirror Body", [("Body", "implicit"), ("Plane", "plane")], "implicit"),
+    "plane<point,vector,vector>": ("Plane", [("Origin", "point"), ("X axis", "vector"), ("Y axis", "vector")], "plane"),
     "core.var<real>": ("Scalar Variable", [("Input", "real")], "real"),
     "core.var<text>": ("Text Variable", [("Input", "text")], "text"),
     "core.var<file_path>": ("File Path Variable", [("Input", "file_path")], "file_path"),
@@ -117,7 +121,8 @@ class FakeNotebook:
 
     # sections and comments (Notebook API v0.14 names; nTop 6.3.3's argument lists unverified - the helper
     # logs the real signatures and carries on without sections when a call is refused)
-    def add_section(self, name: str):
+    def add_section(self, section_name: str, before_section_id: str = ""):
+        name = section_name
         sid = f"section_{len(self.sections) + 2}"
         self.sections.append({"name": name, "id": sid})
         return {"name": name, "id": sid}
@@ -127,18 +132,23 @@ class FakeNotebook:
             raise ValueError(f"no section with id '{section_id}'")
         return section_id
 
-    def move_block(self, block_id: str, section_id: str):
+    def move_block(self, block_id: str, targetBlockId: str, placeBefore: bool = False):
+        """6.3.3: moves `block_id` next to `targetBlockId` (into that block's section); a section id
+        is refused like a missing block (2026-11-04)."""
         self._resolve(block_id)
-        self.section_of[block_id] = self._section(section_id)
+        if targetBlockId not in self.blocks and targetBlockId not in self.variables:
+            raise ValueError(f'No block with the id "{targetBlockId}" exists in the notebook.')
+        self.section_of[block_id] = self.section_of.get(targetBlockId, self.sections[0]["id"])
+        return {"id": block_id}
 
-    def set_block_comment(self, block_id: str, comment: str):
+    def set_block_comment(self, block_id: str, block_comment: str):
         self._resolve(block_id)
-        self.comments[block_id] = str(comment)
+        self.comments[block_id] = str(block_comment)
 
     def get_block_comment(self, block_id: str) -> str:
         return self.comments.get(block_id, "")
 
-    def collapse_section(self, section_id: str):
+    def collapse_section(self, section_id: str = ""):
         self.collapsed.append(self._section(section_id))
 
     def list_blocks(self, section_id: str = ""):

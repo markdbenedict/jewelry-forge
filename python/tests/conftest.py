@@ -92,3 +92,37 @@ def features_notebook(tmp_path) -> Path:
     nb = tmp_path / "ring_features.ntop"
     nb.write_bytes(b"fake notebook")
     return nb
+
+
+@pytest.fixture(scope="session")
+def fake_open_bar(tmp_path_factory) -> Path:
+    """The open_bar library block as the fake notebook saves it, built once per session: every
+    runner with a shank embeds it (ntop/recipes/open_bar.py)."""
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    d = tmp_path_factory.mktemp("open_bar")
+    mod = load_recipe("open_bar")
+    params = mod.prepare({}, d)
+    params.update({"save_to": str(d / "open_bar_harness.ntop"), "recipe_to": str(d / "ob.json"),
+                   "test_output": str(d / "ob.stl"), "block_to": str(d / "open_bar.ntop"),
+                   "block_recipe_to": str(d / "ob.block.json")})
+    mod.build(FakeNotebook(), params)
+    return d / "open_bar.ntop"
+
+
+@pytest.fixture(autouse=True)
+def _open_bar_block_default(monkeypatch, fake_open_bar):
+    """Runners built on the fake find the fake open_bar block where they would find ntop/blocks/open_bar.ntop."""
+    from ntopjewel import nb_jewel
+    monkeypatch.setitem(nb_jewel.BLOCK_DEFAULTS, "open_bar_block", (str(fake_open_bar),))
+
+
+@pytest.fixture(autouse=True)
+def _api_facts(tmp_path_factory, monkeypatch):
+    """What ntop/recipes/transform_probe.py measures in nTop, for builds on the fake (the fake
+    cannot measure it): Combine Transforms applies its list in order, Mirror Body works."""
+    import json
+    f = tmp_path_factory.getbasetemp() / "api_facts.json"
+    if not f.exists():
+        f.write_text(json.dumps({"combine_transforms_order": "list", "mirror_body": "ok"}))
+    monkeypatch.setenv("NTOPJEWEL_API_FACTS", str(f))

@@ -1,0 +1,38 @@
+# Harness for the open_bar library block (ntop/blocks/open_bar.ntop): embeds the block, feeds it
+# these inputs and measures what it returns. Built by ntop/recipes/open_bar.py. Every runner with a
+# shank places one open_bar per bar slot; the bar STL and the numbers come from ntopjewel.shank.ShankSpec.
+notebook: open_bar_harness.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-04)
+rebuild_since: 0.1.0
+title: One shank bar, imported and opened by the edge round
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the opened bar (not wrapped).
+inputs:
+  Bar Path:
+    type: text
+    doc: A bar STL (ntopjewel.shank.write_bars) - X radial, Y along the ring, Z axial.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: 0.0
+    doc: The opening's erosion, minus the edge round (-e).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: The opening's dilation, the edge round (+e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance of the re-distance (2 x voxel size).
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the opened bar STL.

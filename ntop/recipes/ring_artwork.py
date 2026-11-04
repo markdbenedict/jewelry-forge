@@ -45,7 +45,7 @@ DEFAULTS = {
     "test_output": str(REPO / "out" / "api" / "ring_artwork_test.stl"),
     "save_to": str(REPO / "ntop" / "notebooks" / "ring_artwork.ntop"),
     "recipe_to": str(REPO / "ntop" / "recipes" / "ring_artwork.recipe.json"),
-    "pause": True,
+    "pause": False,                     # embeds the open_bar block: no paused updates
     "fresh": True,
     "wait_s": 300,
     "show": ["Ring Body"],
@@ -71,7 +71,8 @@ def _body(h, p, values, test_output):
     out_var = nj.path_variable(h, "Output Path", test_output)
     with h.section("Shank"):
         shank_body = h.wrap_var("Shank Body", nj.add_wrapped_shank(h, [ids[n] for n in SLOT_NAMES], ids["Wrap Length"],
-                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))
+                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"],
+                                                                   opener=h.embed_block(p["open_bar_block"])))
     with h.section("Artwork"):
         cuts = h.import_body("Panel Cuts", ids["Cut Path"])
         relief = h.import_body("Relief", ids["Relief Path"])
@@ -85,4 +86,4 @@ def _body(h, p, values, test_output):
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build ring_artwork`; see the module docstring."""
-    return nj.standard_build(notebook, params, DEFAULTS, _body, "ring_artwork")
+    return nj.standard_build(notebook, params, DEFAULTS, _body, "ring_artwork", blocks=("open_bar_block",))

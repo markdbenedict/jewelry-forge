@@ -745,7 +745,8 @@ def _files_to_commit(res: dict, stamped) -> list[str]:
     root = Path(__file__).resolve().parents[2]
     r = res.get("result") or {}
     block = r.get("block") or {}
-    paths = [r.get("recipe"), block.get("recipe"), block.get("saved")] + [str(_runs.build_stamp_path(nb)) for nb in stamped]
+    paths = ([r.get("recipe"), block.get("recipe"), block.get("saved"), r.get("facts_file")]
+             + [str(_runs.build_stamp_path(nb)) for nb in stamped])
     out = []
     for raw in paths:
         if not raw:

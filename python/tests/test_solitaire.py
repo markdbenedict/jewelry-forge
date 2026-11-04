@@ -96,12 +96,13 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     b = res["blocks"]
     assert nb.blocks[b["Prong Head"]]["wired"]["Seat Cutter"][0] == "Seat Local"
     assert nb.blocks[b["Placed Head"]]["wired"]["Transformation"][0] == "Placement"
-    # the shank is the bar Python wrote: imported, opened on the bar (re-distanced), wrapped; the arches opened on
-    # their own; both united sharp with the milgrain rows
-    assert nb.blocks[b["Bar 1 Mesh"]]["wired"]["Path"][0] == "Shank Path"
-    assert nb.blocks[b["Bar 1"]]["wired"]["Mesh"][0] == b["Bar 1 Mesh"]
-    assert nb.blocks[b["Bar 4 Mesh"]]["wired"]["Path"][0] == "Shank Path 4"                     # four bars, each opened, then united
-    assert nb.blocks[b["Bar 1 Eroded"]]["wired"]["Body"][0] == b["Bar 1"] and nb.blocks[b["Bar 4 Eroded"]]["wired"]["Body"][0] == b["Bar 4"]
+    # the shank is the bars Python wrote, each imported and opened by one open_bar block, united, wrapped; the
+    # arches opened on their own; both united sharp with the milgrain rows
+    for k, path in enumerate(["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"], start=1):
+        ob = nb.blocks[b[f"Bar {k} Opened"]]
+        assert ob["funcId"] == ids["block:open_bar"] and ob["wired"]["Bar Path"][0] == path
+        assert ob["wired"]["Edge Round Inward"][0] == "Edge Round Inward" and ob["wired"]["Mesh Tolerance"][0] == "Mesh Tolerance"
+    assert "Bar 1 Eroded" not in b                                                              # the opening lives in the block
     assert nb.blocks[b["Bars"]]["lists"]["Bodies"] == [b[f"Bar {k} Opened"] for k in range(1, 5)]
     assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Bars"] and "Band + Extra" not in b and "Outer" not in b
     assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
@@ -119,7 +120,15 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     assert nb.blocks[b["Arches"]]["wired"]["Body"][0] == b["Arches Re-distanced"] and nb.blocks[b["Arches"]]["wired"]["Distance"][0] == "Edge Round"
     assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Carved Band"} <= set(nb.blocks[b["Shank Union"]]["lists"]["Bodies"])
     assert "Band Body" not in nb.blocks[b["Shank Union"]]["lists"]["Bodies"]                     # the carved band, not the bare one
-    assert nb.blocks[b["Milgrain+"]]["wired"]["Axis"][0] == b["Beads+ Axis"]
+    # the arch is its +y half ∩ the half's mirror across y = 0; the -y bead rows are the +y rows' mirror
+    assert nb.blocks[b["Arch"]]["lists"]["Bodies"] == ["Arch Half", b["Arch Half Mirrored"]]
+    assert nb.blocks[b["Arch Half Mirrored"]]["wired"]["Body"][0] == "Arch Half"
+    assert nb.blocks[b["Arch Half Mirrored"]]["wired"]["Plane"][0] == "Mirror Plane"
+    plane = nb.blocks[b["Mirror Plane Block"]]["inputs"]
+    assert plane["X axis"][0] == [1.0, 0.0, 0.0] and plane["Y axis"][0] == [0.0, 0.0, 1.0]       # the plane y = 0
+    assert nb.blocks[b["Milgrain+ Row"]]["wired"]["Axis"][0] == b["Beads Axis"]
+    assert nb.blocks[b["Milgrain-"]]["wired"]["Body"][0] == "Milgrain+" and nb.blocks[b["Milgrain-"]]["wired"]["Plane"][0] == "Mirror Plane"
+    assert not any("Minus" in n and "Bead Z" not in n for n in nb.inputs)                    # the -y side is not an input
     assert nb.inputs == mod.INPUT_ORDER and nb.output == "Volume" and nb.lint() == [] and res["warnings"] == []
 
 

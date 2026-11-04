@@ -97,11 +97,12 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
         assert nb.blocks[b[f"Stone Seat{tag}"]]["wired"]["Seat Path"][0] == b[f"Seat Path{sfx}"]
         assert nb.blocks[b[f"Outline Head{tag}"]]["wired"]["Seat Cutter"][0] == b[f"Seat Local{tag}"]
         assert nb.blocks[b[f"Outline Head{tag}"]]["wired"]["Prongs Path"][0] == b[f"Prongs Path{sfx}"]
-        # spin, then the quarter-turn onto +X, then the turn about the ring axis - for the head and its seat alike
+        # spin, then the quarter-turn onto +X, then the turn about the ring axis: ONE combined transform for the head and its seat
+        assert nb.blocks[b[f"Head {k} Moves"]]["lists"]["Transforms"] == [b[f"Head {k} Spin"], b[f"Head {k} Quarter Turn"], b[f"Head {k} Turn"]]
+        assert nb.variables[b[f"Head {k} Placement"]]["wraps"] == b[f"Head {k} Moves"]
         for what, start in (("Head", f"Outline Head{tag}"), ("Seat", f"Seat Local{tag}")):
-            chain = [nb.blocks[b[f"{what} {k} {step}"]] for step in ("Spun", "Placed", "On Ring")]
-            assert [c["wired"]["Transformation"][0] for c in chain] == [b[f"Head {k} Spin"], b[f"Head {k} Placement"], b[f"Head {k} Turn"]]
-            assert chain[0]["wired"]["Object"][0] == b[start]
+            moved = nb.blocks[b[f"{what} {k} On Ring"]]
+            assert moved["wired"]["Transformation"][0] == b[f"Head {k} Placement"] and moved["wired"]["Object"][0] == b[start]
     assert nb.blocks[b["Heads"]]["lists"]["Bodies"] == [b[f"Head {k} On Ring"] for k in range(1, ms.SLOTS + 1)]
     assert nb.blocks[b["Beaded Shank"]]["lists"]["Bodies"] == [b["Shank Body"], b["Pave Beads"]]   # the pavé's beads join the shank ...
     assert nb.blocks[b["Joined"]]["lists"]["Bodies"] == [b["Beaded Shank"], b["Heads"]]
@@ -214,3 +215,24 @@ def test_pave_round_a_three_stone_ring(fake_ntopcl, tmp_path, out_dir, monkeypat
                      "--side-width", "4.5", "--side-material", "diamond", "--pave", "1.3", "--dry-run"]) == 0
     late = ms.MultiStoneSpec(s.band, s.centre, s.side, pave_stone_mm=1.3, pave_from_deg=30.0)
     assert any("cut" in x and "side heads" in x for x in late.validate())          # a pavé started inside the side heads
+
+
+def test_the_combined_placement_follows_the_measured_order(tmp_path, monkeypatch):
+    """Combine Transforms' list order is measured in nTop (transform_probe -> api_facts.json): when
+    nTop applies the list last-first, the moves are laid out reversed so spin -> quarter-turn -> turn
+    still happen in that order; with nothing measured the build refuses, naming the probe."""
+    import json
+    from ntopjewel import nb_jewel as nj
+    from ntopjewel.notebook_api import ConsoleError
+    from .fake_notebook import FakeNotebook
+    h = nj.Helper(FakeNotebook())
+    t = [h.rotation(f"R{k}", nj.angle_variable(h, f"A{k}", 10.0 * k)) for k in range(3)]
+    facts = tmp_path / "facts.json"
+    facts.write_text(json.dumps({"combine_transforms_order": "reverse"}))
+    monkeypatch.setenv("NTOPJEWEL_API_FACTS", str(facts))
+    c = h.combine("C", t)
+    assert h.nb.blocks[c]["lists"]["Transforms"] == t[::-1]
+    monkeypatch.setenv("NTOPJEWEL_API_FACTS", str(tmp_path / "missing.json"))
+    monkeypatch.setattr(nj, "API_FACTS", tmp_path / "missing.json")
+    with pytest.raises(ConsoleError, match="transform_probe"):
+        h.combine("C2", t)

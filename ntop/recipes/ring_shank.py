@@ -56,7 +56,7 @@ DEFAULTS = {
     "test_output": str(REPO / "out" / "api" / "ring_shank_test.stl"),
     "save_to": str(REPO / "ntop" / "notebooks" / "ring_shank.ntop"),
     "recipe_to": str(REPO / "ntop" / "recipes" / "ring_shank.recipe.json"),
-    "pause": True,
+    "pause": False,                     # embeds the open_bar block: no paused updates
     "fresh": True,
     "wait_s": 180,
     "show": ["Shank", "Shank Body"],
@@ -81,7 +81,8 @@ def _body(h, p, values, test_output):
     out_var = nj.path_variable(h, "Output Path", test_output)
     with h.section("Shank"):
         wrapped = nj.add_wrapped_shank(h, [ids[n] for n in SLOT_NAMES], ids["Wrap Length"], ids["Edge Round Inward"],
-                                       ids["Edge Round"], ids["Mesh Tolerance"])
+                                       ids["Edge Round"], ids["Mesh Tolerance"],
+                                       opener=h.embed_block(p["open_bar_block"]))
     with h.section("Result"):
         ring = h.wrap_var("Shank Body", wrapped)
         integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, ids["Mesh Tolerance"])
@@ -90,4 +91,4 @@ def _body(h, p, values, test_output):
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build ring_shank`; see the module docstring."""
-    return nj.run_build(notebook, params, DEFAULTS, _body)
+    return nj.standard_build(notebook, params, DEFAULTS, _body, "ring_shank", blocks=("open_bar_block",))

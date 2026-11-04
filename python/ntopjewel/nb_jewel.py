@@ -45,6 +45,9 @@ REMAP_CYLINDRICAL = [["remap_cylindrical_implicit"], ["remap_cylindrical", "impl
 ROTATION_TRANSFORM = [["rotation_transform<point,vector,real>"], ["rotation_transform"]]
 TRANSFORM_OBJECT = [["transform_object", "transformation"], ["transform_object"]]
 BOX_FROM_CORNERS = [["box_from_corners<point,point>"], ["box_from_corners"]]
+MIRROR_BODY = [["mirror_body<implicit,plane>"], ["mirror_body"]]
+PLANE = [["plane<point,vector,vector>"]]                          # Origin, X axis, Y axis (docs.ntop.com, Plane)
+COMBINE_TRANSFORMS = [["combine_transforms<list<transformation>>"], ["combine_transforms"]]
 PATH_VARS = ("core.var<text>",)      # file inputs: 6.3.3 cannot set a file_path variable, and a text one serves (nTopCL types it text)
 INTEGER_VARS = ("core.var<integer>", "core.var<int>")
 
@@ -83,6 +86,10 @@ SHANK_SPECS = [(n, "path") for n in SLOT_NAMES] + [("Wrap Length", "mm"), ("Edge
                                                    ("Mesh Tolerance", "mm")]
 
 
+OPEN_BAR_SPECS = [("Bar Path", "path"), ("Edge Round Inward", "mm"), ("Edge Round", "mm"), ("Mesh Tolerance", "mm")]
+BLOCK_DEFAULTS = {"open_bar_block": ("ntop", "blocks", "open_bar.ntop")}   # library blocks every runner of that kind embeds
+
+
 def input_order(specs: list[tuple[str, str]]) -> list[str]:
     """A runner notebook's inputs in catalog order: its specs, then Output Path."""
     return [n for n, _ in specs] + ["Output Path"]
@@ -101,6 +108,8 @@ class Helper(NotebookHelper):
         super().__init__(notebook)
         self.section_id = ""                        # where add() puts new blocks ("" = nTop's default)
         self.section_ids: dict[str, str] = {}       # our section name -> nTop id, in order
+        self._last_in: dict[str, str] = {}          # section id -> the last block or variable placed in it
+        self._pending: dict[str, list[str]] = {}    # section id -> variables waiting for the section's first block
         self.sections_ok = True
         self.comments_ok = True
         self._signatures_logged = False
@@ -110,7 +119,8 @@ class Helper(NotebookHelper):
         if self._signatures_logged:
             return
         self._signatures_logged = True
-        for name in ("add_section", "move_block", "set_block_comment", "collapse_section", "list_sections"):
+        for name in ("add_section", "move_block", "set_block_comment", "collapse_section", "list_sections",
+                     "add_block", "add_real_variable", "add_variable"):
             fn = getattr(self.nb, name, None)
             if fn is None:
                 self.log.append(f"api: {name} - not on this notebook object")
@@ -166,18 +176,40 @@ class Helper(NotebookHelper):
             self.section_id = outer if self.sections_ok else ""
 
     def place(self, block_id: str) -> None:
-        """Move an existing block or variable into the current section (variables are made outside
-        any section by the API calls that create them)."""
-        if not (self.sections_ok and self.section_id):
+        """Move a variable just made into the current section. nTop's `move_block(block_id,
+        targetBlockId, placeBefore=False)` moves a block NEXT TO another block, not into a section
+        by id (6.3.3, 2026-11-04: `move_block(v, 'section_3')` -> 'No block with the id "section_3"'),
+        and the API's variable calls take no section: so the variable goes after the last block
+        placed in the section, or, in a section still empty, before its first block once it comes."""
+        sid = self.section_id
+        if not (self.sections_ok and sid):
             return
+        anchor = self._last_in.get(sid)
+        if anchor is None:
+            self._pending.setdefault(sid, []).append(block_id)
+            return
+        if self._move(block_id, anchor, before=False):
+            self._last_in[sid] = block_id
+
+    def _move(self, block_id: str, target: str, before: bool) -> bool:
         fn = getattr(self.nb, "move_block", None)
         if not callable(fn):
             self._sections_off("this API has no move_block")
-            return
+            return False
         try:
-            fn(block_id, self.section_id)
+            fn(block_id, target, before)
+            return True
         except Exception as e:
-            self._sections_off(f"move_block({block_id!r}, {self.section_id!r}) refused: {e}")
+            self._sections_off(f"move_block({block_id!r}, {target!r}, {before}) refused: {e}")
+            return False
+
+    def _placed_by_add(self, sid: str, block_id: str) -> None:
+        """A block add_block put in section `sid`: the anchor from now on; variables made while the
+        section was empty go before it."""
+        for vid in self._pending.pop(sid, []):
+            if not self._move(vid, block_id, before=True):
+                return
+        self._last_in[sid] = block_id
 
     def comment(self, block_id: str, text: str) -> None:
         """A note on the block, shown with it in nTop: why it is there or why it comes in this order."""
@@ -216,7 +248,7 @@ class Helper(NotebookHelper):
         if label in self.blocks:
             return super().add(label, *candidates, mask=mask, must=must)     # raises the clash
         try:
-            return super().add(label, *candidates, mask=mask, must=must, section_id=sid)
+            bid = super().add(label, *candidates, mask=mask, must=must, section_id=sid)
         except ConsoleError:
             raise
         except Exception as e:                       # add_block(ident, section_id) refused: without sections
@@ -224,6 +256,8 @@ class Helper(NotebookHelper):
                 raise
             self._sections_off(f"add_block(..., {sid!r}) refused: {e}")
             return super().add(label, *candidates, mask=mask, must=must)
+        self._placed_by_add(sid, bid)
+        return bid
 
     def real_var(self, name: str, value: float, units: str = "mm") -> str:
         vid = super().real_var(name, value, units)
@@ -344,6 +378,25 @@ class Helper(NotebookHelper):
         self.wire(radius_var, s, ["Radius"])
         return s
 
+    def mirror(self, label: str, body: str, plane: str) -> str:
+        """Mirror Body: `body` reflected across `plane` (a Plane block or variable, plane_block)."""
+        m = self.add(label, mask="mirror_body", must=MIRROR_BODY)
+        self.wire(body, m, [self.input_of_type(m, "implicit")])
+        self.wire(plane, m, [self.input_of_type(m, "plane")])
+        return m
+
+    def combine(self, label: str, transforms: Iterable[str], applied_in: str = "") -> str:
+        """Combine Transforms: one transformation doing `transforms` IN THE ORDER GIVEN (first
+        applied first). nTop's list order is measured (api_fact "combine_transforms_order",
+        ntop/recipes/transform_probe.py) and the list is laid out to match it."""
+        order = applied_in or api_fact("combine_transforms_order")
+        transforms = list(transforms) if order == "list" else list(transforms)[::-1]
+        c = self.add(label, mask="combine_transforms", must=COMBINE_TRANSFORMS)
+        slot = self.input_of_type(c, "list")
+        for t in transforms:
+            self.to_list(t, c, [slot])
+        return c
+
     def polar_array(self, label: str, body: str, spacing_var: str, count_var: str, axis: str) -> str:
         a = self.add(label, mask="polar_array", must=POLAR_ARRAY)
         self.wire(body, a, ["Body"])
@@ -444,6 +497,20 @@ def point_from_vars(h: NotebookHelper, label: str, x_var: str, y_var: str, z_var
     h.wire(y_var, pid, ["Y"])
     h.wire(z_var, pid, ["Z"])
     return pid
+
+
+def plane_block(h: NotebookHelper, label: str, origin=(0.0, 0.0, 0.0), x_axis=(1.0, 0.0, 0.0), y_axis=(0.0, 1.0, 0.0)) -> str:
+    """A Plane block (`plane<point,vector,vector>`: Origin, X axis, Y axis - the normal is X × Y,
+    its sign irrelevant to a mirror). The inputs are found by type, in order: their names are
+    not in the discovery dump."""
+    pl = h.add(label, mask="plane", must=PLANE)
+    ins = h.inputs(pl)
+    point = next(i["name"] for i in ins if "point" in str(i.get("type", "")))
+    vectors = [i["name"] for i in ins if "vector" in str(i.get("type", ""))]
+    h.set(pl, [point], list(origin), "mm")
+    h.set(pl, [vectors[0]], list(x_axis))
+    h.set(pl, [vectors[1]], list(y_axis))
+    return pl
 
 
 def z_axis(h: NotebookHelper, label: str = "Z Axis", point: str | None = None) -> str:
@@ -550,17 +617,25 @@ def add_carved(h: Helper, body_var: str, cut_var: str, relief_var: str, label: s
                    comment="The motifs standing in the channels (and the knots on the face), never rounded.")
 
 
+def open_bar_body(h: Helper, ids: dict) -> str:
+    """The open_bar block's body (ntop/recipes/open_bar.py): the bar at Bar Path imported (`Bar`)
+    and opened by the edge round (add_opening: `Bar Eroded` -> re-distance -> `Opened`)."""
+    bar = h.import_body("Bar", ids["Bar Path"])
+    return add_opening(h, bar, ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"], name="Opened", base="Bar")
+
+
 def add_wrapped_shank(h: Helper, path_vars, wrap_var: str, inward_var: str, outward_var: str,
-                      tolerance_var: str, label: str = "Shank") -> str:
+                      tolerance_var: str, label: str = "Shank", opener: str | None = None) -> str:
     """The shank Python wrote as bars (ntopjewel.shank.ShankSpec.bar_meshes: X radial, Y along the
     ring, Z axial; `path_vars`: the text variables holding the shank.BAR_SLOTS paths, an unused
-    slot repeating the smallest bar): per bar Import Mesh -> Implicit from Mesh (`Bar k`) -> the
-    opening by the edge round (add_opening, on the bar, where the field is exact) = `Bar k Opened`;
-    Boolean Union of the opened bars (`Bars`, sharp: bodies that cross each other - a knot's
-    strands, a split's halves, a double band's bridges - are united here, as implicits, never as
-    meshes: a mesh union leaves faces micrometres apart along its seams, which nTop's import read as
-    self-intersecting, 2026-11-02) -> Remap Cylindrical Body (`label`, Y mapping length = wrap_var).
-    Returns the id of the remap block, the ring-shaped shank.
+    slot repeating the smallest bar): per bar one `open_bar` block (`opener`: its identifier, from
+    h.embed_block) = `Bar k Opened` - the bar imported and opened by the edge round, on the bar,
+    where the field is exact; Boolean Union of the opened bars (`Bars`, sharp: bodies that cross
+    each other - a knot's strands, a split's halves, a double band's bridges - are united here, as
+    implicits, never as meshes: a mesh union leaves faces micrometres apart along its seams, which
+    nTop's import read as self-intersecting, 2026-11-02) -> Remap Cylindrical Body (`label`, Y
+    mapping length = wrap_var). Returns the id of the remap block, the ring-shaped shank. Without
+    `opener` the six blocks per bar are laid out inline (open_bar_body's chain) - the fallback.
 
     Each bar is opened on its own, BEFORE the union: a union's field is the minimum of its bars'
     fields, so inside an overlap it measures to a bar's buried face, not to the part's surface,
@@ -572,8 +647,18 @@ def add_wrapped_shank(h: Helper, path_vars, wrap_var: str, inward_var: str, outw
     opened = []
     for k, path_var in enumerate(path_vars):
         bar = f"Bar {k + 1}"
-        body = h.import_body(bar, path_var)
-        opened.append(add_opening(h, body, inward_var, outward_var, tolerance_var, name=f"{bar} Opened", base=bar))
+        if opener:
+            ob = h.add(f"{bar} Opened", opener)
+            for var, name in ((path_var, "Bar Path"), (inward_var, "Edge Round Inward"), (outward_var, "Edge Round"),
+                              (tolerance_var, "Mesh Tolerance")):
+                h.wire(var, ob, [name])
+            if k == 0:
+                h.comment(ob, "open_bar: the bar imported and opened by the edge round on its own (offset in, "
+                              "re-distance, offset out), before the union - one block per bar slot.")
+            opened.append(ob)
+        else:
+            body = h.import_body(bar, path_var)
+            opened.append(add_opening(h, body, inward_var, outward_var, tolerance_var, name=f"{bar} Opened", base=bar))
     if len(opened) == 1:
         joined = opened[0]
     else:
@@ -693,6 +778,21 @@ def finish(h: Helper, notebook, p: dict, input_order: Iterable[str], integ: str,
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]      # python/ntopjewel/nb_jewel.py -> the repo
+API_FACTS = REPO_ROOT / "ntop" / "api_facts.json"    # what ntop/recipes/transform_probe.py measured in nTop
+
+
+def api_fact(key: str) -> str:
+    """A fact about nTop the probe measured (api_facts.json); refuses, naming the probe, without it."""
+    import os
+    path = os.environ.get("NTOPJEWEL_API_FACTS") or API_FACTS          # the env: tests point it at their own
+    try:
+        facts = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        facts = {}
+    if key not in facts:
+        raise ConsoleError(f"{key} has not been measured on this nTop: run `python -m ntopjewel api build transform_probe` "
+                           f"first (it writes {API_FACTS}; commit it)")
+    return facts[key]
 
 
 def absolute(path, h: NotebookHelper | None = None, what: str = "path") -> str:
@@ -744,6 +844,8 @@ def standard_build(notebook, params: dict | None, defaults: dict, body_fn, name:
     if not values:
         raise ConsoleError(f"no input values: run through `python -m ntopjewel api build {name}` (prepare() computes them)")
     for key in blocks:
+        if key in BLOCK_DEFAULTS and not p.get(key):
+            p[key] = str(REPO_ROOT.joinpath(*BLOCK_DEFAULTS[key]))
         p[key] = absolute(p[key])
         if not Path(p[key]).exists():
             raise ConsoleError(f"{p[key]} is missing: build it first (api build {Path(p[key]).stem})")

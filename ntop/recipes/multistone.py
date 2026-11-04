@@ -5,10 +5,13 @@ step 2 (ntopjewel.multistone; reference rings 05 and 02).
                (nj.add_wrapped_shank: each bar opened on its own, united, wrapped) = Shank Body
     slots      five, each: stone_seat(Seat Path k, Clearance) -> Seat k (head frame, used twice);
                outline_head(Seat k, Prongs Path k, Rail Offset k, Upper/Lower Rail Bottom/Top k,
-               Head Blend) -> Outline Head k; both moved by three transforms in turn (section Head k):
-                 Head k Spin       Rotation Transform about the head's +Z through the origin      -> Head/Seat k Spun
-                 Head k Placement  Rotation Transform 90° about the line through Head k Pivot ∥ +Y  -> ... Placed
-                 Head k Turn       Rotation Transform about the ring axis +Z through the origin   -> ... On Ring
+               Head Blend) -> Outline Head k; both moved by ONE transform (section Head k), Head k
+               Placement = Combine Transforms of, applied in this order:
+                 Head k Spin          Rotation Transform about the head's +Z through the origin
+                 Head k Quarter Turn  Rotation Transform 90° about the line through Head k Pivot ∥ +Y
+                 Head k Turn          Rotation Transform about the ring axis +Z through the origin
+               (the list laid out in the order nTop applies it: api_facts.json, transform_probe)
+               -> Head k On Ring / Seat k On Ring
                An unused slot repeats the centre's values: the same head in the same place
     pavé       Pave Beads Path / Pave Seats Path (0.2.0): the beads (Import Mesh -> Implicit Body) united
                with the shank before the heads join it, the seats cut with the heads' seats at the end -
@@ -84,7 +87,8 @@ def _body(h, p, values, test_output):
     out_var = nj.path_variable(h, "Output Path", test_output)
     with h.section("Shank"):
         shank_body = h.wrap_var("Shank Body", nj.add_wrapped_shank(h, [ids[n] for n in nj.SLOT_NAMES], ids["Wrap Length"],
-                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))
+                                                                   ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"],
+                                                                   opener=h.embed_block(p["open_bar_block"])))
     with h.section("Pavé"):
         pave_beads = h.import_body("Pave Beads", ids["Pave Beads Path"])
         pave_seats = h.import_body("Pave Seats", ids["Pave Seats Path"])
@@ -109,21 +113,20 @@ def _body(h, p, values, test_output):
             for name in RAILS:
                 h.wire(i(name), head, [name])
             h.wire(ids["Head Blend"], head, ["Blend Radius"])
-            # three moves, each a variable (used twice: the head and its seat): labels never an input's name
-            spin = h.wrap_var(f"Head {n} Spin", h.rotation(f"Head {n} Spin Rotation", i("Spin")))
+            # three moves combined into one placement (a variable: the head and its seat both use it);
+            # labels never an input's name ("Spin 2" is slot 2's input)
+            spin = h.rotation(f"Head {n} Spin", i("Spin"))
             pivot = nj.point_block(h, f"Head {n} Pivot", x_var=i("Pivot X"), z_var=i("Pivot Z"))
-            place = h.wrap_var(f"Head {n} Placement", h.rotation(f"Head {n} Placement Rotation", quarter, axis=(0.0, 1.0, 0.0),
-                                                                 point=pivot))
-            turn = h.wrap_var(f"Head {n} Turn", h.rotation(f"Head {n} Turn Rotation", i("Turn")))
-            moves = (("Spun", spin), ("Placed", place), ("On Ring", turn))
-            for what, start, out in (("Head", head, placed_heads), ("Seat", seat_local, placed_seats)):
-                cur = start
-                for step, t in moves:
-                    cur = h.transform(f"{what} {n} {step}", cur, t)
-                out.append(cur)
+            quarter_turn = h.rotation(f"Head {n} Quarter Turn", quarter, axis=(0.0, 1.0, 0.0), point=pivot)
+            turn = h.rotation(f"Head {n} Turn", i("Turn"))
+            moves = h.combine(f"Head {n} Moves", [spin, quarter_turn, turn])
+            placement = h.wrap_var(f"Head {n} Placement", moves)
+            placed_heads.append(h.transform(f"Head {n} On Ring", head, placement))
+            placed_seats.append(h.transform(f"Seat {n} On Ring", seat_local, placement))
             if k == 0:
-                h.comment(placed_heads[0], "Spun about its own axis, a quarter-turn onto +X, turned about the ring axis to its "
-                                           "angle. An unused slot repeats the centre: the same head in the same place.")
+                h.comment(moves, "Spun about its own axis, a quarter-turn onto +X about the line through the pivot ∥ +Y, "
+                                 "turned about the ring axis to its angle - in that order, one transform. An unused slot "
+                                 "repeats the centre: the same head in the same place.")
     with h.section("Ring"):
         heads_union = h.union("Heads", placed_heads)
         joined = h.union("Joined", [beaded, heads_union], blend=ids["Shank Blend"], comment=(
@@ -136,4 +139,4 @@ def _body(h, p, values, test_output):
 
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build multistone`; see the module docstring."""
-    return nj.standard_build(notebook, params, DEFAULTS, _body, "multistone", blocks=("seat_block", "head_block"))
+    return nj.standard_build(notebook, params, DEFAULTS, _body, "multistone", blocks=("seat_block", "head_block", "open_bar_block"))

@@ -5,8 +5,8 @@
 # Built by ntop/recipes/ring_artwork.py through the Notebook API.
 # Verify names: python -m ntopjewel templates ntop/notebooks/ring_artwork.ntop --catalog ring_artwork
 notebook: ring_artwork.ntop
-version: 0.1.0   # 0.1.0: first build (2026-11-03)
-rebuild_since: 0.1.0
+version: 0.1.1   # 0.1.1: each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.1.0: first build (2026-11-03)
+rebuild_since: 0.1.1
 title: Artwork on the band - motifs in relief in sunk panels on its faces
 output:
   name: Volume

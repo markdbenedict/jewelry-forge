@@ -634,17 +634,15 @@ class SolitaireSpec:
         hollows it to a thin wall). Buried, it changes nothing."""
         if self.arches:
             a = self.arch()
-            return {"Arch Centre X": round(a["cx"], 4), "Arch Centre Y": round(a["cy"], 4),
-                    "Arch Centre Y Minus": round(-a["cy"], 4), "Arch Radius": round(a["R"], 4),
+            return {"Arch Centre X": round(a["cx"], 4), "Arch Centre Y": round(a["cy"], 4), "Arch Radius": round(a["R"], 4),
                     "Arch Dome Ring Radius": round(a["dome_ring"], 4), "Arch Cut Radius": round(a["r_cut"], 4),
-                    "Wedge Angle": round(a["wedge_deg"], 4), "Wedge Angle Minus": round(-a["wedge_deg"], 4)}
+                    "Wedge Angle": round(a["wedge_deg"], 4)}          # the -y arch is the notebook's mirror (0.11.0)
         b = self.band
         r_m = b.bore_radius_mm + b.thickness_mm / 2
         rho = self.buried_stub_radius
-        return {"Arch Centre X": round(r_m, 4), "Arch Centre Y": 0.0,
-                "Arch Centre Y Minus": 0.0, "Arch Radius": round(rho, 4),
+        return {"Arch Centre X": round(r_m, 4), "Arch Centre Y": 0.0, "Arch Radius": round(rho, 4),
                 "Arch Dome Ring Radius": round(rho, 4), "Arch Cut Radius": round(b.bore_radius_mm - 1.0, 4),
-                "Wedge Angle": 10.0, "Wedge Angle Minus": -10.0}
+                "Wedge Angle": 10.0}
 
     @property
     def buried_stub_radius(self) -> float:
@@ -660,18 +658,13 @@ class SolitaireSpec:
         if not self.milgrain or not bd["angles"]:
             hidden = -(self.band.bore_radius_mm + self.band.thickness_mm / 2)
             return {"Bead Radius": 0.05, "Bead Z": 0.0, "Bead Z Minus": 0.0, "Bead Spacing": 1.0, "Bead Count": 1,
-                    "Bead Start X": round(hidden, 4), "Bead Start Y": 0.0,
-                    "Bead Start X Minus": round(hidden, 4), "Bead Start Y Minus": 0.0}
+                    "Bead Start X": round(hidden, 4), "Bead Start Y": 0.0}
         last = math.radians(bd["angles"][-1])
         x = a["cx"] + bd["row_radius"] * math.cos(last)
         y = a["cy"] + bd["row_radius"] * math.sin(last)
-        first = math.radians(bd["angles"][0])                        # the band end; the -y row starts at its mirror
-        xm = a["cx"] + bd["row_radius"] * math.cos(first)
-        ym = -(a["cy"] + bd["row_radius"] * math.sin(first))
         return {"Bead Radius": round(bd["radius"], 4), "Bead Z": round(bd["z"], 4), "Bead Z Minus": round(-bd["z"], 4),
                 "Bead Spacing": round(bd["spacing"], 6), "Bead Count": len(bd["angles"]),
-                "Bead Start X": round(x, 4), "Bead Start Y": round(y, 4),
-                "Bead Start X Minus": round(xm, 4), "Bead Start Y Minus": round(ym, 4)}
+                "Bead Start X": round(x, 4), "Bead Start Y": round(y, 4)}     # the -y row is the notebook's mirror (0.11.0)
 
     def design(self) -> dict:
         return {"band": self.band.design(), "shank": self.shank_spec.design(), "head": self.placed_head.design(),
@@ -863,7 +856,7 @@ def arch_mesh(v: dict, inner: float):
     if not is_buried_stub(v):
         sec = geom.open_polygon(sec, e, tables.opening_chamfer_mm(float(v.get("Mesh Tolerance", 0.1))))
     parts = []
-    for cy in (float(v["Arch Centre Y"]), float(v["Arch Centre Y Minus"])):
+    for cy in (float(v["Arch Centre Y"]), -float(v["Arch Centre Y"])):            # the +y half and its mirror
         m = geom.revolve_section(sec, sections=720)
         m.apply_translation([float(v["Arch Centre X"]), cy, 0.0])
         parts.append(m)
@@ -878,19 +871,20 @@ def arch_mesh(v: dict, inner: float):
 
 
 def bead_mesh(v: dict):
-    """The four bead rows (or the one buried bead) from the notebook's numbers, as the polar arrays build them."""
+    """The four bead rows (or the one buried bead) from the notebook's numbers, as the notebook builds
+    them: the +y arch's rows polar-arrayed about its centre, the -y rows their mirror across y = 0."""
     import trimesh
     rho, n, step = float(v["Bead Radius"]), int(v["Bead Count"]), math.radians(float(v["Bead Spacing"]))
+    cx, cy = float(v["Arch Centre X"]), float(v["Arch Centre Y"])
+    sx, sy = float(v["Bead Start X"]), float(v["Bead Start Y"])
+    r0, a0 = math.hypot(sx - cx, sy - cy), math.atan2(sy - cy, sx - cx)
     beads = []
-    for (sx, sy), cy in (((float(v["Bead Start X"]), float(v["Bead Start Y"])), float(v["Arch Centre Y"])),
-                         ((float(v["Bead Start X Minus"]), float(v["Bead Start Y Minus"])), float(v["Arch Centre Y Minus"]))):
-        cx = float(v["Arch Centre X"])
-        r0, a0 = math.hypot(sx - cx, sy - cy), math.atan2(sy - cy, sx - cx)
-        for k in range(n):
-            a = a0 + k * step
-            for z in {float(v["Bead Z"]), float(v["Bead Z Minus"])}:
+    for k in range(n):
+        a = a0 + k * step
+        for z in {float(v["Bead Z"]), float(v["Bead Z Minus"])}:
+            for mirror in {1.0, -1.0} if abs(cy + r0 * math.sin(a)) > 1e-9 else {1.0}:
                 beads.append(trimesh.creation.icosphere(subdivisions=3, radius=rho).apply_translation(
-                    [cx + r0 * math.cos(a), cy + r0 * math.sin(a), z]))
+                    [cx + r0 * math.cos(a), mirror * (cy + r0 * math.sin(a)), z]))
     return trimesh.boolean.union(beads, engine="manifold") if len(beads) > 1 else beads[0]
 
 

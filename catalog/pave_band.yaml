@@ -5,8 +5,8 @@
 # Built by ntop/recipes/pave_band.py through the Notebook API.
 # Verify names: python -m ntopjewel templates ntop/notebooks/pave_band.ntop --catalog pave_band
 notebook: pave_band.ntop
-version: 0.1.0   # 0.1.0: first build (2026-11-03)
-rebuild_since: 0.1.0
+version: 0.1.1   # 0.1.1: each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.1.0: first build (2026-11-03)
+rebuild_since: 0.1.1
 title: Pavé band - stones in seats with light holes, held by beads
 output:
   name: Volume

@@ -118,18 +118,12 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
     b = res["blocks"]
     assert nb.inputs == mod.INPUT_ORDER and res["warnings"] == []
     assert mod.INPUT_ORDER[:4] == ["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"]
-    for k, name in enumerate(["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"]):   # four bars imported ...
-        assert nb.blocks[b[f"Bar {k + 1} Mesh"]]["wired"]["Path"][0] == b[name]
-        assert nb.blocks[b[f"Bar {k + 1}"]]["wired"]["Mesh"][0] == b[f"Bar {k + 1} Mesh"]
+    for k, name in enumerate(["Shank Path", "Shank Path 2", "Shank Path 3", "Shank Path 4"]):   # four bars, each one open_bar block:
+        ob = nb.blocks[b[f"Bar {k + 1} Opened"]]                                                 # imported and opened on its own ...
+        assert ob["funcId"] == res["identifiers"]["block:open_bar"] and ob["wired"]["Bar Path"][0] == b[name]
+        for inp in ("Edge Round Inward", "Edge Round", "Mesh Tolerance"):
+            assert ob["wired"][inp][0] == b[inp]
     assert params["values"]["Shank Path 2"] == params["values"]["Shank Path 4"] == params["values"]["Shank Path"]   # the tapered shank: one bar in every slot
-    for k in range(4):                                                                    # ... each opened on its own ...
-        assert nb.blocks[b[f"Bar {k + 1} Eroded"]]["wired"]["Body"][0] == b[f"Bar {k + 1}"]
-        assert nb.blocks[b[f"Bar {k + 1} Eroded"]]["wired"]["Distance"][0] == b["Edge Round Inward"]
-        assert nb.blocks[b[f"Bar {k + 1} Re-distanced Mesh"]]["wired"]["Body"][0] == b[f"Bar {k + 1} Eroded"]   # ... re-distanced through a mesh
-        assert nb.blocks[b[f"Bar {k + 1} Re-distanced Mesh"]]["wired"]["Tolerance"][0] == b["Mesh Tolerance"]
-        assert nb.blocks[b[f"Bar {k + 1} Re-distanced"]]["wired"]["Mesh"][0] == b[f"Bar {k + 1} Re-distanced Mesh"]
-        assert nb.blocks[b[f"Bar {k + 1} Opened"]]["wired"]["Body"][0] == b[f"Bar {k + 1} Re-distanced"]
-        assert nb.blocks[b[f"Bar {k + 1} Opened"]]["wired"]["Distance"][0] == b["Edge Round"]
     assert nb.blocks[b["Bars"]]["lists"]["Bodies"] == [b[f"Bar {k} Opened"] for k in range(1, 5)]   # ... united opened (a union's field erodes into its overlaps)
     assert nb.blocks[b["Shank"]]["wired"]["Body"][0] == b["Bars"]                 # ... then the wrap
     assert nb.blocks[b["Shank"]]["wired"]["Y Mapping Length"][0] == b["Wrap Length"]
@@ -602,3 +596,27 @@ def test_a_split_half_carries_exact_surface_past_the_seam_by_more_than_the_edge_
     monkeypatch.setattr(shank.ShankSpec, "split_overlap_mm", property(lambda self: 0.1))
     s._cache.clear()
     assert 0.03 < groove() < 0.1                                       # the real reading was 0.055 (0.25 round, 0.1 overlap)
+
+
+def test_the_open_bar_block_imports_and_opens_one_bar(tmp_path):
+    """Inside open_bar: Import Mesh -> Implicit (Bar) -> Offset -e (Bar Eroded) -> re-distanced through a mesh at
+    the Mesh Tolerance -> Offset +e (Opened), the Output; its inputs in the catalog's order."""
+    from ntopjewel import catalog
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    mod = load_recipe("open_bar")
+    params = mod.prepare({}, tmp_path)
+    p = {"block_to": str(tmp_path / "open_bar.ntop"), "block_recipe_to": str(tmp_path / "ob.json")}
+    nb = FakeNotebook()
+    nb.new_notebook = lambda: None                                    # keep the block's graph to read it after the self-test
+    blk = mod.build_block(nb, p, params["values"])
+    assert blk["self_test"]["accepted"]
+    g, b = nb.blocks, blk["blocks"]
+    assert g[b["Bar Mesh"]]["wired"]["Path"][0] == "Bar Path" and g[b["Bar"]]["wired"]["Mesh"][0] == b["Bar Mesh"]
+    assert g[b["Bar Eroded"]]["wired"]["Body"][0] == b["Bar"] and g[b["Bar Eroded"]]["wired"]["Distance"][0] == "Edge Round Inward"
+    assert g[b["Bar Re-distanced Mesh"]]["wired"]["Body"][0] == b["Bar Eroded"]
+    assert g[b["Bar Re-distanced Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
+    assert g[b["Bar Re-distanced"]]["wired"]["Mesh"][0] == b["Bar Re-distanced Mesh"]
+    assert g[b["Opened"]]["wired"]["Body"][0] == b["Bar Re-distanced"] and g[b["Opened"]]["wired"]["Distance"][0] == "Edge Round"
+    assert nb.inputs == [n for n, _ in mod.SPECS] and nb.variables["Opened Bar"]["wraps"] == b["Opened"]
+    assert list(catalog.load("open_bar_harness").inputs) == mod.INPUT_ORDER

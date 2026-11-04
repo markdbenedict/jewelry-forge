@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -454,13 +455,17 @@ def test_a_runner_notebook_reads_as_an_outline(tmp_path):
     assert list(res["sections"]) == ["Shank", "Pavé", "Result"]
     named = {s["id"]: s["name"] for s in nb.sections}
     assert all(b in nb.section_of for b in nb.blocks)                       # no block left in nTop's default section
+    placed_vars = [v for v in nb.variables if v not in nb.inputs and v != "Volume"]
+    assert placed_vars and all(v in nb.section_of for v in placed_vars)     # variables moved next to their blocks
+    assert named[nb.section_of["Shank Body"]] == "Shank"                     # (6.3.3's move_block: next to a block)
+    assert not any(ln.startswith("sections off") for ln in res["log"])
     assert named[nb.section_of[res["blocks"]["Bar 1 Opened"]]] == "Shank"
     assert named[nb.section_of[res["blocks"]["Ring"]]] == "Pavé"
     assert named[nb.section_of[res["blocks"]["Export Mesh"]]] == "Result"
     assert [named[c] for c in nb.collapsed] == ["Shank", "Pavé"]
     assert "re-distance" in nb.comments[res["blocks"]["Bar 1 Opened"]].lower()
     assert nb.comments[res["blocks"]["Bars"]] and nb.comments[res["blocks"]["Ring"]]
-    assert sum(ln.startswith("api: ") for ln in res["log"]) == 5
+    assert sum(ln.startswith("api: ") for ln in res["log"]) == 8                # the real signatures, logged once
     assert nb.inputs == mod.INPUT_ORDER and nb.lint() == []
 
 
@@ -486,7 +491,8 @@ def test_a_refused_section_call_leaves_the_same_notebook(tmp_path):
         twin = ref["blocks"][label]
         a = plain.blocks.get(bid) or plain.variables.get(bid) or {}
         b = organised.blocks.get(twin) or organised.variables.get(twin) or {}
-        assert a.get("funcId") == b.get("funcId"), label
+        same = lambda f: re.sub(r"user_func_[0-9a-f]+", "user_func", str(f))           # an embedded block's id is per notebook
+        assert same(a.get("funcId")) == same(b.get("funcId")), label
 
 
 def test_api_build_names_the_tracked_files_to_commit(tmp_path):

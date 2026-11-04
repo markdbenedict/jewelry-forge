@@ -20,11 +20,11 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
                numbers) or bezel_head(Seat Local, Windows Path, Wall, Bezel Bottom/Top), embedded -> head frame
     placement  Rotation Transform: 90° about the line through (Pivot X, 0, Pivot Z) parallel to +Y;
                Transform Object puts the head and the seat on the ring (head +Z -> ring +X)
-    arch       per side: Cylinder (Arch Radius) ∩ Torus (Arch Dome Ring Radius / Dome Tube Radius) about
-               (Arch Centre X, Arch Centre Y[ Minus]); both ∩ a wedge (two corner boxes turned by ±Wedge
-               Angle about +Z) - a cylinder of Arch Cut Radius
-    milgrain   per side: two spheres at (Bead Start X[ Minus], Bead Start Y[ Minus], ±Bead Z) -> Polar
-               Array (Bead Count, Bead Spacing) about the axis through that arch's centre ∥ Z
+    arch       the +y half: Cylinder (Arch Radius) ∩ Torus (Arch Dome Ring Radius / Dome Tube Radius) about
+               (Arch Centre X, Arch Centre Y) ∩ the wedge half y <= 0 turned by Wedge Angle about +Z;
+               ∩ its mirror across y = 0 (Mirror Body; the arch is symmetric) - a cylinder of Arch Cut Radius
+    milgrain   two spheres at (Bead Start X, Bead Start Y, Bead Z / Bead Z Minus) -> Polar Array (Bead
+               Count, Bead Spacing) about the axis through the +y arch's centre ∥ Z; the -y row its mirror
     engraving  Import Mesh (Engraving Path) -> Implicit from Mesh -> Remap Cylindrical (Engraving Wrap
                Length) -> turned 180° about +Z (the text opposite the head)
     ring       ((Carved Band ∪ arches ∪ milgrain) ∪ placed head, blended by Shank Blend) - placed seat - engraving
@@ -50,10 +50,10 @@ JOIN = [("Shank Blend", "mm")]
 BLOCK_INPUT = {"Head Blend": "Blend Radius"}          # a notebook input whose name differs from the block input it feeds
 HEAD_LABEL = {"round": "Prong Head", "outline": "Outline Head", "bezel": "Bezel Head"}
 ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
-        ("Arch Centre X", "mm"), ("Arch Centre Y", "mm"), ("Arch Centre Y Minus", "mm"), ("Arch Radius", "mm"),
-        ("Arch Dome Ring Radius", "mm"), ("Arch Cut Radius", "mm"), ("Wedge Angle", "deg"), ("Wedge Angle Minus", "deg"),
+        ("Arch Centre X", "mm"), ("Arch Centre Y", "mm"), ("Arch Radius", "mm"),
+        ("Arch Dome Ring Radius", "mm"), ("Arch Cut Radius", "mm"), ("Wedge Angle", "deg"),
         ("Bead Radius", "mm"), ("Bead Z", "mm"), ("Bead Z Minus", "mm"), ("Bead Spacing", "deg"), ("Bead Count", "int"),
-        ("Bead Start X", "mm"), ("Bead Start Y", "mm"), ("Bead Start X Minus", "mm"), ("Bead Start Y Minus", "mm")]
+        ("Bead Start X", "mm"), ("Bead Start Y", "mm")]     # the -y arch and its beads are the mirror (0.11.0)
 ENGRAVING = [("Engraving Path", "path"), ("Engraving Wrap Length", "mm")]
 ENGRAVING_TURN_DEG = 180.0
 SHANK = [(name, "path") for name in nj.SLOT_NAMES] + [("Wrap Length", "mm"), ("Slot Path", "path")]   # the bars nTop unites, then the wrap
@@ -74,45 +74,49 @@ def input_order(kind: str) -> list[str]:
     return [n for n, _ in specs(kind)] + ["Output Path"]
 
 
+def mirror_plane(h) -> str:
+    """The plane y = 0 (through the ring axis and the head's centre): the arches and the milgrain
+    are a +y half and its mirror. A variable: every mirror uses it."""
+    if "Mirror Plane" not in h.blocks:
+        h.wrap_var("Mirror Plane", nj.plane_block(h, "Mirror Plane Block", x_axis=(1.0, 0.0, 0.0), y_axis=(0.0, 0.0, 1.0)))
+    return h.blocks["Mirror Plane"]
+
+
 def arches(h, ids) -> str:
-    """The cathedral arches (see the module doc), before their opening: per side a cylinder ∩ a dome
-    torus, both ∩ the wedge, less the cut cylinder. Returns the `Shoulders` block."""
+    """The cathedral arches (see the module doc), before their opening: the +y half - the cylinder ∩
+    the dome torus about (Arch Centre X, Arch Centre Y) ∩ the wedge half y <= 0 turned by Wedge Angle
+    - intersected with its mirror across y = 0 (the gothic point where the two arcs meet), less the
+    cut cylinder. Returns the `Shoulders` block."""
     zero = h.real_var("Zero", 0.0, "mm")                        # a constant: point components need a variable
-    parts = []
-    for side, cy in (("+", "Arch Centre Y"), ("-", "Arch Centre Y Minus")):
-        lo = nj.point_from_vars(h, f"Arch{side} Bottom", ids["Arch Centre X"], ids[cy], ids["Z Bottom"])
-        hi = nj.point_from_vars(h, f"Arch{side} Top", ids["Arch Centre X"], ids[cy], ids["Z Top"])
-        cyl = h.cylinder(f"Arch{side} Cylinder", lo, hi, ids["Arch Radius"])
-        centre = nj.point_from_vars(h, f"Arch{side} Centre", ids["Arch Centre X"], ids[cy], zero)
-        dome = h.torus(f"Arch{side} Dome", ids["Arch Dome Ring Radius"], ids["Dome Tube Radius"], centre=centre)
-        parts += [cyl, dome]
-    # the wedge |angle| <= Wedge Angle: the half-space y <= 0 turned by +W, y >= 0 turned by -W
-    for side, (y0, y1), angle in (("+", (-80.0, 0.0), "Wedge Angle"), ("-", (0.0, 80.0), "Wedge Angle Minus")):
-        box = h.add(f"Wedge{side} Half", mask="box_from_corners", must=nj.BOX_FROM_CORNERS)
-        corners = [i["name"] for i in h.inputs(box) if "point" in str(i.get("type", ""))]
-        h.set(box, [corners[0]], [-40.0, y0, -40.0], "mm")
-        h.set(box, [corners[1]], [40.0, y1, 40.0], "mm")
-        rot = h.rotation(f"Wedge{side} Turn", ids[angle])
-        parts.append(h.transform(f"Wedge{side}", box, rot))
-    arch = h.intersect("Arch", parts, comment="Each arch: the band's section swept round a circle tangent at the shoulder, "
-                                              "kept within the wedge.")
+    lo = nj.point_from_vars(h, "Arch Bottom", ids["Arch Centre X"], ids["Arch Centre Y"], ids["Z Bottom"])
+    hi = nj.point_from_vars(h, "Arch Top", ids["Arch Centre X"], ids["Arch Centre Y"], ids["Z Top"])
+    cyl = h.cylinder("Arch Cylinder", lo, hi, ids["Arch Radius"])
+    centre = nj.point_from_vars(h, "Arch Centre", ids["Arch Centre X"], ids["Arch Centre Y"], zero)
+    dome = h.torus("Arch Dome", ids["Arch Dome Ring Radius"], ids["Dome Tube Radius"], centre=centre)
+    box = h.add("Wedge Half Box", mask="box_from_corners", must=nj.BOX_FROM_CORNERS)       # the half-space y <= 0 ...
+    corners = [i["name"] for i in h.inputs(box) if "point" in str(i.get("type", ""))]
+    h.set(box, [corners[0]], [-40.0, -80.0, -40.0], "mm")
+    h.set(box, [corners[1]], [40.0, 0.0, 40.0], "mm")
+    wedge = h.transform("Wedge Half", box, h.rotation("Wedge Turn", ids["Wedge Angle"]))   # ... turned by +Wedge Angle
+    half = h.wrap_var("Arch Half", h.intersect("Arch Half Body", [cyl, dome, wedge]))      # used twice: itself and its mirror
+    arch = h.intersect("Arch", [half, h.mirror("Arch Half Mirrored", half, mirror_plane(h))], comment=(
+        "The +y half ∩ its mirror across y = 0: the band's section swept round two circles tangent at the shoulders, "
+        "meeting in the gothic point, kept within the wedge |angle| <= Wedge Angle."))
     cut = h.cylinder("Arch Cut", None, None, ids["Arch Cut Radius"], z_span=(-20.0, 20.0))
     return h.subtract("Shoulders", arch, [cut])
 
 
 def milgrain(h, ids) -> list[str]:
-    """Two bead rows per arch: a sphere pair at the start bead, polar-arrayed about the arch centre."""
-    rows = []
-    for side, (sx, sy), cy in (("+", ("Bead Start X", "Bead Start Y"), "Arch Centre Y"),
-                               ("-", ("Bead Start X Minus", "Bead Start Y Minus"), "Arch Centre Y Minus")):
-        pair = h.add(f"Beads{side} Pair", mask="union", must=nj.UNION)
-        for zs, zvar in (("top", "Bead Z"), ("bottom", "Bead Z Minus")):
-            pt = nj.point_from_vars(h, f"Bead{side} {zs}", ids[sx], ids[sy], ids[zvar])
-            h.to_list(h.sphere(f"Bead{side} {zs} Sphere", pt, ids["Bead Radius"]), pair, nj.BODIES)
-        centre = nj.point_from_vars(h, f"Beads{side} Axis Point", ids["Arch Centre X"], ids[cy], h.blocks["Zero"])
-        ax = nj.z_axis(h, f"Beads{side} Axis", point=centre)
-        rows.append(h.polar_array(f"Milgrain{side}", pair, ids["Bead Spacing"], ids["Bead Count"], ax))
-    return rows
+    """The bead rows on the +y arch - a sphere pair at the start bead, polar-arrayed about the arch
+    centre - and their mirror across y = 0 on the -y arch."""
+    pair = h.add("Bead Pair", mask="union", must=nj.UNION)
+    for zs, zvar in (("Top", "Bead Z"), ("Bottom", "Bead Z Minus")):
+        pt = nj.point_from_vars(h, f"Bead {zs}", ids["Bead Start X"], ids["Bead Start Y"], ids[zvar])
+        h.to_list(h.sphere(f"Bead {zs} Sphere", pt, ids["Bead Radius"]), pair, nj.BODIES)
+    centre = nj.point_from_vars(h, "Beads Axis Point", ids["Arch Centre X"], ids["Arch Centre Y"], h.blocks["Zero"])
+    ax = nj.z_axis(h, "Beads Axis", point=centre)
+    row = h.wrap_var("Milgrain+", h.polar_array("Milgrain+ Row", pair, ids["Bead Spacing"], ids["Bead Count"], ax))
+    return [row, h.mirror("Milgrain-", row, mirror_plane(h))]
 
 
 def engraving(h, ids) -> str:
@@ -130,7 +134,8 @@ def body(kind: str):
         out_var = nj.path_variable(h, "Output Path", test_output)
         with h.section("Shank"):                                    # the bars united, opened, wrapped
             band = h.wrap_var("Band Body", nj.add_wrapped_shank(h, [ids[name] for name in nj.SLOT_NAMES], ids["Wrap Length"],
-                                                                ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"]))
+                                                                ids["Edge Round Inward"], ids["Edge Round"], ids["Mesh Tolerance"],
+                                                                opener=h.embed_block(p["open_bar_block"])))
         with h.section("Artwork"):                                  # the panels and the knots, before anything joins the band
             carved = h.wrap_var("Carved Band", nj.add_carved(h, band, ids["Cut Path"], ids["Relief Path"],
                                                              knot_vars=[ids["Knot Path"], ids["Knot Path 2"]]))
@@ -202,4 +207,4 @@ def prepare(spec, params: dict, test_dir: Path, tag: str) -> dict:
 
 def build(notebook, params: dict, defaults: dict, kind: str) -> dict:
     return nj.standard_build(notebook, params, defaults, body(kind), Path(defaults["save_to"]).stem,
-                             blocks=("seat_block", "head_block"))
+                             blocks=("seat_block", "head_block", "open_bar_block"))

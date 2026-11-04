@@ -2,8 +2,8 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --shape pear ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_outline.ntop
-version: 0.6.0   # 0.6.0: the shoulder knots - Knot Path / Knot Path 2 united with the carved band (2026-11-03) - rebuild the notebook; 0.5.0: artwork under the head - Cut Path / Relief Path, the band carved before the arches join (2026-11-03) - rebuild the notebook; 0.4.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.4.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
-rebuild_since: 0.6.0   # the notebook body changed then (the knot layers in the carve's union): a notebook built for an older version is refused (runs.require_built)
+version: 0.7.0   # 0.7.0: the arches and milgrain a +y half and its mirror (Mirror Body) - Arch Centre Y Minus, Wedge Angle Minus, Bead Start X/Y Minus gone - and each bar opened by the open_bar block (2026-11-04) - rebuild the notebook; 0.6.0: the shoulder knots - Knot Path / Knot Path 2 united with the carved band (2026-11-03) - rebuild the notebook; 0.5.0: artwork under the head - Cut Path / Relief Path, the band carved before the arches join (2026-11-03) - rebuild the notebook; 0.4.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.4.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
+rebuild_since: 0.7.0   # the notebook body changed then (the mirrored halves, open_bar): a notebook built for an older version is refused (runs.require_built)
 title: 'Solitaire (pear / fancy stone, outline_head): gothic cathedral arches, arch
   milgrain, optional engraving'
 output:
@@ -157,12 +157,6 @@ inputs:
     max: 0.0
     doc: 'Centre of the +y arch circle, y: -t sin(shoulder angle) (the -y arch mirrors
       it).'
-  Arch Centre Y Minus:
-    type: scalar
-    units: mm
-    min: 0.0
-    max: 40.0
-    doc: '= -Arch Centre Y: the -y arch''s centre.'
   Arch Radius:
     type: scalar
     units: mm
@@ -190,12 +184,6 @@ inputs:
     min: 5.0
     max: 80.0
     doc: The arch is kept within ±this angle from the head (shoulder angle + 2°; 10° for a knot shank's buried stubs).
-  Wedge Angle Minus:
-    type: scalar
-    units: deg
-    min: -80.0
-    max: -5.0
-    doc: = -Wedge Angle.
   Bead Radius:
     type: scalar
     units: mm
@@ -238,18 +226,6 @@ inputs:
     min: -40.0
     max: 40.0
     doc: y of the +y rows' first bead.
-  Bead Start X Minus:
-    type: scalar
-    units: mm
-    min: -40.0
-    max: 40.0
-    doc: -y rows start at the band end (the mirror of the +y rows' last bead).
-  Bead Start Y Minus:
-    type: scalar
-    units: mm
-    min: -40.0
-    max: 40.0
-    doc: y of the -y rows' first bead.
   Engraving Path:
     type: text
     doc: 'The engraving STL (engrave.text_mesh, or a speck outside the ring when there

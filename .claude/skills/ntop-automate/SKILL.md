@@ -30,12 +30,14 @@ JSON rules, resolves identifiers, checks build states and runs the mesh gate.
   `ntopjewel.notebook_api` (stdlib-only, so it imports inside nTop's Python), and uses
   `nj.Helper` (`ntopjewel.nb_jewel`, a `NotebookHelper`): one verb per block - `union`, `intersect`,
   `subtract`, `offset`, `import_body`, `mesh`, `remap_cylindrical`, `rotation`, `transform`, `cylinder`,
-  `torus`, `sphere`, `polar_array` - plus `with h.section("Shank"):` and `h.comment(block, why)` for the
+  `torus`, `sphere`, `polar_array`, `mirror` (across `nj.plane_block`), `combine` (Combine Transforms, laid out
+  in the order `ntop/api_facts.json` says nTop applies it - `api build transform_probe` measures that) - plus `with h.section("Shank"):` and `h.comment(block, why)` for the
   layout; underneath, `add(label, *identifier_candidates, mask=, must=)`, `set`, `wire`, `to_list`,
   `real_var`, `wrap_var`, `declare_inputs`, `set_output`, `assert_ok`, `states`. Inputs are declared as
   `SPECS` (`[(name, "mm" | "deg" | "int" | "path" | "")]`, `nj.add_typed_inputs`); a runner's `build` is
   `nj.standard_build(...)`, a library block's `nj.block_build(...)` with `nj.save_block` (sections stay
-  out of block notebooks). Sections and comments are guarded: a refusal is logged (`layout` in the
+  out of block notebooks). A shank's bars go through the `open_bar` block (`add_wrapped_shank(..., opener=
+  h.embed_block(p["open_bar_block"]))`, one instance per bar). Sections and comments are guarded: a refusal is logged (`layout` in the
   `api build` output, with the real method signatures) and the graph is the same without them.
 - Identifiers are snake_case plus the input type list, sometimes a version:
   `boolean_subtract<blend_enum,real_field,implicit,list<implicit>>`, `offset_implicit<implicit,real_field>`,
