@@ -400,8 +400,13 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    restoring the vine's veins exactly (the two PASSED Seraphine designs' relief volume, bodies and ids are
    now pinned by a test), keeping the relief probes off every vein slit, and probing a stem along its own
    centreline; `--stem-width` (Mark: half the thickness, 0.15; a new `relief_line` floor 0.15 mm in the
-   tables, default). *Real check pending:* the Seraphine command with `--leaf-tilt 7.5 --leaf-stem 0.5
-   --stem-width 0.15`. **Still missing for the Seraphine:** double-claw prong tips
+   tables, default). *Real check (07:40): PASSED* with `--leaf-tilt 7.5 --leaf-stem 0.5 --stem-width 0.15`. Then
+   (07:44) **the band tapered below the scrollwork**: the artwork and the shoulder knots accept a tapered
+   shank whose full section runs past them (`TAPER_CLEAR_DEG` 1° past the last panel, `KNOT_TAPER_CLEAR_DEG`
+   2° past the knots, and not under the head on plain shoulders), `--taper-from` defaulting to just past
+   the panels; the panels and knots are built on the full section as before, only the bar changes.
+   Offline PASSED (the tapered knotted Seraphine through `check_solitaire` on the blended design mesh);
+   *real check pending:* `... --width-bottom 2 --thickness-bottom 1.5`. **Still missing for the Seraphine:** double-claw prong tips
    and the heart-shaped gallery (6).)* Scroll and floral relief panels,
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the

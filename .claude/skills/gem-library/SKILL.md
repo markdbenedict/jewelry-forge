@@ -200,7 +200,9 @@ a flat outer face, a plain band. The panels: an outer-face panel is held back `P
 past the knots' span (37.3° on the Seraphine); the side-face panels run on under the knots' overhang
 from `head_clear_deg` (25° there), as the reference ring's leaf rows do (`panel_start_min_deg(face)`).
 `validate` wants three open lobes at least 0.3 mm wide and the bore law to come down before the next
-under pass. Gate: `knot ribbon` / `knot surround` probes (a grid over the knot's footprint and the band
+under pass. A tapered shank may carry the knots when its full section runs `KNOT_TAPER_CLEAR_DEG` (2°)
+past their span (and past the panels, `ring-features`): on plain shoulders the taper may not begin under
+the head either (`head_clear_deg`); split, contoured and double shanks still wait. Gate: `knot ribbon` / `knot surround` probes (a grid over the knot's footprint and the band
 beside it, cast on the built ring and the design alike; the surround from `knot_face_from_mm` on - the
 head's reach at the face + the shank blend - because the smooth union lays a 0.25 mm fillet round the
 head's foot there, which the knot's apex is meant to melt into; the detail names where the worst probe

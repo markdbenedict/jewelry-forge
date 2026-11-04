@@ -108,6 +108,7 @@ FAIL and INCOMPLETE is not a pass; neither is delivered.
 python -m ntopjewel artwork --size 6 --sides leaves --outer vine                 # leaf rows on the sides, a vine outside (flat 2.8 x 2.0 band)
 python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll         # the Seraphine's faces: a volute then leaves (tips to the head) on the sides, the scroll outside
 python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf-tilt 7.5 --leaf-stem 0.5 --stem-width 0.15   # ... the leaves turned ±7.5° in turn on a serpentine stem half their height, 0.15 wide
+python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --width-bottom 2 --thickness-bottom 1.5         # the band tapered below the scrollwork: full section past the panels, a cosine ease to the bottom
 python -m ntopjewel artwork --size 6 --sides leaves --outer none --end 100       # leaf rows on the side faces only
 python -m ntopjewel artwork --size 6 --sides plain --outer volute --start 20 --end 60 --dry-run
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll   # the same panels under a head (gem-library)
@@ -153,6 +154,12 @@ dome and the comfort fit) less two rails, centred between the bore's and the dom
 `validate` refuses it (a flat band, a deeper channel or a lower relief). A `plain` panel's relief file
 holds a 0.2 mm cube **buried in the band** opposite the head (`buried_speck`), so the notebook's union
 has a body and the ring is unchanged - never a speck outside the ring, which a union leaves as a second shell.
+**A tapered band** (`--width-bottom`, `--thickness-bottom`, `--taper-from`; the `shank` taper, `ring-band`)
+carries artwork as long as the full section runs past the last panel: `validate` wants `taper_from_deg` ≥
+the last panel's end + `TAPER_CLEAR_DEG` (1°; the cosine ease has zero slope there), and the CLI's
+`--taper-from` defaults to exactly that with panels (`artwork.taper_start_deg`), 60° without. The panels'
+cutters and relief are built on the full section as ever; only the bar changes (stem `..._w2.8-2_t2-1.5_...`).
+Split, contoured, double, rope and knot shanks still wait.
 
 Geometry: the cutters are boxes lofted station by station along the ring and wrapped vertex-wise
 (geom.remap_cylindrical, what nTop's Remap Cylindrical does); a relief body's outline is densified in

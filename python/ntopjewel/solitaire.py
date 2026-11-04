@@ -57,6 +57,7 @@ PANEL_HEAD_CLEAR_MM = 0.5        # artwork on plain shoulders: a panel starts th
 PANEL_WEDGE_CLEAR_DEG = 1.0      # ... or this far past the arches' wedge
 KNOT_HEAD_CLEAR_MM = 0.2         # a shoulder knot begins this far past the head's metal at the band's face (it tucks under the head) ...
 PANEL_KNOT_CLEAR_DEG = 1.0       # ... and an outer-face panel this far past the knot
+KNOT_TAPER_CLEAR_DEG = 2.0       # a tapered shank keeps its full section this far past a shoulder knot
 HEAD_ZONE_PAD_DEG = 5.0          # the bore under the head: the head's reach along the ring, plus this
 BLEND_BORE_BULGE = 0.2           # the smooth union may bulge the bore under the head by this fraction of the shank blend
                                  # where the head's metal lies within the blend of it (0.12 of 0.3 at a 0.22 mm gap, 2026-11-03)
@@ -302,6 +303,12 @@ class SolitaireSpec:
     def shaped(self) -> bool:
         return self.shank is not None and (self.shank.tapered or bool(self.shank.dip_mm) or self.shank.strands > 1
                                            or bool(self.shank.split_mm) or bool(self.shank.rope) or bool(self.shank.knot))
+
+    @property
+    def shank_shaped_beyond_taper(self) -> bool:
+        """Shaped in any way but a taper (a split, a dip, strands, a rope, a knot shank)."""
+        sh = self.shank
+        return sh is not None and (bool(sh.dip_mm) or sh.strands > 1 or bool(sh.split_mm) or bool(sh.rope) or bool(sh.knot))
 
     @property
     def bead_head_gap(self) -> float:
@@ -714,9 +721,12 @@ class SolitaireSpec:
                     p.append(f"the slot ({sh.split_mm:g} mm) is too wide for the head to bridge: its foot reaches "
                              f"{span:.2f} mm either side of the centre, the slot may be {max(2 * (span - 0.3), 0):.1f} mm at most")
             wedge = self.shoulder_deg + WEDGE_EXTRA_DEG
-            if sh.tapered and sh.taper_from_deg < wedge + 3.0:
+            if sh.tapered and self.arches and sh.taper_from_deg < wedge + 3.0:
                 p.append(f"the taper starts {sh.taper_from_deg:g}° from the head, inside the arches (to ±{wedge:g}°): "
                          f"--taper-from at least {wedge + 3:g}")
+            elif sh.tapered and not self.arches and sh.taper_from_deg < self.head_clear_deg():
+                p.append(f"the taper starts {sh.taper_from_deg:g}° from the head, under the head (its metal reaches "
+                         f"{self.head_clear_deg():g}° along the band): --taper-from at least {math.ceil(self.head_clear_deg()):g}")
         if self.finger_clear < WALL_FLOOR:
             p.append(f"{self.finger_clear} mm of metal under the culet is below the wall floor {WALL_FLOOR} mm")
         if self.floored:
@@ -740,13 +750,16 @@ class SolitaireSpec:
         if self.has_knot and not p:
             if self.arches:
                 p.append("a shoulder knot stands on the band's face: plain shoulders (--no-arches)")
-            elif self.shank is not None and self.shaped:
-                p.append("a shoulder knot stands on a plain band (a shaped shank later)")
+            elif self.shank is not None and self.shaped and not (self.shank.tapered and not self.shank_shaped_beyond_taper):
+                p.append("a shoulder knot stands on a plain or tapered band (a split, contoured or double shank later)")
             else:
                 p += [q for q in self.ornament.validate() if q not in p]
                 lo, hi = self.ornament.span_deg()
                 if lo < self.knot_clear_deg() - 0.01:
                     p.append(f"the knot begins at {lo:.1f}°, inside the head's metal at the face ({self.knot_clear_deg():g}°): --knot-at later")
+                if self.shank is not None and self.shank.tapered and self.shank.taper_from_deg < hi + KNOT_TAPER_CLEAR_DEG - 1e-9:
+                    p.append(f"the taper starts {self.shank.taper_from_deg:g}° from the head, inside the knot (to {hi:.1f}°): "
+                             f"--taper-from at least {hi + KNOT_TAPER_CLEAR_DEG:.0f}")
         if self.has_artwork and not p:
             art = self.artwork
             p += [q for q in art.validate() if q not in p]

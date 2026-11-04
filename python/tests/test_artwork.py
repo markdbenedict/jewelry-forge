@@ -222,3 +222,26 @@ def test_the_built_seraphine_designs_keep_their_geometry():
         assert all(len(d["veins"]) == 1 for d in a.motif(a.panels[1]) if d["poly"].bounds[0] > 1.5)   # the row leaves keep theirs
     # the vein a narrowed leaf gets is the only one that stops short of the tip
     assert artwork.leaf_vein(1.7, 0.66)[1][0] == pytest.approx(0.82 * 1.7) and artwork.leaf_vein(1.7, 0.66, True)[1][0] < 0.72 * 1.7
+
+
+def test_a_taper_below_the_panels(fake_ntopcl, tmp_path, out_dir):
+    """The band tapers below the scrollwork (Mark, 2026-11-04): the ease may begin only past the last
+    panel (the panels sit on the full section), the default taper start follows the panels, and the
+    tapered ring passes its gate on the simulated nTop."""
+    panels = artwork.seraphine_panels(25.0, 120.0, outer="scroll", sides="scroll-leaves")
+    assert artwork.taper_start_deg(panels, None) == 121.0 and artwork.taper_start_deg([], None) == 60.0 and artwork.taper_start_deg(panels, 130.0) == 130.0
+    early = artwork.ArtworkSpec(shank.ShankSpec(flat(), width_bottom_mm=2.0, thickness_bottom_mm=1.5), panels)
+    assert any("inside the panels" in x and "at least 121" in x for x in early.validate())
+    a = artwork.ArtworkSpec(shank.ShankSpec(flat(), width_bottom_mm=2.0, thickness_bottom_mm=1.5, taper_from_deg=121.0), panels,
+                            leaf_tilt_deg=7.5, leaf_stem=0.5, stem_width_mm=0.15)
+    assert a.validate() == []
+    plain = artwork.ArtworkSpec(shank.ShankSpec(flat()), panels, leaf_tilt_deg=7.5, leaf_stem=0.5, stem_width_mm=0.15)
+    assert a.design_volume_mm3() < plain.design_volume_mm3() - 20 and a.spec_id != plain.spec_id and "w2.8-2_t2-1.5" in a.stem
+    assert a.relief_mesh().volume == pytest.approx(plain.relief_mesh().volume, abs=1e-6)      # the panels are untouched
+    assert "tapered below the panels" in a.describe()
+    res = _build(out_dir, tmp_path, a)
+    assert res.ok, res.text()
+    from ntopjewel import cli
+    assert cli.main(["artwork", "--sides", "scroll-leaves", "--outer", "scroll", "--width-bottom", "2", "--thickness-bottom", "1.5", "--dry-run"]) == 0
+    assert any("split, double, rope or knot" in x for x in
+               artwork.ArtworkSpec(shank.ShankSpec(flat(), split_mm=1.0), panels).validate())

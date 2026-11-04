@@ -52,6 +52,7 @@ CORE_CLIP_MM = 0.03           # the section-shape window inside a panel stops th
 LEAF_TILT_MAX_DEG = 15.0      # a leaf row's alternating tilt, at most
 STEM_MIN_MM = 0.1             # the lowest a leaf row's stem may stand (half the Seraphine's 0.25 relief is 0.125)
 STEM_SWING = 0.65             # a leaf row's stem swings this far across the channel's free half-width (less its stroke)
+TAPER_CLEAR_DEG = 1.0         # a tapered shank keeps its full section this far past the last panel (the ease has zero slope there)
 
 
 def setting(name: str, default: float) -> float:
@@ -832,7 +833,10 @@ class ArtworkSpec:
         b = self.band
         faces = {"outer": "o", "side+": "s", "side-": "s"}
         tag = "_".join(f"{faces[p.face]}{p.motif}" for p in self.panels) or "plain"
-        return f"ring_art_{b.profile}_{b.label}_w{b.width_mm:g}t{b.thickness_mm:g}_{tag}_{self.spec_id}"
+        sh = self.shank
+        size = (f"w{b.width_mm:g}-{sh.width_bottom:g}_t{b.thickness_mm:g}-{sh.thickness_bottom:g}" if sh.tapered
+                else f"w{b.width_mm:g}t{b.thickness_mm:g}")
+        return f"ring_art_{b.profile}_{b.label}_{size}_{tag}_{self.spec_id}"
 
     @property
     def catalog_name(self) -> str:
@@ -842,8 +846,13 @@ class ArtworkSpec:
     def validate(self) -> list[str]:
         p = list(self.shank.validate())
         sh, b = self.shank, self.band
-        if sh.rope or sh.knot or sh.strands > 1 or sh.split_mm or sh.dip_mm or sh.tapered:
-            p.append("artwork sits on a plain band (a tapered, split, double, rope or knot shank later)")
+        if sh.rope or sh.knot or sh.strands > 1 or sh.split_mm or sh.dip_mm:
+            p.append("artwork sits on a plain or tapered band (a split, double, rope or knot shank later)")
+        elif sh.tapered and self.panels:
+            last = max(float(q.end_deg) for q in self.panels)
+            if sh.taper_from_deg < last + TAPER_CLEAR_DEG - 1e-9:     # the panels sit on the full section; the ease begins past them
+                p.append(f"the taper starts {sh.taper_from_deg:g}° from the head, inside the panels (to {last:g}°): "
+                         f"--taper-from at least {last + TAPER_CLEAR_DEG:g}")
         if not self.panels:
             p.append("no panels")
         for q in self.panels:
@@ -925,6 +934,9 @@ class ArtworkSpec:
             lines.append(f"  {q.face} face: a channel {self.channel_width(q.face):.2f} wide x {self.channel_mm:g} deep from "
                          f"{q.start_deg:g}° to {q.end_deg:g}° ({self.panel_length(q):.1f} mm){' each side' if q.mirror else ''}, "
                          f"rails {self.rail_mm:g}; in relief: {what}, {self.relief_mm:g} high, {self.below:.2f} below the face")
+        if self.shank.tapered:
+            lines.append(f"  tapered below the panels: full section to {self.shank.taper_from_deg:g}°, then a cosine ease to "
+                         f"{self.shank.width_bottom:g} x {self.shank.thickness_bottom:g} mm at the bottom")
         lines.append(f"  {self.relief_count} relief bodies; design volume {self.design_volume_mm3():.2f} mm³ "
                      f"(band {self.shank.design_volume_mm3():.2f}); Mesh Tolerance {b.mesh_tolerance_mm:g}")
         return "\n".join(lines)
@@ -1215,6 +1227,16 @@ def build(spec: ArtworkSpec, out_dir: Path | None = None, *, notebook: Path | No
     elif deliver:
         res.notes.append(f"not delivered: status {res.status}")
     return res
+
+
+def taper_start_deg(panels: list, asked: float | None, default: float = 60.0) -> float:
+    """Where a taper may begin on a band with these panels: as asked, or just past the last panel
+    (TAPER_CLEAR_DEG) - the band below the scrollwork - and never before `default` without panels."""
+    if asked is not None:
+        return float(asked)
+    if not panels:
+        return default
+    return max(default, max(float(q.end_deg) for q in panels) + TAPER_CLEAR_DEG)
 
 
 def seraphine_panels(start_deg: float = 25.0, end_deg: float = 120.0, outer: str = "vine", sides: str = "leaves") -> list[Panel]:

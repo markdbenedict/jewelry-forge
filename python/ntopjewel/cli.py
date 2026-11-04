@@ -182,7 +182,8 @@ def _add_taper_args(p: argparse.ArgumentParser) -> None:
     """The shank's taper flags (the `shank` command and the solitaire share them)."""
     p.add_argument("--width-bottom", type=float, help="width at the bottom of the finger, mm (default: no width taper)")
     p.add_argument("--thickness-bottom", type=float, help="thickness at the bottom, mm (default: no thickness taper)")
-    p.add_argument("--taper-from", type=float, default=60.0, help="full section this far from the head (degrees), then the ease to the bottom")
+    p.add_argument("--taper-from", type=float, default=None, help="full section this far from the head (degrees), then the ease to the "
+                                                                "bottom (default 60; with artwork panels, just past them)")
     p.add_argument("--stations", type=int, default=144, help="cross-sections round the ring")
 
 
@@ -276,7 +277,7 @@ def cmd_ring(a: argparse.Namespace) -> int:
 def cmd_shank(a: argparse.Namespace) -> int:
     bridges = tuple(float(x) for x in a.bridges.split(",")) if a.bridges else (180.0,)
     spec = shank.ShankSpec(_band_spec(a), width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
-                           taper_from_deg=a.taper_from, stations=a.stations, dip_mm=a.dip, dip_span_deg=a.dip_span,
+                           taper_from_deg=_taper_from(a), stations=a.stations, dip_mm=a.dip, dip_span_deg=a.dip_span,
                            dip_shape=a.dip_shape, strands=2 if a.double else 1, gap_mm=a.gap, mirror=a.mirror,
                            bridges_deg=bridges, bridge_mm=a.bridge, split_mm=a.split, split_span_deg=a.split_span,
                            split_shape=a.split_shape, rope=a.rope, rope_turns=a.rope_turns, rope_strand_mm=a.rope_strand,
@@ -315,7 +316,7 @@ def cmd_pave(a: argparse.Namespace) -> int:
     b = pave.band_for(a.stone, a.rows, a.layout, a.size, system=a.system, profile=a.profile, thickness_mm=a.thickness,
                       width_mm=a.width, mesh_tolerance_mm=a.tolerance, allowance_mm=a.allowance)
     sh = shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
-                         taper_from_deg=a.taper_from, stations=a.stations)
+                         taper_from_deg=_taper_from(a), stations=a.stations)
     spec = pave.PaveSpec(sh, stone_mm=a.stone, rows=a.rows, layout=a.layout, span_deg=span, gap_mm=a.gap,
                          bead_mm=a.bead, material=a.material)
     if a.dry_run:
@@ -445,11 +446,12 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
         head = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, clearance_mm=a.clearance,
                               mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
     b = _band_spec(a)
-    shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom, taper_from_deg=a.taper_from,
+    panels = artwork.seraphine_panels(a.start, a.end, outer=a.outer, sides=a.sides)
+    shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
+                              taper_from_deg=artwork.taper_start_deg(panels, a.taper_from),
                               stations=a.stations, split_mm=a.split, split_span_deg=a.split_span, split_shape=a.split_shape,
                               **_knot_kwargs(a))
               if (a.width_bottom is not None or a.thickness_bottom is not None or a.split or a.knot) else None)
-    panels = artwork.seraphine_panels(a.start, a.end, outer=a.outer, sides=a.sides)
     spec = solitaire.SolitaireSpec(b, head, finger_clear_mm=a.finger_clear, shoulder_deg=a.shoulder,
                                    milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
                                    text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
@@ -500,7 +502,7 @@ def cmd_multistone(a: argparse.Namespace) -> int:
     side = head(a.side_shape, a.side_length, a.side_width, a.side_depth, a.side_prongs, a.side_carats) if a.side_shape else None
     b = _band_spec(a)
     shaped = (shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
-                              taper_from_deg=a.taper_from, stations=a.stations)
+                              taper_from_deg=_taper_from(a), stations=a.stations)
               if (a.width_bottom is not None or a.thickness_bottom is not None) else None)
     spec = multistone.MultiStoneSpec(b, centre, side, side_pairs=a.side_pairs, side_gap_mm=a.side_gap,
                                      centre_spin_deg=a.centre_spin, side_point=a.side_point, finger_clear_mm=a.finger_clear,
@@ -530,10 +532,16 @@ def cmd_multistone(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
+def _taper_from(a: argparse.Namespace, default: float = 60.0) -> float:
+    return default if a.taper_from is None else float(a.taper_from)
+
+
 def cmd_artwork(a: argparse.Namespace) -> int:
     b = _band_spec(a)
     panels = artwork.seraphine_panels(a.start, a.end, outer=a.outer, sides=a.sides)
-    spec = artwork.ArtworkSpec(shank.ShankSpec(b), panels, channel_mm=a.channel, rail_mm=a.rail, relief_mm=a.relief,
+    sh = shank.ShankSpec(b, width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
+                         taper_from_deg=artwork.taper_start_deg(panels, a.taper_from), stations=a.stations)
+    spec = artwork.ArtworkSpec(sh, panels, channel_mm=a.channel, rail_mm=a.rail, relief_mm=a.relief,
                                leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke, vein=not a.no_vein, leaf_tip=a.leaf_tip,
                                leaf_tilt_deg=a.leaf_tilt, leaf_stem=a.leaf_stem, stem_width_mm=a.stem_width)
     if a.dry_run:
@@ -904,6 +912,7 @@ def main(argv: list[str] | None = None) -> int:
     aw = sub.add_parser("artwork", help="artwork in relief in sunk panels on the band's faces: leaf rows, a vine scroll (ring_artwork.ntop)")
     _add_band_args(aw)
     _add_artwork_args(aw, sides="leaves", outer="vine")
+    _add_taper_args(aw)                                           # a taper below the scrollwork (the ease begins past the panels)
     aw.add_argument("--catalog", default="ring_artwork")
     aw.add_argument("--out")
     aw.add_argument("--notebook")

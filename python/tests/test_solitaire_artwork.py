@@ -337,3 +337,28 @@ def test_the_leaves_point_at_the_head_and_a_scroll_leads_the_side_rows(tmp_path)
     assert len(sp) >= 5 and sp[0]["poly"].bounds[2] < sp[1]["poly"].bounds[0]      # the volute, then the leaves
     assert "a volute at the head end, then" in s.describe()
     cut, relief = s.write_artwork(tmp_path, "t")                                   # the layers stay clean
+
+
+def test_the_knotted_seraphine_tapers_below_the_scrollwork():
+    """A taper under the knotted, carved Seraphine: it may begin only past the knots and the panels
+    (the CLI starts it just past the panels), and the design passes its gate."""
+    from ntopjewel import shank
+    tapered = knotted(shank=shank.ShankSpec(flat(), width_bottom_mm=2.0, thickness_bottom_mm=1.5, taper_from_deg=121.0),
+                      panels=artwork.seraphine_panels(25.0, 120.0, outer="scroll", sides="scroll-leaves"))
+    assert tapered.validate() == [] and "w2.8-2_t2-1.5" in tapered.stem and tapered.shank_spec.tapered
+    assert tapered.artwork.shank is tapered.shank_spec and tapered.ornament.band.width_mm == 2.8
+    inside_knot = knotted(shank=shank.ShankSpec(flat(), width_bottom_mm=2.0, taper_from_deg=30.0), panels=None)
+    assert any("inside the knot" in x for x in inside_knot.validate())
+    split = knotted(shank=shank.ShankSpec(flat(), split_mm=0.6, split_span_deg=100.0), panels=None)
+    assert any("plain or tapered band" in x for x in split.validate())
+    m = solitaire.design_mesh(tapered, ops=Blended())
+    rep = solitaire.check_solitaire(tapered, _export(m), float(m.volume))
+    assert rep.status == "passed", rep.text()
+
+
+def _export(m):
+    import tempfile
+    from pathlib import Path
+    d = Path(tempfile.mkdtemp())
+    m.export(d / "r.stl")
+    return d / "r.stl"
