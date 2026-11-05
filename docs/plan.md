@@ -314,6 +314,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    Gated per stone in its own frame. *Real check:* `api build multistone`, then the round three-stone and
    ring 05's cushion + pears - PASSED, and a look in the GUI at where the prongs between stones meet.
    Not yet: the gallery bridge under the heads, shared prongs (ring 02), engraving.)*
+   *(4 Nov evening: the gallery bridge and shared prongs written and gated offline - `--row N` (ring 02's
+   four rounds, none at the top), `--shared-prongs` (each facing pair of prongs one solved post between the
+   girdles, sized for the tip floor under both seats; ring 02: 10 prongs for 4 stones), `--gallery` (a lofted
+   rail each side of the band through the heads' upper rails; ring 05's cushion and pears); multistone.ntop
+   0.3.0 unites `Gallery Path` / `Shared Prongs Path` with the heads before their blended join with the shank. New gate checks `shared prong
+   tips` and `gallery`. *Real check pending:* `api build multistone`, then ring 02 and ring 05 with
+   `--gallery`, and the ruby ring again (unchanged design, new notebook). Engraving on a multi-stone ring
+   still to come.)*
    N heads at (angle, tilt) along the band from the head
    library, a gallery bridge underneath, shared prongs for stones in a row; gate: every stone fits,
    seats and drops in, stone-to-stone clearance.

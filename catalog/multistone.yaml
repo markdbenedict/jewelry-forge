@@ -6,8 +6,8 @@
 # rest of the ring; no-op specks without). Built by ntop/recipes/multistone.py.
 # Verify names: python -m ntopjewel templates ntop/notebooks/multistone.ntop --catalog multistone
 notebook: multistone.ntop
-version: 0.2.1   # 0.2.1: one combined transform per head and seat, each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.1.0: first build (2026-11-03); 0.2.0: Pave Beads Path / Pave Seats Path (2026-11-04)
-rebuild_since: 0.2.1
+version: 0.3.0   # 0.3.0: Gallery Path / Shared Prongs Path - the bridge rails and shared posts joined with the heads (2026-11-04) - rebuild the notebook; 0.2.1: one combined transform per head and seat, each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.1.0: first build (2026-11-03); 0.2.0: Pave Beads Path / Pave Seats Path (2026-11-04)
+rebuild_since: 0.3.0
 title: Multi-stone ring - centre and side stones in outline heads on a shank
 output:
   name: Volume
@@ -305,6 +305,12 @@ inputs:
   Pave Seats Path:
     type: text
     doc: "Absolute path of the pavé seats STL (every stone's cutter with its light hole, disjoint), cut after the blended join; a speck far outside the ring when there is no pavé."
+  Gallery Path:
+    type: text
+    doc: The bridge rails along the row, one each side of the band at the heads' upper rails (ntopjewel.gallery, ring frame); a speck buried in the band without.
+  Shared Prongs Path:
+    type: text
+    doc: The posts neighbouring stones share, one each side of the band per pair (ntopjewel.gallery); a speck buried in the band without.
   Output Path:
     type: text
     doc: "Absolute path of the STL to write (Export Mesh block; a Text variable in nTop)."

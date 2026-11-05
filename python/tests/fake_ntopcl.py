@@ -284,9 +284,15 @@ def main(argv: list[str]) -> int:
         from ntopjewel import multistone
         from ntopjewel.nb_jewel import SLOT_NAMES
         for key in (*SLOT_NAMES, *(multistone.slot_input(n, k) for k in range(multistone.SLOTS) for n in ("Seat Path", "Prongs Path")),
-                    "Pave Beads Path", "Pave Seats Path"):
-            if not Path(values[key]).exists():
+                    "Pave Beads Path", "Pave Seats Path", "Gallery Path", "Shared Prongs Path"):
+            if key in values and not Path(values[key]).exists():
                 fail(f"{key.replace('Path', 'Mesh')}: file not found")
+        if shape in ("nogallery", "noposts"):                 # a notebook that left the bridge / the shared prongs out
+            from ntopjewel import artwork
+            from ntopjewel.band import BandSpec
+            sp = Path(values["Output Path"]).with_suffix(f".{shape}.stl")
+            artwork.buried_speck(BandSpec(size=6, width_mm=2.6, thickness_mm=1.8)).export(str(sp))    # taken in by the band
+            values["Gallery Path" if shape == "nogallery" else "Shared Prongs Path"] = str(sp)
         if shape == "nopave":                                 # a notebook that never cut the pavé's seats
             from ntopjewel import artwork
             from ntopjewel.band import BandSpec
@@ -300,7 +306,7 @@ def main(argv: list[str]) -> int:
         mesh = multistone.ring_from_inputs(values, ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Head 1 On Ring", "Heads", "Joined", "Ring",
+        for name in ("Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Head 1 On Ring", "Gallery", "Shared Prongs", "Heads", "Joined", "Ring",
                      "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":

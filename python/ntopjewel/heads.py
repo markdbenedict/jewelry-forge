@@ -591,11 +591,15 @@ class OutlineHeadSpec:
         block.apply_translation((0.0, 0.0, z0))
         return block
 
-    def prongs_mesh(self):
-        """The prong rods (cylinders + spheres) and V-prongs as one watertight mesh: what Prongs Path points at."""
+    def prongs_mesh(self, keep=None):
+        """The prong rods (cylinders + spheres) and V-prongs as one watertight mesh: what Prongs Path
+        points at. `keep`: the indices (into prong_axes()) to build, the rest left out - a stone in a
+        row whose facing prongs became shared posts (multistone); None: all."""
         import trimesh
         parts = []
-        for (foot, knee, tip), kind, (q, _m) in zip(self.prong_axes(), self.point_kinds(), self.outline_points()):
+        for k, ((foot, knee, tip), kind, (q, _m)) in enumerate(zip(self.prong_axes(), self.point_kinds(), self.outline_points())):
+            if keep is not None and k not in keep:
+                continue
             if kind == "v":                                  # the support rod up the pavilion + the V
                 parts.append(trimesh.creation.cylinder(radius=self.rho, segment=[foot, knee], sections=64))
                 ends = (foot, knee)

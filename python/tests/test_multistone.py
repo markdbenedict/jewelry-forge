@@ -103,9 +103,11 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
         for what, start in (("Head", f"Outline Head{tag}"), ("Seat", f"Seat Local{tag}")):
             moved = nb.blocks[b[f"{what} {k} On Ring"]]
             assert moved["wired"]["Transformation"][0] == b[f"Head {k} Placement"] and moved["wired"]["Object"][0] == b[start]
-    assert nb.blocks[b["Heads"]]["lists"]["Bodies"] == [b[f"Head {k} On Ring"] for k in range(1, ms.SLOTS + 1)]
+    assert nb.blocks[b["Heads"]]["lists"]["Bodies"] == [b[f"Head {k} On Ring"] for k in range(1, ms.SLOTS + 1)] + [b["Gallery"], b["Shared Prongs"]]
     assert nb.blocks[b["Beaded Shank"]]["lists"]["Bodies"] == [b["Shank Body"], b["Pave Beads"]]   # the pavé's beads join the shank ...
     assert nb.blocks[b["Joined"]]["lists"]["Bodies"] == [b["Beaded Shank"], b["Heads"]]
+    assert nb.blocks[b["Gallery Mesh"]]["wired"]["Path"][0] == b["Gallery Path"]
+    assert nb.blocks[b["Shared Prongs Mesh"]]["wired"]["Path"][0] == b["Shared Prongs Path"]
     assert nb.blocks[b["Joined"]]["wired"]["Blend Radius"][0] == b["Shank Blend"]        # ... the heads melt into it ...
     assert nb.blocks[b["Ring"]]["wired"]["Primary Body"][0] == b["Joined"]               # ... THEN every seat is cut, the pavé's last
     assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == [b[f"Seat {k} On Ring"] for k in range(1, ms.SLOTS + 1)] + [b["Pave Seats"]]
@@ -236,3 +238,105 @@ def test_the_combined_placement_follows_the_measured_order(tmp_path, monkeypatch
     monkeypatch.setattr(nj, "API_FACTS", tmp_path / "missing.json")
     with pytest.raises(ConsoleError, match="transform_probe"):
         h.combine("C2", t)
+
+
+# ---- stones in a row, shared prongs, the gallery bridge (reference rings 02 and 05) -------------
+def ring02(**kw):
+    """Ring 02: four rounds in a row, no stone at the top, the prongs between neighbours shared, on a gallery."""
+    b = band.BandSpec(size=6, width_mm=2.6, thickness_mm=1.8, profile="comfort-flat", mesh_tolerance_mm=0.05)
+    return ms.MultiStoneSpec(b, heads.OutlineHeadSpec(gems.StoneSpec("round", 4.0), prongs=4), row=4,
+                             **{"shared_prongs": True, "gallery": True, **kw})
+
+
+def ring05(**kw):
+    """Ring 05: a cushion between two pears pointing in, on a gallery bridge."""
+    b = band.BandSpec(size=6, width_mm=2.6, thickness_mm=1.8, profile="comfort-flat", mesh_tolerance_mm=0.05)
+    return ms.MultiStoneSpec(b, heads.OutlineHeadSpec(gems.StoneSpec("cushion", 7.0, 6.0)),
+                             heads.OutlineHeadSpec(gems.StoneSpec("pear", 6.0, 4.0)), **{"gallery": True, **kw})
+
+
+def test_an_even_row_straddles_the_top():
+    s = ring02(shared_prongs=False, gallery=False)
+    assert s.validate() == []
+    t = sorted(p.theta_deg for p in s.stones())
+    assert len(t) == 4 and t[0] == -t[3] and t[1] == -t[2] and 0 < t[2] < t[3]
+    assert all(p.role == "row" and p.spin_deg == 0.0 for p in s.stones())
+    assert all(g >= s.side_gap_mm - 1e-3 for g in (s.girdle_gap(i, j) for i, j in s.neighbours()))
+    odd = ms.MultiStoneSpec(s.band, s.centre, row=3)
+    assert [p.role for p in odd.stones()] == ["centre", "row", "row"] and odd.stones()[0].theta_deg == 0.0
+    assert ms.MultiStoneSpec(s.band, s.centre, s.centre, row=4).validate()            # a row has no separate side stone
+    assert ms.MultiStoneSpec(s.band, s.centre, row=6).validate()                      # five head slots
+
+
+def test_neighbours_share_the_prongs_that_face_each_other():
+    """Two posts per pair of neighbours (one each side of the band), each overlapping both girdles by the
+    ledge at the girdle's underside; the end stones keep their two outer prongs, the inner ones none -
+    ten prongs for four stones, as ring 02."""
+    from shapely.geometry import Polygon
+    from ntopjewel import gallery as g
+    s = ring02()
+    posts = s.posts()
+    assert len(posts) == 6 and sorted(len(s.kept_prongs(i)) for i in range(4)) == [0, 0, 2, 2]
+    st = s.stones()
+    for q in posts:
+        assert {x.side for x in posts if {x.a, x.b} == {q.a, q.b}} == {1, -1}
+        d = q.rho - s.centre.ledge_mm
+        for k in (q.a, q.b):
+            M = s.matrix(st[k].head, st[k].theta_deg, st[k].spin_deg)
+            pt, _ = g.radial_point_at_head_z(M, q.theta_deg, q.z, -st[k].head.stone.girdle / 2)
+            assert abs(g.outline_distance(Polygon(st[k].head.stone.outline(512)), pt[0], pt[1]) - d) < 1e-3
+        assert q.r_foot < s.band.outer_radius_at(abs(q.z)) and q.r_foot - q.rho > s.band.bore_radius_at(abs(q.z))
+    for i in range(4):                                     # each stone held by four: its own and the posts beside it
+        assert len(s.stone_knees(i)) == 4
+    assert s.design()["shared_prongs"][0]["rho"] == posts[0].rho and "_row_shared_gallery_" in s.stem
+
+
+def test_a_v_prong_is_not_shared():
+    assert any("V-prong" in p for p in ring05(gallery=False, shared_prongs=True).validate())
+
+
+def test_the_bridge_is_one_clean_rail_each_side(tmp_path):
+    from ntopjewel import geom
+    s = ring05()
+    rails = s.gallery_rails()
+    parts = rails.split(only_watertight=False)
+    assert len(parts) == 2 and all(p.is_volume for p in parts)
+    assert {int(np.sign(p.centroid[2])) for p in parts} == {1, -1}
+    st = s.stones()
+    lo, hi = min(p.theta_deg for p in st), max(p.theta_deg for p in st)
+    ang = np.degrees(np.arctan2(rails.vertices[:, 1], rails.vertices[:, 0]))
+    assert ang.min() >= lo - 1e-6 and ang.max() <= hi + 1e-6
+    gal, posts = s.write_gallery_layers(tmp_path, "t")
+    import trimesh
+    assert len(geom.intersecting_faces(trimesh.load(gal, force="mesh"))) == 0
+    plain = ms.MultiStoneSpec(s.band, s.centre, s.side)
+    assert "gallery" not in plain.design() and "shared_prongs" not in plain.design() and "row" not in plain.design()
+
+
+def test_every_stone_gets_its_own_prongs_file_when_prongs_are_shared(tmp_path):
+    s = ring02()
+    files = s.write_slot_files(tmp_path, "t")
+    assert len({p for _, p in files}) == 4 and len({e for e, _ in files}) == 1
+    v = s.notebook_inputs(["b"] * 4, files, "o.stl", gallery_paths=("g.stl", "sp.stl"))
+    assert v["Gallery Path"] == "g.stl" and v["Shared Prongs Path"] == "sp.stl"
+    assert list(v) == list(catalog.load("multistone").inputs) == ms.input_order()        # the catalog's order
+
+
+def test_ring_02_end_to_end_and_lost_posts_are_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    res = _build(out_dir, tmp_path, ring02())
+    assert res.ok, res.text()
+    names = {c.name for c in res.gate.checks}
+    assert {"shared prong tips", "gallery", "seat ledges"} <= names
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noposts")
+    res = _build(out_dir, tmp_path, ring02())
+    failed = {c.name for c in res.gate.checks if not c.ok}
+    assert not res.ok and {"shared prong tips", "seat ledges"} <= failed
+
+
+def test_ring_05_end_to_end_and_a_lost_bridge_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    res = _build(out_dir, tmp_path, ring05())
+    assert res.ok, res.text()
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nogallery")
+    res = _build(out_dir, tmp_path, ring05())
+    failed = {c.name for c in res.gate.checks if not c.ok}
+    assert not res.ok and "gallery" in failed

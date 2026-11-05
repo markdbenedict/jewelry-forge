@@ -248,6 +248,8 @@ python -m ntopjewel multistone --size 6 --length 6.5 --side-shape round --side-l
 python -m ntopjewel multistone --size 6 --shape cushion --length 7 --stone-width 6 --side-shape pear --side-length 6 --side-width 4   # ring 05
 python -m ntopjewel multistone --size 6 --length 6 --side-shape round --side-length 3 --side-pairs 2      # five in a row
 python -m ntopjewel multistone ... --width-bottom 2 --thickness-bottom 1.4 --dry-run                    # on a tapered shank; numbers only
+python -m ntopjewel multistone --profile comfort-flat --width 2.6 --thickness 1.8 --length 4 --prongs 4 --row 4 --shared-prongs --gallery   # ring 02
+python -m ntopjewel multistone --profile comfort-flat --width 2.6 --thickness 1.8 --shape cushion --length 7 --stone-width 6 --side-shape pear --side-length 6 --side-width 4 --gallery   # ring 05 on a gallery
 ```
 
 A centre stone and `--side-pairs` side stones each side, every one in an **outline head** (the
@@ -273,12 +275,39 @@ Blend` for all. Ring = ((shank ∪ placed heads), blended) − placed seats. The
 (plain or tapered; no rope, knot, double band or split yet; the heads must stay inside the taper's
 full section).
 
+**Stones in a row** (`--row N`, 2..5): N stones of the centre's kind, symmetric about the top - one
+at the top for an odd N, the first pair straddling it for an even N (ring 02's four) - each the
+smallest angle on that clears its neighbour, all spun as the centre (role "row").
+
+**Shared prongs** (`--shared-prongs`, `ntopjewel.gallery.Post`): where neighbours face each other,
+each one's prong facing the other on each side of the band (one per side: 4-prong heads; a V-prong is
+never shared) becomes one straight radial **post** between them, solved (least squares) so that at each
+girdle's underside its axis stands `rho - ledge` outside both outlines - it overlaps each stone by
+the ledge, like any prong. Its foot stands just inside the band's face (`outer_radius_at`), or in the
+rails past the band's edge; its radius starts at the heads' and grows until what both drop-in paths
+leave of the tip holds the prong-tip floor. With shared prongs the angles are solved against the
+neighbours' rails, not their (now shared) prongs, and every stone gets its own prongs file (an inner
+stone of a row keeps none: a speck buried in the band under it). Ring 02: 6 posts, 2 + 0 + 0 + 2 own
+prongs, ten prongs for four stones.
+
+**The gallery bridge** (`--gallery`): one rail each side of the band through the heads' upper rails,
+its section at each stone the rail where the radial plane through that stone cuts it, straight between
+(a structured loft, `gallery.loft_around_axis`: rounded-rectangle stations every 0.5°, no mesh
+boolean). The bridge and the posts go to nTop as two layers in the ring frame (`Gallery Path`, `Shared
+Prongs Path`, multistone 0.3.0; specks buried in the band without), united with the heads (sharp: the
+bridge's section is each head's rail where they meet), and that body melts into the shank by the
+blended union - the posts' feet get their fillet - and every seat is cut after.
+
 Gate (`multistone.check_multistone`): the shank's walls and section shape away from the heads
 (beyond their reach + 8°), bore, `bore closed under the stones`, extents against the design, and
 for each stone in its own frame `stones fit`, `seat ledges` (every prong under its girdle) and
 `drop-in clear`; the design volume with every head's blend estimate and the heads-into-shank
 junction. A notebook whose side slots never got their own values fails `seat ledges` and the
-design volume. Stem `ring_multi_<n>_<centre>_<side>_<size>_<spec id>`; runs in `out\multistone\`.
+design volume. With shared prongs `seat ledges` counts each stone's own prongs and the posts beside it,
+and `shared prong tips` measures what both seats left of each post above the girdles (inscribed circle
+≥ the tip floor less the mesh tolerance); with a gallery, `gallery` probes each bridge rail where the
+design shows it outermost. A lost posts layer fails both, a lost bridge `gallery`. Stem
+`ring_multi_<n>_<centre>_<side>[_row][_shared][_gallery]_<size>_<spec id>`; runs in `out\multistone\`.
 
 ## Pavé bands (`pave_band.ntop`, `ntopjewel.pave`, Phase 3 step 2/3)
 

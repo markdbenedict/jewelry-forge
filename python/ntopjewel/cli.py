@@ -510,7 +510,8 @@ def cmd_multistone(a: argparse.Namespace) -> int:
                                      centre_spin_deg=a.centre_spin, side_point=a.side_point, finger_clear_mm=a.finger_clear,
                                      shank_blend_mm=a.shank_blend, shank=shaped, pave_stone_mm=a.pave or 0.0,
                                      pave_rows=a.pave_rows, pave_layout=a.pave_layout, pave_from_deg=a.pave_from or 0.0,
-                                     pave_material=a.pave_material)
+                                     pave_material=a.pave_material, row=a.row or 0, shared_prongs=a.shared_prongs,
+                                     gallery=a.gallery)
     probs = spec.validate()
     if probs:
         print("multistone: problems: " + "; ".join(probs))
@@ -933,6 +934,10 @@ def main(argv: list[str] | None = None) -> int:
     mu.add_argument("--side-point", default="in", choices=["in", "out"], help="pear / marquise sides: point towards the centre or away")
     mu.add_argument("--side-pairs", type=int, default=1, help="side stones each side of the centre (1: three-stone, 2: five)")
     mu.add_argument("--side-gap", type=float, default=multistone.SIDE_GAP_MM, help="girdle to girdle between neighbours, mm")
+    mu.add_argument("--row", type=int, help="N stones of the centre's kind in a row (2..5; an even N has none at the top) - ring 02")
+    mu.add_argument("--shared-prongs", action="store_true",
+                    help="neighbours share the prongs facing each other: one post between them each side of the band (4-prong heads)")
+    mu.add_argument("--gallery", action="store_true", help="a bridge rail along the row each side of the band, at the heads' upper rails")
     mu.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3),
                     help="the centre stone's (and, unless --side-material says, the side stones'); ruby: sapphire (corundum)")
     mu.add_argument("--side-material", choices=sorted(tables.STONE_DENSITY_G_CM3), help="the side stones' (default: --material)")

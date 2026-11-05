@@ -38,9 +38,9 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
-from . import band as bandmod, catalog, config, gate, gems, geom, heads, ntopcl, runs, tables
+from . import band as bandmod, catalog, config, gallery as gallerymod, gate, gems, geom, heads, ntopcl, runs, tables
 from . import shank as shankmod
-from .nb_multistone import COMMON, PAVE, SLOT_FIELDS, SLOTS, input_order, slot_input, specs  # noqa: F401  (console-safe)
+from .nb_multistone import COMMON, GALLERY, PAVE, SLOT_FIELDS, SLOTS, input_order, slot_input, specs  # noqa: F401  (console-safe)
 
 WALL_FLOOR = tables.FLOORS["wall_marginal"]
 HEAD_ANGLE_DEG = 90.0
@@ -75,6 +75,9 @@ class MultiStoneSpec:
     pave_layout: str = "staggered"
     pave_from_deg: float = 0.0                 # where the pavé begins, from the top (0: just past the side heads)
     pave_material: str = tables.DEFAULT_STONE
+    row: int = 0                               # stones in a row: N stones of the centre's kind symmetric about the top (an even N has none at it); 0: centre + side pairs
+    shared_prongs: bool = False                # neighbours share the prongs facing each other: one post between them each side of the band
+    gallery: bool = False                      # a bridge rail along the row each side of the band, at the heads' upper rails
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self):
@@ -100,6 +103,8 @@ class MultiStoneSpec:
 
     @property
     def stone_count(self) -> int:
+        if self.row:
+            return int(self.row)
         return 1 + (2 * self.side_pairs if self.side is not None else 0)
 
     def _seating(self, h: heads.OutlineHeadSpec) -> tuple[float, float]:
@@ -177,7 +182,7 @@ class MultiStoneSpec:
             return False
         for (h1, t1, s1), (h2, t2, s2) in ((a, b), (b, a)):
             cut = self._placed(h1, t1, s1, 1)
-            head = self._placed(h2, t2, s2, 0)
+            head = self._placed_rails(h2, t2, s2) if self.shared_prongs else self._placed(h2, t2, s2, 0)
             if not (cut.bounds[0] < head.bounds[1]).all() or not (head.bounds[0] < cut.bounds[1]).all():
                 continue
             inter = trimesh.boolean.intersection([cut, head], engine="manifold")
@@ -195,32 +200,55 @@ class MultiStoneSpec:
 
     def side_spin(self, theta_deg: float) -> float:
         """A side stone's length runs along the band; its point (the stone's -X) faces the centre
-        (side_point "in") or away from it ("out")."""
+        (side_point "in") or away from it ("out"). In a row every stone is spun as the centre."""
+        if self.row:
+            return self.centre_spin_deg
         s = 90.0 if theta_deg > 0 else -90.0
         return s if self.side_point == "in" else -s
 
     # ---- the layout ---------------------------------------------------------------------------
+    @staticmethod
+    def _smallest_angle(ok, lo: float) -> float:
+        """The smallest angle in (lo, lo + 90] at which ok(angle) holds (bisection to 0.0001°), a hair past it."""
+        hi = lo + 90.0
+        if not ok(hi):
+            raise ValueError("no stone angle up to 90° clears its neighbour")
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            if ok(mid):
+                hi = mid
+            else:
+                lo = mid
+        return round(hi + 0.01, 3)
+
     def stones(self) -> list[Placed]:
-        """The centre, then the side stones +Y and -Y outwards, each at its solved angle."""
+        """The centre, then the side stones +Y and -Y outwards, each at its solved angle. In a row
+        (`row` N): N stones of the centre's kind, one at the top when N is odd, the first pair either
+        side of it - or, N even, the first pair straddling the top at the smallest angle that clears
+        them of each other - each next one the smallest step on that clears its neighbour."""
         if "stones" in self._cache:
             return self._cache["stones"]
+        if self.row:
+            h, sp = self.centre, self.centre_spin_deg
+            n = int(self.row)
+            if n % 2:
+                out, prev, pairs = [Placed(h, 0.0, sp, "centre")], (h, 0.0, sp), (n - 1) // 2
+            else:
+                t = self._smallest_angle(lambda x: self._clear((h, -x, sp), (h, x, sp)), 0.0)
+                out, prev, pairs = [Placed(h, t, sp, "row")], (h, t, sp), n // 2 - 1
+            for _ in range(pairs):
+                t = self._smallest_angle(lambda x, prev=prev: self._clear(prev, (h, x, sp)), prev[1])
+                out.append(Placed(h, t, sp, "row"))
+                prev = (h, t, sp)
+            for q in [q for q in out if q.theta_deg > 0]:
+                out.append(Placed(h, -q.theta_deg, sp, "row"))
+            self._cache["stones"] = out
+            return out
         out = [Placed(self.centre, 0.0, self.centre_spin_deg, "centre")]
         if self.side is not None:
             prev = (self.centre, 0.0, self.centre_spin_deg)
             for _ in range(self.side_pairs):
-                lo, hi = prev[1], prev[1] + 90.0
-
-                def ok(t):
-                    return self._clear(prev, (self.side, t, self.side_spin(t)))
-                if not ok(hi):
-                    raise ValueError("no side-stone angle up to 90° clears its neighbour")
-                for _ in range(30):                                       # 0.0001° on 90
-                    mid = (lo + hi) / 2
-                    if ok(mid):
-                        hi = mid
-                    else:
-                        lo = mid
-                theta = round(hi + 0.01, 3)                               # a hair past the bound
+                theta = self._smallest_angle(lambda t, prev=prev: self._clear(prev, (self.side, t, self.side_spin(t))), prev[1])
                 out.append(Placed(self.side, theta, self.side_spin(theta), "side"))
                 prev = (self.side, theta, self.side_spin(theta))
             for p in list(out[1:]):
@@ -228,10 +256,260 @@ class MultiStoneSpec:
         self._cache["stones"] = out
         return out
 
+    def neighbours(self) -> list[tuple[int, int]]:
+        """Pairs of stones next to each other along the band (indices into stones(), in order of angle)."""
+        st = self.stones()
+        order = sorted(range(len(st)), key=lambda i: st[i].theta_deg)
+        return [(order[k], order[k + 1]) for k in range(len(order) - 1)]
+
+    # ---- the stones' own heads: their prongs (less the shared ones), parts, placement -------------
+    def _rails_parts(self, h: heads.OutlineHeadSpec):
+        """The head's rails alone with its seat cut (head frame): what a neighbour's seat may not touch
+        when the prongs between them are shared."""
+        key = ("rails", id(h))
+        if key not in self._cache:
+            import trimesh
+            ph = self.placed_head(h)
+            env = ph.seat.envelope()
+            _, rails = heads.outline_head_parts(ph.notebook_inputs(""), env, ph.prongs_mesh())
+            cutter = geom.offset_convex(env, ph.clearance)
+            self._cache[key] = geom.clean(trimesh.boolean.difference([rails, cutter], engine="manifold"))
+        return self._cache[key]
+
+    def _placed_rails(self, h, theta, spin):
+        m = self._rails_parts(h).copy()
+        m.apply_transform(self.matrix(h, theta, spin))
+        return m
+
+    def _ring_knees(self, i: int):
+        """Stone i's prong knees in the ring frame, with each prong's kind."""
+        import numpy as np
+        p = self.stones()[i]
+        ph = self.placed_head(p.head)
+        M = self.matrix(p.head, p.theta_deg, p.spin_deg)
+        return [((M @ np.array([*knee, 1.0]))[:3], kind) for (_f, knee, _t), kind in zip(ph.prong_axes(), ph.point_kinds())]
+
+    def facing_prongs(self, i: int, j: int) -> dict[int, int]:
+        """{side (+1: +Z, -1: -Z): the index of stone i's prong that faces stone j on that side}: the
+        prongs standing more than their own radius past stone i's centre line towards j. Refused
+        unless there is exactly one round prong each side (a V-prong cannot be shared)."""
+        st = self.stones()
+        a, b = st[i], st[j]
+        rho = self.placed_head(a.head).rho
+        t = math.radians(a.theta_deg)
+        sgn = 1.0 if b.theta_deg > a.theta_deg else -1.0
+        out = {}
+        for k, (kr, kind) in enumerate(self._ring_knees(i)):
+            tang = -math.sin(t) * kr[0] + math.cos(t) * kr[1]
+            if tang * sgn <= rho:
+                continue
+            side = 1 if kr[2] > 0 else -1
+            if kind != "round":
+                raise ValueError(f"stone {i + 1}'s prong facing stone {j + 1} is a V-prong: only round prongs are shared")
+            if side in out:
+                raise ValueError(f"stone {i + 1} has more than one prong facing stone {j + 1} on one side: shared prongs want "
+                                 f"4-prong heads (one prong each side towards each neighbour)")
+            out[side] = k
+        if set(out) != {1, -1}:
+            raise ValueError(f"stone {i + 1} has no prong facing stone {j + 1} on each side of the band")
+        return out
+
+    def posts(self) -> list[gallerymod.Post]:
+        """The shared prongs, two per pair of neighbours (one each side of the band); [] without."""
+        if not self.shared_prongs:
+            return []
+        if "posts" not in self._cache:
+            out = []
+            for i, j in self.neighbours():
+                fi, fj = self.facing_prongs(i, j), self.facing_prongs(j, i)
+                for side in (1, -1):
+                    out.append(self._post(i, j, side, fi[side], fj[side]))
+            self._cache["posts"] = out
+        return self._cache["posts"]
+
+    def _post(self, i: int, j: int, side: int, ki: int, kj: int) -> gallerymod.Post:
+        """The post replacing stone i's prong ki and stone j's prong kj: solved for its place, its
+        radius raised from the heads' prong radius until both seats leave the tip-floor of it."""
+        import numpy as np
+        from shapely.geometry import Polygon
+        st = self.stones()
+        pa, pb = st[i], st[j]
+        ha, hb = self.placed_head(pa.head), self.placed_head(pb.head)
+        Ma, Mb = self.matrix(pa.head, pa.theta_deg, pa.spin_deg), self.matrix(pb.head, pb.theta_deg, pb.spin_deg)
+        ka, kb = self._ring_knees(i)[ki][0], self._ring_knees(j)[kj][0]
+        theta0 = math.degrees((math.atan2(ka[1], ka[0]) + math.atan2(kb[1], kb[0])) / 2)
+        z0 = float(ka[2] + kb[2]) / 2
+        polys = [Polygon(ha.stone.outline(512)), Polygon(hb.stone.outline(512))]
+        girdles = [ha.stone.girdle, hb.stone.girdle]
+        cutters = [self._placed(pa.head, pa.theta_deg, pa.spin_deg, 1), self._placed(pb.head, pb.theta_deg, pb.spin_deg, 1)]
+        b = self.band
+        rho = max(ha.rho, hb.rho)
+        while True:
+            d = rho - min(ha.ledge_mm, hb.ledge_mm)
+            theta, z = gallerymod.solve_post([Ma, Mb], polys, girdles, d, theta0, z0)
+            r_at = [gallerymod.radial_point_at_head_z(M, theta, z, zh)[1]
+                    for M, h in ((Ma, ha), (Mb, hb)) for zh in (h.z_tip, h.rails()["lower"][0])]
+            r_tip, r_rails = max(r_at[0], r_at[2]), min(r_at[1], r_at[3])
+            if abs(z) < b.width_mm / 2 - rho / 2:                    # over the band: its foot just inside the band's face
+                r_foot = b.outer_radius_at(abs(z)) - gallerymod.POST_DEPTH_MM
+            else:                                                    # past the band's edge: it stands in the heads' rails
+                r_foot = r_rails + rho
+            post = gallerymod.Post(i, j, side, theta, z, round(rho, 4), r_foot, r_tip)
+            plane_r = max(gallerymod.radial_point_at_head_z(M, theta, z, h.stone.girdle / 2 + 0.15)[1]
+                          for M, h in ((Ma, ha), (Mb, hb)))
+            if gallerymod.post_tip_left(post, cutters, plane_r) >= heads.PRONG_TIP_FLOOR:
+                return post
+            rho += gallerymod.POST_RHO_STEP_MM
+            if rho > gallerymod.POST_RHO_MAX_MM:
+                raise ValueError(f"the post between stones {i + 1} and {j + 1} cannot keep a {heads.PRONG_TIP_FLOOR} mm tip "
+                                 f"under both seats: more room between the stones (--side-gap)")
+
+    def kept_prongs(self, i: int) -> list[int]:
+        """Stone i's own prongs: all, less those that became posts."""
+        n = len(self.placed_head(self.stones()[i].head).prong_axes())
+        if not self.shared_prongs:
+            return list(range(n))
+        gone = set()
+        for a, b in self.neighbours():
+            for me, other in ((a, b), (b, a)):
+                if me == i:
+                    gone |= set(self.facing_prongs(me, other).values())
+        return [k for k in range(n) if k not in gone]
+
+    def stone_prongs(self, i: int):
+        """Stone i's prongs mesh (head frame, what its Prongs Path holds): its kept prongs, or - all of
+        them shared - a speck buried in the band under it, which the head block and the ring take in
+        and lose."""
+        key = ("prongs", i)
+        if key not in self._cache:
+            p = self.stones()[i]
+            ph = self.placed_head(p.head)
+            keep = self.kept_prongs(i)
+            if len(keep) == len(ph.prong_axes()):
+                mesh = self._head_parts(p.head)[2]
+            elif keep:
+                mesh = ph.prongs_mesh(keep)
+            else:
+                import trimesh
+                from .artwork import SPECK_MM
+                mesh = trimesh.creation.box(extents=(SPECK_MM, SPECK_MM, SPECK_MM))
+                mesh.apply_translation([0.0, 0.0, self.band.bore_radius_mm + self.band.thickness_mm / 2 - self.girdle_radius(p.head)])
+            self._cache[key] = mesh
+        return self._cache[key]
+
+    def _stone_parts(self, i: int):
+        """(head mesh with its own seat cut, seat cutter, prongs, envelope), head frame, for stone i."""
+        p = self.stones()[i]
+        if not self.shared_prongs:
+            return self._head_parts(p.head)
+        key = ("stone_parts", i)
+        if key not in self._cache:
+            ph = self.placed_head(p.head)
+            env = ph.seat.envelope()
+            prongs = self.stone_prongs(i)
+            mesh = heads.outline_head_mesh(ph.notebook_inputs(""), env, prongs)
+            self._cache[key] = (mesh, geom.offset_convex(env, ph.clearance), prongs, env)
+        return self._cache[key]
+
+    def placed_stone(self, i: int, which: int = 0):
+        """Stone i's head (0) or seat cutter (1) on the ring."""
+        p = self.stones()[i]
+        m = self._stone_parts(i)[which].copy()
+        m.apply_transform(self.matrix(p.head, p.theta_deg, p.spin_deg))
+        return m
+
+    def stone_knees(self, i: int) -> list[tuple[float, float, float]]:
+        """[(x, y, radius)] in stone i's head frame: where each prong holding it meets its girdle - its
+        kept prongs' knees and, for each post beside it, the post's axis at the girdle's underside."""
+        p = self.stones()[i]
+        ph = self.placed_head(p.head)
+        axes = ph.prong_axes()
+        out = [(float(axes[k][1][0]), float(axes[k][1][1]), ph.rho) for k in self.kept_prongs(i)]
+        M = self.matrix(p.head, p.theta_deg, p.spin_deg)
+        for q in self.posts():
+            if i in (q.a, q.b):
+                pt, _ = gallerymod.radial_point_at_head_z(M, q.theta_deg, q.z, -p.head.stone.girdle / 2)
+                out.append((float(pt[0]), float(pt[1]), q.rho))
+        return out
+
+    # ---- the gallery bridge ---------------------------------------------------------------------------
+    def gallery_rails(self):
+        """The bridge: one rail each side of the band through the stones' upper-rail sections (ring frame)."""
+        if "gallery" not in self._cache:
+            import trimesh
+            st = self.stones()
+            corner = min(self.centre.blend, (self.side or self.centre).blend)
+            rails = []
+            for side in (1, -1):
+                secs = []
+                for p in st:
+                    sec = gallerymod.rail_section(self._placed_rails(p.head, p.theta_deg, p.spin_deg), p.theta_deg, side)
+                    if sec is None:
+                        raise ValueError(f"no upper rail under the stone at {p.theta_deg:.1f}° on the {'+' if side > 0 else '-'}Z side")
+                    secs.append(sec)
+                rails.append(gallerymod.bridge_rail(secs, corner))
+            self._cache["gallery"] = trimesh.util.concatenate(rails)
+        return self._cache["gallery"]
+
+    def gallery_probes(self) -> list[tuple]:
+        """Where to look for the bridge on a built ring: per pair of neighbours and side, the ray (from
+        outside, towards the axis) nearest mid-way between them along which the bridge is the outermost
+        metal of the design - (i, j, side, origin, direction, distance to the design's surface)."""
+        if "gallery_probes" in self._cache:
+            return self._cache["gallery_probes"]
+        import numpy as np
+        st = self.stones()
+        rails, design = self.gallery_rails(), self.design_mesh()
+        out = []
+        for i, j in self.neighbours():
+            a, b = st[i], st[j]
+            for side in (1, -1):
+                secs = [gallerymod.rail_section(self._placed_rails(x.head, x.theta_deg, x.spin_deg), x.theta_deg, side) for x in (a, b)]
+                best = None
+                for f in sorted(np.linspace(0.05, 0.95, 19), key=lambda f: abs(f - 0.5)):
+                    th = a.theta_deg + f * (b.theta_deg - a.theta_deg)
+                    r1 = secs[0].r1 + f * (secs[1].r1 - secs[0].r1)
+                    z = (secs[0].z0 + secs[0].z1) / 2 + f * ((secs[1].z0 + secs[1].z1) / 2 - (secs[0].z0 + secs[0].z1) / 2)
+                    t = math.radians(th)
+                    u = np.array([math.cos(t), math.sin(t), 0.0])
+                    origin, direction = u * (r1 + 3.0) + np.array([0.0, 0.0, z]), -u
+                    hr, _, _ = rails.ray.intersects_location([origin], [direction], multiple_hits=False)
+                    hd, _, _ = design.ray.intersects_location([origin], [direction], multiple_hits=False)
+                    if len(hr) and len(hd) and np.linalg.norm(hr[0] - hd[0]) < 0.02:
+                        best = (i, j, side, origin, direction, float(np.linalg.norm(hd[0] - origin)))
+                        break
+                if best is not None:
+                    out.append(best)
+        self._cache["gallery_probes"] = out
+        return out
+
+    def gallery_layers(self):
+        """(gallery, shared prongs) meshes for the notebook: the bridge rails and the posts, or the
+        no-op specks buried in the band."""
+        import trimesh
+        from . import artwork as artmod
+        g = self.gallery_rails() if self.gallery else artmod.buried_speck(self.band)
+        posts = trimesh.util.concatenate([q.mesh() for q in self.posts()]) if self.shared_prongs else artmod.buried_speck(self.band)
+        return g, posts
+
+    def write_gallery_layers(self, directory: Path, stem: str) -> tuple[str, str]:
+        """Write both layers and read each back: a layer with crossing faces (as nTop would read them,
+        float32) is refused - it would import as self-intersecting."""
+        import trimesh
+        directory = Path(directory)
+        paths = (directory / f"{stem}.gallery.stl", directory / f"{stem}.shared_prongs.stl")
+        for mesh, path in zip(self.gallery_layers(), paths):
+            mesh.export(str(path))
+            back = trimesh.load(str(path), force="mesh")
+            bad = geom.intersecting_faces(back)
+            if len(bad):
+                raise ValueError(f"{path.name}: {len(bad)} pairs of faces cross (nTop would import it as self-intersecting)")
+        return str(paths[0]), str(paths[1])
+
     def placed_heads_mesh(self, which: int = 0):
         """Every placed head (0) or seat cutter (1), concatenated (they may overlap: for looking only)."""
         import trimesh
-        return trimesh.util.concatenate([self._placed(p.head, p.theta_deg, p.spin_deg, which) for p in self.stones()])
+        return trimesh.util.concatenate([self.placed_stone(i, which) for i in range(len(self.stones()))])
 
     @property
     def head_span_deg(self) -> float:
@@ -311,7 +589,8 @@ class MultiStoneSpec:
                 "Spin": round(p.spin_deg, 4), "Pivot X": round(px, 4), "Pivot Z": round(pz, 4), "Turn": round(p.theta_deg, 4)}
 
     def notebook_inputs(self, shank_paths, slot_files: list[tuple[str, str]], output_path: str = "",
-                        pave_paths: tuple[str, str] = ("<pave beads path>", "<pave seats path>")) -> dict:
+                        pave_paths: tuple[str, str] = ("<pave beads path>", "<pave seats path>"),
+                        gallery_paths: tuple[str, str] = ("<gallery path>", "<shared prongs path>")) -> dict:
         """`slot_files`: (seat envelope path, prongs path) per stone, in stones() order."""
         sh = self.shank_spec.notebook_inputs(shank_paths, "")
         v = {k: sh[k] for k in (*shankmod.SLOT_NAMES, "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance")}
@@ -324,22 +603,27 @@ class MultiStoneSpec:
             for name, val in self.slot_values(p, seat, prongs).items():
                 v[slot_input(name, k)] = val
         v["Pave Beads Path"], v["Pave Seats Path"] = str(pave_paths[0]), str(pave_paths[1])
+        v["Gallery Path"], v["Shared Prongs Path"] = str(gallery_paths[0]), str(gallery_paths[1])
         v["Output Path"] = str(output_path)
         return v
 
     def write_slot_files(self, directory: Path, stem: str) -> list[tuple[str, str]]:
-        """Each distinct head's seat envelope and prongs (head frame) once; a path pair per stone."""
+        """Each distinct head's seat envelope and prongs (head frame) once; a path pair per stone. With
+        shared prongs every stone keeps different prongs: one prongs file per stone."""
         directory = Path(directory)
-        out, done = [], {}
-        for p in self.stones():
+        out, envs, done = [], {}, {}
+        for i, p in enumerate(self.stones()):
             role = p.role
-            if role not in done:
-                ph = self.placed_head(p.head)
-                env, prongs = directory / f"{stem}.{role}.envelope.stl", directory / f"{stem}.{role}.prongs.stl"
-                ph.seat.envelope().export(str(env))
-                ph.prongs_mesh().export(str(prongs))
-                done[role] = (str(env), str(prongs))
-            out.append(done[role])
+            if role not in envs:
+                env = directory / f"{stem}.{role}.envelope.stl"
+                self.placed_head(p.head).seat.envelope().export(str(env))
+                envs[role] = str(env)
+            key = f"stone{i + 1}" if self.shared_prongs else role
+            if key not in done:
+                prongs = directory / f"{stem}.{key}.prongs.stl"
+                self.stone_prongs(i).export(str(prongs))
+                done[key] = str(prongs)
+            out.append((envs[role], done[key]))
         return out
 
     # ---- identity ----------------------------------------------------------------------------
@@ -351,6 +635,12 @@ class MultiStoneSpec:
                   "centre_spin": self.centre_spin_deg, "finger_clear": self.finger_clear, "shank_blend": self.shank_blend})
         if self.side_point != "in":                                   # only when set: earlier designs keep their ids
             d["side_point"] = self.side_point
+        if self.row:
+            d["row"] = int(self.row)
+        if self.shared_prongs:
+            d["shared_prongs"] = [q.design() for q in self.posts()]
+        if self.gallery:
+            d["gallery"] = True
         if self.has_pave:
             pv = self.pave.design()
             d["pave"] = {k: v for k, v in pv.items() if k.startswith("pave_") or k == "seat_clearance"}
@@ -369,7 +659,8 @@ class MultiStoneSpec:
     def stem(self) -> str:
         side = f"_{self._short(self.side.stone)}" if self.side is not None else ""
         pave = f"_pave{self.pave_rows}x{self.pave_stone_mm:g}".replace(".", "p") if self.has_pave else ""
-        return f"ring_multi_{self.stone_count}_{self._short(self.centre.stone)}{side}{pave}_{self.band.label}_{self.spec_id}"
+        extra = ("_row" if self.row else "") + ("_shared" if self.shared_prongs else "") + ("_gallery" if self.gallery else "")
+        return f"ring_multi_{self.stone_count}_{self._short(self.centre.stone)}{side}{extra}{pave}_{self.band.label}_{self.spec_id}"
 
     @property
     def catalog_name(self) -> str:
@@ -380,32 +671,44 @@ class MultiStoneSpec:
         """shank ∪ every placed head, then every placed seat cut (sharp unless `ops` blends)."""
         key = "design_mesh" if ops is geom.SHARP else None
         if key is None or key not in self._cache:
-            stones = self.stones()
-            hs = [self._placed(p.head, p.theta_deg, p.spin_deg, 0) for p in stones]
-            cuts = [self._placed(p.head, p.theta_deg, p.spin_deg, 1) for p in stones]
+            n = len(self.stones())
+            hs = [self.placed_stone(i, 0) for i in range(n)]
+            cuts = [self.placed_stone(i, 1) for i in range(n)]
             shank = self.shank_spec.design_mesh()
             if self.has_pave:                                             # the beads join the shank before the heads
                 import trimesh
                 shank = trimesh.boolean.union([shank, self.pave.beads_mesh()], engine="manifold")
                 cuts = cuts + [self.pave.seats_mesh()]
-            ring = ops.union([shank, ops.union(hs)], self.shank_blend)
+            ring = ops.union([shank, ops.union([*hs, *self.gallery_bodies()])], self.shank_blend)
             mesh = ops.clean(ops.difference(ring, cuts))
             if key is None:
                 return mesh
             self._cache[key] = mesh
         return self._cache[key]
 
+    def gallery_bodies(self) -> list:
+        """What the heads' union takes besides the heads: the bridge rails and the posts (none without)."""
+        out = []
+        if self.gallery:
+            out.append(self.gallery_rails())
+        if self.shared_prongs:
+            import trimesh
+            out.append(trimesh.util.concatenate([q.mesh() for q in self.posts()]))
+        return out
+
     def blend_volume_mm3(self) -> float:
         """What the blends add: each head's own (prongs into rails, the rails' edges), plus the
         heads-into-shank union along its exposed junction."""
         est = 0.0
-        for p in self.stones():
+        for i, p in enumerate(self.stones()):
             ph = self.placed_head(p.head)
-            est += ph.blend_volume_mm3()
+            est += (ph.blend_volume_mm3() if not self.shared_prongs
+                    else heads.blend_estimate(ph.notebook_inputs(""), ph.seat.envelope(), self.stone_prongs(i)))
         if self.shank_blend > 0:
             import trimesh
-            hs = trimesh.boolean.union([self._placed(p.head, p.theta_deg, p.spin_deg, 0) for p in self.stones()], engine="manifold")
-            cuts = [self._placed(p.head, p.theta_deg, p.spin_deg, 1) for p in self.stones()]
+            n = len(self.stones())
+            hs = trimesh.boolean.union([self.placed_stone(i, 0) for i in range(n)] + self.gallery_bodies(), engine="manifold")
+            cuts = [self.placed_stone(i, 1) for i in range(n)]
             seg = geom.exposed_segments(geom.junction_segments(self.shank_spec.design_mesh(), hs), *cuts)
             est += geom.blend_volume_mm3(self.shank_blend, geom.segments_length(seg))
         return est
@@ -425,6 +728,12 @@ class MultiStoneSpec:
             p.append(f"{self.stone_count} stones: the notebook has {SLOTS} head slots")
         if self.side is not None and self.side_pairs < 1:
             p.append("side pairs: at least 1 with a side stone")
+        if self.row and self.side is not None:
+            p.append("a row is stones of one kind (the centre's): no side stone with --row")
+        if self.row and not 2 <= int(self.row) <= SLOTS:
+            p.append(f"a row of {self.row}: 2 to {SLOTS} stones (the notebook's head slots)")
+        if (self.shared_prongs or self.gallery) and self.stone_count < 2:
+            p.append("shared prongs and a gallery join neighbouring stones: at least two")
         if self.side is not None and self.side.clearance != self.centre.clearance:
             p.append("centre and side stones share one seat clearance (the notebook's Clearance)")
         if self.side is not None and self.side.blend != self.centre.blend:
@@ -436,6 +745,9 @@ class MultiStoneSpec:
             return p
         try:
             stones = self.stones()
+            self.posts()
+            if self.gallery:
+                self.gallery_rails()
         except ValueError as e:
             return [str(e)]
         span = self.head_span_deg
@@ -453,7 +765,7 @@ class MultiStoneSpec:
                 p += [f"pavé: {x}" for x in pv.validate()]
             if not p:
                 import trimesh
-                hs = trimesh.boolean.union([self._placed(q.head, q.theta_deg, q.spin_deg, 0) for q in stones], engine="manifold")
+                hs = trimesh.boolean.union([self.placed_stone(i, 0) for i in range(len(stones))], engine="manifold")
                 cut = trimesh.boolean.intersection([hs, pv.seats_mesh()], engine="manifold")
                 if len(cut.faces) and cut.volume > CUT_ALLOWED_MM3:
                     p.append(f"the pavé's seats cut {cut.volume:.3f} mm³ from the side heads: start it later (--pave-from)")
@@ -468,21 +780,24 @@ class MultiStoneSpec:
     def describe(self) -> str:
         b = self.band
         lines = [f"{self.stem}: {b.label}, inner Ø {b.inner_diameter_mm:.3f}, {b.profile} {b.width_mm:g} x {b.thickness_mm:g} mm"]
-        for p in self.stones():
-            if p.role == "side" and p.theta_deg < 0:
+        for i, p in enumerate(self.stones()):
+            if p.role in ("side", "row") and p.theta_deg < 0:
                 continue
             s = p.head.stone
             where = "at the top" if p.role == "centre" else (f"at ±{p.theta_deg:.2f}° (spun {abs(p.spin_deg):g}°"
                                                              + (f", point {'inward' if self.side_point == 'in' else 'outward'})"
                                                                 if p.head.stone.shape in ("pear", "marquise") else ")"))
-            lines.append(f"  {p.role}: {s.describe()} in {self.placed_head(p.head).count} prongs, {where}; "
+            held = (f"held by {len(self.stone_knees(i))} prongs ({len(self.kept_prongs(i))} its own, the rest shared)"
+                    if self.shared_prongs else f"in {self.placed_head(p.head).count} prongs")
+            lines.append(f"  {p.role}: {s.describe()} {held}, {where}; "
                          f"girdle at r {self.girdle_radius(p.head):.3f}")
         gaps = ""
-        if self.side is not None:
-            n = 1 + self.side_pairs
-            g = [self.girdle_gap(0 if k == 1 else k - 1, k) for k in range(1, n)]
-            gaps = (f"girdles {', '.join(f'{x:.2f}' for x in g)} mm apart from the centre out (at least {self.side_gap_mm:g}; "
-                    f"each side angle the smallest at which no seat cuts a neighbour's prongs); ")
+        if self.stone_count > 1:
+            g = [self.girdle_gap(i, j) for i, j in self.neighbours()]
+            g = g[len(g) // 2:]                                              # symmetric: from the top out
+            what = "rails" if self.shared_prongs else "prongs"
+            gaps = (f"girdles {', '.join(f'{x:.2f}' for x in g)} mm apart from the top out (at least {self.side_gap_mm:g}; "
+                    f"each angle the smallest at which no seat cuts a neighbour's {what}); ")
         lines.append(f"  {self.stone_count} stones, {self.carats():.2f} ct; {gaps}heads reach ±{self.head_span_deg:.1f}°; "
                      f"culets at least {self.finger_clear:g} mm above the bore")
         if self.has_pave:
@@ -492,6 +807,14 @@ class MultiStoneSpec:
                          f"{pv.rows} row{'s' if pv.rows > 1 else ''} ({rows}) round the bottom from ±{pv.reach_from_top_deg:.1f}° "
                          f"(the heads' metal at the surface reaches ±{self.head_face_reach_deg():.1f}°), {len(pv.beads())} beads "
                          f"of Ø {2 * pv.bead_radius:.2f} mm")
+        if self.shared_prongs:
+            ps = self.posts()
+            own = [len(self.kept_prongs(i)) for i in range(len(self.stones()))]
+            lines.append(f"  shared prongs: {len(ps)} posts of Ø {2 * max(q.rho for q in ps):.2f} mm between neighbours (one each side "
+                         f"of the band); the stones keep {', '.join(map(str, own))} prongs of their own")
+        if self.gallery:
+            lines.append(f"  gallery: a bridge rail each side of the band at the heads' upper rails, "
+                         f"±{max(abs(p.theta_deg) for p in self.stones()):.1f}° from the top")
         lines.append(f"  blends: head {self.centre.blend:g} mm, heads into shank {self.shank_blend:g} mm")
         return "\n".join(lines)
 
@@ -525,16 +848,21 @@ def ring_from_inputs(v: dict, ops: geom.Booleans = geom.SHARP):
         beads = trimesh.load(str(v["Pave Beads Path"]), force="mesh")
         shank = trimesh.boolean.union([shank, beads], engine="manifold")
         cuts.append(trimesh.load(str(v["Pave Seats Path"]), force="mesh"))
-    ring = ops.union([shank, ops.union(hs)], float(v["Shank Blend"]))
+    extra = []
+    if v.get("Gallery Path"):                                          # 0.3.0: the bridge and the shared prongs (or specks)
+        extra = [geom.clean(trimesh.load(str(v[k]), force="mesh")) for k in ("Gallery Path", "Shared Prongs Path")]
+    ring = ops.union([shank, ops.union([*hs, *extra])], float(v["Shank Blend"]))
     return ops.clean(ops.difference(ring, cuts))
 
 
 # ---- the gate -------------------------------------------------------------------------------------
-def prong_ledges(local, head: heads.OutlineHeadSpec, z: float, under) -> int:
+def prong_ledges(local, head: heads.OutlineHeadSpec, z: float, under, knees=None) -> int:
     """How many of the head's prongs carry metal under the girdle, prong by prong: the section at
     height z (head frame) near each prong's knee overlapping the girdle region. Counting separate
     pieces (heads.outline_count, the solitaire's way) undercounts here: a side stone's prongs fuse
-    with the neighbouring head's metal into one piece (two pear prongs read as one, 2026-11-03)."""
+    with the neighbouring head's metal into one piece (two pear prongs read as one, 2026-11-03).
+    `knees`: [(x, y, radius)] in the head frame - the stone's kept prongs and the shared posts
+    beside it (MultiStoneSpec.stone_knees); default the head's own prongs."""
     import numpy as np
     from shapely.geometry import Point, Polygon
     sec = local.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
@@ -547,8 +875,9 @@ def prong_ledges(local, head: heads.OutlineHeadSpec, z: float, under) -> int:
         return (to3d @ np.column_stack([pts, np.zeros(len(pts)), np.ones(len(pts))]).T).T[:, :2]
     pieces = [Polygon(lift(q.exterior.coords), [lift(h.coords) for h in q.interiors]).buffer(0) for q in planar.polygons_full]
     count = 0
-    for (foot, knee, tip) in head.prong_axes():
-        near = Point(float(knee[0]), float(knee[1])).buffer(head.rho + 0.05)
+    knees = knees if knees is not None else [(float(k[0]), float(k[1]), head.rho) for (_f, k, _t) in head.prong_axes()]
+    for (kx, ky, rho) in knees:
+        near = Point(kx, ky).buffer(rho + 0.05)
         if any(pc.intersection(near).intersection(under).area > 1e-4 for pc in pieces):
             count += 1
     return count
@@ -633,7 +962,8 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
         fits.append((overlap, 0.002 * stone.volume))
         under, over = heads.seat_regions(p.head.stone, p.head.clearance)
         g = p.head.stone.girdle
-        ledges.append((prong_ledges(local, spec.placed_head(p.head), -g / 2 - 0.3, under), spec.placed_head(p.head).count))
+        knees = spec.stone_knees(stones.index(p))
+        ledges.append((prong_ledges(local, spec.placed_head(p.head), -g / 2 - 0.3, under, knees), len(knees)))
         drops.append(heads.outline_count(local, g / 2 + 0.15, over))
     bad = [i for i, (o, a) in enumerate(fits) if not o <= a]
     rep.checks.append(gate.Check("stones fit", not bad, f"{len(stones) - len(bad)}/{len(stones)} stones clear of the metal "
@@ -642,6 +972,32 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
     rep.checks.append(gate.Check("seat ledges", not bad, "every stone: " + ", ".join(f"{n}/{w}" for n, w in ledges)
                                  + " prongs reach under the girdle"))
     rep.checks.append(gate.Check("drop-in clear", not any(drops), f"{sum(drops)} pieces inside a girdle line above its girdle"))
+    mtol = spec.centre.mesh_tolerance_mm
+    if spec.shared_prongs:                                            # what both seats leave of each post above the girdles
+        left = []
+        for q in spec.posts():
+            a, bb = stones[q.a], stones[q.b]
+            plane_r = max(gallerymod.radial_point_at_head_z(spec.matrix(x.head, x.theta_deg, x.spin_deg), q.theta_deg, q.z,
+                                                            x.head.stone.girdle / 2 + 0.15)[1] for x in (a, bb))
+            left.append(gallerymod.section_inscribed_dia(ring, q.theta_deg, q.z, plane_r))
+        floor = heads.PRONG_TIP_FLOOR - mtol
+        worst = min(range(len(left)), key=lambda k: left[k])
+        rep.checks.append(gate.Check("shared prong tips", all(x >= floor for x in left),
+                                     f"{sum(x >= floor for x in left)}/{len(left)} posts keep Ø {floor:.2f} mm above both girdles "
+                                     f"(thinnest {left[worst]:.2f} mm, post {worst + 1} at {spec.posts()[worst].theta_deg:.1f}°)"))
+    if spec.gallery:                                                  # the bridge under every gap, both sides
+        found, missing = 0, []
+        for i, j, side, origin, direction, want in spec.gallery_probes():
+            hits, _, _ = ring.ray.intersects_location([origin], [direction], multiple_hits=False)
+            got = float(np.linalg.norm(hits[0] - origin)) if len(hits) else float("inf")
+            if abs(got - want) <= 0.15 + mtol:
+                found += 1
+            else:
+                missing.append(f"{i + 1}-{j + 1}{'+' if side > 0 else '-'}")
+        n = 2 * len(spec.neighbours())
+        rep.checks.append(gate.Check("gallery", found == n and n > 0,
+                                     f"{found}/{n} bridge rails found where the design shows them (within 0.15 mm)"
+                                     + (f"; missing between stones {', '.join(missing)}" if missing else "")))
     if pv is not None:                                                # the pavé's seats, holes, beads, held stones
         from . import pave as pavemod
         for c in pavemod.pave_checks(pv, ring):
@@ -698,7 +1054,8 @@ def build(spec: MultiStoneSpec, out_dir: Path | None = None, *, notebook: Path |
     bars = shankmod.write_bars(spec.shank_spec, run_dir, spec.stem)
     files = spec.write_slot_files(run_dir, spec.stem)
     pave_paths = spec.write_pave_layers(run_dir, spec.stem)
-    values = spec.notebook_inputs(bars, files, str(stl), pave_paths=pave_paths)
+    gallery_paths = spec.write_gallery_layers(run_dir, spec.stem)
+    values = spec.notebook_inputs(bars, files, str(stl), pave_paths=pave_paths, gallery_paths=gallery_paths)
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(values), run_dir, tag=spec.stem)
     try:

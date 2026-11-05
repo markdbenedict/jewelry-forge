@@ -16,7 +16,10 @@ step 2 (ntopjewel.multistone; reference rings 05 and 02).
     pavé       Pave Beads Path / Pave Seats Path (0.2.0): the beads (Import Mesh -> Implicit Body) united
                with the shank before the heads join it, the seats cut with the heads' seats at the end -
                as pave_band.ntop does; no-op specks when the ring has no pavé
-    ring       (((Shank Body ∪ Pave Beads) ∪ every placed head), blended by Shank Blend) − every placed
+    gallery    Gallery Path / Shared Prongs Path (0.3.0): the bridge rails along the row each side of the band
+               and the posts neighbouring stones share (ntopjewel.gallery, ring frame), each Import Mesh ->
+               Implicit Body, united with the heads (sharp); specks buried in the band without
+    ring       (((Shank Body ∪ Pave Beads) ∪ (every placed head ∪ Gallery ∪ Shared Prongs)), blended by Shank Blend) − every placed
                seat − Pave Seats -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance), Export
                Mesh (Output Path). The seats are cut AFTER the blended join: a smooth union fills every
                corner within its radius, the seats' included
@@ -76,7 +79,8 @@ def prepare(params: dict, work_dir: Path) -> dict:
     bars = shank.write_bars(spec.shank_spec, TEST_DIR, TEST_STEM)
     files = spec.write_slot_files(TEST_DIR, TEST_STEM)
     beads, seats = spec.write_pave_layers(TEST_DIR, TEST_STEM)
-    v = spec.notebook_inputs(bars, files, pave_paths=(beads, seats))
+    gallery = spec.write_gallery_layers(TEST_DIR, TEST_STEM)
+    v = spec.notebook_inputs(bars, files, pave_paths=(beads, seats), gallery_paths=gallery)
     v.pop("Output Path")
     params["values"] = {**v, **(params.get("values") or {})}
     return params
@@ -127,10 +131,17 @@ def _body(h, p, values, test_output):
                 h.comment(moves, "Spun about its own axis, a quarter-turn onto +X about the line through the pivot ∥ +Y, "
                                  "turned about the ring axis to its angle - in that order, one transform. An unused slot "
                                  "repeats the centre: the same head in the same place.")
+    with h.section("Gallery"):
+        bridge = h.import_body("Gallery", ids["Gallery Path"])
+        posts = h.import_body("Shared Prongs", ids["Shared Prongs Path"])
+        h.comment(posts, "The posts neighbouring stones share, and the bridge rails tying the heads together (Python's, "
+                         "in the ring frame; separate files so nTop unites them as implicits). Without: specks in the band.")
     with h.section("Ring"):
-        heads_union = h.union("Heads", placed_heads)
+        heads_union = h.union("Heads", [*placed_heads, bridge, posts], comment=(
+            "The heads with the bridge and the posts (sharp: the bridge's section is each head's rail where they meet)."))
         joined = h.union("Joined", [beaded, heads_union], blend=ids["Shank Blend"], comment=(
-            "The heads melt into the shank (a smooth union). Every seat is cut AFTER it, the pavé's last."))
+            "The heads melt into the shank (a smooth union). Every seat is cut AFTER it, the pavé's last: a blend "
+            "fills every corner within its radius, the seats' included."))
         ring = h.subtract("Ring", joined, [*placed_seats, pave_seats])
         out = h.wrap_var("Ring Body", ring)
         integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, ids["Mesh Tolerance"])
