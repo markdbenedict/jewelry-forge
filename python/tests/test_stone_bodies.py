@@ -175,3 +175,38 @@ def test_earlier_designs_keep_their_ids():
     assert "cup_frac" in heads.OutlineHeadSpec(pearl()).design()
     assert heads.OutlineHeadSpec(gems.StoneSpec("pear", 12.3, 8.9, 4.6), mesh_tolerance_mm=0.05).stem \
         == "head_5prong_pear_12p3x8p9x4p60_38a88504"                                   # `head --shape pear ...` before these stones
+
+
+# ---- what the first real runs found (2026-11-05) -----------------------------------------------------
+def test_low_set_stones_have_one_rail_and_rails_never_meet():
+    """A pearl's cup was given as both rails; nTop's Basket is one blended union of the prongs and both
+    rails, and the smooth minimum of a body with itself swelled the cup 0.08 mm all over (+9.6 %)."""
+    for s in (HEADS["cabochon"](), HEADS["pearl"](), HEADS["pearl-cup-and-post"](),
+              heads.OutlineHeadSpec(gems.StoneSpec("cabochon", 5.0, 4.0))):          # a collar too thin: the plate alone
+        r = s.rails()
+        assert r["lower"] == heads.EMPTY_RAIL and s.validate() == [], s.stem
+        assert s.lowest_z() > heads.EMPTY_RAIL[1] + 5
+    twin = {"upper": (-4.9, -2.4), "lower": (-4.9, -2.4)}
+    assert heads.rail_overlap_problems(twin, 0.3)
+    assert heads.rail_overlap_problems({"upper": (-1.0, -0.5), "lower": (-1.5, -1.0)}, 0.3)       # meeting on a plane
+    assert not heads.rail_overlap_problems({"upper": (-1.0, -0.5), "lower": (-1.8, -1.3)}, 0.3)   # the faceted heads' 0.3 gap
+    assert not heads.rail_overlap_problems(twin, 0.0)                                            # sharp: no swell
+
+
+def test_twin_rails_swell_in_the_simulated_ntop_and_the_gate_sees_it(tmp_path):
+    s = HEADS["pearl"]()
+    v = s.notebook_inputs("")
+    twin = dict(v, **{"Lower Rail Bottom": v["Upper Rail Bottom"], "Lower Rail Top": v["Upper Rail Top"]})
+    m = heads.outline_head_mesh(twin, s.seat.envelope(), s.prongs_mesh(), ops=Blended())
+    m.export(tmp_path / "h.stl")
+    rep = heads.check_outline_head(s, tmp_path / "h.stl", float(m.volume))
+    assert "design volume" in {c.name for c in rep.failures()}
+
+
+def test_the_solitaire_allows_the_rails_rounded_corner_on_both_sides():
+    """The asscher solitaire came out 6.63 mm along the finger against 7.06 designed: its steep pavilion
+    makes the rail's top corner acute, and the blend took 0.215 mm off each side (the allowance was one
+    blend, 0.4 mm, for both sides). The multistone gate already allowed two of rail_corner_shrink."""
+    h = heads.OutlineHeadSpec(gems.StoneSpec("asscher", 6.0))
+    assert 0.1 + 2 * h.rail_corner_shrink() > 0.43
+    assert HEADS["cabochon"]().rail_corner_shrink() == pytest.approx(0.3)                        # a vertical face: a square corner

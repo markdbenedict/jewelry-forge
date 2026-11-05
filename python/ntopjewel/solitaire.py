@@ -1105,7 +1105,8 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     design = design_mesh(spec)
     d = np.array(rep.extents_mm) - np.array(design.extents)
     tol = max(0.1, 2 * spec.head.mesh_tolerance_mm)
-    shrink = tol + spec.placed_head.blend          # a blended intersection rounds the head's outermost edges away
+    shrink = tol + (2 * spec.placed_head.rail_corner_shrink() if spec.outline   # the rails' rounded edges, both sides
+                    else spec.placed_head.blend)    # (2026-11-05: the asscher's steep pavilion, 0.215 a side past one blend)
     rep.checks.append(gate.Check("extents", bool(np.all(d <= tol) and np.all(d >= -shrink)),
                                  " x ".join(f"{x:.2f}" for x in rep.extents_mm) + " vs design "
                                  + " x ".join(f"{x:.2f}" for x in design.extents) + f" mm (+{tol:.2f} / -{shrink:.2f})"))

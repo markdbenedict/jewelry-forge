@@ -593,7 +593,7 @@ class OutlineHeadSpec:
         s0, d = self._foot_frac(), self.offset
         out = []
         if self.kind == "cabochon":                   # straight up beside the girdle band, from the plate
-            zf = self.rails()["lower"][0] + self.rail_width / 2
+            zf = self.rails()["upper"][0] + self.rail_width / 2
             for q, m in self.outline_points():
                 x, y = q[0] + d * m[0], q[1] + d * m[1]
                 out.append((np.array([x, y, zf]), np.array([x, y, -self.stone.girdle / 2]), np.array([x, y, self.z_tip])))
@@ -617,18 +617,18 @@ class OutlineHeadSpec:
 
     def rails(self) -> dict:
         """Upper rail just under the girdle, the lower one a gap below it - raised (with the gap
-        shrinking to 0.3 mm) if it would go under `floor_z` or below the prong feet. A cabochon: the
-        plate under its base and the collar round its girdle band; a pearl: the cup, twice."""
+        shrinking to 0.3 mm) if it would go under `floor_z` or below the prong feet. A cabochon: one
+        rail, the plate under its base and the collar round its girdle band; a pearl: one rail, the cup;
+        the other slab is EMPTY_RAIL (the block's union is blended, and two rails that overlap or meet
+        swell: the pearl's cup, both rails, came out 0.08 mm thick all over, +9.6 %, 2026-11-05)."""
         h = self.rail_half
         c, off = self.clearance, self.rail_width
-        if self.kind == "cabochon":
+        if self.kind == "cabochon":                                    # one rail: the plate and the collar in one slab
             base = -self.stone.girdle / 2
-            plate = (base - c - off - 0.1, base - c)                   # from under the grown seat's flat bottom: no coplanar faces
-            collar = (base - c, base + self.stone.girdle) if c + self.stone.girdle >= WALL_FLOOR else plate
-            return {"upper": collar, "lower": plate, "offset": off}
-        if self.kind == "pearl":
-            cup = (-self.stone.length / 2 - c - off - 0.1, self.z_cup)  # from under the grown seat's round bottom
-            return {"upper": cup, "lower": cup, "offset": off}
+            top = base + self.stone.girdle if c + self.stone.girdle >= WALL_FLOOR else base - c
+            return {"upper": (base - c - off - 0.1, top), "lower": EMPTY_RAIL, "offset": off}   # from under the grown seat's flat bottom
+        if self.kind == "pearl":                                       # one rail: the cup
+            return {"upper": (-self.stone.length / 2 - c - off - 0.1, self.z_cup), "lower": EMPTY_RAIL, "offset": off}
         top = -self.stone.girdle / 2 - self.rail_below_girdle_mm
         zu = top - h
         zl = zu - 2 * h - self.rail_gap_mm
@@ -637,9 +637,30 @@ class OutlineHeadSpec:
         zl = max(zl, min(lowest_ok, zu - 2 * h - 0.3))
         return {"upper": (zu - h, zu + h), "lower": (zl - h, zl + h), "offset": self.rail_width}
 
+    def rail_corner_shrink(self) -> float:
+        """How far a blended rail's outermost edge may retreat, each side: the rails follow the pavilion,
+        so the corner between a rail's top and its outer face is acute (90° less the pavilion's lean from
+        vertical, 41° on an ideal round), and rounding a corner of angle a by r takes its tip back by
+        r (1/sin(a/2) - 1) - 0.56 mm at r 0.3 against r (√2 - 1) on a square corner. The real three-stone
+        came out 0.225 mm a side narrower along the finger than the sharp design (2026-11-03); the asscher
+        solitaire 0.215 a side (2026-11-05, past the solitaire's one-blend allowance). A cabochon's rail
+        has a vertical face (a square corner)."""
+        _, pav = self.stone.heights
+        if pav <= 0:
+            return self.blend
+        lean = math.atan((max(self.stone.length, self.stone.width) / 2) / pav)
+        a = math.pi / 2 - lean
+        return max(self.blend, self.blend * (1 / math.sin(a / 2) - 1))
+
+    @property
+    def rail_floor_z(self) -> float:
+        """The underside of the lowest rail that holds metal."""
+        r = self.rails()
+        return min(r[k][0] for k in ("upper", "lower") if r[k] != EMPTY_RAIL)
+
     def lowest_z(self) -> float:
         foots = [a[0][2] for a in self.prong_axes()]
-        return min([f - self.rho for f in foots] + [self.rails()["lower"][0]])
+        return min([f - self.rho for f in foots] + [self.rail_floor_z])
 
     def v_block(self, q):
         """The V at the point q: the outline grown by the V's wall, within v_arm of the point, its
@@ -760,6 +781,7 @@ class OutlineHeadSpec:
         if min(r["upper"][1] - r["upper"][0], r["offset"]) < WALL_FLOOR:
             p.append(f"rail section under the wall floor {WALL_FLOOR} mm")
         p += blend_problems(self.blend, min(self.rho, self.rail_half))
+        p += rail_overlap_problems(self.rails(), self.blend)
         return p
 
     def _validate_unfaceted(self) -> list[str]:
@@ -768,7 +790,7 @@ class OutlineHeadSpec:
         if r["offset"] < WALL_FLOOR:
             p.append(f"rail offset {r['offset']:.2f} mm under the wall floor {WALL_FLOOR} mm")
         if self.kind == "cabochon":
-            if r["lower"][1] - r["lower"][0] < WALL_FLOOR:
+            if -self.stone.girdle / 2 - self.clearance - r["upper"][0] < WALL_FLOOR:
                 p.append(f"the plate under the cabochon is under the wall floor {WALL_FLOOR} mm")
             if self.count not in (4, 6, 8):
                 p.append("cabochon prongs: 4, 6 or 8")
@@ -782,7 +804,8 @@ class OutlineHeadSpec:
                 p.append(f"cup {self.cup_frac:g} of the pearl's height: 0.1 to 0.4")
         if self.floor_z is not None and self.lowest_z() < self.floor_z - 1e-6:
             p.append(f"the head reaches z {self.lowest_z():.2f}, below its floor {self.floor_z:.2f}")
-        p += blend_problems(self.blend, min(self.rho, (r["lower"][1] - r["lower"][0]) / 2))
+        p += blend_problems(self.blend, min(self.rho, (r["upper"][1] - r["upper"][0]) / 2))
+        p += rail_overlap_problems(r, self.blend)
         return p
 
     def describe(self) -> str:
@@ -790,7 +813,7 @@ class OutlineHeadSpec:
         if self.kind == "cabochon":
             return (f"{self.stem}: {self.count} prongs of {2 * self.rho:.2f} mm on a {self.stone.describe()}\n"
                     f"  prongs upright {self.offset:.2f} mm off the girdle band, from the plate to z {self.z_tip:.2f}; "
-                    f"plate {r['lower'][1] - r['lower'][0]:.2f} mm under the base, collar to z {r['upper'][1]:.2f}; "
+                    f"plate {-self.stone.girdle / 2 - self.clearance - r['upper'][0]:.2f} mm under the base, collar to z {r['upper'][1]:.2f}; "
                     f"clearance {self.clearance} mm, blend {self.blend:g} mm")
         if self.kind == "pearl":
             pr, z0, z1 = self.post
@@ -808,6 +831,24 @@ class OutlineHeadSpec:
                 f"  rails: the seat + {r['offset']:.2f} mm, z {r['upper'][0]:.2f}..{r['upper'][1]:.2f} and "
                 f"{r['lower'][0]:.2f}..{r['lower'][1]:.2f}; tip left above the girdle {2 * self.rho - self.ledge_mm - self.clearance:.2f} mm; "
                 f"blend {self.blend:g} mm")
+
+
+EMPTY_RAIL = (-15.0, -14.9)   # a slab below any head (the catalogs' floor): the rail it cuts is empty, so a one-rail head
+                              # (cabochon, pearl) gives the block's blended union nothing to swell against
+
+
+def rail_overlap_problems(r: dict, blend: float) -> list[str]:
+    """The block unites the prongs and both rails in ONE blended union: two rails that overlap or touch
+    swell it (smin of a body with itself is the body grown by about a quarter of the radius; slabs meeting
+    on a plane raise a ridge round the seam). One rail and EMPTY_RAIL, or two with a gap between (the
+    faceted heads' 0.3 mm or more; the blend's fill across a gap is in the blend estimate)."""
+    (a0, a1), (b0, b1) = r["upper"], r["lower"]
+    if EMPTY_RAIL in (r["upper"], r["lower"]):
+        return []
+    gap = max(b0 - a1, a0 - b1)
+    if blend > 0 and gap <= 1e-9:
+        return [f"the rails' slabs {'overlap' if gap < -1e-9 else 'meet'}: the blended union swells them (one rail and EMPTY_RAIL)"]
+    return []
 
 
 def _slab(z0: float, z1: float, around=None, margin: float = 2.0, cell: float = 0.6):
@@ -830,13 +871,21 @@ def outline_head_parts(v: dict, envelope, prongs, ops: geom.Booleans = geom.SHAR
     """(prongs, rails) from the block's numbers: the two bodies its blended union joins. Each rail
     is the grown outline ∩ its slab, a blended intersection in the block (`ops` decides)."""
     c, off = float(v["Clearance"]), float(v["Rail Offset"])
+    slabs = [(float(v[f"{r} Rail Bottom"]), float(v[f"{r} Rail Top"])) for r in ("Upper", "Lower")]
+    if ops is not geom.SHARP and rail_overlap_problems({"upper": slabs[0], "lower": slabs[1]}, head_blend_radius(v)):
+        # as nTop builds it: the Basket is ONE blended union of the prongs and both rails, and rails that overlap
+        # or meet swell it - the smooth minimum of a body with itself stands about a quarter of the radius outside
+        # it (a pearl's cup given as both rails came out 0.08 mm thicker all over, 2026-11-05). The design is sharp.
+        off += head_blend_radius(v) / 4
     grown = _offset_convex(envelope, c + off)
     if not prongs.is_volume:                                     # read back from STL
         prongs = geom.clean(prongs)
     rails = []
     for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top")):
+        if float(v[hi]) <= float(grown.bounds[0][2]):             # EMPTY_RAIL: below the grown seat, cuts nothing
+            continue
         rails.append(ops.intersect(grown, _slab(float(v[lo]), float(v[hi]), grown), head_blend_radius(v)))
-    return prongs, ops.union(rails)                               # the rails never touch: no blend to fill
+    return prongs, rails[0] if len(rails) == 1 else ops.union(rails)   # rails apart by more than the blend: none to fill
 
 
 def outline_head_mesh(v: dict, envelope, prongs, cut_seat: bool = True, ops: geom.Booleans = geom.SHARP):
@@ -1342,8 +1391,8 @@ def blend_junctions(v: dict, envelope=None, prongs=None) -> dict:
         prongs_m, rails = outline_head_parts(v, envelope, prongs)
         grown = _offset_convex(envelope, c + float(v["Rail Offset"]))
         slabs = {(float(v[lo]), float(v[hi])) for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top"))}
-        edges = [geom.junction_segments(grown, _slab(z0, z1, grown), "intersect")      # a pearl's cup is both rails: once
-                 for z0, z1 in sorted(slabs)]
+        edges = [geom.junction_segments(grown, _slab(z0, z1, grown), "intersect")      # an empty rail has no edges
+                 for z0, z1 in sorted(slabs) if z1 > float(grown.bounds[0][2])] or [none["intersect"]]
         return {"union": geom.junction_segments(prongs_m, rails), "intersect": np.vstack(edges)}
     grown = _offset_convex(envelope, c + float(v["Wall"]))
     return {"union": none["union"],

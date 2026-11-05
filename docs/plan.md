@@ -348,9 +348,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    default clearance) and has no room for arches under it (refused; the CLI leaves them off). Catalogs
    outline_head_harness 0.2.1 / solitaire_outline 0.7.1 only widen Upper Rail Top's range for the collar - no
    rebuild. Offline PASSED: the three heads, the three solitaires, a pearl between two asschers (multistone).
-   *Real check:* `head --shape asscher --length 7`, `head --shape cabochon --length 10 --width 8`,
-   `head --shape pearl --length 8`, then `solitaire --size 6 --shape pearl --length 8 --prongs 0` and the
-   cabochon and asscher solitaires - PASSED; a look at the pearl's post and the cabochon's collar in the GUI.)*
+   *First real runs (5 Nov 07:00): the asscher and cabochon heads, the cabochon and pearl-on-post solitaires
+   PASSED; the 4-claw pearl head FAILED design volume (+9.6 %): its cup was given as both rails, and the
+   block's one blended union of prongs and rails swelled the twin 0.08 mm all over (the 0-claw solitaire carried
+   the same 6.6 mm³, inside its tolerance). Now one rail and an empty one (`heads.EMPTY_RAIL`; the cabochon's
+   plate and collar one slab too), rails that overlap or meet refused, and the simulated nTop swells them as nTop
+   does. The asscher solitaire FAILED extents along the finger (6.63 vs 7.06): the rail's acute top corner on the
+   steep pavilion rounded back 0.215 a side, past the solitaire's one-blend allowance; it now allows two of
+   `rail_corner_shrink`, as multistone does. Re-run: `head --shape pearl --length 8` and the three solitaires.)*
    *Pavé round a multi-stone ring (4 Nov): Mark's marquise ruby between two cushion diamonds with diamond pavé
    round the rest, in gold - multistone.ntop 0.2.0 takes Pave Beads / Seats Path (rebuild), the pavé centred on
    the bottom and clear of the side heads; offline PASSED on comfort-flat 2.6 x 1.8 (a court band's dome left

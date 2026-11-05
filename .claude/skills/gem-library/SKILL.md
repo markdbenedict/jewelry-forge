@@ -108,11 +108,11 @@ python -m ntopjewel head --shape pearl --length 8 --prongs 0 --cup 0.25         
 ```
 
 - **Cabochon**: claws straight up beside the girdle band from the plate to a tip over the dome
-  (girdle/2 + max(0.8, 0.35 x the dome)), bent over by the setter; the lower rail is a plate under
-  the base, the upper a collar round the girdle band (the plate again when the band is too thin for
-  a collar of the wall floor). 4, 6 or 8 claws. Upper Rail Top may rise above 0 (catalogs 0.2.1 /
-  0.7.1, a range widened: no rebuild).
-- **Pearl**: both rails are one cup, the seat grown by Rail Offset from below the pearl to `--cup`
+  (girdle/2 + max(0.8, 0.35 x the dome)), bent over by the setter; ONE rail, a slab from under the
+  plate below the base to the top of the collar round the girdle band (the plate alone when the band
+  is too thin for a collar of the wall floor). 4, 6 or 8 claws. Upper Rail Top may rise above 0
+  (catalogs 0.2.1 / 0.7.1, a range widened: no rebuild).
+- **Pearl**: ONE rail, the cup: the seat grown by Rail Offset from below the pearl to `--cup`
   x its diameter up (default 0.2; 0.1..0.4); a post (the drill less the clearance, at least the wall
   floor) from the cup floor up the drill, in the prongs mesh; 0, 3, 4 or 6 claws following the sphere
   from the cup and bending in above the equator.
@@ -121,6 +121,12 @@ python -m ntopjewel head --shape pearl --length 8 --prongs 0 --cup 0.25         
   the base), pearl **cup** (>= 90 % of a ring halfway up the cup) and **post** (>= 80 % of the drill
   filled at its mid-height). Fit, drop-in (a pearl's drill exempt), one shell and volume as before. The
   simulated nTop's `noprongs` fault (the prongs mesh lost) is what the claws and post checks catch.
+- **One rail, never two that meet.** The block's Basket is ONE blended union of the prongs and both rails,
+  and two rails that overlap or meet swell it (the smooth minimum of a body with itself stands about a quarter
+  of the blend outside it): the first real pearl head, its cup given as both rails, came out 0.08 mm thicker
+  all over, +9.6 % design volume (2026-11-05). A one-rail head sends the other slab to `heads.EMPTY_RAIL`
+  (z -15 .. -14.9, below everything: an empty rail); `heads.rail_overlap_problems` refuses rails that
+  overlap or meet, and the simulated nTop swells them as nTop does, so the gate catches it offline.
 
 ## Bezels (the `bezel_head` block, `heads.BezelSpec`)
 

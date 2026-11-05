@@ -303,6 +303,12 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   against), and a blended intersection may shrink a part's extents by the blend radius. The builders in
   `heads` / `solitaire` take a `geom.Booleans` (sharp by default); the simulated nTop passes
   `tests/pseudo_blend.Blended`, which lays the blend's volume along the junctions as geometry.
+  **Never give a blended union two bodies that overlap or meet on a face**: its smooth minimum of a body with
+  itself stands about a quarter of the radius outside it (the outline head's Basket unites the prongs and both
+  rails in one blended union; a pearl's cup given as both rails came out 0.08 mm thick all over, +9.6 %,
+  2026-11-05). A one-rail head sends the other slab to `heads.EMPTY_RAIL`. **And a blended intersection rounds
+  an acute edge back further than one radius**: a rail following a steep pavilion lost 0.215 mm a side along the
+  finger (the asscher solitaire), so the extents allowance is two of `OutlineHeadSpec.rail_corner_shrink`.
 - **Offset Body adds a constant to the field; it does not re-distance.** Two offsets back to
   back (-e then +e, the opening that rounds every convex edge) cancel exactly - five band
   profiles matched their UNopened sections to 0.05 % (2026-10-30): no edge round was ever built

@@ -348,7 +348,7 @@ class MultiStoneSpec:
             d = rho - min(ha.ledge_mm, hb.ledge_mm)
             theta, z = gallerymod.solve_post([Ma, Mb], polys, girdles, d, theta0, z0)
             r_at = [gallerymod.radial_point_at_head_z(M, theta, z, zh)[1]
-                    for M, h in ((Ma, ha), (Mb, hb)) for zh in (h.z_tip, h.rails()["lower"][0])]
+                    for M, h in ((Ma, ha), (Mb, hb)) for zh in (h.z_tip, h.rail_floor_z)]
             r_tip, r_rails = max(r_at[0], r_at[2]), min(r_at[1], r_at[3])
             if abs(z) < b.width_mm / 2 - rho / 2:                    # over the band: its foot just inside the band's face
                 r_foot = b.outer_radius_at(abs(z)) - gallerymod.POST_DEPTH_MM
@@ -884,16 +884,8 @@ def prong_ledges(local, head: heads.OutlineHeadSpec, z: float, under, knees=None
 
 
 def rail_corner_shrink(h: heads.OutlineHeadSpec) -> float:
-    """How far a blended rail's outermost edge may retreat, each side: the rails follow the pavilion,
-    so the corner between a rail's top and its outer face is acute (90° less the pavilion's lean from
-    vertical, 41° on an ideal round), and rounding a corner of angle a by r takes its tip back by
-    r (1/sin(a/2) - 1) - 0.56 mm at r 0.3 against r (√2 - 1) on a square corner. The real three-stone
-    came out 0.225 mm a side narrower along the finger than the sharp design (2026-11-03), where the
-    square-corner allowance gave 0.2."""
-    _, pav = h.stone.heights
-    lean = math.atan((max(h.stone.length, h.stone.width) / 2) / pav)
-    a = math.pi / 2 - lean
-    return max(h.blend, h.blend * (1 / math.sin(a / 2) - 1))
+    """How far a blended rail's outermost edge may retreat, each side (heads.OutlineHeadSpec.rail_corner_shrink)."""
+    return h.rail_corner_shrink()
 
 
 def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) -> gate.GateReport:
