@@ -22,6 +22,8 @@ SIGNATURES = {
     "import_mesh<file_path,unit_length_enum>[1.1.0]": ("Import Mesh", [("Path", "file_path"), ("Units", "unit_length_enum")], "mesh"),
     "import_mesh<file_path,unit_length_enum>": ("Import Mesh", [("Path", "file_path"), ("Units", "unit_length_enum")], "mesh"),
     "implicit_from_mesh<mesh>": ("Implicit from Mesh", [("Mesh", "mesh")], "implicit"),
+    # discovery 2026-11-05 (inputs Path, Units); the output's type is the fake's guess
+    "import_points<file_path,unit_length_enum>": ("Import Points", [("Path", "file_path"), ("Units", "unit_length_enum")], "list<point>"),
     "remap_cylindrical_implicit<implicit,real>": ("Remap Cylindrical Body", [("Body", "implicit"), ("Y Mapping Length", "real")], "implicit"),
     "core.var<integer>": ("Integer Variable", [("Input", "integer")], "integer"),
     "point<real,real,real>": ("Point", [("X", "real"), ("Y", "real"), ("Z", "real")], "point"),
@@ -267,7 +269,10 @@ class FakeNotebook:
                           ("cylinder", "implicit"), ("torus", "implicit"), ("sphere", "implicit"), ("axis", "axis"),
                           ("integer", "integer"), ("any", want),
                           ("implicit", "spatial3d"), ("cylinder", "spatial3d"), ("sphere", "spatial3d"), ("torus", "spatial3d"),
-                          ("box", "implicit"), ("box", "spatial3d")}
+                          ("box", "implicit"), ("box", "spatial3d"),
+                          # nTop 6.3.3 accepted both wires (points_probe, 2026-11-05): a point list on a Sphere's
+                          # Center Point (nTop maps it - what the probe measures) and the Sphere into Bodies
+                          ("list<point>", "point"), ("sphere", "list<implicit>")}
             if (have, want) not in compatible and have != want:
                 raise ValueError(f"cannot connect a {have} to '{input_name}' ({want}) of '{target_block_id}'")
         b["wired"][input_name] = (source_block_id, property_name)

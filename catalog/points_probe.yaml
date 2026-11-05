@@ -1,0 +1,33 @@
+# A probe, not a product: does Sphere map over a list Import Points read? Three 1 mm balls at the points of a
+# file, united; the volume says (12.57 mm³: one ball per point; 4.19: the first point only). Built by
+# ntop/recipes/points_probe.py; the hammered texture's notebook rests on the answer (ntopjewel.texture).
+notebook: points_probe.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-05)
+rebuild_since: 0.1.0
+title: Spheres at the points of a file (probe)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the united balls.
+inputs:
+  Points Path:
+    type: text
+    doc: A points file, one point per line (out/api/points_probe.csv or .txt, written by the recipe's prepare()).
+  Radius:
+    type: scalar
+    units: mm
+    min: 0.1
+    max: 5.0
+    default: 1.0
+    doc: Every ball's radius.
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance (2 x voxel size).
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the balls' STL.
