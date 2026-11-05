@@ -321,8 +321,8 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    t/2 + 0.1), the slot closed before the zone ends, a taper starting inside it. Offline PASSED: the shank
    (4 x 1.6 court, 1.6 split: crossings at 56°, lift 1.02) and a round six-prong solitaire on it. *Real
    check:* `shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 110 --knot twist`, then
-   `solitaire --size 6 --length 6.5 --split 1.6 --split-span 120 --knot twist`. Pavé along one strand (ring
-   07) is the next piece.*
+   `solitaire --size 6 --length 6.5 --split 1.6 --split-span 120 --knot twist`. **Real check 5 Nov: both
+   PASSED.** Pavé along one strand (ring 07) is the next piece.*
 2. **Multi-stone placement and galleries.** *(3 Nov: the multi-stone ring written and gated offline -
    `multistone`, `multistone.ntop`, `ntopjewel.multistone`: a centre and 1-2 side pairs, every stone in an
    outline head (round included), spun (a pear's point at the centre), placed as the solitaire's and
@@ -502,7 +502,11 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    passes its gate; a plain band and a too-light hammering are caught. *Next:* the discovery run (`api build discover`,
    its new field / noise / cell / point keywords) shows which blocks nTop has for points and point-distance fields;
    then the `ring_texture` notebook, its catalog, the simulated nTop's branch and the real check. Until then
-   `texture --dry-run` / `--write-design` (Python's model, not an nTop build).
+   `texture --dry-run` / `--write-design` (Python's model, not an nTop build). *Discovery, 5 Nov:* nTop has
+   `import_points<file_path,unit_length_enum>` but no block that places a body at every point of a list; it also
+   has its own `cellular_noise_deboss` / `voronoi_deboss` (dents from nTop's own random points - a texture
+   Python could gate by bounds only). `api build points_probe` measures whether Sphere maps over an imported
+   list (three balls' volume or one) and which file Import Points reads, into `ntop/api_facts.json`.
 
 ## Notebook readability (2026-11-04)
 
