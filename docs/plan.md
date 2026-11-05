@@ -306,6 +306,23 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    tests reads the groove at 0.1 and nothing at 0.35. *Real check:* `shank --split 1.6
    --split-span 100` (a Python-side change: no rebuild) - bottom sections within ~0.01 mm. Then
    step 2.
+   *Twisted split (5 Nov, rings 06 / 07): `--knot twist` on a split shank - the halves cross over each other on
+   each shoulder. Built as the split it is: each half is ONE loft the whole way round (half k from the crossing
+   zones round the bottom, the other half under the head, the strand between), so the shank is the split's two
+   bars and nTop's notebooks are unchanged (no rebuild). In a zone of `--twist-length` (8 mm) the strand's
+   section morphs from its half into the mirror-image half by a half cosine (outlines started below their own
+   centre, so the morph is point for point), its centre following, its width stretched by the slope it runs
+   across the ring at; both strands thin to `--knot-thickness` (0.7 T) where they cross, the upper half lifted
+   onto the lower (fused 0.1) over the length their footprints overlap, easing back by a cosine to the zone's
+   ends. The slot becomes two eyes per shoulder: closed under the head (a round end split/2 deep, the pad sized
+   from the head by the solitaire), split_mm where the strands leave it and where they become the halves, the
+   split's law from there to the span. No opening (the lofts carry the rounds); the gate reads the design
+   inside the zones. Refused: a zone too short for the over strand to come down (ramp >= 1 mm, rise radius >=
+   t/2 + 0.1), the slot closed before the zone ends, a taper starting inside it. Offline PASSED: the shank
+   (4 x 1.6 court, 1.6 split: crossings at 56°, lift 1.02) and a round six-prong solitaire on it. *Real
+   check:* `shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 110 --knot twist`, then
+   `solitaire --size 6 --length 6.5 --split 1.6 --split-span 120 --knot twist`. Pavé along one strand (ring
+   07) is the next piece.*
 2. **Multi-stone placement and galleries.** *(3 Nov: the multi-stone ring written and gated offline -
    `multistone`, `multistone.ntop`, `ntopjewel.multistone`: a centre and 1-2 side pairs, every stone in an
    outline head (round included), spun (a pear's point at the centre), placed as the solitaire's and
@@ -383,7 +400,7 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    12/12) - the first notebook built from nTop's own primitives (turned half-boxes, Mirror Body, cylinders) for a head.
    The ring passed every geometric check (design volume +0.04 %, section shape 0.010 mm, all the probes) but FAILED
    `mesh density`: 5.29 M triangles at Mesh Tolerance 0.05 (the broad band's surface); its command now carries
-   `--tolerance 0.06` (~3.7 M) - re-run pending. Physical setting validation stays with the Phase 1/5 print-and-cast
+   `--tolerance 0.06` (~3.7 M). **Re-run at 0.06, 5 Nov: PASSED.** Physical setting validation stays with the Phase 1/5 print-and-cast
    milestones (a setter's judgement, the plan's PB-07).*
 5. **Artwork on the band.** *(3 Nov: started, from the Seraphine Celtic ring Mark photographed -
    leaf rows in channels on both side faces, a vine scroll in a channel on the outer face, 25°-120°
@@ -467,6 +484,25 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    leaf borders, vein engraving: the medallion's 2-D artwork pipeline plus the engraving wrap, raised or cut.
 6. **Organic motifs.** Leaves, vines, scrolls, the crescent moon: parametric silhouettes bent onto the
    shank where they are simple; Blender sculpts imported as meshes where they are not.
+7. **Surface textures** *(5 Nov: started, Mark's call - nTop's field modelling where it is hardest to replace:
+   textures driven by fields, then lattice hollowing, thickness fields, casting trees)*. First: **hammered on a plain
+   band** - `texture`, `ntopjewel.texture.HammeredSpec`. One round hammer face (`sphere_radius` from the nominal
+   strike's footprint and depth) pressed in along the face's normal at seeded dart-throwing centres, periodic round
+   the ring, spaced half a dimple (so no point is unstruck), each strike's depth varied ±25 %, lighter towards the
+   polished rims so its footprint ends there, never under the new floor `texture_depth` (0.1 mm, default). The union
+   of equal spheres is the distance to the nearest centre less one radius, so **nTop can build it as one field from
+   the centres alone** (`write_centres`) - no mesh of the dimples goes to nTop. Independent model: the band nTop builds
+   less the spheres (manifold3d, tidied like the knots: three strikes meeting near a point left slivers float32 STL
+   could not hold). Gate (`check_texture`): band checks, section shape against the design's own sections (the whole
+   Mesh Tolerance: a ridge is a crease the mesher rounds), design volume (US6 4 x 1.6 court: 150 strikes take 4.4 %
+   of the metal, so a missing texture fails), and a probe down every strike's normal. **Mesh density** is the
+   texture's constraint: the lightest strike must span 3 voxels (Mesh Tolerance 0.05 for a 0.1 mm strike) and
+   `tables.mesh_triangles_estimate` (new setting `mesh_triangles_per_voxel_area` 2.79, calibrated on the partial-bezel
+   ring's 5.29 M at 0.05) refuses a design past 5 M before anything runs (the default: ~2.5 M). Offline: the design
+   passes its gate; a plain band and a too-light hammering are caught. *Next:* the discovery run (`api build discover`,
+   its new field / noise / cell / point keywords) shows which blocks nTop has for points and point-distance fields;
+   then the `ring_texture` notebook, its catalog, the simulated nTop's branch and the real check. Until then
+   `texture --dry-run` / `--write-design` (Python's model, not an nTop build).
 
 ## Notebook readability (2026-11-04)
 

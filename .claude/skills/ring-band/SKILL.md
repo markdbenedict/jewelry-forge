@@ -108,6 +108,7 @@ python -m ntopjewel shank --size 6 --rope 3 --rope-turns 8 --rope-strand 1.0 --r
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3 --knot-repeats 4   # Celtic plait: three 1.2 mm ribbons woven round the ring
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 4 --knot-repeats 3 --knot-profile round   # four round wires
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 100 --knot trinity --knot-width 5.6   # trinity knots on a split shank's shoulders
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 110 --knot twist   # the halves cross over each other on each shoulder (rings 06, 07)
 ```
 
 The centreline (step 1b): `--dip` moves the band's centre off the mid-plane at the head (+ towards
@@ -197,6 +198,24 @@ import and made a self-intersecting, five-shell bar of 1.5 µm edges, 2026-11-01
 design itself inside the knots and the band under the head (|θ| to the tails' end + 0.5 mm) and
 off the 2-D model elsewhere. Stem `..._split1.6_trinity5.6_<id>`.
 
+`--knot twist` (reference rings 06 / 07) crosses a split shank's two halves over each other on
+each shoulder. Each half stays ONE loft the whole way round - half k from the crossing zones round
+the bottom, the other half under the head, the strand between - so the bars are the split's two
+and nothing in nTop changes. In a zone `--twist-length` long (8 mm, 3..20) starting where the band
+under the head ends (`--knot-pad`, 30°; a solitaire sizes it from its head plus the eye's round
+end) the strand's section morphs from its half into the mirror-image half by a half cosine, the
+centre following (the outlines all start on the bore below their own centre, so the morph is point
+for point), its width stretched by the slope it crosses the ring at. Both strands thin to
+`--knot-thickness` (0.7 T, at least 0.75) where they cross, the upper half (`TWIST_OVER`) lifted onto
+the lower, fused 0.1, for as long as their footprints overlap (+0.05), easing back to the band by a
+cosine over the rest of the zone. The slot becomes two eyes on each shoulder: closed under the
+head with a round end split/2 deep, `--split` wide where the strands leave the band and where they
+become the halves, then the split's law to `--split-span`. No opening (e = 0, the lofts carry
+the band's rounds); the gate reads the design across the zones and the eyes' ends. Refused: no
+`--split`; the slot closed before the zone ends; a taper starting inside it; an overlap leaving the
+over strand under 1 mm to come down, or a rise tighter than t/2 + 0.1 (a longer twist; a wider split
+makes narrower strands that overlap for less). Stem `..._split1.6_twist8_<id>`.
+
 How it is made: Python writes the ring **unrolled as a bar** (X radial, Y along the ring, Z
 axial; one cross-section every 2.5°, the band profile at that angle's width and thickness,
 lofted; a turn and a half plus a margin so the seam lies inside material) into the run
@@ -240,5 +259,5 @@ a rope `ring_shank_rope<strands>x<turns>_<label>_d<strand>_<spec id>`.
 ## Next in this family
 
 The solitaire's shank is a bar too since step 1d (`solitaire --width-bottom ... --thickness-bottom
-...`, `--split ...`, `--split ... --knot trinity`; `gem-library`). Next: contoured, double, rope
+...`, `--split ...`, `--split ... --knot trinity | twist`; `gem-library`). Next: pavé along a twist's strand (ring 07); contoured, double, rope
 and plait shanks under a head - all built as bars and wrapped the same way.

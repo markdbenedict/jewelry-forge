@@ -27,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, artwork, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, ornament, partial_bezel, pave, runs, shank, solitaire, summary, tables
+from . import __version__, artwork, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, ornament, partial_bezel, pave, runs, shank, solitaire, summary, tables, texture
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -196,26 +196,32 @@ def _add_split_args(p: argparse.ArgumentParser) -> None:
 
 def _add_knot_args(p: argparse.ArgumentParser, solitaire: bool = False) -> None:
     """Celtic knotwork flags (the `shank` command and the solitaire share the trinity ones)."""
-    choices = ["trinity"] if solitaire else ["plait", "trinity"]
+    choices = ["trinity", "twist"] if solitaire else ["plait", "trinity", "twist"]
     p.add_argument("--knot", choices=choices,
-                   help="Celtic knotwork: trinity - a triquetra woven from a split shank's halves on each shoulder"
+                   help="Celtic knotwork: trinity - a triquetra woven from a split shank's halves on each shoulder; twist - "
+                        "the halves cross over each other on each shoulder"
                         + ("" if solitaire else "; plait - strands interlaced the whole way round instead of a profile"))
+    p.add_argument("--twist-length", type=float, default=8.0,
+                   help="--knot twist: the halves cross over this run of each shoulder, mm along the ring (3..20)")
     if not solitaire:
         p.add_argument("--knot-strands", type=int, default=3, help="--knot plait: strands (2..4)")
         p.add_argument("--knot-repeats", type=int, default=4, help="--knot plait: the weave repeats this many times round the ring")
         p.add_argument("--knot-profile", default="flat", choices=["flat", "round"], help="--knot plait: ribbons, or round wires half the band's thickness")
-        p.add_argument("--knot-pad", type=float, default=30.0, help="--knot trinity: the band runs this far either side of the head before its nose, degrees")
+        p.add_argument("--knot-pad", type=float, default=30.0, help="--knot trinity / twist: the band runs this far either side of the head "
+                                                                       "before its nose (trinity) or before the strands part (twist), degrees")
     p.add_argument("--strand-width", type=float, default=None,
                    help="--knot: a ribbon's width across the surface, mm (plait: 1.2; trinity: 0.9, the tails narrow the halves to it)")
     p.add_argument("--knot-width", type=float, default=0.0, help="--knot trinity / --shoulder-knot: the knot's width across the band, lobe edge to lobe edge, mm (default: the band's + 1.2)")
-    p.add_argument("--knot-thickness", type=float, default=0.0, help="--knot trinity: the ribbon's radial thickness, mm (default 0.7 x the band's); --shoulder-knot: 0.5")
+    p.add_argument("--knot-thickness", type=float, default=0.0, help="--knot trinity: the ribbon's radial thickness, mm (default 0.7 x the band's); "
+                                                                      "twist: each strand's where they cross (the same default); --shoulder-knot: 0.5")
     p.add_argument("--knot-ratio", type=float, default=shank.knotwork.TREFOIL_RATIO, help="--knot trinity: the trefoil's radial swing (0.3..0.7)")
     p.add_argument("--knot-tail", type=float, default=3.0, help="--knot trinity: the tails from the knot's crossings to the halves, mm")
 
 
 def _knot_kwargs(a: argparse.Namespace) -> dict:
     kw = dict(knot=a.knot or "", knot_strand_mm=a.strand_width or 0.0,
-              knot_mm=a.knot_width, knot_thickness_mm=a.knot_thickness, knot_ratio=a.knot_ratio, knot_tail_mm=a.knot_tail)
+              knot_mm=a.knot_width, knot_thickness_mm=a.knot_thickness, knot_ratio=a.knot_ratio, knot_tail_mm=a.knot_tail,
+              twist_length_mm=a.twist_length)
     if hasattr(a, "knot_strands"):
         kw.update(knot_strands=a.knot_strands, knot_repeats=a.knot_repeats, knot_profile=a.knot_profile,
                   knot_pad_deg=a.knot_pad, knot_pad_set=True)
@@ -272,6 +278,35 @@ def cmd_ring(a: argparse.Namespace) -> int:
     print(res.text())
     print(summary.verdict(res))
     return 0 if res.ok else 1
+
+
+def cmd_texture(a: argparse.Namespace) -> int:
+    """A textured band (hammered first). No notebook yet: --dry-run describes and validates the design,
+    --write-design writes Python's own model (STL + the strike centres) to look at - not an nTop build."""
+    spec = texture.HammeredSpec(_band_spec(a), dimple_mm=a.dimple, depth_mm=a.depth, depth_var=a.depth_var,
+                                spacing=a.spacing, rim_mm=a.rim, seed=a.seed)
+    probs = spec.validate()
+    print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+    for w in spec.band.warnings():
+        print("  warning: " + w)
+    if probs:
+        print(summary.error_line(spec.stem, "; ".join(probs)))
+        return 1
+    if a.write_design:
+        out = Path(a.out) if a.out else config.out_dir() / "texture"
+        run_dir, run_id = runs.fresh_run_dir(out, spec.stem)
+        stl = run_dir / f"{spec.stem}.design.stl"
+        spec.design_mesh().export(str(stl))
+        spec.write_centres(run_dir / f"{spec.stem}.centres.csv")
+        print(f"  Python's design (not an nTop build): {stl}")
+        print(f"  strike centres: {run_dir / (spec.stem + '.centres.csv')} (sphere radius {spec.sphere_radius:.4f} mm)")
+        return 0
+    if not a.dry_run:
+        print("  the texture notebook is not built yet (after the discovery run: `api build discover`); "
+              "--dry-run or --write-design for now")
+        print(summary.error_line(spec.stem, "no texture notebook yet"))
+        return 2
+    return 0
 
 
 def cmd_shank(a: argparse.Namespace) -> int:
@@ -937,6 +972,21 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     sk.add_argument("--dry-run", action="store_true")
     sk.set_defaults(fn=cmd_shank)
+
+    tx = sub.add_parser("texture", help="a textured band: hammered (strikes of a round hammer face, overlapping into facets)")
+    _add_band_args(tx)
+    tx.set_defaults(thickness=1.6, tolerance=0.05)
+    tx.add_argument("--hammered", action="store_true", help="the texture (the one there is; the default)")
+    tx.add_argument("--dimple", type=float, default=1.6, help="a nominal strike's footprint across, mm")
+    tx.add_argument("--depth", type=float, default=0.15, help="a nominal strike's depth, mm")
+    tx.add_argument("--depth-var", type=float, default=0.25, help="each strike's depth varies by up to this fraction either way")
+    tx.add_argument("--spacing", type=float, default=0.5, help="strike centres at least this many dimples apart (0.5: no point unstruck)")
+    tx.add_argument("--rim", type=float, help="polished rim left at each edge of the face, mm (default: the edge round + 0.1)")
+    tx.add_argument("--seed", type=int, default=1, help="the layout's random seed: another seed, another hammering")
+    tx.add_argument("--out")
+    tx.add_argument("--write-design", action="store_true", help="write Python's design (STL + strike centres) to look at - not an nTop build")
+    tx.add_argument("--dry-run", action="store_true")
+    tx.set_defaults(fn=cmd_texture)
 
     pv = sub.add_parser("pave", help="a pavé band: rows of small stones in seats with light holes, held by beads (pave_band.ntop)")
     pv.add_argument("--size", default="6")

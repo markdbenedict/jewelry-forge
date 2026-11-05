@@ -49,6 +49,7 @@ _FALLBACK_TABLES = {   # verbatim copy of data/jewelry_tables.json: metals, floo
         "band_min_thickness": {"mm": 1.0, "status": "default", "source": "a thinner band distorts in finishing"},
         "band_min_width":     {"mm": 1.5, "status": "default", "source": "bench practice"},
         "relief_line":        {"mm": 0.15, "status": "default", "source": "a raised line in relief on a face (a leaf row's stem): three to five printer pixels at 30-50 um, and it lies on a surface the investment fills; thinner is a hairline that polishes off"},
+        "texture_depth":      {"mm": 0.1, "status": "default", "source": "a surface texture's shallowest cut (a hammered dimple at its lightest strike): two to four printer layers at 25-50 um, and finishing takes a few hundredths off a high-polish face; shallower polishes flat. To calibrate on the first textured print and cast"},
     },
 }
 

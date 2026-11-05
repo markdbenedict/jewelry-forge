@@ -1,6 +1,6 @@
 ---
 name: ring-features
-description: Add milgrain beads, a channel groove and a wrapped engraving (inside or outside) to a profiled ring band with nTop through ntopjewel - the `ring` command, ring_features.ntop, the engraving STL that Python writes, the gate expectations with features on - and artwork in relief (leaf rows, vine scrolls, volutes) in sunk panels on a band's faces (`artwork`, ring_artwork.ntop). Use for any request to engrave or decorate a band, add milgrain, a groove, leaves or scrollwork, or to run or debug ring_features / ring_artwork.
+description: Add milgrain beads, a channel groove and a wrapped engraving (inside or outside) to a profiled ring band with nTop through ntopjewel - the `ring` command, ring_features.ntop, the engraving STL that Python writes, the gate expectations with features on - and artwork in relief (leaf rows, vine scrolls, volutes) in sunk panels on a band's faces (`artwork`, ring_artwork.ntop), and surface textures (hammered: `texture`). Use for any request to engrave, texture or decorate a band, add milgrain, a groove, leaves, scrollwork or a hammered finish, or to run or debug ring_features / ring_artwork.
 ---
 
 # ring-features
@@ -201,3 +201,21 @@ panels against the carved band. The simulated nTop carves from the same files (`
 
 Not yet: panels on a tapered, split or knotted shank; the Seraphine's knots standing on a continuous
 band beside the head, its double-claw prongs and heart gallery (plan step 5/6).
+
+## Surface textures (`texture`, `ntopjewel.texture`, Phase 3 step 7)
+
+```powershell
+python -m ntopjewel texture --dry-run                                  # hammered US6 court 4 x 1.6: 150 strikes, ~2.5 M triangles at 0.05
+python -m ntopjewel texture --dimple 2 --depth 0.18 --seed 7 --dry-run  # bigger, deeper strikes; another seed, another hammering
+python -m ntopjewel texture --write-design                             # Python's model (STL + strike centres CSV) to look at - NOT an nTop build
+```
+
+Hammered: one round hammer face (radius from `--dimple` x `--depth`, the nominal strike) pressed in along the
+face's normal at seeded dart-throwing centres round the face (periodic round the ring), `--spacing` 0.5 dimples
+apart (no point unstruck), each strike's depth varied `--depth-var` (±25 %), lighter towards the polished rims
+(`--rim`, default edge round + 0.1) so a footprint ends there, never under the `texture_depth` floor (0.1 mm).
+The union of equal spheres is the distance to the nearest centre less one radius: nTop builds it as one field from
+the centres. The texture defaults the band to 1.6 thick and Mesh Tolerance 0.05: the lightest strike must span 3
+voxels, and `tables.mesh_triangles_estimate` refuses a design past 5 M triangles. Gate (`check_texture`): band
+checks, section shape against the design's sections (whole Mesh Tolerance), design volume, a probe down every
+strike's normal. No notebook yet: the discovery run's field / point blocks decide how the centres reach nTop.

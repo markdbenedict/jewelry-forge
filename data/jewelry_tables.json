@@ -223,6 +223,11 @@
       "mm": 0.15,
       "status": "default",
       "source": "a raised line in relief on a face (a leaf row's stem): three to five printer pixels at 30-50 um, and it lies on a surface the investment fills; thinner is a hairline that polishes off"
+    },
+    "texture_depth": {
+      "mm": 0.1,
+      "status": "default",
+      "source": "a surface texture's shallowest cut (a hammered dimple at its lightest strike): two to four printer layers at 25-50 um, and finishing takes a few hundredths off a high-polish face; shallower polishes flat. To calibrate on the first textured print and cast"
     }
   },
   "casting": {
@@ -315,6 +320,11 @@
       "status": "default",
       "source": "nTop Boolean blend radius at metal-to-metal junctions (prongs into rails, head into shank, rail and bezel edges): a castable fillet; 0 = sharp. Mark tried 0.1 mm and a range of values with the default Blend Type in the GUI (2026-10-30): all built; 0.3 is the visible fillet of the reference rings"
     },
+    "mesh_triangles_per_voxel_area": {
+      "value": 2.79,
+      "status": "calibrated",
+      "source": "triangles nTop's Mesh from Implicit Body makes per voxel-sized square of surface (a voxel = half the Mesh Tolerance): the up-front mesh-density estimate a texture is refused by (calibration_log 2026-11-05; one run)"
+    },
     "blend_volume_factor": {
       "value": 0.32,
       "status": "calibrated",
@@ -377,6 +387,14 @@
       "to": 1.0,
       "status": "calibrated",
       "evidence": "nTop 6.3.3, the opening re-distanced (first builds with a working edge round). Court band US6 4 x 1.3, Mesh Tolerance 0.1: nTop 243.06 mm3 against 244.07 for the exact opening and 243.05 with the eroded corners chamfered by 1.0 voxel (0.05 mm); the split shank (two more rounded edge lines) 244.75 against 244.57 at 0.8 voxel and 244.07 at 1.0. The exact opening over-predicts by 0.4 % on a band and 0.65 % on a split; one voxel predicts both within 0.3 %."
+    },
+    {
+      "date": "2026-11-05",
+      "entry": "settings.mesh_triangles_per_voxel_area",
+      "from": null,
+      "to": 2.79,
+      "status": "calibrated",
+      "evidence": "nTop 6.3.3: the partial-bezel reference ring (10 x 7 pear, half-round 9.5 x 3.3 tapering to 2.8 x 1.7, lip 0.8) meshed at Mesh Tolerance 0.05 came out 5.29 M triangles; its design mesh's surface is 1184.9 mm2: 5.29e6 x 0.025^2 / 1184.9 = 2.79. One run: a second (a plain band's count at 0.1) would confirm it."
     }
   ],
   "notes": [

@@ -132,6 +132,13 @@ def opening_chamfer_mm(mesh_tolerance_mm: float) -> float:
     return SETTINGS["opening_chamfer_voxels"] * float(mesh_tolerance_mm) / 2.0
 
 
+def mesh_triangles_estimate(area_mm2: float, mesh_tolerance_mm: float) -> float:
+    """Triangles nTop's Mesh from Implicit Body should make of a surface this large: the calibrated
+    `mesh_triangles_per_voxel_area` per voxel-sized square, a voxel being half the Mesh Tolerance."""
+    voxel = float(mesh_tolerance_mm) / 2.0
+    return SETTINGS["mesh_triangles_per_voxel_area"] * float(area_mm2) / (voxel * voxel)
+
+
 def carats(volume_mm3: float, stone: str = DEFAULT_STONE) -> float:
     """Carat weight of a stone of this volume (1 ct = 0.2 g)."""
     return float(volume_mm3) * STONE_DENSITY_G_CM3[stone] / 1000.0 / CARAT_G

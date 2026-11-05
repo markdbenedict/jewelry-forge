@@ -572,6 +572,100 @@ def test_cli_trinity_flags(capsys):
     assert "--split" in capsys.readouterr().out
 
 
+def twist(**kw):
+    b = kw.pop("band", None) or band.BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.6, mesh_tolerance_mm=0.1)
+    kw.setdefault("split_mm", 1.6)
+    kw.setdefault("split_span_deg", 110.0)
+    kw.setdefault("knot", "twist")
+    kw.setdefault("knot_pad_deg", 25.0)
+    return shank.ShankSpec(b, **kw)
+
+
+def test_the_twist_shank(tmp_path):
+    """Rings 06 / 07: the split's halves cross over each other on each shoulder - band under the head,
+    an eye, the crossing (the upper half over), an eye, the halves - each half one loft the whole way
+    round, so two clean bars."""
+    import numpy as np
+    import trimesh
+    from ntopjewel import knotwork as kw
+    s = twist()
+    assert s.validate() == [] and s.twist and s.loft_stations == shank.TWIST_STATIONS and s.warnings() == []
+    lay = s.twist_layout()
+    tp, t1 = 25.0, 25.0 + 8.0 * s.deg_per_mm
+    assert (lay["theta_p"], lay["theta_1"]) == (tp, pytest.approx(t1))
+    assert lay["y_x"] == pytest.approx((lay["y_p"] + lay["y_1"]) / 2, abs=0.05)                       # symmetric halves: mid-way
+    assert 45.0 < lay["angle_deg"] < 70.0 and lay["ramp_lo"] >= shank.TWIST_RAMP_MIN_MM <= lay["ramp_hi"]
+    assert s.twist_thickness == pytest.approx(1.12)
+    assert lay["lift"] == pytest.approx(1.12 - kw.KNOT_FUSE_MM, abs=0.03)                            # on the under strand
+    assert s.edge_round == 0.0 and s.section_round == s.band.edge_round and s.notebook_inputs("B", "O")["Edge Round"] == 0.0
+    assert "_split1.6_twist8_" in s.stem and s.design()["twist_length"] == 8.0
+    # the slot: closed under the head, an eye's round end into it, the law from theta_1 on
+    assert s.slot_half_at(0.0) == 0.0 and s.slot_half_at(tp) == pytest.approx(0.8) and 0 < s.slot_half_at(tp - 2.0) < 0.8
+    assert s.split_at(10.0) == 0.0 and s.split_at(t1 + 0.01) == pytest.approx(1.6, abs=1e-3) and s.split_at(110.0) == 0.0
+    # the lofts: loft 0 is the lower half round the bottom and the upper one under the head
+    assert s.loft_outline(0, 120.0)[:, 1].mean() < 0 < s.loft_outline(0, 10.0)[:, 1].mean()
+    assert s.loft_outline(0, -120.0)[:, 1].mean() < 0 < s.loft_outline(0, -10.0)[:, 1].mean()
+    over, under = s.loft_outline(1, lay["theta_x"]), s.loft_outline(0, lay["theta_x"])
+    assert over[:, 0].min() == pytest.approx(under[:, 0].max() - kw.KNOT_FUSE_MM, abs=0.03)           # stacked at the crossing
+    for k in (0, 1):                                                                                  # level with the halves at both ends
+        for a in (tp, t1):
+            assert np.abs(s.loft_outline(k, a + (1e-6 if a == tp else -1e-6)) - s.loft_outline(k, a)).max() < 1e-3
+    flat, rise = s.twist_bend_radii()
+    assert flat > 2.0 and rise > 1.12 / 2 + 0.1
+    m = s.design_mesh()
+    assert m.is_watertight and m.body_count == 1
+    r = np.hypot(m.vertices[:, 0], m.vertices[:, 1])
+    assert r.min() == pytest.approx(s.band.bore_radius_mm, abs=2e-3)
+    assert s.outer_radius_mm == pytest.approx(under[:, 0].min() + 2 * 1.12 - kw.KNOT_FUSE_MM, abs=0.01)    # the over strand stands proud
+    assert s.outer_radius_mm > s.band.outer_radius_mm + 0.5
+    assert s.overall_width_mm == pytest.approx(4.0, abs=1e-3)
+    m.export(tmp_path / "t.stl")
+    assert trimesh.load(tmp_path / "t.stl").is_watertight
+    rep = shank.check_shank(s, tmp_path / "t.stl", s.expected_volume_mm3())
+    assert rep.status == "passed", rep.text()
+    bars = s.bar_meshes()
+    assert s.bar_count == len(bars) == 2 and all(b.body_count == 1 and b.is_watertight for b in bars)
+    for b in bars:
+        assert len(geom.intersecting_faces(b, region=lambda c: np.abs(c[:, 1]) < 15.0)) == 0
+    paths = shank.write_bars(s, tmp_path, "t")
+    back = shank.bars_from_inputs({**s.notebook_inputs(paths), "Wrap Length": s.wrap_length_mm})
+    assert back.is_watertight and back.body_count == 1 and back.volume == pytest.approx(m.volume, rel=2e-3)
+    plain = shank.ShankSpec(s.band, split_mm=1.6, split_span_deg=110.0).design_mesh()               # the split, uncrossed: caught
+    plain.export(tmp_path / "p.stl")
+    failed = {c.name for c in shank.check_shank(s, tmp_path / "p.stl", float(plain.volume)).failures()}
+    assert "design volume" in failed and "section shape" in failed
+
+
+def test_what_a_twist_refuses():
+    assert "--split" in twist(split_mm=0.0).validate()[0]
+    assert "slot has closed" in twist(split_span_deg=75.0).validate()[0]
+    assert "no dip" in twist(dip_mm=1.0).validate()[0]
+    assert "twist length" in twist(twist_length_mm=2.0).validate()[0]
+    assert "at least 0.75" in twist(knot_thickness_mm=0.6).validate()[0]
+    assert "at most the band's" in twist(knot_thickness_mm=1.8).validate()[0]
+    assert "come back down" in twist(twist_length_mm=4.0, split_mm=1.0).validate()[0]               # the overlap fills the zone
+    assert "rises on a" in twist(twist_length_mm=6.0, split_mm=1.0).validate()[0]                                # the ramp too steep for 1.12 mm
+    assert "inside the twist" in twist(width_bottom_mm=3.0, taper_from_deg=60.0).validate()[0]
+    assert twist(width_bottom_mm=3.0, taper_from_deg=80.0).validate() == []
+
+
+def test_twist_end_to_end(fake_ntopcl, tmp_path):
+    nb = tmp_path / "ring_shank.ntop"
+    nb.write_bytes(b"fake")
+    res = shank.build(twist(width_bottom_mm=2.6, thickness_bottom_mm=1.3, taper_from_deg=80.0), tmp_path / "out", notebook=nb)
+    assert res.status == "passed", res.text()
+
+
+def test_cli_twist_flags(capsys):
+    from ntopjewel import cli
+    assert cli.main(["shank", "--size", "6", "--width", "4", "--thickness", "1.6", "--split", "1.6", "--split-span", "110",
+                     "--knot", "twist", "--twist-length", "9", "--knot-pad", "25", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "_split1.6_twist9_" in out and "the halves cross on each shoulder between ±25°" in out and "upper half passes over" in out
+    assert cli.main(["shank", "--size", "6", "--knot", "twist", "--dry-run"]) == 1
+    assert "--split" in capsys.readouterr().out
+
+
 def test_a_split_half_carries_exact_surface_past_the_seam_by_more_than_the_edge_round(monkeypatch):
     """2026-11-03: the real split shank's crown sat 0.055 mm low along the seam all round the
     bottom, opened per bar or not - the opening rounds each half's cut edge by the edge round,

@@ -348,6 +348,41 @@ def test_knot_solitaire_end_to_end(fake_ntopcl, tmp_path, out_dir):
     assert {c.name for c in res.gate.checks} >= {"section shape", "bore", "extents", "stone fits", "design volume"}
 
 
+def twisted(**kw):
+    """Rings 06 / 07 in the pipeline's terms: a round on six prongs over a split shank whose halves
+    cross on each shoulder."""
+    from ntopjewel import shank
+    b = band.BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.6, mesh_tolerance_mm=0.1)
+    head = heads.HeadSpec(gems.StoneSpec(shape="round", length_mm=6.5), prongs=6, mesh_tolerance_mm=0.1)
+    kw.setdefault("shank", shank.ShankSpec(b, split_mm=1.6, split_span_deg=120.0, knot="twist"))
+    return solitaire.SolitaireSpec(b, head, **kw)
+
+
+def test_a_twist_shank_under_the_head():
+    import math
+    import numpy as np
+    s = twisted()
+    assert s.validate() == [] and s.knot == "twist" and not s.arches and not s.milgrain
+    r_m = s.band.bore_radius_mm + 0.8
+    assert s.shank.knot_pad_deg == pytest.approx(math.degrees((s.head_half_length() + solitaire.KNOT_PAD_CLEAR_MM + 0.8) / r_m), abs=0.01)
+    tp = s.shank.knot_pad_deg                                                                         # the eye's round end clears the head
+    assert s.shank.slot_half_at(tp - 0.8 / r_m * 180 / math.pi - 0.01) == 0.0
+    assert s.slot_mesh().bounds[0][0] > s.band.outer_radius_mm + 5                                   # the band under the head is whole
+    assert all(not s.shank.woven_section(a) for a in s.free_angles()) and 181.37 in s.free_angles()
+    assert "_split1.6_twist8_" in s.stem and "into the twisted strands" in s.describe()
+    ring = solitaire.design_mesh(s)
+    assert ring.is_watertight and ring.body_count == 1
+    assert np.hypot(ring.vertices[:, 0], ring.vertices[:, 1]).min() == pytest.approx(s.band.bore_radius_mm, abs=2e-3)
+
+
+def test_twist_solitaire_end_to_end(fake_ntopcl, tmp_path, out_dir):
+    nb = tmp_path / "solitaire.ntop"
+    nb.write_bytes(b"fake")
+    res = solitaire.build(twisted(), out_dir, notebook=nb)
+    assert res.status == "passed", res.text()
+    assert {c.name for c in res.gate.checks} >= {"section shape", "bore", "extents", "stone fits", "design volume"}
+
+
 def test_cli_knot_solitaire_dry_run(capsys):
     from ntopjewel import cli
     assert cli.main(["solitaire", "--size", "6", "--shape", "marquise", "--length", "10", "--stone-width", "5",
@@ -355,3 +390,7 @@ def test_cli_knot_solitaire_dry_run(capsys):
     out = capsys.readouterr().out
     assert "_split1.6_trinity5.2_" in out and "arches and milgrain: off" in out and "Slot Path: <slot path>" not in out
     assert "Arch Radius: 0.55" in out
+    assert cli.main(["solitaire", "--size", "6", "--length", "6.5", "--split", "1.6", "--split-span", "120", "--knot", "twist",
+                     "--twist-length", "9", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "_split1.6_twist9_" in out and "into the twisted strands" in out

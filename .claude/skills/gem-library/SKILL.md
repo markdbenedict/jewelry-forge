@@ -203,6 +203,7 @@ python -m ntopjewel solitaire --size 6 --shape cabochon --length 10 --stone-widt
 python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank (Phase 3 step 1d)
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot runs under the head, through the arches
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: trinity knots on the shoulders
+python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 120 --knot twist   # rings 06 / 07: the halves cross on each shoulder
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # artwork panels under the head, plain shoulders
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity   # the Seraphine: a trinity knot tucked under the head on each shoulder, a volute then leaves (tips to the head) on the sides, the scroll outside
 ```
@@ -230,7 +231,9 @@ and its fillets in the bar, and the arches are cut by the same slot swept in the
 before their own opening rounds the cut; the head must bridge the slot (its lowest metal
 reaches `head_foot_half_span` either side of the centre - 2.07 mm for the round head's lower
 rail - so the slot may be at most that less 0.3 mm, twice), and the bore check runs beside the
-slot. `--knot trinity` on a split shank (reference ring 01; `ring-band` has the knot itself)
+slot. `--knot twist` (rings 06 / 07; `ring-band` has the twist) sits the head on the whole band the same way:
+the pad reaches past the head by 0.5 mm plus the eye's round end (split/2), the arches are off, the head need not
+bridge a slot. `--knot trinity` on a split shank (reference ring 01; `ring-band` has the knot itself)
 replaces the arches: the band runs either side of the head out to a nose between the knot's
 lobes - as far as the head reaches along the ring plus 0.5 mm (`SolitaireSpec.knot_pad_deg_needed`,
 set on the `ShankSpec` unless `--knot-pad` asked for more) - and the arches and their milgrain

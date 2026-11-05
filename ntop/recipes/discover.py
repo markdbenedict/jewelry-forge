@@ -18,9 +18,16 @@ KEYWORDS = [
     "mesh from", "mesh", "export", "import", "stl", "3mf",
     "text", "var", "variable", "list", "clearance", "remap", "cylindrical", "pattern", "array",
     "transform", "rotate", "translate", "mirror", "scale", "sweep", "revolve", "extrude", "loft",
+    # surface textures (hammered first, 5 Nov): fields nTop builds natively, and how points get in
+    "field", "noise", "random", "voronoi", "cell", "distance", "nearest", "closest", "points", "point list",
+    "point cloud", "csv", "import point", "ramp", "remap", "coordinate", "cylindrical coord", "texture",
+    "displace", "surface", "lattice", "periodic", "gyroid", "sine", "min", "smooth",
 ]
 PROBE_LIMIT = 3            # blocks probed per keyword
-IMPLICIT = ["point", "cylinder", "torus", "subtract", "union", "intersect", "offset", "mass", "mesh from", "export", "text"]
+IMPLICIT = ["point", "cylinder", "torus", "subtract", "union", "intersect", "offset", "mass", "mesh from", "export", "text",
+            "noise", "voronoi", "cell", "distance", "nearest", "closest", "point list", "point cloud", "csv", "import point",
+            "displace", "texture", "coordinate"]
+TEXTURE_PROBE_LIMIT = 8    # the texture keywords are new ground: probe more of each
 
 
 def _short(s: str, n: int = 110) -> str:
@@ -71,7 +78,8 @@ def build(notebook, params: dict | None = None) -> dict:
         ctx = pause() if callable(pause) else _NoPause()
         with ctx:
             for kw in [k for k in p["keywords"] if k in IMPLICIT or k in ("boolean", "difference", "variable", "var")]:
-                for ident in by_kw.get(kw, [])[: int(p["probe_limit"])]:
+                limit = int(p["probe_limit"]) if kw in IMPLICIT[:11] else max(int(p["probe_limit"]), TEXTURE_PROBE_LIMIT)
+                for ident in by_kw.get(kw, [])[:limit]:
                     if ident in probed:
                         continue
                     try:

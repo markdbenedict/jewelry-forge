@@ -113,9 +113,10 @@ class SolitaireSpec:
             raise ValueError("the shank's band must be the solitaire's band (its head section)")
         if not self.cathedral:
             self.milgrain = False                                        # the beads run along the arches
-        if self.shank is not None and self.shank.knot == "trinity":
-            # the band under the head runs out to a nose between the knot's lobes: its tip must clear
-            # the head's feet along the ring; the arches and their milgrain give way to the knots
+        if self.shank is not None and self.shank.knot in ("trinity", "twist"):
+            # the band under the head runs out to a nose between the knot's lobes (a twist: to the eye
+            # where its strands part): that must clear the head's feet along the ring; the arches and
+            # their milgrain give way to the knots
             from dataclasses import fields
             self.milgrain = False
             need = self.knot_pad_deg_needed()
@@ -284,7 +285,8 @@ class SolitaireSpec:
         of the head along the ring by KNOT_PAD_CLEAR_MM, so the knots hug the head without touching
         it (reference ring 01)."""
         r_m = self.band.bore_radius_mm + self.band.thickness_mm / 2
-        return round(math.degrees((self.head_half_length() + KNOT_PAD_CLEAR_MM) / r_m), 2)
+        eye = self.shank.split_mm / 2 if (self.shank is not None and self.shank.twist) else 0.0   # a twist's eye ends in a round this deep
+        return round(math.degrees((self.head_half_length() + KNOT_PAD_CLEAR_MM + eye) / r_m), 2)
 
     @property
     def shank_blend(self) -> float:
@@ -728,7 +730,7 @@ class SolitaireSpec:
                 p.append(f"a {'rope' if sh.rope else 'plait'} shank under a head: not yet (the head and the arches want a band to sit on)")
             if sh.dip_mm or sh.strands > 1:
                 p.append("a contoured, chevron or double shank under a head: not yet (the head is placed on a band centred on the mid-plane)")
-            if sh.split_mm and not p:
+            if sh.split_mm and not sh.twist and not p:
                 span = self.head_foot_half_span()
                 if sh.split_mm / 2 + 0.3 > span:
                     p.append(f"the slot ({sh.split_mm:g} mm) is too wide for the head to bridge: its foot reaches "
@@ -825,7 +827,7 @@ class SolitaireSpec:
         for a in gate.SHAPE_ANGLES_DEG:
             d_head = abs((a + 180.0) % 360.0 - 180.0)
             d_text = abs(((a - ENGRAVING_TURN_DEG) + 180.0) % 360.0 - 180.0)
-            if self.knot and self.shank.trinity_section(a):                  # inside the knots and the band's nose
+            if self.knot and self.shank.woven_section(a):                    # inside the knots and the band's nose, a twist's crossings
                 continue
             if self.has_knot and self.ornament.in_span(a, 2.0):              # under a shoulder knot: the probes check it
                 continue
@@ -847,7 +849,8 @@ class SolitaireSpec:
                    + (f"\n  milgrain: {len(self.beads()['angles'])} beads of r {self.bead_radius_mm} mm per arch edge (x4), "
                       f"{self.beads()['spacing']:.3f}° apart" if self.milgrain else "\n  milgrain: off") if self.arches else
                    (f"  arches and milgrain: off - the band runs {self.shank.knot_pad_deg:g}° either side of the head (which reaches "
-                    f"{self.head_half_length():.2f} mm along the ring) into the knots' noses" if self.knot else
+                    f"{self.head_half_length():.2f} mm along the ring) into the "
+                    + ("twisted strands" if self.shank.twist else "knots' noses") if self.knot else
                     f"  arches and milgrain: off - plain shoulders, the head (reaching {self.head_half_length():.2f} mm along the ring) "
                     "stands on the band"))
                 + (f"\n  engraving: {self.text!r} {self.engrave_side}, {self.engraving.engrave_geometry()['height']:.2f} mm high, "
