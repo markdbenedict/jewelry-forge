@@ -307,6 +307,7 @@ python -m ntopjewel multistone --size 6 --length 6 --side-shape round --side-len
 python -m ntopjewel multistone ... --width-bottom 2 --thickness-bottom 1.4 --dry-run                    # on a tapered shank; numbers only
 python -m ntopjewel multistone --profile comfort-flat --width 2.6 --thickness 1.8 --length 4 --prongs 4 --row 4 --shared-prongs --gallery   # ring 02
 python -m ntopjewel multistone --profile comfort-flat --width 2.6 --thickness 1.8 --shape cushion --length 7 --stone-width 6 --side-shape pear --side-length 6 --side-width 4 --gallery   # ring 05 on a gallery
+python -m ntopjewel multistone --profile comfort-flat --width 2.6 --thickness 1.8 --length 4 --prongs 4 --row 4 --shared-prongs --gallery --width-bottom 2 --thickness-bottom 1.4 --engrave "M+K 2026"   # ring 02 as photographed: tapered, engraved inside
 ```
 
 A centre stone and `--side-pairs` side stones each side, every one in an **outline head** (the
@@ -365,6 +366,19 @@ and `shared prong tips` measures what both seats left of each post above the gir
 ≥ the tip floor less the mesh tolerance); with a gallery, `gallery` probes each bridge rail where the
 design shows it outermost. A lost posts layer fails both, a lost bridge `gallery`. Stem
 `ring_multi_<n>_<centre>_<side>[_row][_shared][_gallery]_<size>_<spec id>`; runs in `out\multistone\`.
+
+**Engraving** (`--engrave TEXT [--engrave-side inside|outside --engrave-height --engrave-depth]`, multistone.ntop
+0.4.0: `Engraving Path` / `Engraving Wrap Length`; rings 02 and 05): the solitaire's text, centred opposite the
+centre stone - Python writes it unwrapped, the notebook wraps it, turns it 180° under the finger and cuts it with the
+seats after the blended join (the solitaire's own `Engraving` section, `nb_solitaire.engraving`). The letters are
+sized on the band *under the text*: on a tapered shank the bottom section (`ShankSpec.engraving_band`: its width sizes
+the letters, its thickness the wall left under them; the solitaire now does the same). Refused: text with pavé (the
+pavé is centred on the bottom and its light holes open on the bore), text reaching within 10° of the heads, and the
+engraving helper's own floors (strokes ≥ 0.3 mm, wall left ≥ the floor) - on a taper the refusal names the bottom
+section and what would widen it (a court band tapered to 2 mm leaves too little width for 0.3 mm strokes; comfort-flat
+2 x 1.4 takes 1 mm letters). Gate: `engraving` (the pocket opposite the centre; a notebook that never cut the text
+fails it alone), wall rays radial only and no section-shape angle through the text. The text is in the spec id only
+when there is one (earlier designs keep their ids).
 
 ## Pavé bands (`pave_band.ntop`, `ntopjewel.pave`, Phase 3 step 2/3)
 

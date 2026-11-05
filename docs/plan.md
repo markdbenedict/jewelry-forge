@@ -335,6 +335,13 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    `pave --rows 2 --span 120` - PASSED, and a look at the beads in the GUI at Mesh Tolerance 0.05.)*
    Rows of 1–1.5 mm rounds along a path with seats and beads, graduated sizes,
    small polygon bezels (kite, hexagon); spacing and bead rules into the tables.
+   *Inside engraving on multi-stone rings (5 Nov): rings 02 and 05 carry text inside. `multistone --engrave` (and
+   `--engrave-side / -height / -depth`) - multistone.ntop 0.4.0 takes Engraving Path / Engraving Wrap Length and cuts the
+   text with the seats after the blended join, the solitaire's engraving section reused; the letters sized on the band
+   under the text (`ShankSpec.engraving_band`: a taper's bottom - the solitaire likewise); refused with pavé or within
+   10° of the heads; gate `engraving` (an uncut text fails it alone). Offline PASSED: ring 02 tapered and engraved,
+   ring 05 engraved. *Real check:* `api build multistone` (rebuild_since 0.4.0), then ring 02 with
+   `--width-bottom 2 --thickness-bottom 1.4 --engrave "M+K 2026"` and ring 05 with `--engrave Always`.*
 4. **New stone bodies.** Pearl (sphere on a post in a cup), cabochon (dome on a flat base), asscher
    (emerald outline with a corner-cut ratio); their seats.
    *(5 Nov: written and gated offline. `gems`: `asscher` (the emerald's cut-corner outline on a square, 25 %

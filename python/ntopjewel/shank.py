@@ -600,6 +600,12 @@ class ShankSpec:
         sign = -1.0 if (self.mirror and strand == 1) else 1.0
         return self.strand_centres[strand] + sign * self.dip_at(theta_deg)
 
+    def engraving_band(self) -> band.BandSpec:
+        """The band under an engraving centred opposite the head: the section at the bottom (a taper's
+        narrowest and thinnest: its width sizes the letters, its thickness the wall left under them);
+        the head's band when the shank is not tapered."""
+        return self.section_spec(180.0) if self.tapered else self.band
+
     def section_spec(self, theta_deg: float) -> band.BandSpec:
         """The band whose section this angle gets: the head's band at the local width and thickness."""
         return replace(self.band, width_mm=round(self.width_at(theta_deg), 6), thickness_mm=round(self.thickness_at(theta_deg), 6))

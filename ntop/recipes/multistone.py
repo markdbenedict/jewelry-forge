@@ -19,8 +19,11 @@ step 2 (ntopjewel.multistone; reference rings 05 and 02).
     gallery    Gallery Path / Shared Prongs Path (0.3.0): the bridge rails along the row each side of the band
                and the posts neighbouring stones share (ntopjewel.gallery, ring frame), each Import Mesh ->
                Implicit Body, united with the heads (sharp); specks buried in the band without
+    engraving  Engraving Path / Engraving Wrap Length (0.4.0): the text Python writes unwrapped -> Import Mesh ->
+               Implicit Body -> Remap Cylindrical -> turned 180° about the ring axis (nb_solitaire.engraving, as the
+               solitaire builds it); a speck outside the ring without text
     ring       (((Shank Body ∪ Pave Beads) ∪ (every placed head ∪ Gallery ∪ Shared Prongs)), blended by Shank Blend) − every placed
-               seat − Pave Seats -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance), Export
+               seat − Pave Seats − Engraving -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance), Export
                Mesh (Output Path). The seats are cut AFTER the blended join: a smooth union fills every
                corner within its radius, the seats' included
 
@@ -37,6 +40,7 @@ from pathlib import Path
 
 from ntopjewel import nb_multistone as ms           # console-safe: nTop's Python has no yaml / trimesh
 from ntopjewel import nb_jewel as nj
+from ntopjewel import nb_solitaire as nsol         # the engraving section, as the solitaire builds it
 
 HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
@@ -80,7 +84,9 @@ def prepare(params: dict, work_dir: Path) -> dict:
     files = spec.write_slot_files(TEST_DIR, TEST_STEM)
     beads, seats = spec.write_pave_layers(TEST_DIR, TEST_STEM)
     gallery = spec.write_gallery_layers(TEST_DIR, TEST_STEM)
-    v = spec.notebook_inputs(bars, files, pave_paths=(beads, seats), gallery_paths=gallery)
+    eng = TEST_DIR / f"{TEST_STEM}.engraving.stl"
+    spec.write_engraving(eng)
+    v = spec.notebook_inputs(bars, files, pave_paths=(beads, seats), gallery_paths=gallery, engraving_path=str(eng))
     v.pop("Output Path")
     params["values"] = {**v, **(params.get("values") or {})}
     return params
@@ -136,13 +142,17 @@ def _body(h, p, values, test_output):
         posts = h.import_body("Shared Prongs", ids["Shared Prongs Path"])
         h.comment(posts, "The posts neighbouring stones share, and the bridge rails tying the heads together (Python's, "
                          "in the ring frame; separate files so nTop unites them as implicits). Without: specks in the band.")
+    with h.section("Engraving"):
+        text = nsol.engraving(h, ids)
+        h.comment(text, "The text Python writes unwrapped, wrapped round the ring and turned under the finger, opposite "
+                        "the centre stone. Without text: a speck outside the ring.")
     with h.section("Ring"):
         heads_union = h.union("Heads", [*placed_heads, bridge, posts], comment=(
             "The heads with the bridge and the posts (sharp: the bridge's section is each head's rail where they meet)."))
         joined = h.union("Joined", [beaded, heads_union], blend=ids["Shank Blend"], comment=(
             "The heads melt into the shank (a smooth union). Every seat is cut AFTER it, the pavé's last: a blend "
             "fills every corner within its radius, the seats' included."))
-        ring = h.subtract("Ring", joined, [*placed_seats, pave_seats])
+        ring = h.subtract("Ring", joined, [*placed_seats, pave_seats, text])
         out = h.wrap_var("Ring Body", ring)
         integ, _mesh, export = nj.add_measure_mesh_export(h, out, out_var, ids["Mesh Tolerance"])
     return integ, export

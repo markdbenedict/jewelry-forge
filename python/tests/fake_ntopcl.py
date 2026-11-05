@@ -17,7 +17,7 @@ alone, as nTop would.
 Knobs (environment variables) let a test make the fake misbehave the way a wrong notebook
 would, so the rejections are tested rather than assumed:
 
-  FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave | plainshank (solitaire: the bar's head section
+  FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave (solitaire, multistone) | plainshank (solitaire: the bar's head section
                       all round) | nocut / norelief (artwork, on a band or under a head: the channels never cut, the
                       relief lost) | noknot (the shoulder knots' layers lost) | noblend (the blend radii ignored:
                       sharp junctions) | noprongs (outline_head: the prongs mesh lost - claws, a pearl's post) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
@@ -288,7 +288,7 @@ def main(argv: list[str]) -> int:
         from ntopjewel import multistone
         from ntopjewel.nb_jewel import SLOT_NAMES
         for key in (*SLOT_NAMES, *(multistone.slot_input(n, k) for k in range(multistone.SLOTS) for n in ("Seat Path", "Prongs Path")),
-                    "Pave Beads Path", "Pave Seats Path", "Gallery Path", "Shared Prongs Path"):
+                    "Pave Beads Path", "Pave Seats Path", "Gallery Path", "Shared Prongs Path", "Engraving Path"):
             if key in values and not Path(values[key]).exists():
                 fail(f"{key.replace('Path', 'Mesh')}: file not found")
         if shape in ("nogallery", "noposts"):                 # a notebook that left the bridge / the shared prongs out
@@ -303,6 +303,8 @@ def main(argv: list[str]) -> int:
             sp = Path(values["Output Path"]).with_suffix(".nopave_seats.stl")
             artwork.outside_speck(BandSpec(size=6)).export(str(sp))
             values["Pave Seats Path"] = str(sp)
+        if shape == "noengrave":                              # a notebook that never cut the text
+            values.pop("Engraving Path", None)
         if shape == "noside":                                 # a notebook whose slots 2.. never got their own values
             for k in range(1, multistone.SLOTS):
                 for n, _ in multistone.SLOT_FIELDS:
@@ -310,8 +312,8 @@ def main(argv: list[str]) -> int:
         mesh = multistone.ring_from_inputs(values, ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Head 1 On Ring", "Gallery", "Shared Prongs", "Heads", "Joined", "Ring",
-                     "Mesh", "Export Mesh", "Volume Integral"):
+        for name in ("Bars", "Shank", "Stone Seat 1", "Outline Head 1", "Head 1 On Ring", "Gallery", "Shared Prongs", "Engraving", "Heads", "Joined",
+                     "Ring", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

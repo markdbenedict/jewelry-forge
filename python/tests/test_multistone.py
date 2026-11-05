@@ -110,7 +110,9 @@ def test_recipe_builds_on_the_fake_notebook(tmp_path):
     assert nb.blocks[b["Shared Prongs Mesh"]]["wired"]["Path"][0] == b["Shared Prongs Path"]
     assert nb.blocks[b["Joined"]]["wired"]["Blend Radius"][0] == b["Shank Blend"]        # ... the heads melt into it ...
     assert nb.blocks[b["Ring"]]["wired"]["Primary Body"][0] == b["Joined"]               # ... THEN every seat is cut, the pavé's last
-    assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == [b[f"Seat {k} On Ring"] for k in range(1, ms.SLOTS + 1)] + [b["Pave Seats"]]
+    assert nb.blocks[b["Ring"]]["lists"]["Subtraction Bodies"] == ([b[f"Seat {k} On Ring"] for k in range(1, ms.SLOTS + 1)]
+                                                                   + [b["Pave Seats"], b["Engraving"]])      # ... and the text with them
+    assert nb.blocks[b["Engraving Body Mesh"]]["wired"]["Path"][0] == b["Engraving Path"]
     assert nb.blocks[b["Pave Beads Mesh"]]["wired"]["Path"][0] == b["Pave Beads Path"]
 
 
@@ -340,3 +342,61 @@ def test_ring_05_end_to_end_and_a_lost_bridge_is_caught(fake_ntopcl, tmp_path, o
     res = _build(out_dir, tmp_path, ring05())
     failed = {c.name for c in res.gate.checks if not c.ok}
     assert not res.ok and "gallery" in failed
+
+
+# ---- inside engraving (rings 02 and 05) ----------------------------------------------------------
+def tapered02(**kw):
+    """Ring 02 on its tapered shank (2.6 x 1.8 at the head, 2 x 1.4 at the bottom), engraved inside."""
+    from ntopjewel import shank
+    s = ring02()
+    sh = shank.ShankSpec(s.band, width_bottom_mm=2.0, thickness_bottom_mm=1.4, taper_from_deg=60.0)
+    return ring02(shank=sh, **{"text": "M+K 2026", **kw})
+
+
+def test_the_text_is_sized_at_the_tapers_bottom_and_given_to_the_notebook():
+    s = tapered02()
+    assert s.validate() == []
+    eb = s.engraving.band
+    assert (eb.width_mm, eb.thickness_mm) == (2.0, 1.4)                                # the bottom, not the head's 2.6 x 1.8
+    g = s.engraving.engrave_geometry()
+    assert g["height"] <= eb.width_mm - 2 * eb.edge_round and g["radius"] == pytest.approx(eb.bore_radius_at(g["height"] / 2))
+    v = s.notebook_inputs(["b"] * 4, [("e", "p")] * s.stone_count, "o.stl", engraving_path="t.stl")
+    assert v["Engraving Path"] == "t.stl" and v["Engraving Wrap Length"] == pytest.approx(2 * math.pi * g["wrap_radius"], abs=1e-3)
+    assert list(v) == list(catalog.load("multistone").inputs)
+    assert "engraving" in s.design() and "engraving" not in ring02().design()           # earlier designs keep their ids
+    assert s.stem != tapered02(text="M+K 2027").stem                                     # the text is part of the identity
+    assert 0 < s.text_half_deg() < 180 - s.head_span_deg
+
+
+def test_text_that_cannot_go_there_is_refused():
+    assert any("pavé" in q for q in three(pave_stone_mm=1.3, text="Ruby").validate())
+    assert any("long" in q or "heads leave" in q for q in ring05(text="To my love forever and always, from Mark").validate())
+    tight = ms.MultiStoneSpec(ring_band(), heads.OutlineHeadSpec(gems.StoneSpec("round", 6.5)),
+                              heads.OutlineHeadSpec(gems.StoneSpec("round", 4.0)), text="M", engrave_depth_mm=1.5)
+    assert any("wall" in q for q in tight.validate())                                    # too deep for the band
+
+
+def test_ring_02_engraved_end_to_end_and_an_uncut_text_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    res = _build(out_dir, tmp_path, tapered02())
+    assert res.ok, res.text()
+    assert (res.stl.parent / f"{res.spec.stem}.engraving.stl").exists()
+    names = {c.name for c in res.gate.checks}
+    assert {"engraving", "shared prong tips", "gallery", "section shape", "wall thickness"} <= names
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "noengrave")
+    bare = _build(out_dir, tmp_path, tapered02())
+    assert not bare.ok and [c.name for c in bare.gate.failures()] == ["engraving"]
+
+
+def test_ring_05_engraved_end_to_end(fake_ntopcl, tmp_path, out_dir):
+    res = _build(out_dir, tmp_path, ring05(text="Always"))
+    assert res.ok, res.text()
+    assert "engraving" in {c.name for c in res.gate.checks}
+
+
+def test_cli_multistone_engraving_dry_run(capsys):
+    from ntopjewel import cli
+    assert cli.main(["multistone", "--profile", "comfort-flat", "--width", "2.6", "--thickness", "1.8", "--length", "4", "--prongs", "4",
+                     "--row", "4", "--shared-prongs", "--gallery", "--width-bottom", "2", "--thickness-bottom", "1.4",
+                     "--engrave", "M+K 2026", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "engraving: 'M+K 2026' inside" in out and "Engraving Wrap Length" in out

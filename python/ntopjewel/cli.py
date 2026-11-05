@@ -532,7 +532,8 @@ def cmd_multistone(a: argparse.Namespace) -> int:
                                      shank_blend_mm=a.shank_blend, shank=shaped, pave_stone_mm=a.pave or 0.0,
                                      pave_rows=a.pave_rows, pave_layout=a.pave_layout, pave_from_deg=a.pave_from or 0.0,
                                      pave_material=a.pave_material, row=a.row or 0, shared_prongs=a.shared_prongs,
-                                     gallery=a.gallery)
+                                     gallery=a.gallery, text=a.engrave, engrave_side=a.engrave_side,
+                                     engrave_height_mm=a.engrave_height, engrave_depth_mm=a.engrave_depth)
     probs = spec.validate()
     if probs:
         print("multistone: problems: " + "; ".join(probs))
@@ -969,6 +970,10 @@ def main(argv: list[str] | None = None) -> int:
     mu.add_argument("--pave-layout", default="staggered", choices=["staggered", "aligned"])
     mu.add_argument("--pave-from", type=float, help="where the pavé begins, degrees from the top (default: just past the side heads)")
     mu.add_argument("--pave-material", default="diamond", choices=sorted(tables.STONE_DENSITY_G_CM3))
+    mu.add_argument("--engrave", help="text engraved in the shank, centred opposite the centre stone (rings 02, 05)")
+    mu.add_argument("--engrave-side", default="inside", choices=["inside", "outside"])
+    mu.add_argument("--engrave-height", type=float, help="letter height, mm (default: fits the band's width at the bottom)")
+    mu.add_argument("--engrave-depth", type=float, default=0.3, help="mm (floor 0.25)")
     mu.add_argument("--clearance", type=float, help="seat clearance, mm (default: tables)")
     mu.add_argument("--finger-clear", type=float, help="metal between the bore and each culet, mm")
     mu.add_argument("--blend", type=float, help="head blend radius, mm (default: tables; 0 = sharp)")

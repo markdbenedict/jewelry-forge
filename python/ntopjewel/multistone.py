@@ -78,6 +78,11 @@ class MultiStoneSpec:
     row: int = 0                               # stones in a row: N stones of the centre's kind symmetric about the top (an even N has none at it); 0: centre + side pairs
     shared_prongs: bool = False                # neighbours share the prongs facing each other: one post between them each side of the band
     gallery: bool = False                      # a bridge rail along the row each side of the band, at the heads' upper rails
+    text: str | None = None                    # engraving, centred opposite the centre (rings 02 and 05: inside)
+    engrave_side: str = "inside"
+    engrave_height_mm: float | None = None
+    engrave_depth_mm: float = 0.3
+    font: dict | None = None
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self):
@@ -579,6 +584,54 @@ class MultiStoneSpec:
         c.export(str(seats))
         return str(beads), str(seats)
 
+    # ---- engraving opposite the centre ---------------------------------------------------------------
+    @property
+    def has_engraving(self) -> bool:
+        return bool(self.text)
+
+    @property
+    def engraving(self):
+        """The band-engraving helper (features.RingSpec), on the band as it is under the text: the bottom of
+        a tapered shank (its width sizes the letters, its thickness the wall left under them)."""
+        if "eng" not in self._cache:
+            from . import features
+            self._cache["eng"] = features.RingSpec(self.shank_spec.engraving_band(), text=self.text, engrave_side=self.engrave_side,
+                                                   engrave_height_mm=self.engrave_height_mm,
+                                                   engrave_depth_mm=self.engrave_depth_mm, font=self.font)
+        return self._cache["eng"]
+
+    @property
+    def engraving_wrap_length(self) -> float:
+        from . import engrave
+        r = self.engraving.engrave_geometry()["wrap_radius"] if self.has_engraving else self.band.bore_radius_mm
+        return engrave.wrap_length_mm(r)
+
+    def engraving_mesh(self):
+        """The text unwrapped (what Engraving Path points at), or a dummy speck without."""
+        from . import engrave
+        if not self.has_engraving:
+            return engrave.dummy_mesh(self.band.bore_radius_mm)
+        g = self.engraving.engrave_geometry()
+        return engrave.text_mesh(self.text, g["height"], self.engrave_depth_mm, g["radius"], g["side"], font=self.font)
+
+    def write_engraving(self, path: Path) -> dict:
+        from . import engrave
+        if self.has_engraving:
+            return self.engraving.write_engraving(Path(path))
+        return engrave.write_engraving(Path(path), None, 1.0, 0.3, self.band.bore_radius_mm, "inside")
+
+    def text_half_deg(self) -> float:
+        """Half the text's angular span round the ring (0 without)."""
+        if not self.has_engraving:
+            return 0.0
+        m = self.engraving_mesh()                                     # unwrapped: Y is along the ring
+        return math.degrees((m.bounds[1][1] - m.bounds[0][1]) / 2 / self.engraving.engrave_geometry()["wrap_radius"])
+
+    def placed_engraving(self):
+        """The text wrapped and turned under the finger, as the notebook places it (ring frame)."""
+        from . import solitaire as solmod
+        return solmod.wrapped_engraving({"Engraving Wrap Length": self.engraving_wrap_length}, self.engraving_mesh())
+
     # ---- notebook ----------------------------------------------------------------------------
     def slot_values(self, p: Placed, seat_path: str, prongs_path: str) -> dict:
         ph = self.placed_head(p.head)
@@ -590,7 +643,8 @@ class MultiStoneSpec:
 
     def notebook_inputs(self, shank_paths, slot_files: list[tuple[str, str]], output_path: str = "",
                         pave_paths: tuple[str, str] = ("<pave beads path>", "<pave seats path>"),
-                        gallery_paths: tuple[str, str] = ("<gallery path>", "<shared prongs path>")) -> dict:
+                        gallery_paths: tuple[str, str] = ("<gallery path>", "<shared prongs path>"),
+                        engraving_path: str = "<engraving path>") -> dict:
         """`slot_files`: (seat envelope path, prongs path) per stone, in stones() order."""
         sh = self.shank_spec.notebook_inputs(shank_paths, "")
         v = {k: sh[k] for k in (*shankmod.SLOT_NAMES, "Wrap Length", "Edge Round", "Edge Round Inward", "Mesh Tolerance")}
@@ -604,6 +658,7 @@ class MultiStoneSpec:
                 v[slot_input(name, k)] = val
         v["Pave Beads Path"], v["Pave Seats Path"] = str(pave_paths[0]), str(pave_paths[1])
         v["Gallery Path"], v["Shared Prongs Path"] = str(gallery_paths[0]), str(gallery_paths[1])
+        v["Engraving Path"], v["Engraving Wrap Length"] = str(engraving_path), round(self.engraving_wrap_length, 4)
         v["Output Path"] = str(output_path)
         return v
 
@@ -644,6 +699,9 @@ class MultiStoneSpec:
         if self.has_pave:
             pv = self.pave.design()
             d["pave"] = {k: v for k, v in pv.items() if k.startswith("pave_") or k == "seat_clearance"}
+        if self.has_engraving:                                        # only when set: earlier designs keep their ids
+            d["engraving"] = {"text": self.text, "side": self.engrave_side, "height_mm": self.engraving.engrave_geometry()["height"],
+                              "depth_mm": self.engrave_depth_mm, "font": self.font}
         return d
 
     @property
@@ -679,6 +737,8 @@ class MultiStoneSpec:
                 import trimesh
                 shank = trimesh.boolean.union([shank, self.pave.beads_mesh()], engine="manifold")
                 cuts = cuts + [self.pave.seats_mesh()]
+            if self.has_engraving:                                        # cut with the seats, after the blended join
+                cuts = cuts + [self.placed_engraving()]
             ring = ops.union([shank, ops.union([*hs, *self.gallery_bodies()])], self.shank_blend)
             mesh = ops.clean(ops.difference(ring, cuts))
             if key is None:
@@ -755,6 +815,20 @@ class MultiStoneSpec:
             p.append(f"the heads reach {span:.0f}° from the top, past where the taper begins ({sh.taper_from_deg:g}°)")
         if span > 100.0:
             p.append(f"the heads reach {span:.0f}° from the top: fewer or smaller side stones")
+        if self.has_engraving and not p:
+            eb = self.engraving.band
+            hint = (f" (the text sits at the taper's bottom, {eb.width_mm:g} x {eb.thickness_mm:g} mm: a wider "
+                    f"--width-bottom, a thicker --thickness-bottom, or less taper)" if sh.tapered else "")
+            p += [q + hint for q in self.engraving.validate() if q not in p]
+            if not p:
+                half = self.text_half_deg()
+                room = 180.0 - span - ENGRAVING_HEAD_CLEAR_DEG
+                if half > room:
+                    p.append(f"the text reaches ±{half:.0f}° from the bottom; the heads leave ±{max(room, 0):.0f}° "
+                             f"(shorter text, smaller letters or fewer stones)")
+                if self.has_pave:
+                    p.append("an engraving and pavé: the pavé is centred on the bottom, where the text goes (and its light "
+                             "holes open on the bore)")
         if self.has_pave and not p:
             pv = self.pave
             if sh.tapered:
@@ -815,8 +889,15 @@ class MultiStoneSpec:
         if self.gallery:
             lines.append(f"  gallery: a bridge rail each side of the band at the heads' upper rails, "
                          f"±{max(abs(p.theta_deg) for p in self.stones()):.1f}° from the top")
+        if self.has_engraving:
+            g = self.engraving.engrave_geometry()
+            lines.append(f"  engraving: {self.text!r} {self.engrave_side}, {g['height']:.2f} mm high, {self.engrave_depth_mm} mm deep, "
+                         f"centred opposite the centre stone (±{self.text_half_deg():.1f}° round the bottom)")
         lines.append(f"  blends: head {self.centre.blend:g} mm, heads into shank {self.shank_blend:g} mm")
         return "\n".join(lines)
+
+
+ENGRAVING_HEAD_CLEAR_DEG = 10.0     # the text's end at least this far from the heads' reach (their blend fillet, the gate's span)
 
 
 # ---- from the notebook's numbers (the simulated nTop) ---------------------------------------------
@@ -851,6 +932,9 @@ def ring_from_inputs(v: dict, ops: geom.Booleans = geom.SHARP):
     extra = []
     if v.get("Gallery Path"):                                          # 0.3.0: the bridge and the shared prongs (or specks)
         extra = [geom.clean(trimesh.load(str(v[k]), force="mesh")) for k in ("Gallery Path", "Shared Prongs Path")]
+    if v.get("Engraving Path"):                                        # 0.4.0: the text (or a dummy speck), cut with the seats
+        from . import solitaire as solmod
+        cuts.append(solmod.wrapped_engraving(v, trimesh.load(str(v["Engraving Path"]), force="mesh")))
     ring = ops.union([shank, ops.union([*hs, *extra])], float(v["Shank Blend"]))
     return ops.clean(ops.difference(ring, cuts))
 
@@ -903,15 +987,22 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
 
     pv = spec.pave
     pave_keep = pv.wall_ray_filter() if pv is not None else None
+    text_keep = spec.engraving.wall_ray_filter() if spec.has_engraving else None
+    flip = np.array([-1.0, -1.0, 1.0])                                # the text sits at -X: its filter works at +X
+    text_half = spec.text_half_deg() + 5.0 if spec.has_engraving else 0.0
 
     def shank_rays(pts, n):
         ok = np.array([far(math.degrees(math.atan2(p[1], p[0]))) for p in pts])
         if pave_keep is not None:                                     # a seat's wall measures the web to the next seat
             ok &= pave_keep(pts, n)
+        if text_keep is not None:                                     # a letter's walls are ribs: radial rays only there
+            ok &= text_keep(pts * flip, n * flip)
         return ok
 
     def shank_section(a):
         if not far(a):
+            return None
+        if text_half and abs(abs((float(a) + 180.0) % 360.0 - 180.0) - 180.0) <= text_half:   # through the text
             return None
         if pv is not None and pv.in_pave(a):                          # through the pavé: the design's own section
             return gate.section_geometry(spec.design_mesh(), a)
@@ -998,6 +1089,14 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
         rep.checks.append(gate.Check("gallery", found == n and n > 0,
                                      f"{found}/{n} bridge rails found where the design shows them (within 0.15 mm)"
                                      + (f"; missing between stones {', '.join(missing)}" if missing else "")))
+    if spec.has_engraving:                                            # the text cut opposite the centre
+        turned = ring.copy()
+        turned.apply_transform(trimesh.transformations.rotation_matrix(math.pi, [0, 0, 1]))   # the text back to +X
+        pocket = spec.engraving.engraving_pocket(turned)
+        rep.checks.append(gate.Check("engraving", pocket["found"],
+                                     f"{pocket['pocket_area_mm2']:.1f} mm² of pocket on the {pocket['side']} for "
+                                     f"{pocket['text_area_mm2']:.1f} mm² of text, opposite the centre stone"
+                                     + (f"; {pocket['stray_area_mm2']:.1f} mm² stray" if pocket["stray_area_mm2"] > 0.05 else "")))
     if pv is not None:                                                # the pavé's seats, holes, beads, held stones
         from . import pave as pavemod
         for c in pavemod.pave_checks(pv, ring):
@@ -1055,7 +1154,10 @@ def build(spec: MultiStoneSpec, out_dir: Path | None = None, *, notebook: Path |
     files = spec.write_slot_files(run_dir, spec.stem)
     pave_paths = spec.write_pave_layers(run_dir, spec.stem)
     gallery_paths = spec.write_gallery_layers(run_dir, spec.stem)
-    values = spec.notebook_inputs(bars, files, str(stl), pave_paths=pave_paths, gallery_paths=gallery_paths)
+    engraving = run_dir / f"{spec.stem}.engraving.stl"
+    engraving_info = spec.write_engraving(engraving)
+    values = spec.notebook_inputs(bars, files, str(stl), pave_paths=pave_paths, gallery_paths=gallery_paths,
+                                  engraving_path=str(engraving))
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(values), run_dir, tag=spec.stem)
     try:
@@ -1074,6 +1176,7 @@ def build(spec: MultiStoneSpec, out_dir: Path | None = None, *, notebook: Path |
               "stones": [{"role": p.role, "theta_deg": p.theta_deg, "spin_deg": p.spin_deg, "stone": asdict(p.head.stone)} for p in spec.stones()],
               "pave": ({"stones": [{"row": q.row, "col": q.col, "theta_deg": q.theta_deg, "z_mm": q.z_mm} for q in spec.pave.stones()],
                         "beads": len(spec.pave.beads()), "layers": pave_paths} if spec.has_pave else None),
+              "engraving": engraving_info if spec.has_engraving else None,
               "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notes": res.notes,
               "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version())}
     (run_dir / f"{spec.stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")

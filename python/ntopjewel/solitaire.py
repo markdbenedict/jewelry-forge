@@ -353,11 +353,11 @@ class SolitaireSpec:
 
     @property
     def engraving(self):
-        """The band-engraving helper (features.RingSpec) for this band and text: geometry, the STL,
+        """The band-engraving helper (features.RingSpec) for the band under the text (a taper's bottom) and the text: geometry, the STL,
         the pocket check. Kept, so the text info written per run stays with it."""
         if "eng" not in self._cache:
             from . import features
-            self._cache["eng"] = features.RingSpec(self.band, text=self.text, engrave_side=self.engrave_side,
+            self._cache["eng"] = features.RingSpec(self.shank_spec.engraving_band(), text=self.text, engrave_side=self.engrave_side,
                                                    engrave_height_mm=self.engrave_height_mm,
                                                    engrave_depth_mm=self.engrave_depth_mm, font=self.font)
         return self._cache["eng"]

@@ -6,8 +6,8 @@
 # rest of the ring; no-op specks without). Built by ntop/recipes/multistone.py.
 # Verify names: python -m ntopjewel templates ntop/notebooks/multistone.ntop --catalog multistone
 notebook: multistone.ntop
-version: 0.3.0   # 0.3.0: Gallery Path / Shared Prongs Path - the bridge rails and shared posts joined with the heads (2026-11-04) - rebuild the notebook; 0.2.1: one combined transform per head and seat, each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.1.0: first build (2026-11-03); 0.2.0: Pave Beads Path / Pave Seats Path (2026-11-04)
-rebuild_since: 0.3.0
+version: 0.4.0   # 0.4.0: Engraving Path / Engraving Wrap Length - text cut opposite the centre with the seats, after the blended join (rings 02 and 05; 2026-11-05) - rebuild the notebook; 0.3.0: Gallery Path / Shared Prongs Path - the bridge rails and shared posts joined with the heads (2026-11-04) - rebuild the notebook; 0.2.1: one combined transform per head and seat, each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.1.0: first build (2026-11-03); 0.2.0: Pave Beads Path / Pave Seats Path (2026-11-04)
+rebuild_since: 0.4.0
 title: Multi-stone ring - centre and side stones in outline heads on a shank
 output:
   name: Volume
@@ -311,6 +311,15 @@ inputs:
   Shared Prongs Path:
     type: text
     doc: The posts neighbouring stones share, one each side of the band per pair (ntopjewel.gallery); a speck buried in the band without.
+  Engraving Path:
+    type: text
+    doc: "The engraving STL (engrave.text_mesh unwrapped, or a speck outside the ring when there is no text): wrapped round the ring, turned under the finger opposite the centre stone, cut with the seats after the blended join."
+  Engraving Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 200.0
+    doc: "Remap Cylindrical's Y mapping length: 2π x the radius the text is undistorted at (the band under the text: a taper's bottom)."
   Output Path:
     type: text
     doc: "Absolute path of the STL to write (Export Mesh block; a Text variable in nTop)."
