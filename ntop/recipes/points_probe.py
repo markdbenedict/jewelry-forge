@@ -9,7 +9,9 @@ refused) but nothing has measured.
 
 First try (5 Nov), measured in the GUI session: every block stayed e_DIRTY and no volume came back - a lazy
 block's input errors stay hidden there (CLAUDE.md, "What only nTopCL tells you"). So the probe is a small
-runner notebook, measured by nTopCL, which names any incomplete input and returns the volume:
+runner notebook, measured by nTopCL, which names any incomplete input and returns the volume. Its first run
+named one: `Point List_0: Input "Units" is incomplete` - Import Points has no default unit (Import / Export
+Mesh do), so `nj.set_units_mm` sets it, learning how nTop spells the value from an Import Mesh's default:
 
     python -m ntopjewel api build points_probe           # nTop open (foreground), Python Console open; writes the two point files
     python -m ntopjewel run points_probe --set "Points Path=out/api/points_probe.csv" --set "Output Path=out/api/points_probe.stl"
@@ -72,7 +74,8 @@ def _body(h, p, values, test_output):
     with h.section("Balls"):
         pts = h.add("Imported Points", "import_points<file_path,unit_length_enum>", mask="import_points", must=[["import_points"]])
         h.wire(ids["Points Path"], pts, [h.input_of_type(pts, "file_path")])
-        h.comment(pts, "Import Points: one point per line of the file (Units left at nTop's default).")
+        nj.set_units_mm(h, pts)                         # no default here (nTopCL: Input "Units" is incomplete)
+        h.comment(pts, "Import Points: one point per line of the file, in mm.")
         ball = h.add("Balls", nj.SPHERE, mask="sphere", must=[["sphere<point,real>"], ["sphere", "point", "real"]])
         h.wire(pts, ball, nj.CENTRE)                    # the whole list on a single point input
         h.wire(ids["Radius"], ball, ["Radius"])

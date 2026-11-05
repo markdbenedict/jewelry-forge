@@ -396,6 +396,62 @@ def path_variable(h: NotebookHelper, name: str, value: str) -> str:
     return _typed_variable(h, name, value, PATH_VARS, str, "the {name} input")
 
 
+UNITS_MM_SPELLINGS = ("mm", "Millimeters", "millimeters", "Millimeter", "millimeter", "MM")
+
+
+def set_units_mm(h: NotebookHelper, block_id: str, input_name: str = "Units") -> object:
+    """Set a `unit_length_enum` input to millimetres. Import Mesh and Export Mesh default theirs; Import
+    Points has none (nTopCL, 2026-11-05: `Point List_0: Input "Units" is incomplete`), and how the API
+    spells an enum value is not recorded anywhere. So: read what a fresh Import Mesh holds (its default,
+    millimetres) and the input's metadata, offer that value first and the plain spellings after, and keep
+    the first nTop accepts. Every read and refusal goes to the log - a failure says how nTop spells it.
+    The reference block is removed again (left in, its empty Path would fail the nTopCL run)."""
+    nb = h.nb
+    learned = []
+    ref = None
+    try:
+        ref = h.add("Units Reference", mask="import_mesh", must=IMPORT_MESH)
+        for fn_name in ("get_block_input", "get_block_input_meta"):
+            fn = getattr(nb, fn_name, None)
+            if callable(fn):
+                try:
+                    v = fn(ref, input_name)
+                    h.log.append(f"{fn_name}(Import Mesh, {input_name}) = {v!r}"[:600])
+                    if fn_name == "get_block_input" and v not in (None, ""):
+                        learned.append(v)
+                except Exception as e:
+                    h.log.append(f"{fn_name}(Import Mesh, {input_name}) failed: {e}"[:400])
+    except Exception as e:
+        h.log.append(f"no Import Mesh to learn the units from: {e}"[:400])
+    finally:
+        if ref is not None:
+            if not h.remove(ref):
+                raise ConsoleError(f"could not remove the Units Reference block {ref}: nTopCL would fail on its empty Path")
+            h.blocks.pop("Units Reference", None)
+    meta = getattr(nb, "get_block_input_meta", None)
+    if callable(meta):
+        try:
+            h.log.append(f"get_block_input_meta({block_id}, {input_name}) = {meta(block_id, input_name)!r}"[:600])
+        except Exception as e:
+            h.log.append(f"get_block_input_meta({block_id}, {input_name}) failed: {e}"[:400])
+    candidates = []
+    for v in learned:
+        candidates.append(v)
+        if isinstance(v, dict):
+            candidates += [v[k] for k in ("value", "val", "id", "name", "index") if k in v]
+    candidates += list(UNITS_MM_SPELLINGS)
+    refused = []
+    for c in candidates:
+        try:
+            nb.set_block_input(block_id, input_name, c)
+        except Exception as e:
+            refused.append(f"{c!r}: {e}"[:200])
+            continue
+        h.log.append(f"set {block_id}.{input_name} = {c!r} (refused before it: {refused})"[:800])
+        return c
+    raise ConsoleError(f"nTop took none of {candidates!r} for {block_id}.{input_name}: " + "; ".join(refused)[:1500])
+
+
 def integer_variable(h: NotebookHelper, name: str, value: int) -> str:
     """An integer notebook input: a `core.var<integer>` block renamed to `name` (there is no
     add_integer_variable; integer parameters can be set)."""

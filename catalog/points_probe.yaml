@@ -2,8 +2,8 @@
 # file, united; the volume says (12.57 mm³: one ball per point; 4.19: the first point only). Built by
 # ntop/recipes/points_probe.py; the hammered texture's notebook rests on the answer (ntopjewel.texture).
 notebook: points_probe.ntop
-version: 0.1.0   # 0.1.0: first build (2026-11-05)
-rebuild_since: 0.1.0
+version: 0.1.1   # 0.1.0: first build (2026-11-05); 0.1.1: Import Points' Units set to mm (it has no default)
+rebuild_since: 0.1.1
 title: Spheres at the points of a file (probe)
 output:
   name: Volume

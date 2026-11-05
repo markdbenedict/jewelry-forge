@@ -70,7 +70,8 @@ SIGNATURES = {
 PROPERTIES = {"body_mass_props": ["center of gravity", "mass", "principal frame", "principal moments", "volume"], "implicit": ["Bounding Box"]}
 LAZY = {"body_mass_props"} | {"volume_integral<implicit,real_field,real>"}   # measurement blocks nothing displays
 # inputs with no default: nTopCL fails the run with 'Input "<name>" is incomplete' when they are neither set nor wired
-REQUIRED = {"mass_properties<implicit,real_field,real>[1.1.0]": ["Body", "Density"],
+REQUIRED = {"import_points<file_path,unit_length_enum>": ["Units"],      # nTopCL 2026-11-05: no default unit
+            "mass_properties<implicit,real_field,real>[1.1.0]": ["Body", "Density"],
             "mass_properties_from_body<implicit,real_field,real>": ["Body", "Density"],
             "mass_properties<mesh,real>[2.1.0]": ["Mesh", "Density"]}
 DISPLAY_BASE = {"implicit": "Implicit Body", "body_mass_props": "Mass properties", "file": "Mesh File Data", "file_path": "Path",
