@@ -369,6 +369,17 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    round the rest, in gold - multistone.ntop 0.2.0 takes Pave Beads / Seats Path (rebuild), the pavé centred on
    the bottom and clear of the side heads; offline PASSED on comfort-flat 2.6 x 1.8 (a court band's dome left
    0.2 mm lips beside the seats). Real check pending: `api build multistone`, then the ruby command.*
+   *Partial bezels (5 Nov, from Mark's open-pear photo and the attached development plan, taken on a lean path):
+   `partial_bezel_head` (block + harness) and `solitaire_partial_bezel.ntop`, `head / solitaire --partial-bezel`. Two
+   mirrored walls on the flanks (fractions of the outline from the point, turned into angles for nTop), a hood over each
+   point, a full cup under the girdle; any outline (an east-west half bezel on the others). **Built in nTop from
+   primitives** - grown cutter ∩ a sharp mask (cup box, two turned half-boxes and their Mirror Body, hood cylinders), one
+   blended intersection, seat cut last; Python supplies numbers only. Gate probes: walls, open stretches, hoods, point
+   clear, bearing; faults noside / nohood / fullbezel caught. Offline PASSED: pear, marquise and oval heads, the
+   reference ring (10 x 7 pear, half-round 9.5 x 3.3 tapering to 2.8 x 1.7, lip 0.8). *Real check:* `api build
+   partial_bezel_head`, `head --partial-bezel --shape pear --length 10 --width 7 --depth 4.5`, `api build
+   solitaire_partial_bezel`, then the reference ring command (CLAUDE.md). Physical setting validation stays with the
+   Phase 1/5 print-and-cast milestones (a setter's judgement, the plan's PB-07).*
 5. **Artwork on the band.** *(3 Nov: started, from the Seraphine Celtic ring Mark photographed -
    leaf rows in channels on both side faces, a vine scroll in a channel on the outer face, 25°-120°
    from the top, Celtic knots on the shoulders, scroll volutes under a 4-prong head with double claws

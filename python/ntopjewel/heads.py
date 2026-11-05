@@ -1371,6 +1371,8 @@ def build_bezel(spec: BezelSpec, out_dir: Path | None = None, *, notebook: Path 
 
 # ---- blends, from the notebook's numbers (the specs, the gate and the simulated nTop share this) --
 def head_kind(v: dict) -> str:
+    if "Wall From Angle" in v:
+        return "partial"
     return "outline" if "Prongs Path" in v else ("bezel" if "Windows Path" in v else "round")
 
 
@@ -1383,6 +1385,9 @@ def blend_junctions(v: dict, envelope=None, prongs=None) -> dict:
     if head_blend_radius(v) <= 0:
         return none
     kind = head_kind(v)
+    if kind == "partial":
+        from .partial_bezel import partial_junctions
+        return partial_junctions(v, envelope)
     if kind == "round":
         prongs_m, rails = head_parts(v)
         return {"union": geom.junction_segments(prongs_m, rails), "intersect": none["intersect"]}

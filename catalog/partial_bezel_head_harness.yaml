@@ -1,0 +1,103 @@
+# Harness for the partial_bezel_head library block (ntop/blocks/partial_bezel_head.ntop) with an embedded stone_seat.
+# Built by ntop/recipes/partial_bezel_head.py; run by `python -m ntopjewel head --partial-bezel ...`; every number from
+# ntopjewel.partial_bezel.PartialBezelSpec.notebook_inputs.
+notebook: partial_bezel_head_harness.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-05)
+rebuild_since: 0.1.0
+title: Partial bezel head (two mirrored walls on the flanks, a hood over each point, a full cup under the girdle; nTop primitives)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the head; checked against partial_bezel.PartialBezelSpec.design_mesh.
+inputs:
+  Seat Path:
+    type: text
+    doc: Seat envelope STL (gems.seat_envelope) for the stone_seat block.
+  Clearance:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 0.5
+    doc: Stone-to-seat gap.
+  Wall:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 2.0
+    doc: 'Bezel wall: the seat cutter grown by this much.'
+  Bezel Bottom:
+    type: scalar
+    units: mm
+    min: -15.0
+    max: 0.0
+    doc: The cup's lower edge, z (head frame).
+  Cup Top:
+    type: scalar
+    units: mm
+    min: -5.0
+    max: 0.0
+    doc: 'The full cup''s top, z: just under the girdle (the bearing all round).'
+  Bezel Top:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 5.0
+    doc: 'The walls'' top, z: the girdle top + the lip.'
+  Wall Centre X:
+    type: scalar
+    units: mm
+    min: -10.0
+    max: 10.0
+    doc: x of the vertical line the wall's half-spaces turn about (the outline's centroid).
+  Wall From Angle:
+    type: scalar
+    units: deg
+    min: 0.0
+    max: 180.0
+    doc: 'The +y wall''s start, degrees about the centre from +X (nearer the point: the larger angle).'
+  Wall To Angle:
+    type: scalar
+    units: deg
+    min: 0.0
+    max: 180.0
+    doc: The +y wall's end, degrees about the centre from +X.
+  Hood X:
+    type: scalar
+    units: mm
+    min: -70.0
+    max: 70.0
+    doc: x of the hood over the point (y = 0); far outside the stone (60) when there is none.
+  Hood 2 X:
+    type: scalar
+    units: mm
+    min: -70.0
+    max: 70.0
+    doc: x of a second hood (a marquise's other point); 60 when there is none.
+  Hood Reach:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 5.0
+    doc: 'The hood''s radius about its point: how far along the outline it holds.'
+  Hood Top:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 6.0
+    doc: 'The hood''s top, z: above the walls'' top by the hood rise.'
+  Blend Radius:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 1.0
+    doc: Blend radius of the one intersection (rim, wall ends, hood rounded; 0 = sharp).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 0.5
+    doc: Mesh from Implicit Body tolerance.
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the head.

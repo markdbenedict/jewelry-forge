@@ -46,9 +46,12 @@ ROUND_HEAD = [("Prong Count", "int"), ("Prong Spacing", "deg"), ("Prong Radius",
 OUTLINE_HEAD = [("Prongs Path", "path"), ("Rail Offset", "mm"), ("Upper Rail Bottom", "mm"), ("Upper Rail Top", "mm"),
                 ("Lower Rail Bottom", "mm"), ("Lower Rail Top", "mm"), ("Head Blend", "mm")]
 BEZEL_HEAD = [("Windows Path", "path"), ("Wall", "mm"), ("Bezel Bottom", "mm"), ("Bezel Top", "mm"), ("Head Blend", "mm")]
+PARTIAL_HEAD = [("Wall", "mm"), ("Bezel Bottom", "mm"), ("Cup Top", "mm"), ("Bezel Top", "mm"), ("Wall Centre X", "mm"),
+                ("Wall From Angle", "deg"), ("Wall To Angle", "deg"), ("Hood X", "mm"), ("Hood 2 X", "mm"), ("Hood Reach", "mm"),
+                ("Hood Top", "mm"), ("Head Blend", "mm")]
 JOIN = [("Shank Blend", "mm")]
 BLOCK_INPUT = {"Head Blend": "Blend Radius"}          # a notebook input whose name differs from the block input it feeds
-HEAD_LABEL = {"round": "Prong Head", "outline": "Outline Head", "bezel": "Bezel Head"}
+HEAD_LABEL = {"round": "Prong Head", "outline": "Outline Head", "bezel": "Bezel Head", "partial": "Partial Bezel Head"}
 ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
         ("Arch Centre X", "mm"), ("Arch Centre Y", "mm"), ("Arch Radius", "mm"),
         ("Arch Dome Ring Radius", "mm"), ("Arch Cut Radius", "mm"), ("Wedge Angle", "deg"),
@@ -62,7 +65,7 @@ BAND_FOR_ARCHES = ["Z Top", "Z Bottom", "Dome Tube Radius", "Edge Round", "Edge 
 
 
 def head_specs(kind: str) -> list[tuple[str, str]]:
-    return {"outline": OUTLINE_HEAD, "bezel": BEZEL_HEAD}.get(kind, ROUND_HEAD)
+    return {"outline": OUTLINE_HEAD, "bezel": BEZEL_HEAD, "partial": PARTIAL_HEAD}.get(kind, ROUND_HEAD)
 
 
 def specs(kind: str) -> list[tuple[str, str]]:
@@ -128,7 +131,7 @@ def engraving(h, ids) -> str:
 
 
 def body(kind: str):
-    """The notebook body for `nj.run_build`, for a round (prong_head), outline or bezel head."""
+    """The notebook body for `nj.run_build`, for a round (prong_head), outline, bezel or partial bezel head."""
     def _body(h, p, values, test_output):
         ids = nj.add_typed_inputs(h, specs(kind), values)
         out_var = nj.path_variable(h, "Output Path", test_output)

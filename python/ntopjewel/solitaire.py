@@ -179,7 +179,7 @@ class SolitaireSpec:
         key = ("face_reach", round(self.knot_thickness_mm, 3))
         if key not in self._cache:
             ph = self.placed_head
-            m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
+            m = ph.design_mesh() if self.cupped else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
             cutter = geom.offset_convex(self.head.seat.envelope(), self.head.clearance)
             z_lo = self.band.outer_radius_mm - 0.3 - self.girdle_radius
             z_hi = z_lo + 0.3 + 2 * self.knot_thickness_mm + 0.2
@@ -319,7 +319,9 @@ class SolitaireSpec:
     # ---- head kind -----------------------------------------------------------------------
     @property
     def kind(self) -> str:
-        """round (prong_head), outline (outline_head) or bezel (bezel_head)."""
+        """round (prong_head), outline (outline_head), bezel (bezel_head) or partial (partial_bezel_head)."""
+        if getattr(type(self.head), "HEAD_KIND", "") == "partial":   # a marker: survives a purged and re-imported ntopjewel
+            return "partial"
         if isinstance(self.head, heads.BezelSpec):
             return "bezel"
         return "outline" if isinstance(self.head, heads.OutlineHeadSpec) else "round"
@@ -331,6 +333,11 @@ class SolitaireSpec:
     @property
     def bezel(self) -> bool:
         return self.kind == "bezel"
+
+    @property
+    def cupped(self) -> bool:
+        """A bezel or a partial bezel: a cup carried down into the band, its head model its own design_mesh."""
+        return self.kind in ("bezel", "partial")
 
     @property
     def unfaceted(self) -> bool:
@@ -349,7 +356,8 @@ class SolitaireSpec:
 
     @property
     def catalog_name(self) -> str:
-        return {"round": "solitaire", "outline": "solitaire_outline", "bezel": "solitaire_bezel"}[self.kind]
+        return {"round": "solitaire", "outline": "solitaire_outline", "bezel": "solitaire_bezel",
+                "partial": "solitaire_partial_bezel"}[self.kind]
 
     @property
     def engraving(self):
@@ -380,7 +388,7 @@ class SolitaireSpec:
         if self.floored:
             _, pav = self.head.stone.heights
             floor = round(-(self.head.stone.girdle / 2 + pav + self.finger_clear - 0.2), 4)
-            if self.bezel:                                   # the cup runs down into the band, to the floor
+            if self.cupped:                                  # the cup runs down into the band, to the floor
                 return replace(self.head, floor_z=floor, bottom_frac=0.0)
             return replace(self.head, floor_z=floor)
         drop = self.finger_clear - (self.head.rail_rho + 0.2)
@@ -532,6 +540,8 @@ class SolitaireSpec:
             head = self.placed_head.notebook_inputs(seat_path, prongs_path)
         elif self.bezel:                                              # Seat Path, Clearance, Windows Path, Wall, Bezel Bottom/Top
             head = self.placed_head.notebook_inputs(seat_path, windows_path)
+        elif self.kind == "partial":                                  # Seat Path, Clearance + the partial bezel's numbers
+            head = self.placed_head.notebook_inputs(seat_path)
         else:                                                         # Seat Path, Clearance + the 14 head numbers
             head = self.placed_head.notebook_inputs(seat_path)
         head["Head Blend"] = head.pop("Blend Radius")                 # the block's own blend, named for this notebook
@@ -561,7 +571,7 @@ class SolitaireSpec:
     def _head_feet(self):
         """The placed head's lowest metal: the vertices within 0.8 mm of its base, in the head frame."""
         ph = self.placed_head
-        m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
+        m = ph.design_mesh() if self.cupped else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
         low = m.vertices[:, 2] <= m.vertices[:, 2].min() + 0.8
         return m.vertices[low]
 
@@ -581,7 +591,7 @@ class SolitaireSpec:
         import numpy as np
         if "head_half_length" not in self._cache:
             ph = self.placed_head
-            m = ph.design_mesh() if self.bezel else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
+            m = ph.design_mesh() if self.cupped else (heads.outline_design_mesh(ph) if self.outline else heads.design_mesh(ph))
             self._cache["head_half_length"] = float(np.abs(m.vertices[:, 1]).max())
         return self._cache["head_half_length"]
 
@@ -703,7 +713,7 @@ class SolitaireSpec:
     def stem(self) -> str:
         from . import runs
         b, s = self.band, self.head.stone
-        setting = "bezel" if self.bezel else f"{self.prong_count}prong"
+        setting = {"bezel": "bezel", "partial": "pbezel"}.get(self.kind, f"{self.prong_count}prong")
         shape = f"_{self.shank_spec.shape_tag}" if self.shaped else ""
         art = ("_art" if self.has_artwork else "") + ("_knot" if self.has_knot else "")
         return (f"solitaire_{b.profile}_{b.label}{shape}_{setting}_{s.stem[len('stone_'):]}{art}_"
@@ -980,6 +990,9 @@ def ring_parts(v: dict, envelope, prongs=None, windows=None, beads: bool = True,
         if windows is None:
             windows = trimesh.load(str(v["Windows Path"]), force="mesh")
         head = heads.bezel_mesh(v, envelope, windows, cut_seat=cut_seat, ops=ops)
+    elif kind == "partial":
+        from .partial_bezel import partial_bezel_mesh
+        head = partial_bezel_mesh(v, envelope, cut_seat=cut_seat, ops=ops)
     else:
         head = heads.head_mesh(v, envelope, cut_seat=cut_seat, ops=ops)
     place = geom.rotation_about_y(HEAD_ANGLE_DEG, [float(v["Pivot X"]), 0.0, float(v["Pivot Z"])])
@@ -1128,7 +1141,7 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
         ledges = heads._inner_count(local, -g / 2 - 0.3, Rg - 0.1)
         above = heads._inner_count(local, g / 2 + 0.15, Rg + spec.head.clearance * 0.5)
     unfaceted = spec.outline and getattr(spec.placed_head, "kind", "faceted") != "faceted"
-    if spec.bezel:
+    if spec.cupped:
         rep.checks.append(gate.Check("seated", ledges >= 1, f"{ledges} piece(s) of the cup under the girdle"))
     elif unfaceted:                                                   # a cabochon's plate, a pearl's cup and post, the prongs
         rep.checks += heads.hold_checks(spec.placed_head, local)
@@ -1138,6 +1151,9 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     rep.checks.append(gate.Check("drop-in clear", above == 0, f"{above} pieces inside the girdle line above the girdle"))
     if spec.bezel:
         rep.checks.append(heads.bezel_wall_check(spec.placed_head, local))
+    if spec.kind == "partial":                                        # walls, open stretches, hoods, point, bearing
+        from .partial_bezel import partial_bezel_checks
+        rep.checks += partial_bezel_checks(spec.placed_head, local)
     if spec.milgrain:
         rep.checks.append(milgrain_check(spec, ring))
     if art is not None:

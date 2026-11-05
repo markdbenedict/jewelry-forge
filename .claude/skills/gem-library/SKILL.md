@@ -142,6 +142,49 @@ wall above the girdle, a cup on the pavilion below. Light windows (`--windows`, 
 the cup has room, else a closed cup) under a solid `bezel_bearing_mm` band. Any of the six shapes.
 Gate: fit, seated, drop-in, the wall a closed ring at least the wall floor thick, volume.
 
+## Partial bezels (the `partial_bezel_head` block, `ntopjewel.partial_bezel`)
+
+```powershell
+python -m ntopjewel api build partial_bezel_head                 # once: ntop\blocks\partial_bezel_head.ntop + its harness
+python -m ntopjewel head --partial-bezel --shape pear --length 10 --width 7 --depth 4.5          # two walls on the flanks, a hood over the point
+python -m ntopjewel head --partial-bezel --shape oval --length 8 --width 6                       # an east-west half bezel (no point: no hood)
+python -m ntopjewel head --partial-bezel --shape pear ... --wall-from 0.2 --wall-to 0.6 --hood-reach 1.8 --lip 0.8
+```
+
+A bezel kept on two mirrored wall stretches along the stone's flanks, a hood over each point (pear: one,
+marquise: two; `--no-hood` none), a full cup under the girdle carrying the stone all round (the bearing). Any
+outline: a round, oval, cushion, emerald or asscher gets an east-west half bezel (walls 0.30..0.70). The walls are
+**fractions of the half outline from the -X end** (a pear's point) - a pear's flanks are not circular sectors -
+turned into angles about the outline's centroid for nTop (`PartialBezelSpec.span`, `.angles()`); a pear's default
+runs from just past its hood (reach + 0.6 mm) to 0.70, a marquise's between its hoods. Inherits the bezel's wall
+(0.65), lip (0.5), clearance and blend.
+
+**Built in nTop from primitives, every number from Python** (no mesh but the seat envelope): grown = Offset Body
+(Seat Cutter, Wall); mask = a SHARP union of the cup slab (Box from Corners, Bezel Bottom .. Cup Top), the +y wall's
+sector (a y >= 0 box turned by Wall To Angle ∩ a y <= 0 box turned by Wall From Angle, about the vertical through Wall
+Centre X; Bezel Bottom .. Bezel Top) and its Mirror Body across y = 0, and a vertical Cylinder per hood (Hood X / Hood 2
+X, Hood Reach, up to Hood Top; an unused hood at x 60, cutting nothing); head = (grown ∩ mask, ONE blended
+intersection: the rim, the wall ends and the hood rounded) − Seat Cutter. No blended union: the pieces overlap, and a
+smooth union of bodies meeting on a face swells them (the pearl's cup).
+
+Gate (`check_partial_bezel`, and `partial_bezel_checks` on the finished ring in the head's frame): fit, seated,
+drop-in, and probes of the design's intent, not the builder - **walls** (5 stations per side at the girdle and half
+way up the lip, the wall where it should be), **open** (no metal above the cup over the stretches without a wall),
+**hoods**, **point clear** (metal ∩ stone within 1 mm of each point: the aggregate fit check can hide a small point
+collision), **bearing** (the cup under the girdle at 12 stations). The simulated nTop's faults `noside` (a wall never
+mirrored), `nohood` and `fullbezel` (the mask's walls lost) fail `walls`, `hoods` and `open`.
+
+**The ring** (`solitaire_partial_bezel.ntop`, `solitaire --partial-bezel`): placed as the bezel (the cup carried down
+into the band to the floor), no arches by default. The reference photo's look - the pear low between broad domed
+shoulders - is a broad thick top section on a tapered shank:
+
+```powershell
+python -m ntopjewel api build solitaire_partial_bezel
+python -m ntopjewel solitaire --partial-bezel --shape pear --length 10 --stone-width 7 --stone-depth 4.5 --profile half-round --width 9.5 --thickness 3.3 --width-bottom 2.8 --thickness-bottom 1.7 --lip 0.8
+```
+
+The 10 x 7 x 4.5 pear is an illustrative fixture, not the photo's stone (unmeasured); about 11 g in sterling.
+
 ## The solitaire (`solitaire.ntop`, `solitaire_outline.ntop`, `solitaire_bezel.ntop`, `ntopjewel.solitaire`)
 
 ```powershell

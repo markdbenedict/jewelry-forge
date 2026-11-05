@@ -27,7 +27,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__, artwork, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, ornament, pave, runs, shank, solitaire, summary, tables
+from . import __version__, artwork, band, catalog, config, features, gate, gems, heads, multistone, ntopcl, ornament, partial_bezel, pave, runs, shank, solitaire, summary, tables
 
 
 def _parse_set(items: list[str]) -> dict:
@@ -355,6 +355,26 @@ def _stone_body(a) -> dict:
                               ("drill_depth_frac", getattr(a, "drill_depth", None))) if v is not None}
 
 
+def _partial_bezel(a, stone):
+    """A PartialBezelSpec from the shared flags (head and solitaire)."""
+    return partial_bezel.PartialBezelSpec(stone, wall_mm=a.wall, lip_mm=a.lip, clearance_mm=a.clearance,
+                                          mesh_tolerance_mm=a.tolerance, blend_mm=a.blend, wall_from=a.wall_from,
+                                          wall_to=a.wall_to, hoods=not a.no_hood, hood_reach_mm=a.hood_reach,
+                                          **({"hood_rise_mm": a.hood_rise} if a.hood_rise is not None else {}))
+
+
+def _add_partial_bezel_args(p) -> None:
+    p.add_argument("--partial-bezel", action="store_true",
+                   help="a bezel kept on two mirrored walls along the flanks, a hood over each point (pear, marquise); "
+                        "on a round, oval or emerald an east-west half bezel")
+    p.add_argument("--wall-from", type=float, help="partial bezel: where each wall starts, a fraction of the half outline "
+                                                   "from the -X end (a pear's point); default by shape")
+    p.add_argument("--wall-to", type=float, help="partial bezel: where each wall ends, likewise (pear 0.70, others 0.70)")
+    p.add_argument("--no-hood", action="store_true", help="partial bezel: no hood over the point(s)")
+    p.add_argument("--hood-reach", type=float, help="partial bezel: the hood's reach about its point, mm (default max(1.5, 0.2 x width))")
+    p.add_argument("--hood-rise", type=float, help="partial bezel: how far the hood stands above the walls, mm (default 0.3)")
+
+
 def _cup(a) -> dict:
     return {"cup_frac": a.cup} if getattr(a, "cup", None) is not None else {}
 
@@ -407,8 +427,10 @@ def cmd_seat(a: argparse.Namespace) -> int:
 def cmd_head(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
                            table_frac=a.table, girdle_mm=a.girdle, material=a.material, **_stone_body(a))
-    outline = (stone.shape != "round" or a.outline) and not a.bezel
-    if a.bezel:                       # the bezel_head block: a wall and cup round any outline
+    outline = (stone.shape != "round" or a.outline) and not a.bezel and not a.partial_bezel
+    if a.partial_bezel:               # the partial_bezel_head block: two walls on the flanks, a hood over each point
+        spec = _partial_bezel(a, stone)
+    elif a.bezel:                     # the bezel_head block: a wall and cup round any outline
         spec = heads.BezelSpec(stone, wall_mm=a.wall, lip_mm=a.lip, windows=a.windows, clearance_mm=a.clearance,
                                mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
     elif outline:                     # the outline_head block: prongs on the outline, rails following the pavilion
@@ -425,7 +447,9 @@ def cmd_head(a: argparse.Namespace) -> int:
         return 1
     if a.dry_run:
         print(spec.describe())
-        if a.bezel:
+        if a.partial_bezel:
+            ins = spec.notebook_inputs("<envelope path>", "", "<output path>")
+        elif a.bezel:
             ins = spec.notebook_inputs("<envelope path>", "<windows path>", "<output path>")
         elif outline:
             ins = spec.notebook_inputs("<envelope path>", "<prongs path>", "<output path>")
@@ -435,7 +459,8 @@ def cmd_head(a: argparse.Namespace) -> int:
             print(f"    {k}: {v}")
         return 0
     try:
-        build = heads.build_bezel if a.bezel else (heads.build_outline_head if outline else heads.build_head)
+        build = (partial_bezel.build_partial_bezel if a.partial_bezel else
+                 heads.build_bezel if a.bezel else (heads.build_outline_head if outline else heads.build_head))
         res = build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None)
     except (ntopcl.NtopclError, ValueError) as e:
         print(f"head failed: {e}")
@@ -452,7 +477,9 @@ def cmd_head(a: argparse.Namespace) -> int:
 def cmd_solitaire(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.stone_width, depth_mm=a.stone_depth, material=a.material,
                            **_stone_body(a))
-    if a.bezel:                       # any stone in a bezel: the bezel_head block, solitaire_bezel.ntop
+    if a.partial_bezel:               # two walls on the flanks, a hood over each point: solitaire_partial_bezel.ntop
+        head = _partial_bezel(a, stone)
+    elif a.bezel:                     # any stone in a bezel: the bezel_head block, solitaire_bezel.ntop
         head = heads.BezelSpec(stone, wall_mm=a.wall, lip_mm=a.lip, windows=a.windows, clearance_mm=a.clearance,
                                mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
     elif stone.shape != "round":      # pear and other outlines: the outline_head block, solitaire_outline.ntop
@@ -473,7 +500,7 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                                    milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
                                    text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
                                    engrave_depth_mm=a.engrave_depth, shank_blend_mm=a.shank_blend, shank=shaped,
-                                   cathedral=not a.no_arches and stone.faceted, panels=panels, channel_mm=a.channel, rail_mm=a.rail,
+                                   cathedral=not a.no_arches and stone.faceted and not a.partial_bezel, panels=panels, channel_mm=a.channel, rail_mm=a.rail,
                                    relief_mm=a.relief, leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke,
                                    vein=not a.no_vein, shoulder_knot=a.shoulder_knot or "", knot_at_deg=a.knot_at,
                                    knot_width_mm=a.knot_width or 0.0, knot_ribbon_mm=a.strand_width or 0.6,
@@ -1042,6 +1069,7 @@ def main(argv: list[str] | None = None) -> int:
     hd.add_argument("--outline", action="store_true", help="a round stone on the outline_head block (fancy shapes always are)")
     hd.add_argument("--blend", type=float, help="nTop blend radius at the head's junctions, mm (default: the tables' blend_radius_mm; 0 = sharp)")
     hd.add_argument("--bezel", action="store_true", help="a bezel (wall, lip, light windows) instead of prongs")
+    _add_partial_bezel_args(hd)
     hd.add_argument("--wall", type=float, help="bezel wall, mm (default: the tables' bezel_wall_mm)")
     hd.add_argument("--lip", type=float, help="bezel height above the girdle, mm (default: bezel_lip_mm)")
     hd.add_argument("--windows", type=int, help="light windows in the bezel cup (default 6 where there is room; 0 = closed)")
@@ -1072,6 +1100,7 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--blend", type=float, help="the head's own blend radius, mm (default: the tables' blend_radius_mm; 0 = sharp)")
     so.add_argument("--shank-blend", type=float, help="blend radius where the head meets the shank, mm (default: the same table value)")
     so.add_argument("--bezel", action="store_true", help="a bezel (wall, lip, light windows) instead of prongs")
+    _add_partial_bezel_args(so)
     so.add_argument("--wall", type=float, help="bezel wall, mm (default: the tables' bezel_wall_mm)")
     so.add_argument("--lip", type=float, help="bezel height above the girdle, mm (default: bezel_lip_mm)")
     so.add_argument("--windows", type=int, help="light windows in the bezel cup (default 6 where there is room; 0 = closed)")

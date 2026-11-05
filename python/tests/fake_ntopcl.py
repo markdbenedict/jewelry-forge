@@ -20,7 +20,7 @@ would, so the rejections are tested rather than assumed:
   FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave (solitaire, multistone) | plainshank (solitaire: the bar's head section
                       all round) | nocut / norelief (artwork, on a band or under a head: the channels never cut, the
                       relief lost) | noknot (the shoulder knots' layers lost) | noblend (the blend radii ignored:
-                      sharp junctions) | noprongs (outline_head: the prongs mesh lost - claws, a pearl's post) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
+                      sharp junctions) | noprongs (outline_head: the prongs mesh lost - claws, a pearl's post) | noside / nohood / fullbezel (partial_bezel_head: a wall never mirrored, the hoods lost, the mask's walls lost) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
                       rectangular section instead of the designed one (what a notebook that ignores the tori produces)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
   FAKE_NTOPCL_VOLUME  mesh (default) | none : report no Volume output
@@ -218,6 +218,24 @@ def main(argv: list[str]) -> int:
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Bar 1 Mesh", "Bar 1", "Bars", "Shank", "Band Body", "Stone Seat", "Prong Head", "Placed Head", "Shoulders", "Arches", "Ring", "Mesh", "Export Mesh"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "partial_bezel_head" in nb.name:
+        import trimesh
+        from ntopjewel import partial_bezel
+        if not Path(values["Seat Path"]).exists():
+            fail("Seat Body Mesh: file not found")
+        envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
+        if shape == "fullbezel":                              # a notebook whose mask lost its walls: the cup to the top
+            values = dict(values, **{"Cup Top": values["Bezel Top"]})
+        mesh = partial_bezel.partial_bezel_mesh(values, envelope, cut_seat=shape != "noseat", ops=ops,
+                                                mirror=shape != "noside", hoods=shape != "nohood")
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Bezel Grown", "Cup Slab", "Wall Sector Body", "Wall Sector Mirrored", "Hood Zone", "Mask",
+                     "Partial Bezel", "Seated", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
