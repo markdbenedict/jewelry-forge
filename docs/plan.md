@@ -340,8 +340,10 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    text with the seats after the blended join, the solitaire's engraving section reused; the letters sized on the band
    under the text (`ShankSpec.engraving_band`: a taper's bottom - the solitaire likewise); refused with pavé or within
    10° of the heads; gate `engraving` (an uncut text fails it alone). Offline PASSED: ring 02 tapered and engraved,
-   ring 05 engraved. *Real check:* `api build multistone` (rebuild_since 0.4.0), then ring 02 with
-   `--width-bottom 2 --thickness-bottom 1.4 --engrave "M+K 2026"` and ring 05 with `--engrave Always`.*
+   ring 05 engraved. **Real check PASSED 5 Nov 10:10-10:16** after `api build multistone`: ring 02 tapered with
+   `--engrave "M+K 2026"` (1 mm letters; 12.3 mm² of pocket for 3.2 mm² of text, design volume +0.75 %, every check)
+   and ring 05 with `--engrave Always` (1.5 mm letters; 8.3 mm² for 3.1 mm², −0.63 %). Still to do by eye: the
+   letters in the GUI or the print - 1 mm text is near the resin's limit.*
 4. **New stone bodies.** Pearl (sphere on a post in a cup), cabochon (dome on a flat base), asscher
    (emerald outline with a corner-cut ratio); their seats.
    *(5 Nov: written and gated offline. `gems`: `asscher` (the emerald's cut-corner outline on a square, 25 %
