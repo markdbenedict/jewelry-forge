@@ -127,6 +127,7 @@ class HeadSpec:
 
     def design(self) -> dict:
         d = asdict(self)
+        d["stone"] = self.stone.design()
         d["inputs"] = self.notebook_inputs("")
         return d
 
@@ -244,12 +245,8 @@ def _ball(centre, r):
 
 
 def _offset_convex(mesh, c: float):
-    import trimesh
-    if c <= 0:
-        return mesh
-    ball = trimesh.creation.icosphere(subdivisions=3, radius=c).vertices
-    pts = (mesh.vertices[:, None, :] + ball[None, :, :]).reshape(-1, 3)
-    return trimesh.convex.convex_hull(pts)
+    """geom.offset_convex (a pearl's drill kept open)."""
+    return geom.offset_convex(mesh, c)
 
 
 def design_mesh(spec: HeadSpec, ops: geom.Booleans = geom.SHARP):
@@ -396,7 +393,18 @@ class OutlineHeadSpec:
                  point drops in, sits, and is covered all round when the setter closes the V.
     Pear: the point (a V-prong) plus four on the round end (PEAR_PRONG_ANGLES). Marquise: a V at
     each end plus 4 side prongs. Other shapes: prongs on rays from the centre, evenly spaced,
-    offset half a spacing."""
+    offset half a spacing (an asscher's four on its corners).
+
+    Not faceted (Phase 3 step 4), same block, same inputs:
+        cabochon prongs straight up beside the girdle band, from the plate to a tip over the dome;
+                 lower rail a plate under the flat base (the seat cutter leaves it below the base:
+                 the bearing), upper rail a collar round the girdle band (none when the band is too
+                 low to make one the wall floor high: the plate twice)
+        pearl    a cup (both rails: the seat grown by the rail offset, from under the pearl to
+                 `cup_frac` of its diameter up, less the seat - a bowl), a post up the drill (in the
+                 prongs mesh; the seat keeps the drill open, so the post survives its cut) and
+                 `prongs` claws (default 4, 0 for cup and post alone) following the sphere from the
+                 cup's rim past the equator"""
     stone: gems.StoneSpec
     prongs: int | None = None              # round prongs: pear 5 places (the point included); others 4
     prong_dia_mm: float | None = None      # as HeadSpec
@@ -414,11 +422,17 @@ class OutlineHeadSpec:
     v_arm_mm: float | None = None          # how far back from the point the V reaches; default max(1.5, 0.2 x width)
     blend_mm: float | None = None          # nTop blend radius: prongs into rails, and the rails' edges rounded; default tables
     mesh_tolerance_mm: float = 0.05
+    cup_frac: float = 0.2                  # pearl: the cup's height, of the diameter
 
     # ---- numbers ---------------------------------------------------------------------------
     @property
     def blend(self) -> float:
         return tables.SETTINGS["blend_radius_mm"] if self.blend_mm is None else float(self.blend_mm)
+
+    @property
+    def kind(self) -> str:
+        """"faceted", "cabochon" or "pearl": how the prongs and rails are laid out."""
+        return "faceted" if self.stone.faceted else self.stone.shape
 
     @property
     def has_points(self) -> bool:
@@ -435,6 +449,15 @@ class OutlineHeadSpec:
             return int(self.prongs) if self.prongs is not None else 5
         rays = int(self.prongs) if self.prongs is not None else 4
         return rays + (2 if self.stone.shape == "marquise" and self.use_v else 0)
+
+    @property
+    def post(self) -> tuple[float, float, float] | None:
+        """A pearl's post: (radius, z of its foot in the cup's floor, z of its top up the drill)."""
+        if self.kind != "pearl":
+            return None
+        d, depth = self.stone.drill
+        r = self.stone.length / 2
+        return d / 2, -r - self.clearance - self.rail_width / 2, -r + depth
 
     @property
     def v_thickness(self) -> float:
@@ -479,7 +502,18 @@ class OutlineHeadSpec:
     @property
     def z_tip(self) -> float:
         crown, _ = self.stone.heights
-        return self.stone.girdle / 2 + (self.tip_above_mm if self.tip_above_mm is not None else max(0.8, 0.8 * crown))
+        if self.tip_above_mm is not None:
+            return self.stone.girdle / 2 + float(self.tip_above_mm)
+        if self.kind == "cabochon":                                    # over the dome's foot, bent onto it
+            return self.stone.girdle / 2 + max(0.8, 0.35 * crown)
+        if self.kind == "pearl":                                       # a claw a quarter of the way up
+            return max(0.8, 0.25 * self.stone.length)
+        return self.stone.girdle / 2 + max(0.8, 0.8 * crown)
+
+    @property
+    def z_cup(self) -> float:
+        """A pearl's cup rim (head frame)."""
+        return -self.stone.length / 2 + self.cup_frac * self.stone.length
 
     def point_kinds(self) -> list[str]:
         """"v" or "round" for each of outline_points()."""
@@ -501,6 +535,8 @@ class OutlineHeadSpec:
         if np.mean(np.einsum("ij,ij->i", normal, xy)) < 0:              # outward
             normal = -normal
         out = []
+        if self.count == 0:
+            return out
         if self.stone.shape == "pear":
             angles = PEAR_PRONG_ANGLES.get(self.count)
             centre = np.array([self.stone.length / 2 - self.stone.width / 2, 0.0])
@@ -538,7 +574,10 @@ class OutlineHeadSpec:
         return N, Q, C
 
     def _foot_frac(self) -> float:
-        """The prongs' start on the pavilion: `foot_frac`, raised until the feet clear `floor_z`."""
+        """The prongs' start on the pavilion: `foot_frac`, raised until the feet clear `floor_z`
+        (a faceted stone's; the others' prongs start at their plate or cup)."""
+        if self.kind != "faceted":
+            return 0.0
         _, pav = self.stone.heights
         s = self.foot_frac
         if self.floor_z is not None:
@@ -553,6 +592,21 @@ class OutlineHeadSpec:
         _, pav = self.stone.heights
         s0, d = self._foot_frac(), self.offset
         out = []
+        if self.kind == "cabochon":                   # straight up beside the girdle band, from the plate
+            zf = self.rails()["lower"][0] + self.rail_width / 2
+            for q, m in self.outline_points():
+                x, y = q[0] + d * m[0], q[1] + d * m[1]
+                out.append((np.array([x, y, zf]), np.array([x, y, -self.stone.girdle / 2]), np.array([x, y, self.z_tip])))
+            return out
+        if self.kind == "pearl":                      # on the sphere's offset from the cup's rim to the equator
+            r = self.stone.length / 2
+            for q, m in self.outline_points():
+                u = np.array([m[0], m[1], 0.0]) / math.hypot(m[0], m[1])
+                zc = self.z_cup
+                foot = (np.sqrt(r * r - zc * zc) * u + [0, 0, zc]) * (r + d) / r
+                knee = u * (r + d)
+                out.append((foot, knee, knee + [0, 0, self.z_tip]))
+            return out
         for q, m in self.outline_points():
             N, Q, C = self._pavilion_normal(q, m)
             foot = C + s0 * (Q - C) + d * N
@@ -563,8 +617,18 @@ class OutlineHeadSpec:
 
     def rails(self) -> dict:
         """Upper rail just under the girdle, the lower one a gap below it - raised (with the gap
-        shrinking to 0.3 mm) if it would go under `floor_z` or below the prong feet."""
+        shrinking to 0.3 mm) if it would go under `floor_z` or below the prong feet. A cabochon: the
+        plate under its base and the collar round its girdle band; a pearl: the cup, twice."""
         h = self.rail_half
+        c, off = self.clearance, self.rail_width
+        if self.kind == "cabochon":
+            base = -self.stone.girdle / 2
+            plate = (base - c - off - 0.1, base - c)                   # from under the grown seat's flat bottom: no coplanar faces
+            collar = (base - c, base + self.stone.girdle) if c + self.stone.girdle >= WALL_FLOOR else plate
+            return {"upper": collar, "lower": plate, "offset": off}
+        if self.kind == "pearl":
+            cup = (-self.stone.length / 2 - c - off - 0.1, self.z_cup)  # from under the grown seat's round bottom
+            return {"upper": cup, "lower": cup, "offset": off}
         top = -self.stone.girdle / 2 - self.rail_below_girdle_mm
         zu = top - h
         zl = zu - 2 * h - self.rail_gap_mm
@@ -575,7 +639,7 @@ class OutlineHeadSpec:
 
     def lowest_z(self) -> float:
         foots = [a[0][2] for a in self.prong_axes()]
-        return min(min(foots) - self.rho, self.rails()["lower"][0])
+        return min([f - self.rho for f in foots] + [self.rails()["lower"][0]])
 
     def v_block(self, q):
         """The V at the point q: the outline grown by the V's wall, within v_arm of the point, its
@@ -595,6 +659,7 @@ class OutlineHeadSpec:
         """The prong rods (cylinders + spheres) and V-prongs as one watertight mesh: what Prongs Path
         points at. `keep`: the indices (into prong_axes()) to build, the rest left out - a stone in a
         row whose facing prongs became shared posts (multistone); None: all."""
+        import numpy as np
         import trimesh
         parts = []
         for k, ((foot, knee, tip), kind, (q, _m)) in enumerate(zip(self.prong_axes(), self.point_kinds(), self.outline_points())):
@@ -605,13 +670,22 @@ class OutlineHeadSpec:
                 ends = (foot, knee)
                 parts.append(self.v_block(q))
             else:
-                for a, b in ((foot, knee), (knee, tip)):
+                path = [foot, knee, tip]
+                if self.kind == "pearl":                         # follow the sphere: a bend half-way up the cup's rim
+                    r = self.stone.length / 2
+                    mid = (foot + knee) / 2
+                    mid = mid / np.linalg.norm(mid) * np.linalg.norm(knee)
+                    path = [foot, mid, knee, tip]
+                for a, b in zip(path[:-1], path[1:]):
                     parts.append(trimesh.creation.cylinder(radius=self.rho, segment=[a, b], sections=64))
-                ends = (foot, knee, tip)
+                ends = tuple(path)
             for c in ends:
                 ball = trimesh.creation.icosphere(subdivisions=4, radius=self.rho)
                 ball.apply_translation(c)
                 parts.append(ball)
+        if self.post is not None:                                # the pearl's post, from the cup's floor up the drill
+            pr, z0, z1 = self.post
+            parts.append(trimesh.creation.cylinder(radius=pr, segment=[[0, 0, z0], [0, 0, z1]], sections=64))
         from . import geom
         return geom.clean(trimesh.boolean.union(parts, engine="manifold"))      # survives STL (float32) intact
 
@@ -630,6 +704,9 @@ class OutlineHeadSpec:
 
     def design(self) -> dict:
         d = asdict(self)
+        d["stone"] = self.stone.design()
+        if self.kind != "pearl":                                      # only a pearl has a cup: earlier designs keep their ids
+            del d["cup_frac"]
         d["inputs"] = self.notebook_inputs("")
         d["prong_axes"] = [[[round(float(c), 4) for c in p] for p in axis] for axis in self.prong_axes()]
         return d
@@ -654,7 +731,7 @@ class OutlineHeadSpec:
             p.append(f"a pear head has {', '.join(map(str, PEAR_PRONG_ANGLES))} prongs (the point + the round end)")
             return p
         rays = self.count - (2 if self.stone.shape == "marquise" and self.use_v else 0)
-        if self.stone.shape != "pear" and rays not in (4, 6, 8):
+        if self.stone.shape != "pear" and self.kind == "faceted" and rays not in (4, 6, 8):
             p.append("outline head prongs: 4, 6 or 8 (pear: 5; a marquise adds a V at each point)")
             return p
         if self.v_prongs and not self.has_points:
@@ -669,6 +746,8 @@ class OutlineHeadSpec:
             p.append(f"prong left above the girdle is {tip_left:.2f} mm thick; floor {PRONG_TIP_FLOOR} mm")
         if self.ledge_mm < 0.15:
             p.append("ledge under 0.15 mm will not carry the stone")
+        if self.kind != "faceted":
+            return p + self._validate_unfaceted()
         r = self.rails()
         if r["upper"][1] > -self.stone.girdle / 2 - 0.3:
             p.append("the upper rail reaches the girdle: lower it")
@@ -683,8 +762,43 @@ class OutlineHeadSpec:
         p += blend_problems(self.blend, min(self.rho, self.rail_half))
         return p
 
+    def _validate_unfaceted(self) -> list[str]:
+        p = []
+        r = self.rails()
+        if r["offset"] < WALL_FLOOR:
+            p.append(f"rail offset {r['offset']:.2f} mm under the wall floor {WALL_FLOOR} mm")
+        if self.kind == "cabochon":
+            if r["lower"][1] - r["lower"][0] < WALL_FLOOR:
+                p.append(f"the plate under the cabochon is under the wall floor {WALL_FLOOR} mm")
+            if self.count not in (4, 6, 8):
+                p.append("cabochon prongs: 4, 6 or 8")
+        if self.kind == "pearl":
+            pr, z0, z1 = self.post
+            if 2 * (pr - self.clearance) < WALL_FLOOR:
+                p.append(f"the post left in the drill is Ø {2 * (pr - self.clearance):.2f} mm; floor {WALL_FLOOR} mm (a wider drill)")
+            if self.count not in (0, 3, 4, 6):
+                p.append("pearl claws: 0 (cup and post), 3, 4 or 6")
+            if not 0.1 <= self.cup_frac <= 0.4:
+                p.append(f"cup {self.cup_frac:g} of the pearl's height: 0.1 to 0.4")
+        if self.floor_z is not None and self.lowest_z() < self.floor_z - 1e-6:
+            p.append(f"the head reaches z {self.lowest_z():.2f}, below its floor {self.floor_z:.2f}")
+        p += blend_problems(self.blend, min(self.rho, (r["lower"][1] - r["lower"][0]) / 2))
+        return p
+
     def describe(self) -> str:
         r = self.rails()
+        if self.kind == "cabochon":
+            return (f"{self.stem}: {self.count} prongs of {2 * self.rho:.2f} mm on a {self.stone.describe()}\n"
+                    f"  prongs upright {self.offset:.2f} mm off the girdle band, from the plate to z {self.z_tip:.2f}; "
+                    f"plate {r['lower'][1] - r['lower'][0]:.2f} mm under the base, collar to z {r['upper'][1]:.2f}; "
+                    f"clearance {self.clearance} mm, blend {self.blend:g} mm")
+        if self.kind == "pearl":
+            pr, z0, z1 = self.post
+            claws = f"{self.count} claws of {2 * self.rho:.2f} mm" if self.count else "no claws"
+            return (f"{self.stem}: a cup, a post and {claws} on a {self.stone.describe()}\n"
+                    f"  cup {r['offset']:.2f} mm thick to z {self.z_cup:.2f} ({self.cup_frac:.0%} of the pearl), post Ø "
+                    f"{2 * (pr - self.clearance):.2f} mm (after the seat's clearance) to z {z1 - self.clearance:.2f} up the drill; "
+                    + (f"claws to z {self.z_tip:.2f}; " if self.count else "") + f"blend {self.blend:g} mm")
         nv = self.point_kinds().count("v")
         vline = (f"  V-prongs: {nv} (wall {self.v_thickness:.2f} mm, {self.v_arm:.2f} mm back from each point, "
                  f"{V_BELOW_GIRDLE} mm under the girdle)\n" if nv else "")
@@ -763,10 +877,69 @@ def outline_count(mesh, z: float, region) -> int:
 
 def seat_regions(stone: gems.StoneSpec, clearance: float):
     """(under, above): the girdle outline inset 0.1 mm (metal there under the girdle = a ledge)
-    and grown by half the clearance (metal there above the girdle blocks the drop-in)."""
-    from shapely.geometry import Polygon
+    and grown by half the clearance (metal there above the girdle blocks the drop-in) - less, for a
+    pearl, its drill (its post is meant to be there)."""
+    from shapely.geometry import Point, Polygon
     outline = Polygon(stone.outline())
-    return outline.buffer(-0.1), outline.buffer(clearance * 0.5)
+    above = outline.buffer(clearance * 0.5)
+    if stone.shape == "pearl":                   # the post stands up the drill: the pearl goes down onto it
+        above = above.difference(Point(0, 0).buffer(stone.drill[0] / 2 + 0.05))
+    return outline.buffer(-0.1), above
+
+
+def _section_pieces(mesh, z: float):
+    """The section of `mesh` at height z as shapely polygons (head frame); [] when nothing is there."""
+    import numpy as np
+    from shapely.geometry import Polygon
+    sec = mesh.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1])
+    if sec is None:
+        return []
+    planar, to3d = sec.to_2D()
+
+    def lift(coords):
+        pts = np.asarray(coords)
+        return (to3d @ np.column_stack([pts, np.zeros(len(pts)), np.ones(len(pts))]).T).T[:, :2]
+    return [Polygon(lift(q.exterior.coords), [lift(h.coords) for h in q.interiors]).buffer(0) for q in planar.polygons_full]
+
+
+def hold_checks(spec: OutlineHeadSpec, local, knees=None) -> list:
+    """What holds a stone that is not faceted (no ledge under a girdle to look for), on a mesh in
+    the head's frame: each prong beside the stone above its girdle line (a disc round its axis at
+    the girdle's top + 0.15 mm meets metal); a cabochon's plate under its base; a pearl's cup round
+    its bottom and its post up the drill. `knees`: [(x, y, radius)] where the prongs are (default the
+    head's own). [] for a faceted stone (its seat ledges are checked as before)."""
+    import math
+    from shapely.geometry import Point, Polygon
+    from . import gate
+    if spec.kind == "faceted":
+        return []
+    st, c = spec.stone, spec.clearance
+    out = []
+    knees = knees if knees is not None else [(float(k[0]), float(k[1]), spec.rho) for (_f, k, _t) in spec.prong_axes()]
+    if knees:
+        z = st.girdle / 2 + 0.15
+        pieces = _section_pieces(local, z)
+        n = sum(any(pc.intersects(Point(x, y).buffer(0.5 * r)) for pc in pieces) for x, y, r in knees)
+        out.append(gate.Check("prongs", n == len(knees), f"{n}/{len(knees)} prongs stand beside the stone above its girdle line"))
+    if spec.kind == "cabochon":
+        z = -st.girdle / 2 - c - 0.1
+        inner = Polygon(st.outline()).buffer(-0.2)
+        got = sum(pc.intersection(inner).area for pc in _section_pieces(local, z))
+        out.append(gate.Check("seat floor", got >= 0.9 * inner.area,
+                              f"the plate under the base covers {got / inner.area:.0%} of it (at least 90 %)"))
+    if spec.kind == "pearl":
+        r = st.length / 2
+        z = (-r + spec.z_cup) / 2                                      # half-way up the cup
+        rz = math.sqrt(max(r * r - z * z, 0.0))
+        ring = Point(0, 0).buffer(rz + c + 0.6 * spec.rail_width).difference(Point(0, 0).buffer(rz + c + 0.02))
+        got = sum(pc.intersection(ring).area for pc in _section_pieces(local, z))
+        out.append(gate.Check("cup", got >= 0.9 * ring.area, f"the cup round the pearl at z {z:.2f}: {got / ring.area:.0%} metal (at least 90 %)"))
+        pr, _z0, z1 = spec.post
+        zp = -r + 0.5 * (z1 - c + r)
+        disc = Point(0, 0).buffer(max(pr - c - 0.05, 0.05))
+        got = sum(pc.intersection(disc).area for pc in _section_pieces(local, zp))
+        out.append(gate.Check("post", got >= 0.8 * disc.area, f"the post up the drill at z {zp:.2f}: {got / disc.area:.0%} of its section"))
+    return out
 
 
 def check_outline_head(spec: OutlineHeadSpec, stl: Path, ntop_vol: float | None):
@@ -786,9 +959,12 @@ def check_outline_head(spec: OutlineHeadSpec, stl: Path, ntop_vol: float | None)
     rep.checks.append(gate.Check("stone fits", overlap <= allowed, f"head ∩ stone {overlap:.3f} mm³ (allowed {allowed:.3f})"))
     under, above = seat_regions(spec.stone, spec.clearance)
     g = spec.stone.girdle
-    ledges = outline_count(head, -g / 2 - 0.3, under)
     blocking = outline_count(head, g / 2 + 0.15, above)
-    rep.checks.append(gate.Check("seat ledges", ledges == spec.count, f"{ledges} prongs reach under the girdle (expected {spec.count})"))
+    if spec.kind == "faceted":
+        ledges = outline_count(head, -g / 2 - 0.3, under)
+        rep.checks.append(gate.Check("seat ledges", ledges == spec.count, f"{ledges} prongs reach under the girdle (expected {spec.count})"))
+    else:
+        rep.checks += hold_checks(spec, head)
     rep.checks.append(gate.Check("drop-in clear", blocking == 0, f"{blocking} pieces inside the girdle line above the girdle"))
     rep.checks.append(band.blended_design_volume_check(float(outline_design_mesh(spec).volume), spec.blend_volume_mm3(), ntop_vol, 3.0))
     return rep
@@ -987,6 +1163,7 @@ class BezelSpec:
 
     def design(self) -> dict:
         d = asdict(self)
+        d["stone"] = self.stone.design()
         d["inputs"] = self.notebook_inputs("")
         d["window_zone"] = [round(v, 4) for v in self.window_zone()]
         return d
@@ -1164,8 +1341,9 @@ def blend_junctions(v: dict, envelope=None, prongs=None) -> dict:
     if kind == "outline":
         prongs_m, rails = outline_head_parts(v, envelope, prongs)
         grown = _offset_convex(envelope, c + float(v["Rail Offset"]))
-        edges = [geom.junction_segments(grown, _slab(float(v[lo]), float(v[hi]), grown), "intersect")
-                 for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top"))]
+        slabs = {(float(v[lo]), float(v[hi])) for lo, hi in (("Upper Rail Bottom", "Upper Rail Top"), ("Lower Rail Bottom", "Lower Rail Top"))}
+        edges = [geom.junction_segments(grown, _slab(z0, z1, grown), "intersect")      # a pearl's cup is both rails: once
+                 for z0, z1 in sorted(slabs)]
         return {"union": geom.junction_segments(prongs_m, rails), "intersect": np.vstack(edges)}
     grown = _offset_convex(envelope, c + float(v["Wall"]))
     return {"union": none["union"],

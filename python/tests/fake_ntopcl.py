@@ -20,7 +20,7 @@ would, so the rejections are tested rather than assumed:
   FAKE_NTOPCL_SHAPE   design (default) | noseat | nobeads | noengrave | plainshank (solitaire: the bar's head section
                       all round) | nocut / norelief (artwork, on a band or under a head: the channels never cut, the
                       relief lost) | noknot (the shoulder knots' layers lost) | noblend (the blend radii ignored:
-                      sharp junctions) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
+                      sharp junctions) | noprongs (outline_head: the prongs mesh lost - claws, a pearl's post) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
                       rectangular section instead of the designed one (what a notebook that ignores the tori produces)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
   FAKE_NTOPCL_VOLUME  mesh (default) | none : report no Volume output
@@ -246,6 +246,10 @@ def main(argv: list[str]) -> int:
                 fail(f"{key}: file not found")
         envelope = trimesh.load(str(values["Seat Path"]), force="mesh")
         prongs = trimesh.load(str(values["Prongs Path"]), force="mesh")
+        if shape == "noprongs":                               # a notebook that never imported the prongs (claws, a pearl's post)
+            foot = prongs.vertices[prongs.vertices[:, 2].argmin()] + [0.0, 0.0, 0.05]
+            prongs = trimesh.creation.icosphere(subdivisions=2, radius=0.02)
+            prongs.apply_translation(foot)                    # a speck inside the rails' metal
         mesh = heads.outline_head_mesh(values, envelope, prongs, cut_seat=shape != "noseat", ops=ops)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])

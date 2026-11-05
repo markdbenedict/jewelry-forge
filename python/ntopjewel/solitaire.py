@@ -333,6 +333,12 @@ class SolitaireSpec:
         return self.kind == "bezel"
 
     @property
+    def unfaceted(self) -> bool:
+        """A cabochon or a pearl on the outline head: what stands under the stone is the head's plate
+        or cup, not a pavilion, so the ring is placed by the head's lowest metal."""
+        return self.kind == "outline" and getattr(self.head, "kind", "faceted") != "faceted"
+
+    @property
     def floored(self) -> bool:
         """Heads placed by a floor under them (outline, bezel) rather than by raised feet (round)."""
         return self.kind != "round"
@@ -369,6 +375,8 @@ class SolitaireSpec:
         head's floor set there (feet and lower rail move up the pavilion); bezel: the cup carried
         down to that floor, so it stands in the band."""
         from dataclasses import replace
+        if self.unfaceted:                                   # placed by its own lowest metal (girdle_radius)
+            return self.head
         if self.floored:
             _, pav = self.head.stone.heights
             floor = round(-(self.head.stone.girdle / 2 + pav + self.finger_clear - 0.2), 4)
@@ -386,6 +394,8 @@ class SolitaireSpec:
     def girdle_radius(self) -> float:
         """Ring-frame radius of the girdle's mid-plane (the head's origin)."""
         s = self.head.stone
+        if self.unfaceted:                   # the plate / cup's underside 0.2 mm above the bore at the default clearance,
+            return self.band.bore_radius_mm + self.finger_clear - 0.4 - self.head.lowest_z()   # as a floored head's floor
         _, pav = s.heights
         return self.band.bore_radius_mm + self.finger_clear + pav + s.girdle / 2
 
@@ -771,6 +781,10 @@ class SolitaireSpec:
         if not 30 <= self.shoulder_deg <= 75:
             p.append("shoulder angle outside 30-75°")
             return p
+        if self.unfaceted:
+            p.append(f"a {self.head.stone.shape} sits low on the band, its plate or cup in the band's face: no room for "
+                     "cathedral arches under it (cathedral=False, --no-arches)")
+            return p
         a = self.arch()
         if a["rise"] < 0.3:
             p.append(f"the arch's crest (r {a['crest']:.2f}) barely rises above the band (r {self.band.outer_radius_mm:.2f})")
@@ -814,7 +828,8 @@ class SolitaireSpec:
         px, pz = self.pivot
         low = self.placed_head.lowest_z() if self.floored else self.placed_head.layout()["z_base"]
         return (f"{self.stem}\n  {self.shank_spec.describe() if self.shaped else self.band.describe()}\n  {self.placed_head.describe()}\n"
-                f"  placement: girdle at r {self.girdle_radius:.3f}, culet {self.finger_clear} mm above the bore, "
+                f"  placement: girdle at r {self.girdle_radius:.3f}, "
+                + ("" if self.unfaceted else f"culet {self.finger_clear} mm above the bore, ") +
                 f"{'lowest metal' if self.floored else 'feet'} at r {self.girdle_radius + low:.3f}; "
                 f"quarter-turn about (x {px:.3f}, z {pz:.3f}) ∥ Y\n"
                 + (f"  arch: gothic, tangent to the band at ±{self.shoulder_deg:g}°, radius {a['R']:.3f} about "
@@ -1111,8 +1126,11 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
     else:
         ledges = heads._inner_count(local, -g / 2 - 0.3, Rg - 0.1)
         above = heads._inner_count(local, g / 2 + 0.15, Rg + spec.head.clearance * 0.5)
+    unfaceted = spec.outline and getattr(spec.placed_head, "kind", "faceted") != "faceted"
     if spec.bezel:
         rep.checks.append(gate.Check("seated", ledges >= 1, f"{ledges} piece(s) of the cup under the girdle"))
+    elif unfaceted:                                                   # a cabochon's plate, a pearl's cup and post, the prongs
+        rep.checks += heads.hold_checks(spec.placed_head, local)
     else:
         rep.checks.append(gate.Check("seat ledges", ledges >= spec.prong_count,
                                      f"{ledges} pieces reach under the girdle (expected >= {spec.prong_count})"))

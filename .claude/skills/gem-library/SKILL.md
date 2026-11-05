@@ -1,6 +1,6 @@
 ---
 name: gem-library
-description: Parametric stone bodies (round, oval, pear, marquise, cushion, emerald) for settings, seats and cutters, with volume and carat weight - the `gem` command and ntopjewel.gems - and the settings built from them, prong heads, bezels, the solitaire, multi-stone rings (`multistone`) and pavé bands (`pave`). Use for any request to model a stone, size a seat for one, estimate a stone's carat weight, or set stones in a ring.
+description: Parametric stone bodies (round, oval, pear, marquise, cushion, emerald, asscher, cabochon, pearl) for settings, seats and cutters, with volume and carat weight - the `gem` command and ntopjewel.gems - and the settings built from them, prong heads, bezels, the solitaire, multi-stone rings (`multistone`) and pavé bands (`pave`). Use for any request to model a stone, size a seat for one, estimate a stone's carat weight, or set stones in a ring.
 ---
 
 # gem-library
@@ -13,6 +13,9 @@ route the engraving uses. A 6.5 mm round comes out at 1.02 ct (trade table: 1.00
 python -m ntopjewel gem --shape round --length 6.5                                  # ideal round, diamond
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # a calipered stone
 python -m ntopjewel gem --shape emerald --length 8 --width 6 --dry-run              # numbers only
+python -m ntopjewel gem --shape asscher --length 7                                   # a square step cut (--width ignored)
+python -m ntopjewel gem --shape cabochon --length 10 --width 8 --cab-dome 0.4        # flat base, girdle band, elliptic dome
+python -m ntopjewel gem --shape pearl --length 8 --drill 1.0 --drill-depth 0.6       # half-drilled from below for a post; material pearl
 ```
 
 Writes `out\gems\<stem>.stl` and `<stem>.stone.json` (spec, crown/girdle/pavilion, volume,
@@ -27,9 +30,24 @@ are crown 15 % and pavilion 43 % of the width; `--depth` scales both to a measur
 keeps the girdle. Pear: round end at +X, point at -X. Facets are not modelled: a setting
 needs the envelope, not the facets.
 
+**Asscher** (2026-11-05): the emerald's cut-corner outline on a square (corners cut 25 % of the
+width), table 62 %, a deep step-cut pavilion (crown 15 %, pavilion 47 % of the width). A faceted
+stone: everything round and fancy shapes do applies; on point in a multistone with `--centre-spin 45`.
+
+**Cabochon**: an elliptical outline, a flat base at the girdle band's underside (z = -g/2), a girdle
+band (8 % of the width, at least 0.3 mm: the bezel or claws hold it there), an elliptic dome of
+`--cab-dome` x the width (default 0.35; 0.1..0.6). No pavilion: heights (dome, 0).
+
+**Pearl**: a sphere of diameter `--length` with its equator as the girdle line (girdle 0), half-drilled
+from below for a post: `--drill` Ø (default 1.0 mm; 0.5 mm to a third of the pearl), `--drill-depth`
+x the diameter up (default 0.6; 30-80 %). Material defaults to `pearl` (nacre, SG 2.71) for a pearl and
+to the tables' default stone for everything else. The seat keeps the drill open: `geom.offset_convex`
+offsets the hull and subtracts the drill narrowed by the clearance (`geom.drill_of` finds it), as
+nTop's exact offset of the drilled envelope does, so the post survives the seat cut.
+
 Densities come from `data/jewelry_tables.json` (`stones`, all `default`): diamond 3.52,
-moissanite 3.22, cz 5.80, corundum 4.00, beryl 2.72, quartz 2.65, glass 2.60. For a costume
-stone, weigh it and add a calibrated entry.
+moissanite 3.22, cz 5.80, corundum 4.00, beryl 2.72, quartz 2.65, glass 2.60, pearl 2.71. For a
+costume stone, weigh it and add a calibrated entry.
 
 ## Seats (the `stone_seat` block)
 
@@ -42,7 +60,7 @@ The cutter a head subtracts: the stone plus its girdle outline carried straight 
 drop-in path), offset by the clearance. Python writes the envelope (convex hull of stone +
 lifted outline); the block imports it and offsets it in nTop. Gate: closed, one shell, nTop
 volume vs mesh, **design volume vs Steiner's exact offset volume** (V + S c + M c² + 4/3 π c³ -
-exact for convex bodies, and every stone here is convex), extents = stone + 2 x clearance.
+exact for convex bodies; a pearl's drilled envelope is measured by `geom.offset_convex` instead), extents = stone + 2 x clearance.
 Defaults (`settings` in `data/jewelry_tables.json`): clearance 0.05 mm, drop 8 mm. Files in
 `out\seat\<stem>\<run id>\`.
 
@@ -78,7 +96,31 @@ round head, with ledges and drop-in judged on the stone's outline. Pear: the poi
 point plus 4 side prongs. `--no-v-prong` puts a round prong on the point instead. The V is a
 chevron wall (>= 0.8 mm) hugging the outline about 1.5-1.8 mm back from the point, from 0.6 mm
 under the girdle to just above the tips, carried down the pavilion by a rod; the seat cut leaves
-the point a ledge inside it. Oval, cushion, emerald: 4, 6 or 8 on rays from the centre.
+the point a ledge inside it. Oval, cushion, emerald, asscher: 4, 6 or 8 on rays from the centre.
+
+The unfaceted stones ride the same block (same inputs, no rebuild) with another prong and rail layout
+(`OutlineHeadSpec.kind`: faceted | cabochon | pearl):
+
+```powershell
+python -m ntopjewel head --shape cabochon --length 10 --width 8                  # 4 upright claws, a plate under the base, a collar round the band
+python -m ntopjewel head --shape pearl --length 8                                # a cup, a post up the drill and 4 claws following the sphere
+python -m ntopjewel head --shape pearl --length 8 --prongs 0 --cup 0.25          # cup and post alone (the pearl is glued on the post)
+```
+
+- **Cabochon**: claws straight up beside the girdle band from the plate to a tip over the dome
+  (girdle/2 + max(0.8, 0.35 x the dome)), bent over by the setter; the lower rail is a plate under
+  the base, the upper a collar round the girdle band (the plate again when the band is too thin for
+  a collar of the wall floor). 4, 6 or 8 claws. Upper Rail Top may rise above 0 (catalogs 0.2.1 /
+  0.7.1, a range widened: no rebuild).
+- **Pearl**: both rails are one cup, the seat grown by Rail Offset from below the pearl to `--cup`
+  x its diameter up (default 0.2; 0.1..0.4); a post (the drill less the clearance, at least the wall
+  floor) from the cup floor up the drill, in the prongs mesh; 0, 3, 4 or 6 claws following the sphere
+  from the cup and bending in above the equator.
+- Gate: the faceted heads' seat ledges are replaced by hold checks (`heads.hold_checks`): **prongs**
+  (metal at every claw's knee just above the girdle), cabochon **seat floor** (the plate under >= 90 % of
+  the base), pearl **cup** (>= 90 % of a ring halfway up the cup) and **post** (>= 80 % of the drill
+  filled at its mid-height). Fit, drop-in (a pearl's drill exempt), one shell and volume as before. The
+  simulated nTop's `noprongs` fault (the prongs mesh lost) is what the claws and post checks catch.
 
 ## Bezels (the `bezel_head` block, `heads.BezelSpec`)
 
@@ -103,12 +145,21 @@ python -m ntopjewel solitaire --size 6 --dry-run                       # placeme
 python -m ntopjewel solitaire --size 6 --deliver --metal sterling      # PASSED -> Jewelry\Solitaires\<stem>\ + print-scaled STL
 python -m ntopjewel api build solitaire_outline                        # once: the fancy-stone notebook (embeds stone_seat + outline_head)
 python -m ntopjewel solitaire --size 4.5 --shape pear --length 12.3 --stone-width 8.9 --stone-depth 4.6 --material glass --engrave Makena
+python -m ntopjewel solitaire --size 6 --shape asscher --length 6                              # an asscher on four claws (solitaire_outline)
+python -m ntopjewel solitaire --size 6 --shape pearl --length 8 --prongs 0                      # a pearl on a post in a cup, low on the band
+python -m ntopjewel solitaire --size 6 --shape cabochon --length 10 --stone-width 8             # a cabochon on a plate, four claws over the dome
 python -m ntopjewel solitaire --size 6 --length 6.5 --width-bottom 2.4 --thickness-bottom 1.2   # on a tapered shank (Phase 3 step 1d)
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 80                # a split shank: the slot runs under the head, through the arches
 python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-width 5 --split 1.6 --split-span 100 --knot trinity   # ring 01: trinity knots on the shoulders
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # artwork panels under the head, plain shoulders
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity   # the Seraphine: a trinity knot tucked under the head on each shoulder, a volute then leaves (tips to the head) on the sides, the scroll outside
 ```
+
+A cabochon or a pearl (`SolitaireSpec.unfaceted`) is placed by the head's lowest metal, not a culet: the plate
+or cup's underside stands 0.2 mm above the bore at the default `--finger-clear` (0.6; more raises it), so the
+stone sits low on the band and there is no room for cathedral arches - the CLI leaves them off for these
+stones and the spec refuses them. The gate uses the hold checks (prongs, seat floor / cup, post) in place of the
+seat ledges.
 
 The shank is always the bars Python writes (`ntopjewel.shank.ShankSpec`, as the `shank` command:
 `<stem>.bar.stl`, `.bar2.stl` ... in the run directory, the smallest repeated in unused slots; `Shank Path` .. `Shank Path 4` / `Wrap Length` inputs, catalogs 0.9 / 0.5): each

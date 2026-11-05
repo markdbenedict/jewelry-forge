@@ -106,15 +106,47 @@ def band_mesh(v: dict, shape: str = "design", chamfer_mm: float | None = None):
     return revolve_section(section_polygon(v, shape, chamfer_mm))
 
 
+DRILL_MIN_MM3 = 1e-3
+
+
+def drill_of(mesh):
+    """(radius, z_top) of a pearl's drill - an axial hole up the Z axis from below, all the convex
+    body lacks (the seat envelope of a pearl on a post, gems.seat_envelope) - or None for a convex
+    body. Read off the mesh, so a seat that comes back from STL (the simulated nTop) is known too."""
+    import numpy as np
+    import trimesh
+    if mesh.is_convex:
+        return None
+    hull = mesh.convex_hull
+    if hull.volume - mesh.volume < DRILL_MIN_MM3:
+        return None
+    d = trimesh.proximity.signed_distance(hull, mesh.vertices)          # > 0 inside the hull
+    inner = mesh.vertices[d > 1e-5]
+    if not len(inner):
+        return None
+    r = float(np.median(np.hypot(inner[:, 0], inner[:, 1])))
+    return r, float(inner[:, 2].max())
+
+
 def offset_convex(mesh, c: float):
     """Offset Body of a convex body by c > 0: the hull of its vertices each grown into a small
-    sphere (exact up to the sphere's facetting)."""
+    sphere (exact up to the sphere's facetting). A pearl's seat (a convex body with an axial drill
+    up into it, drill_of) offsets to the hull's offset less the drill shrunk by c - the post the
+    drill holds survives the seat's cut, as it does under nTop's exact offset."""
     import trimesh
     if c <= 0:
         return mesh
+    drill = drill_of(mesh)
+    base = mesh.convex_hull if drill else mesh
     ball = trimesh.creation.icosphere(subdivisions=3, radius=c).vertices
-    pts = (mesh.vertices[:, None, :] + ball[None, :, :]).reshape(-1, 3)
-    return trimesh.convex.convex_hull(pts)
+    pts = (base.vertices[:, None, :] + ball[None, :, :]).reshape(-1, 3)
+    out = trimesh.convex.convex_hull(pts)
+    if drill and drill[0] > c:
+        r, top = drill
+        z0 = float(base.bounds[0][2]) - c - 1.0
+        hole = trimesh.creation.cylinder(radius=r - c, segment=[[0, 0, z0], [0, 0, top - c]], sections=64)
+        out = trimesh.boolean.difference([out, hole], engine="manifold")
+    return out
 
 
 def rotation_about_y(angle_deg: float, pivot) -> "numpy.ndarray":

@@ -2,7 +2,7 @@
 # Built by ntop/recipes/outline_head.py; run by `python -m ntopjewel head --shape pear ...`; every number from
 # ntopjewel.heads.OutlineHeadSpec.notebook_inputs.
 notebook: outline_head_harness.ntop
-version: 0.2.0
+version: 0.2.1   # 0.2.1: Upper Rail Top may rise above 0 (a cabochon's collar round its girdle band; same inputs, no rebuild; 2026-11-05)
 title: Outline head (prongs on any outline, rails following the pavilion, seat cut
   by stone_seat)
 output:
@@ -39,8 +39,8 @@ inputs:
     type: scalar
     units: mm
     min: -15.0
-    max: 0.0
-    doc: Upper rail slab, top z.
+    max: 5.0
+    doc: Upper rail slab, top z. Above 0 for a cabochon's collar round its girdle band.
   Lower Rail Bottom:
     type: scalar
     units: mm

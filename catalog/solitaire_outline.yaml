@@ -2,7 +2,7 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --shape pear ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_outline.ntop
-version: 0.7.0   # 0.7.0: the arches and milgrain a +y half and its mirror (Mirror Body) - Arch Centre Y Minus, Wedge Angle Minus, Bead Start X/Y Minus gone - and each bar opened by the open_bar block (2026-11-04) - rebuild the notebook; 0.6.0: the shoulder knots - Knot Path / Knot Path 2 united with the carved band (2026-11-03) - rebuild the notebook; 0.5.0: artwork under the head - Cut Path / Relief Path, the band carved before the arches join (2026-11-03) - rebuild the notebook; 0.4.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.4.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
+version: 0.7.1   # 0.7.1: Upper Rail Top may rise above 0 (a cabochon's collar; same inputs, no rebuild; 2026-11-05); 0.7.0: the arches and milgrain a +y half and its mirror (Mirror Body) - Arch Centre Y Minus, Wedge Angle Minus, Bead Start X/Y Minus gone - and each bar opened by the open_bar block (2026-11-04) - rebuild the notebook; 0.6.0: the shoulder knots - Knot Path / Knot Path 2 united with the carved band (2026-11-03) - rebuild the notebook; 0.5.0: artwork under the head - Cut Path / Relief Path, the band carved before the arches join (2026-11-03) - rebuild the notebook; 0.4.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.4.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
 rebuild_since: 0.7.0   # the notebook body changed then (the mirrored halves, open_bar): a notebook built for an older version is refused (runs.require_built)
 title: 'Solitaire (pear / fancy stone, outline_head): gothic cathedral arches, arch
   milgrain, optional engraving'
@@ -110,8 +110,8 @@ inputs:
     type: scalar
     units: mm
     min: -15.0
-    max: 0.0
-    doc: Upper rail slab, top z.
+    max: 5.0
+    doc: Upper rail slab, top z. Above 0 for a cabochon's collar round its girdle band.
   Lower Rail Bottom:
     type: scalar
     units: mm

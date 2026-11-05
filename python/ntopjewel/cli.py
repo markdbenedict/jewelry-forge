@@ -343,9 +343,25 @@ def cmd_pave(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
+def _add_stone_body_args(p) -> None:
+    """The knobs of the unfaceted stones (a cabochon's dome, a pearl's drill)."""
+    p.add_argument("--cab-dome", type=float, help="cabochon: the dome's height, a fraction of the width (0.1..0.6; default 0.35)")
+    p.add_argument("--drill", type=float, help="pearl: the drill's diameter, mm (default 1.0; the post is this less the clearance)")
+    p.add_argument("--drill-depth", type=float, help="pearl: how far the drill goes up, a fraction of the diameter (0.3..0.8; default 0.6)")
+
+
+def _stone_body(a) -> dict:
+    return {k: v for k, v in (("dome_frac", getattr(a, "cab_dome", None)), ("drill_mm", getattr(a, "drill", None)),
+                              ("drill_depth_frac", getattr(a, "drill_depth", None))) if v is not None}
+
+
+def _cup(a) -> dict:
+    return {"cup_frac": a.cup} if getattr(a, "cup", None) is not None else {}
+
+
 def cmd_gem(a: argparse.Namespace) -> int:
     spec = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
-                          table_frac=a.table, girdle_mm=a.girdle, material=a.material)
+                          table_frac=a.table, girdle_mm=a.girdle, material=a.material, **_stone_body(a))
     probs = spec.validate()
     if probs:
         print(f"gem: problems: " + "; ".join(probs))
@@ -363,7 +379,7 @@ def cmd_gem(a: argparse.Namespace) -> int:
 
 def cmd_seat(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
-                           table_frac=a.table, girdle_mm=a.girdle, material=a.material)
+                           table_frac=a.table, girdle_mm=a.girdle, material=a.material, **_stone_body(a))
     spec = gems.SeatSpec(stone, clearance_mm=a.clearance, drop_mm=a.drop, mesh_tolerance_mm=a.tolerance)
     probs = spec.validate()
     if probs:
@@ -390,7 +406,7 @@ def cmd_seat(a: argparse.Namespace) -> int:
 
 def cmd_head(a: argparse.Namespace) -> int:
     stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.width, depth_mm=a.depth,
-                           table_frac=a.table, girdle_mm=a.girdle, material=a.material)
+                           table_frac=a.table, girdle_mm=a.girdle, material=a.material, **_stone_body(a))
     outline = (stone.shape != "round" or a.outline) and not a.bezel
     if a.bezel:                       # the bezel_head block: a wall and cup round any outline
         spec = heads.BezelSpec(stone, wall_mm=a.wall, lip_mm=a.lip, windows=a.windows, clearance_mm=a.clearance,
@@ -398,7 +414,7 @@ def cmd_head(a: argparse.Namespace) -> int:
     elif outline:                     # the outline_head block: prongs on the outline, rails following the pavilion
         spec = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
                                      clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance,
-                                     v_prongs=False if a.no_v_prong else None, blend_mm=a.blend)
+                                     v_prongs=False if a.no_v_prong else None, blend_mm=a.blend, **_cup(a))
     else:
         spec = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, tip_above_mm=a.tip_above,
                               rail_dia_mm=a.rail_dia, angle_offset_deg=a.angle_offset, clearance_mm=a.clearance,
@@ -434,14 +450,15 @@ def cmd_head(a: argparse.Namespace) -> int:
 
 
 def cmd_solitaire(a: argparse.Namespace) -> int:
-    stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.stone_width, depth_mm=a.stone_depth, material=a.material)
+    stone = gems.StoneSpec(shape=a.shape, length_mm=a.length, width_mm=a.stone_width, depth_mm=a.stone_depth, material=a.material,
+                           **_stone_body(a))
     if a.bezel:                       # any stone in a bezel: the bezel_head block, solitaire_bezel.ntop
         head = heads.BezelSpec(stone, wall_mm=a.wall, lip_mm=a.lip, windows=a.windows, clearance_mm=a.clearance,
                                mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
     elif stone.shape != "round":      # pear and other outlines: the outline_head block, solitaire_outline.ntop
         head = heads.OutlineHeadSpec(stone, prongs=a.prongs, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge,
                                      clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance,
-                                     v_prongs=False if a.no_v_prong else None, blend_mm=a.blend)
+                                     v_prongs=False if a.no_v_prong else None, blend_mm=a.blend, **_cup(a))
     else:
         head = heads.HeadSpec(stone, prongs=a.prongs or 6, prong_dia_mm=a.prong_dia, ledge_mm=a.ledge, clearance_mm=a.clearance,
                               mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
@@ -456,7 +473,7 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                                    milgrain=not a.no_milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
                                    text=a.engrave, engrave_side=a.engrave_side, engrave_height_mm=a.engrave_height,
                                    engrave_depth_mm=a.engrave_depth, shank_blend_mm=a.shank_blend, shank=shaped,
-                                   cathedral=not a.no_arches, panels=panels, channel_mm=a.channel, rail_mm=a.rail,
+                                   cathedral=not a.no_arches and stone.faceted, panels=panels, channel_mm=a.channel, rail_mm=a.rail,
                                    relief_mm=a.relief, leaf_mm=a.leaf or 0.0, leaf_pitch=a.leaf_pitch, stroke_mm=a.stroke,
                                    vein=not a.no_vein, shoulder_knot=a.shoulder_knot or "", knot_at_deg=a.knot_at,
                                    knot_width_mm=a.knot_width or 0.0, knot_ribbon_mm=a.strand_width or 0.6,
@@ -491,15 +508,19 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
 
 
 def cmd_multistone(a: argparse.Namespace) -> int:
-    def head(shape, length, width, depth, prongs, carats=None, material=None):
+    def head(shape, length, width, depth, prongs, carats=None, material=None, centre=False):
         material = material or a.material
+        body = _stone_body(a) if centre else {}
         if carats:                                                    # sized by weight; --length / --width give the ratio
             ratio = (length / width) if (width and length) else None
             stone = gems.StoneSpec.for_carats(shape, carats, ratio, material)
+            if body:
+                stone = gems.StoneSpec(shape, stone.length_mm, stone.width_mm, material=stone.material, **body)
         else:
-            stone = gems.StoneSpec(shape=shape, length_mm=length, width_mm=width, depth_mm=depth, material=material)
-        return heads.OutlineHeadSpec(stone, prongs=prongs, clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance, blend_mm=a.blend)
-    centre = head(a.shape, a.length, a.stone_width, a.stone_depth, a.prongs, a.carats)
+            stone = gems.StoneSpec(shape=shape, length_mm=length, width_mm=width, depth_mm=depth, material=material, **body)
+        return heads.OutlineHeadSpec(stone, prongs=prongs, clearance_mm=a.clearance, mesh_tolerance_mm=a.tolerance, blend_mm=a.blend,
+                                     **(_cup(a) if centre else {}))
+    centre = head(a.shape, a.length, a.stone_width, a.stone_depth, a.prongs, a.carats, centre=True)
     side = (head(a.side_shape, a.side_length, a.side_width, a.side_depth, a.side_prongs, a.side_carats, a.side_material)
             if a.side_shape else None)
     b = _band_spec(a)
@@ -938,7 +959,9 @@ def main(argv: list[str] | None = None) -> int:
     mu.add_argument("--shared-prongs", action="store_true",
                     help="neighbours share the prongs facing each other: one post between them each side of the band (4-prong heads)")
     mu.add_argument("--gallery", action="store_true", help="a bridge rail along the row each side of the band, at the heads' upper rails")
-    mu.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3),
+    _add_stone_body_args(mu)
+    mu.add_argument("--cup", type=float, help="centre pearl: the cup's height, a fraction of the diameter (0.1..0.4; default 0.2)")
+    mu.add_argument("--material", choices=sorted(tables.STONE_DENSITY_G_CM3),
                     help="the centre stone's (and, unless --side-material says, the side stones'); ruby: sapphire (corundum)")
     mu.add_argument("--side-material", choices=sorted(tables.STONE_DENSITY_G_CM3), help="the side stones' (default: --material)")
     mu.add_argument("--pave", type=float, help="pavé round the rest of the ring: the stones' size, mm (0.8..3; default none)")
@@ -971,14 +994,15 @@ def main(argv: list[str] | None = None) -> int:
     aw.add_argument("--dry-run", action="store_true")
     aw.set_defaults(fn=cmd_artwork, profile="flat", width=2.8, thickness=2.0, tolerance=0.05)
 
-    gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald) as STL")
+    gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald, asscher, cabochon, pearl) as STL")
     gm.add_argument("--shape", default="round", choices=gems.SHAPES)
     gm.add_argument("--length", type=float, required=True, help="mm; the diameter for a round")
     gm.add_argument("--width", type=float, help="mm (not for round)")
     gm.add_argument("--depth", type=float, help="total depth, mm (a calipered stone); default ideal proportions")
     gm.add_argument("--table", type=float, help="table as a fraction of the width (0.57)")
     gm.add_argument("--girdle", type=float, help="girdle thickness, mm")
-    gm.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    gm.add_argument("--material", choices=sorted(tables.STONE_DENSITY_G_CM3), help="default: pearl for a pearl, else the tables' default stone")
+    _add_stone_body_args(gm)
     gm.add_argument("--out")
     gm.add_argument("--dry-run", action="store_true")
     gm.set_defaults(fn=cmd_gem)
@@ -990,7 +1014,8 @@ def main(argv: list[str] | None = None) -> int:
     st.add_argument("--depth", type=float)
     st.add_argument("--table", type=float)
     st.add_argument("--girdle", type=float)
-    st.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    st.add_argument("--material", choices=sorted(tables.STONE_DENSITY_G_CM3), help="default: pearl for a pearl, else the tables' default stone")
+    _add_stone_body_args(st)
     st.add_argument("--clearance", type=float, help="mm (default: tables settings.seat_clearance_mm)")
     st.add_argument("--drop", type=float, help="drop-in path height above the girdle, mm")
     st.add_argument("--tolerance", type=float, default=0.05)
@@ -1006,7 +1031,8 @@ def main(argv: list[str] | None = None) -> int:
     hd.add_argument("--depth", type=float)
     hd.add_argument("--table", type=float)
     hd.add_argument("--girdle", type=float)
-    hd.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    hd.add_argument("--material", choices=sorted(tables.STONE_DENSITY_G_CM3), help="default: pearl for a pearl, else the tables' default stone")
+    _add_stone_body_args(hd)
     hd.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear), 4 (other outlines)")
     hd.add_argument("--outline", action="store_true", help="a round stone on the outline_head block (fancy shapes always are)")
     hd.add_argument("--blend", type=float, help="nTop blend radius at the head's junctions, mm (default: the tables' blend_radius_mm; 0 = sharp)")
@@ -1014,6 +1040,7 @@ def main(argv: list[str] | None = None) -> int:
     hd.add_argument("--wall", type=float, help="bezel wall, mm (default: the tables' bezel_wall_mm)")
     hd.add_argument("--lip", type=float, help="bezel height above the girdle, mm (default: bezel_lip_mm)")
     hd.add_argument("--windows", type=int, help="light windows in the bezel cup (default 6 where there is room; 0 = closed)")
+    hd.add_argument("--cup", type=float, help="pearl: the cup's height, a fraction of the diameter (0.1..0.4; default 0.2)")
     hd.add_argument("--no-v-prong", action="store_true", help="a round prong instead of a V on a pear's or marquise's point")
     hd.add_argument("--prong-dia", type=float, help="mm (default: enough to leave 0.8 mm above the girdle)")
     hd.add_argument("--ledge", type=float, default=0.30, help="how far each prong reaches under the girdle, mm")
@@ -1034,7 +1061,8 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--length", type=float, default=6.5, help="stone length (the diameter for a round), mm")
     so.add_argument("--stone-width", type=float, help="stone width, mm (not for round; --width is the band's)")
     so.add_argument("--stone-depth", type=float, help="stone total depth, mm (a calipered stone)")
-    so.add_argument("--material", default=tables.DEFAULT_STONE, choices=sorted(tables.STONE_DENSITY_G_CM3))
+    so.add_argument("--material", choices=sorted(tables.STONE_DENSITY_G_CM3), help="default: pearl for a pearl, else the tables' default stone")
+    _add_stone_body_args(so)
     so.add_argument("--prongs", type=int, help="default 6 (round), 5 (pear: the point + four on the round end)")
     so.add_argument("--blend", type=float, help="the head's own blend radius, mm (default: the tables' blend_radius_mm; 0 = sharp)")
     so.add_argument("--shank-blend", type=float, help="blend radius where the head meets the shank, mm (default: the same table value)")
@@ -1042,6 +1070,7 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--wall", type=float, help="bezel wall, mm (default: the tables' bezel_wall_mm)")
     so.add_argument("--lip", type=float, help="bezel height above the girdle, mm (default: bezel_lip_mm)")
     so.add_argument("--windows", type=int, help="light windows in the bezel cup (default 6 where there is room; 0 = closed)")
+    so.add_argument("--cup", type=float, help="pearl: the cup's height, a fraction of the diameter (0.1..0.4; default 0.2)")
     so.add_argument("--no-v-prong", action="store_true", help="a round prong instead of a V on a pear's or marquise's point")
     so.add_argument("--prong-dia", type=float)
     so.add_argument("--ledge", type=float, default=0.30)

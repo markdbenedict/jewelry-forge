@@ -11,9 +11,17 @@ volume and dimensions.
     the bottom, the girdle's mid-plane at z = 0, the outline centred on its bounding box
 
 Shapes: round, oval, pear (point toward -X), marquise, cushion, emerald (step-cut octagon),
-each from length x width (round: diameter). Proportions default to an ideal round's (table
-57 %, crown 15 %, girdle 3 %, pavilion 43 % of the width); give a total depth (a calipered
-stone) and crown and pavilion scale to fit it, girdle unchanged.
+asscher (a square step cut with deep corners), each from length x width (round: diameter).
+Proportions default to an ideal round's (table 57 %, crown 15 %, girdle 3 %, pavilion 43 % of the
+width; an asscher's deeper); give a total depth (a calipered stone) and crown and pavilion scale to
+fit it, girdle unchanged. Two that are not faceted (Phase 3 step 4):
+
+    cabochon   a dome on a flat base: the outline (round, or oval from length x width) carried up a
+               vertical girdle band, then an elliptic dome `dome_frac` x the width high; no pavilion -
+               the base is the stone's bottom and what a setting carries it on
+    pearl      a sphere (length = its diameter) half-drilled from below up the Z axis (`drill_mm`
+               wide, `drill_depth_frac` of the diameter deep) for the post it is glued on; no girdle
+               band (its equator is the girdle line); material pearl
 """
 from __future__ import annotations
 
@@ -24,14 +32,29 @@ from pathlib import Path
 
 from . import tables
 
-SHAPES = ("round", "oval", "pear", "marquise", "cushion", "emerald")
+SHAPES = ("round", "oval", "pear", "marquise", "cushion", "emerald", "asscher", "cabochon", "pearl")
+FACETED = ("round", "oval", "pear", "marquise", "cushion", "emerald", "asscher")
+ONE_SIZE = ("round", "pearl")                   # given by one dimension: the diameter
+SQUARE = ("asscher",)                           # length = width
 # fractions of the stone's WIDTH (the round's diameter)
-TABLE_FRAC = {"round": 0.57, "oval": 0.57, "pear": 0.55, "marquise": 0.55, "cushion": 0.60, "emerald": 0.65}
+TABLE_FRAC = {"round": 0.57, "oval": 0.57, "pear": 0.55, "marquise": 0.55, "cushion": 0.60, "emerald": 0.65, "asscher": 0.62}
 CROWN_FRAC, GIRDLE_FRAC, PAVILION_FRAC = 0.15, 0.03, 0.43
+SHAPE_HEIGHTS = {"asscher": (0.15, 0.47)}       # (crown, pavilion) fractions where a cut differs: an asscher sits deep (64 %)
+ASSCHER_CORNER_FRAC = 0.25                      # each corner cut back this fraction of the width, along both sides
+CABOCHON_DOME_FRAC = 0.35                       # dome height / width (a star stone's is higher, ~0.5)
+CABOCHON_GIRDLE_FRAC, CABOCHON_GIRDLE_MIN_MM = 0.08, 0.3
+PEARL_DRILL_MM, PEARL_DRILL_DEPTH_FRAC = 1.0, 0.6
 # length / width a stone sized by weight takes unless told (trade-typical outlines)
-RATIO = {"round": 1.0, "oval": 1.4, "pear": 1.5, "marquise": 2.0, "cushion": 1.15, "emerald": 1.4}
+RATIO = {"round": 1.0, "oval": 1.4, "pear": 1.5, "marquise": 2.0, "cushion": 1.15, "emerald": 1.4, "asscher": 1.0,
+         "cabochon": 1.0, "pearl": 1.0}
 MIN_GIRDLE_MM = 0.10
 OUTLINE_POINTS = 256
+
+
+def default_material(shape: str) -> str:
+    """What a stone of this shape is unless told otherwise: nacre for a pearl, the tables' default
+    stone for everything else."""
+    return "pearl" if shape == "pearl" else tables.DEFAULT_STONE
 
 
 @dataclass
@@ -42,7 +65,23 @@ class StoneSpec:
     depth_mm: float | None = None     # total height table to culet; None = ideal proportions
     table_frac: float | None = None
     girdle_mm: float | None = None
-    material: str = tables.DEFAULT_STONE
+    material: str | None = None       # None: pearl for a pearl, tables' default_stone otherwise
+    dome_frac: float | None = None    # cabochon: dome height / width (default CABOCHON_DOME_FRAC)
+    drill_mm: float | None = None     # pearl: the drill's diameter (default PEARL_DRILL_MM)
+    drill_depth_frac: float | None = None   # pearl: how far up it goes, of the diameter
+
+    def __post_init__(self):
+        if self.material is None:
+            self.material = default_material(self.shape)
+
+    def design(self) -> dict:
+        """The stone's defining numbers for a spec id: the dome and drill knobs only when set, so every
+        design from before they existed keeps its id (2026-11-05: the Seraphine's pinned id moved)."""
+        d = asdict(self)
+        for k in ("dome_frac", "drill_mm", "drill_depth_frac"):
+            if d[k] is None:
+                del d[k]
+        return d
 
     # ---- dimensions ------------------------------------------------------------------
     @property
@@ -51,16 +90,44 @@ class StoneSpec:
 
     @property
     def width(self) -> float:
-        return float(self.length_mm if self.shape == "round" or self.width_mm is None else self.width_mm)
+        return float(self.length_mm if self.shape in ONE_SIZE + SQUARE or self.width_mm is None else self.width_mm)
+
+    @property
+    def faceted(self) -> bool:
+        return self.shape in FACETED
 
     @property
     def girdle(self) -> float:
+        if self.shape == "pearl":
+            return 0.0                                                # the equator: no band
+        if self.shape == "cabochon" and self.girdle_mm is None:
+            return max(CABOCHON_GIRDLE_MIN_MM, CABOCHON_GIRDLE_FRAC * self.width)
         return max(MIN_GIRDLE_MM, float(self.girdle_mm) if self.girdle_mm is not None else GIRDLE_FRAC * self.width)
 
     @property
+    def dome(self) -> float:
+        return float(self.dome_frac) if self.dome_frac is not None else CABOCHON_DOME_FRAC
+
+    @property
+    def drill(self) -> tuple[float, float]:
+        """A pearl's drill: (diameter, depth from the bottom), mm."""
+        d = float(self.drill_mm) if self.drill_mm is not None else PEARL_DRILL_MM
+        f = float(self.drill_depth_frac) if self.drill_depth_frac is not None else PEARL_DRILL_DEPTH_FRAC
+        return d, f * self.length
+
+    @property
     def heights(self) -> tuple[float, float]:
-        """(crown height, pavilion depth) in mm; scaled to the total depth when one is given."""
-        crown, pav = CROWN_FRAC * self.width, PAVILION_FRAC * self.width
+        """(crown height, pavilion depth) in mm; scaled to the total depth when one is given. A
+        cabochon: (its dome, 0); a pearl: (its radius, its radius)."""
+        if self.shape == "pearl":
+            return self.length / 2, self.length / 2
+        if self.shape == "cabochon":
+            dome = self.dome * self.width
+            if self.depth_mm is not None:
+                dome = float(self.depth_mm) - self.girdle
+            return dome, 0.0
+        cf, pf = SHAPE_HEIGHTS.get(self.shape, (CROWN_FRAC, PAVILION_FRAC))
+        crown, pav = cf * self.width, pf * self.width
         if self.depth_mm is not None:
             k = (float(self.depth_mm) - self.girdle) / (crown + pav)
             crown, pav = crown * k, pav * k
@@ -73,11 +140,11 @@ class StoneSpec:
 
     @property
     def table(self) -> float:
-        return float(self.table_frac) if self.table_frac is not None else TABLE_FRAC[self.shape]
+        return float(self.table_frac) if self.table_frac is not None else TABLE_FRAC.get(self.shape, 0.0)
 
     @property
     def stem(self) -> str:
-        dims = f"{self.length:g}" if self.shape == "round" else f"{self.length:g}x{self.width:g}"
+        dims = f"{self.length:g}" if self.shape in ONE_SIZE + SQUARE else f"{self.length:g}x{self.width:g}"
         return f"stone_{self.shape}_{dims}x{self.depth:.2f}".replace(".", "p")
 
     # ---- outline -------------------------------------------------------------------------
@@ -86,14 +153,14 @@ class StoneSpec:
         import numpy as np
         L, W = self.length, self.width
         t = np.linspace(0, 2 * math.pi, n, endpoint=False)
-        if self.shape in ("round", "oval"):
+        if self.shape in ("round", "oval", "cabochon", "pearl"):
             xy = np.column_stack([L / 2 * np.cos(t), W / 2 * np.sin(t)])
         elif self.shape == "cushion":            # superellipse: a rounded rectangle
             e = 2 / 4.0
             c, s = np.cos(t), np.sin(t)
             xy = np.column_stack([L / 2 * np.sign(c) * np.abs(c) ** e, W / 2 * np.sign(s) * np.abs(s) ** e])
-        elif self.shape == "emerald":            # rectangle with the corners cut at 45 deg
-            cut = 0.18 * W
+        elif self.shape in ("emerald", "asscher"):    # rectangle with the corners cut at 45 deg (an asscher's deep)
+            cut = (ASSCHER_CORNER_FRAC if self.shape == "asscher" else 0.18) * W
             hx, hy = L / 2, W / 2
             corners = [(hx, -hy + cut), (hx, hy - cut), (hx - cut, hy), (-hx + cut, hy), (-hx, hy - cut),
                        (-hx, -hy + cut), (-hx + cut, -hy), (hx - cut, -hy)]
@@ -115,7 +182,11 @@ class StoneSpec:
         rather than meshed into self-intersecting triangles (review 2026-10-28)."""
         import numpy as np
         import trimesh
+        if self.shape == "pearl":
+            return self._pearl_mesh()
         xy = self.outline()
+        if self.shape == "cabochon":
+            return self._cabochon_mesh(xy)
         if not _is_convex(xy):
             raise ValueError(f"{self.shape} outline is not convex: the fan-triangulated table/pavilion would self-intersect")
         n = len(xy)
@@ -141,6 +212,48 @@ class StoneSpec:
         trimesh.repair.fix_normals(m)
         return m
 
+    def _cabochon_mesh(self, xy, steps: int = 48):
+        """Base fan at the girdle's bottom, the vertical girdle band, an elliptic dome in `steps`
+        rings to a point on top."""
+        import numpy as np
+        import trimesh
+        n = len(xy)
+        g, (dome, _) = self.girdle, self.heights
+        rings = [(xy, -g / 2), (xy, g / 2)]
+        for k in range(1, steps):
+            phi = 0.5 * math.pi * k / steps
+            rings.append((xy * math.cos(phi), g / 2 + dome * math.sin(phi)))
+        V = np.vstack([np.column_stack([r, np.full(n, z)]) for r, z in rings]
+                      + [np.array([[0.0, 0.0, g / 2 + dome]]), np.array([[0.0, 0.0, -g / 2]])])
+        top, bottom = len(rings) * n, len(rings) * n + 1
+        F = []
+        for k in range(len(rings) - 1):
+            a, b = k * n, (k + 1) * n
+            for i in range(n):
+                j = (i + 1) % n
+                F += [[a + i, b + i, b + j], [a + i, b + j, a + j]]
+        last = (len(rings) - 1) * n
+        for i in range(n):
+            j = (i + 1) % n
+            F.append([top, last + i, last + j])
+            F.append([bottom, j, i])
+        m = trimesh.Trimesh(V, np.array(F), process=True)
+        trimesh.repair.fix_normals(m)
+        return m
+
+    def drill_cylinder(self, below_mm: float = 1.0):
+        """The pearl's drill as a solid, from `below_mm` under the pearl up to its depth."""
+        import trimesh
+        d, depth = self.drill
+        r = self.length / 2
+        return trimesh.creation.cylinder(radius=d / 2, segment=[[0, 0, -r - below_mm], [0, 0, -r + depth]], sections=64)
+
+    def _pearl_mesh(self):
+        """A sphere (its equator at z = 0) less the drill."""
+        import trimesh
+        ball = trimesh.creation.icosphere(subdivisions=5, radius=self.length / 2)
+        return trimesh.boolean.difference([ball, self.drill_cylinder()], engine="manifold")
+
     def volume_mm3(self) -> float:
         return float(self.mesh().volume)
 
@@ -148,20 +261,20 @@ class StoneSpec:
         return tables.carats(self.volume_mm3(), material or self.material)
 
     @classmethod
-    def for_carats(cls, shape: str, carats: float, ratio: float | None = None, material: str = tables.DEFAULT_STONE) -> "StoneSpec":
+    def for_carats(cls, shape: str, carats: float, ratio: float | None = None, material: str | None = None) -> "StoneSpec":
         """The stone of this shape and length/width ratio (default RATIO[shape]) that weighs `carats`
         in `material`, in ideal proportions: the length bisected (weight grows as its cube)."""
         r = RATIO[shape] if ratio is None else float(ratio)
         lo, hi = 0.5, 40.0
         for _ in range(60):
             L = (lo + hi) / 2
-            s = cls(shape, L, None if shape == "round" else L / r, material=material)
+            s = cls(shape, L, None if shape in ONE_SIZE + SQUARE else L / r, material=material)
             if s.carats() < carats:
                 lo = L
             else:
                 hi = L
         L = round(hi, 3)
-        return cls(shape, L, None if shape == "round" else round(L / r, 3), material=material)
+        return cls(shape, L, None if shape in ONE_SIZE + SQUARE else round(L / r, 3), material=material)
 
     def validate(self) -> list[str]:
         p = []
@@ -170,16 +283,31 @@ class StoneSpec:
             return p
         if self.width > self.length + 1e-9 and self.shape != "round":
             p.append("length is the long side: swap length and width")
-        if self.depth_mm is not None and float(self.depth_mm) <= self.girdle + 0.2:
+        if self.depth_mm is not None and float(self.depth_mm) <= self.girdle + 0.2 and self.shape != "pearl":
             p.append(f"depth {self.depth_mm} mm leaves no crown or pavilion")
-        if not 0.3 <= self.table <= 0.8:
+        if self.faceted and not 0.3 <= self.table <= 0.8:
             p.append(f"table {self.table:.0%} is outside 30-80 %")
+        if self.shape == "cabochon" and not 0.1 <= self.dome <= 0.6:
+            p.append(f"dome {self.dome:g} x the width: 0.1 to 0.6")
+        if self.shape == "pearl":
+            d, depth = self.drill
+            if not 0.5 <= d <= 0.3 * self.length:
+                p.append(f"drill Ø {d:g} mm: 0.5 mm to a third of the pearl")
+            if not 0.3 * self.length <= depth <= 0.8 * self.length:
+                p.append("the drill goes 30-80 % up the pearl (half-drilled for a post)")
         if self.material not in tables.STONE_DENSITY_G_CM3:
             p.append(f"unknown stone material {self.material!r}; one of {', '.join(tables.STONE_DENSITY_G_CM3)}")
         return p
 
     def describe(self) -> str:
         crown, pav = self.heights
+        if self.shape == "pearl":
+            d, depth = self.drill
+            return (f"{self.stem}: pearl Ø {self.length:g} mm, half-drilled Ø {d:g} mm, {depth:.2f} mm up from the bottom; "
+                    f"volume {self.volume_mm3():.2f} mm³ = {self.carats():.2f} ct {self.material}")
+        if self.shape == "cabochon":
+            return (f"{self.stem}: cabochon {self.length:g} x {self.width:g} mm, height {self.depth:.2f} mm (girdle band "
+                    f"{self.girdle:.2f}, dome {crown:.2f}), flat base; volume {self.volume_mm3():.2f} mm³ = {self.carats():.2f} ct {self.material}")
         return (f"{self.stem}: {self.shape} {self.length:g} x {self.width:g} mm, depth {self.depth:.2f} mm "
                 f"(crown {crown:.2f}, girdle {self.girdle:.2f}, pavilion {pav:.2f}), table {self.table:.0%}; "
                 f"volume {self.volume_mm3():.2f} mm³ = {self.carats():.2f} ct {self.material}")
@@ -266,7 +394,10 @@ def seat_envelope(spec: StoneSpec, drop_mm: float | None = None):
         raise ValueError(f"drop {drop} mm does not clear the table ({spec.girdle / 2 + crown:.2f} mm above the girdle)")
     xy = spec.outline()
     lifted = np.column_stack([xy, np.full(len(xy), drop)])
-    return trimesh.convex.convex_hull(np.vstack([stone.vertices, lifted]))
+    hull = trimesh.convex.convex_hull(np.vstack([stone.vertices, lifted]))
+    if spec.shape == "pearl":                    # the drill stays open: the post it holds is not cut (geom.drill_of)
+        hull = trimesh.boolean.difference([hull, spec.drill_cylinder()], engine="manifold")
+    return hull
 
 
 def offset_volume_mm3(mesh, clearance_mm: float) -> float:
@@ -300,7 +431,7 @@ class SeatSpec:
         return seat_envelope(self.stone, self.drop)
 
     def design(self) -> dict:
-        return {"stone": asdict(self.stone), "clearance_mm": self.clearance, "drop_mm": self.drop,
+        return {"stone": self.stone.design(), "clearance_mm": self.clearance, "drop_mm": self.drop,
                 "mesh_tolerance_mm": self.mesh_tolerance_mm}
 
     @property
@@ -309,6 +440,9 @@ class SeatSpec:
         return f"seat_{self.stone.stem[len('stone_'):]}_c{self.clearance:g}_{runs.spec_id(self.design())}".replace(".", "p")
 
     def design_volume_mm3(self) -> float:
+        if self.stone.shape == "pearl":                              # not convex (the drill): the offset mesh's volume
+            from . import geom
+            return float(geom.offset_convex(self.envelope(), self.clearance).volume)
         return offset_volume_mm3(self.envelope(), self.clearance)
 
     def expected_extents(self) -> list[float]:

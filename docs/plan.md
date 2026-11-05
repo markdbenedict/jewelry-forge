@@ -337,6 +337,20 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    small polygon bezels (kite, hexagon); spacing and bead rules into the tables.
 4. **New stone bodies.** Pearl (sphere on a post in a cup), cabochon (dome on a flat base), asscher
    (emerald outline with a corner-cut ratio); their seats.
+   *(5 Nov: written and gated offline. `gems`: `asscher` (the emerald's cut-corner outline on a square, 25 %
+   corners, table 62 %, a deep step-cut pavilion), `cabochon` (flat base, girdle band, elliptic dome, `--cab-dome`),
+   `pearl` (a sphere half-drilled from below, `--drill` / `--drill-depth`; material `pearl`, SG 2.71 default, by
+   default for a pearl). All ride the outline_head block with no notebook change: the cabochon on four upright
+   claws, a plate under its base and a collar round its girdle band; the pearl in a cup (`--cup`) on a post up
+   the drill (the seat keeps the drill open, `geom.offset_convex`) with 0/3/4/6 claws. The faceted heads' seat
+   ledges give way to hold checks for these (claws at the knee, seat floor, cup, post; the fake's `noprongs`
+   fault is caught). A solitaire places a cabochon or pearl by its plate / cup (0.2 mm above the bore at the
+   default clearance) and has no room for arches under it (refused; the CLI leaves them off). Catalogs
+   outline_head_harness 0.2.1 / solitaire_outline 0.7.1 only widen Upper Rail Top's range for the collar - no
+   rebuild. Offline PASSED: the three heads, the three solitaires, a pearl between two asschers (multistone).
+   *Real check:* `head --shape asscher --length 7`, `head --shape cabochon --length 10 --width 8`,
+   `head --shape pearl --length 8`, then `solitaire --size 6 --shape pearl --length 8 --prongs 0` and the
+   cabochon and asscher solitaires - PASSED; a look at the pearl's post and the cabochon's collar in the GUI.)*
    *Pavé round a multi-stone ring (4 Nov): Mark's marquise ruby between two cushion diamonds with diamond pavé
    round the rest, in gold - multistone.ntop 0.2.0 takes Pave Beads / Seats Path (rebuild), the pavé centred on
    the bottom and clear of the side heads; offline PASSED on comfort-flat 2.6 x 1.8 (a court band's dome left

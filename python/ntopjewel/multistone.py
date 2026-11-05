@@ -652,7 +652,7 @@ class MultiStoneSpec:
 
     @staticmethod
     def _short(s: gems.StoneSpec) -> str:
-        dims = f"{s.length:g}" if s.shape == "round" else f"{s.length:g}x{s.width:g}"
+        dims = f"{s.length:g}" if s.shape in gems.ONE_SIZE + gems.SQUARE else f"{s.length:g}x{s.width:g}"
         return f"{s.shape}{dims}".replace(".", "p")
 
     @property
@@ -952,7 +952,7 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
     rep.checks.append(gate.Check("extents", bool(np.all(d <= tol) and np.all(d >= -shrink)),
                                  " x ".join(f"{x:.2f}" for x in rep.extents_mm) + " vs design "
                                  + " x ".join(f"{x:.2f}" for x in design.extents) + f" mm (+{tol:.2f} / -{shrink:.2f})"))
-    fits, ledges, drops = [], [], []
+    fits, ledges, drops, holds = [], [], [], {}
     for p in stones:
         local = ring.copy()
         local.apply_transform(np.linalg.inv(spec.matrix(p.head, p.theta_deg, p.spin_deg)))
@@ -963,14 +963,22 @@ def check_multistone(spec: MultiStoneSpec, stl: Path, ntop_vol: float | None) ->
         under, over = heads.seat_regions(p.head.stone, p.head.clearance)
         g = p.head.stone.girdle
         knees = spec.stone_knees(stones.index(p))
-        ledges.append((prong_ledges(local, spec.placed_head(p.head), -g / 2 - 0.3, under, knees), len(knees)))
+        ph = spec.placed_head(p.head)
+        if ph.kind == "faceted":
+            ledges.append((prong_ledges(local, ph, -g / 2 - 0.3, under, knees), len(knees)))
+        else:                                                         # a cabochon's plate, a pearl's cup and post, the prongs
+            for c in heads.hold_checks(ph, local, knees):
+                holds.setdefault(c.name, []).append(c)
         drops.append(heads.outline_count(local, g / 2 + 0.15, over))
     bad = [i for i, (o, a) in enumerate(fits) if not o <= a]
     rep.checks.append(gate.Check("stones fit", not bad, f"{len(stones) - len(bad)}/{len(stones)} stones clear of the metal "
                                  f"(worst ∩ {max(o for o, _ in fits):.3f} mm³)"))
-    bad = [i for i, (n, want) in enumerate(ledges) if n < want]
-    rep.checks.append(gate.Check("seat ledges", not bad, "every stone: " + ", ".join(f"{n}/{w}" for n, w in ledges)
-                                 + " prongs reach under the girdle"))
+    if ledges:
+        bad = [i for i, (n, want) in enumerate(ledges) if n < want]
+        rep.checks.append(gate.Check("seat ledges", not bad, "every faceted stone: " + ", ".join(f"{n}/{w}" for n, w in ledges)
+                                     + " prongs reach under the girdle"))
+    for name, cs in holds.items():                                    # the unfaceted stones' holds, one check each
+        rep.checks.append(gate.Check(name, all(c.ok for c in cs), "; ".join(c.detail for c in cs)))
     rep.checks.append(gate.Check("drop-in clear", not any(drops), f"{sum(drops)} pieces inside a girdle line above its girdle"))
     mtol = spec.centre.mesh_tolerance_mm
     if spec.shared_prongs:                                            # what both seats leave of each post above the girdles

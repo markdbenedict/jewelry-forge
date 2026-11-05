@@ -151,6 +151,12 @@
       "density_g_cm3": 2.6,
       "status": "default",
       "source": "soda-lime 2.5; lead crystal up to 3.1 - weigh one"
+    },
+    "pearl": {
+      "name": "pearl (nacre)",
+      "density_g_cm3": 2.71,
+      "status": "default",
+      "source": "gemmological tables (SG 2.66-2.78 saltwater / akoya; freshwater 2.66-2.70)"
     }
   },
   "default_stone": "diamond",
