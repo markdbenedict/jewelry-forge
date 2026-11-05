@@ -65,6 +65,7 @@ SIGNATURES = {
     "core.var<text>": ("Text Variable", [("Input", "text")], "text"),
     "core.var<file_path>": ("File Path Variable", [("Input", "file_path")], "file_path"),
     "core.var<implicit>": ("Implicit Body Variable", [("Input", "implicit")], "implicit"),
+    "core.var<unit_length_enum>": ("Unit Length Enum Variable", [("Input", "unit_length_enum")], "unit_length_enum"),
     "core.var_any<any>": ("Variable", [("x", "any")], "any"),
 }
 PROPERTIES = {"body_mass_props": ["center of gravity", "mass", "principal frame", "principal moments", "volume"], "implicit": ["Bounding Box"]}
@@ -235,6 +236,9 @@ class FakeNotebook:
         if input_name not in names:
             raise ValueError(f"'{block_id}' has no parameter '{input_name}'; it has {names}")
         t = dict(b["defs"])[input_name]
+        if t.endswith("_enum"):                   # nTop 6.3.3, verbatim (2026-11-05)
+            raise ValueError(f'Parameter "{input_name}" of block "{block_id}" has type "{t}", which cannot be set yet; '
+                             f'only "real", "vector", "point", "bool", "integer" and "text" parameters can.')
         if t == "real_field":                     # nTop 6.3.3, verbatim: only a wired variable can feed one
             if units:
                 raise ValueError(f'Parameter "{input_name}" of block "{block_id}" has type "real_field", which carries '
@@ -273,7 +277,7 @@ class FakeNotebook:
                           ("box", "implicit"), ("box", "spatial3d"),
                           # nTop 6.3.3 accepted both wires (points_probe, 2026-11-05): a point list on a Sphere's
                           # Center Point (nTop maps it - what the probe measures) and the Sphere into Bodies
-                          ("list<point>", "point"), ("sphere", "list<implicit>")}
+                          ("list<point>", "point"), ("sphere", "list<implicit>"), ("unit_length_enum", "unit_length_enum")}
             if (have, want) not in compatible and have != want:
                 raise ValueError(f"cannot connect a {have} to '{input_name}' ({want}) of '{target_block_id}'")
         b["wired"][input_name] = (source_block_id, property_name)
@@ -468,6 +472,8 @@ class FakeNotebook:
         problems = []
         for vid, v in self.variables.items():
             if v.get("wraps") is None and v.get("value") is None and not v.get("wired"):
+                if str(v.get("typed", "")).endswith("_enum") and vid in self.inputs:
+                    continue                      # an enum input: nTopCL sets it at run time
                 problems.append(f'{vid}: Input "Input" is incomplete')
         for bid, b in self.blocks.items():
             for name in REQUIRED.get(b["funcId"], []):

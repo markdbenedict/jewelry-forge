@@ -11,15 +11,19 @@ First try (5 Nov), measured in the GUI session: every block stayed e_DIRTY and n
 block's input errors stay hidden there (CLAUDE.md, "What only nTopCL tells you"). So the probe is a small
 runner notebook, measured by nTopCL, which names any incomplete input and returns the volume. Its first run
 named one: `Point List_0: Input "Units" is incomplete` - Import Points has no default unit (Import / Export
-Mesh do), so `nj.set_units_mm` sets it, learning how nTop spells the value from an Import Mesh's default:
+Mesh do), and the API cannot set an enum at all ("unit_length_enum, which cannot be set yet"). So the unit is a
+notebook input, `Points Units` (`nj.enum_input`), which nTopCL sets as an integer id - and which id means mm is
+measured too: the points are 0.1 unit apart, so the three 1 mm balls' union says the unit (Python's own
+union, POINT_UNIT_VOLUMES: mm 4.73 mm³, cm 9.83, inch / foot / metre 12.57 - apart, um 4.19):
 
     python -m ntopjewel api build points_probe           # nTop open (foreground), Python Console open; writes the two point files
-    python -m ntopjewel run points_probe --set "Points Path=out/api/points_probe.csv" --set "Output Path=out/api/points_probe.stl"
-    python -m ntopjewel run points_probe --set "Points Path=out/api/points_probe.txt" --set "Output Path=out/api/points_probe_txt.stl"
+    python -m ntopjewel templates ntop\notebooks\points_probe.ntop   # nTop's own template: does it name the unit ids?
+    python -m ntopjewel run points_probe --set "Points Units=0" --set "Points Path=<repo>\out\api\points_probe.csv" --set "Output Path=<repo>\out\api\points_probe_0.stl"
+    ... Points Units 1, 2, 3 ... until one comes back 4.73 mm³
 
-Three 1 mm balls 10 mm apart: Volume 12.57 mm³ (and three shells in the STL) means Sphere maps the list;
-4.19 the first point only; an [E] line names what nTop could not read. Comma-separated `x,y,z` lines
-(.csv) and whitespace-separated (.txt) are both written, to learn which Import Points reads.
+A volume of 4.73 says that id is mm AND that Sphere maps the list (one ball alone is 4.19); 9.83 / 12.57 / 4.19
+another unit; an [E] line what nTop could not read. Comma-separated `x,y,z` lines (.csv) and whitespace-separated
+(.txt) are both written, to learn which Import Points reads.
 """
 from __future__ import annotations
 
@@ -29,11 +33,12 @@ from ntopjewel import nb_jewel as nj
 
 HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
-POINTS = [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)]
+POINTS = [(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)]      # 0.1 unit apart: the balls' union says the unit
+POINT_UNIT_VOLUMES = {"mm": 4.734, "cm": 9.83, "in": 12.565, "ft": 12.565, "m": 12.565, "um": 4.189}   # manifold3d, 2026-11-05
 FORMATS = {"csv": ",", "txt": " "}
 BALL_MM3 = 4.0 / 3.0 * 3.141592653589793          # a 1 mm ball
 SPECS = [("Points Path", "path"), ("Radius", "mm"), ("Mesh Tolerance", "mm")]
-INPUT_ORDER = [n for n, _ in SPECS] + ["Output Path"]
+INPUT_ORDER = [n for n, _ in SPECS] + ["Points Units", "Output Path"]
 CSV = REPO / "out" / "api" / "points_probe.csv"
 
 DEFAULTS = {
@@ -46,7 +51,7 @@ DEFAULTS = {
     "lazy_ok": True,          # nTopCL is the test: the GUI session kept these blocks e_DIRTY
     "fresh": True,
     "wait_s": 60,
-    "volume_hint": f"three 1 mm balls: {3 * BALL_MM3:.2f} mm³ if Sphere maps the imported list, {BALL_MM3:.2f} if it takes the first point",
+    "volume_hint": "three 1 mm balls 0.1 unit apart: 4.73 mm³ when the unit is mm and Sphere maps the list (POINT_UNIT_VOLUMES)",
 }
 
 
@@ -74,8 +79,8 @@ def _body(h, p, values, test_output):
     with h.section("Balls"):
         pts = h.add("Imported Points", "import_points<file_path,unit_length_enum>", mask="import_points", must=[["import_points"]])
         h.wire(ids["Points Path"], pts, [h.input_of_type(pts, "file_path")])
-        nj.set_units_mm(h, pts)                         # no default here (nTopCL: Input "Units" is incomplete)
-        h.comment(pts, "Import Points: one point per line of the file, in mm.")
+        nj.enum_input(h, "Points Units", "unit_length_enum", pts, "Units")   # no default, and the API cannot set an enum
+        h.comment(pts, "Import Points: one point per line of the file; Units is the notebook input Points Units (nTopCL sets it).")
         ball = h.add("Balls", nj.SPHERE, mask="sphere", must=[["sphere<point,real>"], ["sphere", "point", "real"]])
         h.wire(pts, ball, nj.CENTRE)                    # the whole list on a single point input
         h.wire(ids["Radius"], ball, ["Radius"])

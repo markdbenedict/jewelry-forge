@@ -103,6 +103,13 @@ def cmd_run(a: argparse.Namespace) -> int:
     values = _parse_set(a.set)
     inputs = cat.build_inputs(values)
     out = Path(a.out) if a.out else config.out_dir() / cat.name
+    if not a.notebook:                     # the catalog's own notebook must be as new as the catalog says
+        try:                               # (2026-11-05: `run points_probe` ran a notebook a rebuild behind)
+            for w in runs.require_built(cat, cat.notebook):
+                print("  warning: " + w)
+        except ValueError as e:
+            print(summary.error_line(cat.name, e))
+            return 2
     try:
         res = ntopcl.run(cat.notebook if not a.notebook else Path(a.notebook), inputs, out, tag=a.tag or cat.name)
     except ntopcl.NtopclError as e:

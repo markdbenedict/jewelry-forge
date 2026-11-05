@@ -1,9 +1,9 @@
-# A probe, not a product: does Sphere map over a list Import Points read? Three 1 mm balls at the points of a
-# file, united; the volume says (12.57 mm³: one ball per point; 4.19: the first point only). Built by
+# A probe, not a product: does Sphere map over a list Import Points read, and which Units id is mm? Three 1 mm
+# balls at points 0.1 unit apart, united; the volume says (4.73 mm³: mm, and one ball per point). Built by
 # ntop/recipes/points_probe.py; the hammered texture's notebook rests on the answer (ntopjewel.texture).
 notebook: points_probe.ntop
-version: 0.1.1   # 0.1.0: first build (2026-11-05); 0.1.1: Import Points' Units set to mm (it has no default)
-rebuild_since: 0.1.1
+version: 0.2.0   # 0.1.0: first build (2026-11-05); 0.2.0: Points Units an input (no default; the API cannot set an enum), points 0.1 unit apart
+rebuild_since: 0.2.0
 title: Spheres at the points of a file (probe)
 output:
   name: Volume
@@ -28,6 +28,9 @@ inputs:
     max: 0.5
     default: 0.1
     doc: Mesh from Implicit Body tolerance (2 x voxel size).
+  Points Units:
+    type: enum
+    doc: Import Points' Units as nTop's integer id - which id is mm is what the probe measures (4.73 mm³ when it is).
   Output Path:
     type: text
     doc: Where Export Mesh writes the balls' STL.
