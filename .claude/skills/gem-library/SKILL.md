@@ -180,10 +180,13 @@ shoulders - is a broad thick top section on a tapered shank:
 
 ```powershell
 python -m ntopjewel api build solitaire_partial_bezel
-python -m ntopjewel solitaire --partial-bezel --shape pear --length 10 --stone-width 7 --stone-depth 4.5 --profile half-round --width 9.5 --thickness 3.3 --width-bottom 2.8 --thickness-bottom 1.7 --lip 0.8
+python -m ntopjewel solitaire --partial-bezel --shape pear --length 10 --stone-width 7 --stone-depth 4.5 --profile half-round --width 9.5 --thickness 3.3 --width-bottom 2.8 --thickness-bottom 1.7 --lip 0.8 --tolerance 0.06
 ```
 
-The 10 x 7 x 4.5 pear is an illustrative fixture, not the photo's stone (unmeasured); about 11 g in sterling.
+The 10 x 7 x 4.5 pear is an illustrative fixture, not the photo's stone (unmeasured); about 11 g in sterling. Mesh Tolerance
+0.06 for it: the broad band has ~40 % more surface than our other rings, and at 0.05 the real run made 5.29 M
+triangles (264 MB), past the gate's 5 M `mesh density` limit (triangles ∝ 1/tolerance²: 0.06 gives ~3.7 M; its 0.03 mm
+voxel still resolves the 0.65 mm walls and 0.3 mm blends).
 
 ## The solitaire (`solitaire.ntop`, `solitaire_outline.ntop`, `solitaire_bezel.ntop`, `ntopjewel.solitaire`)
 

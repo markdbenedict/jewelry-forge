@@ -378,8 +378,13 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    clear, bearing; faults noside / nohood / fullbezel caught. Offline PASSED: pear, marquise and oval heads, the
    reference ring (10 x 7 pear, half-round 9.5 x 3.3 tapering to 2.8 x 1.7, lip 0.8). *Real check:* `api build
    partial_bezel_head`, `head --partial-bezel --shape pear --length 10 --width 7 --depth 4.5`, `api build
-   solitaire_partial_bezel`, then the reference ring command (CLAUDE.md). Physical setting validation stays with the
-   Phase 1/5 print-and-cast milestones (a setter's judgement, the plan's PB-07).*
+   solitaire_partial_bezel`, then the reference ring command (CLAUDE.md). **Real check 5 Nov 11:46-11:54:** the head
+   PASSED every check (nTop 50.33 vs design 49.85 mm³, +0.96 %; walls 20/20, open 22/22, hood, point clear, bearing
+   12/12) - the first notebook built from nTop's own primitives (turned half-boxes, Mirror Body, cylinders) for a head.
+   The ring passed every geometric check (design volume +0.04 %, section shape 0.010 mm, all the probes) but FAILED
+   `mesh density`: 5.29 M triangles at Mesh Tolerance 0.05 (the broad band's surface); its command now carries
+   `--tolerance 0.06` (~3.7 M) - re-run pending. Physical setting validation stays with the Phase 1/5 print-and-cast
+   milestones (a setter's judgement, the plan's PB-07).*
 5. **Artwork on the band.** *(3 Nov: started, from the Seraphine Celtic ring Mark photographed -
    leaf rows in channels on both side faces, a vine scroll in a channel on the outer face, 25°-120°
    from the top, Celtic knots on the shoulders, scroll volutes under a 4-prong head with double claws
