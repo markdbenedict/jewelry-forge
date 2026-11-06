@@ -535,8 +535,10 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    beads, stone fit, seat and bore checks as before; 2.81 M triangles. `api build ring_shank` 0.4.0 failed: with
    the Strikes section its export cannot build in the session (Import Points' Units is set only by nTopCL) and the
    recipe, unlike ring_texture's and the solitaires', waited for it - `lazy_ok` added, and a test now holds every
-   recipe carrying the strikes to it. *Real check pending:* `api build ring_shank`, then `shank --size 6 --width 4
-   --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered`.
+   recipe carrying the strikes to it. **Real check PASSED (6 Nov):** `api build ring_shank` 0.4.0, then the tapered
+   hammered shank (`shank --size 6 --width 4 --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance
+   0.05 --hammered`): 124/124 strikes within 0.045 mm, section shape 0.010 mm, design volume -0.11 %, one shell,
+   2.20 M triangles.
    **Field textures, nTop's own (6 Nov, Mark: "strongly embrace a number of textures from nTop").** nTop's toolkits
    carry texture blocks that take any implicit body: simplex and cellular noise debosses, surface roughness, voronoi
    deboss and emboss, the triangle wave (and, for Python-designed patterns, field math down to an expression field,
@@ -551,8 +553,13 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    factor" / "Frequency" / unnamed inputs mean in millimetres (input names are matched by keyword at build time and
    every match logged: only cellular noise's and the triangle wave's names are known), whether the enums nTopCL
    cannot be given have defaults it accepts, and whether a block textures the bore and rims too (then the products
-   mask it to the outer face). *Real check pending:* `api build texture_probe`, then `texture-probe`; then, from
-   what it measured, the texture notebooks (one per family, the envelope gate) and a second probe for the numbers.
+   mask it to the outer face). First build (6 Nov, 0.1.0): roughness and the triangle wave built; simplex and
+   cellular noise refused a unitless "Depth factor" ("Operand A (no units) and Operand B (units of length) do not
+   match") and the voronois a unitless "Spatial weighting" ("requires units of length") - both take millimetres; the
+   build log gave every block's real input names (`nb_texture` lists them), so 0.2.0 matches each to its own
+   variable (voronoi cell count, relaxation iterations, an integer frequency, the voronois' wall thickness).
+   *Real check pending:* `api build texture_probe` 0.2.0, then `texture-probe`; then, from what it measured, the
+   texture notebooks (one per family, the envelope gate) and a second probe for the numbers.
 
 ## Notebook readability (2026-11-04)
 

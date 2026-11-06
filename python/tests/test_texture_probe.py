@@ -9,13 +9,18 @@ from ntopjewel import texture, texture_probe as tp
 
 
 def test_the_rules_give_every_known_input_its_variable():
-    assert nt.match("Random seed", "integer") == "Seed"
-    assert nt.match("Depth factor", "real_field") == "Depth Factor"
-    assert nt.match("Wave height", "real_field") == "Depth"
-    assert nt.match("Wave spacing", "real_field") == "Wave Spacing"
-    assert nt.match("Frequency", "real") == "Frequency"
-    assert nt.match("Cell size", "real") == "Cell Size"
-    assert nt.match("Octaves", "integer") == "Count"
+    """The names nTop's blocks have (texture_probe's first build, 2026-11-06) each to the variable it needs."""
+    want = {("Random seed", "integer"): "Seed", ("Seed value", "integer"): "Seed",
+            ("Frequency", "integer"): "Frequency Count", ("Roughness frequency", "integer"): "Frequency Count",
+            ("Frequency", "real"): "Frequency",
+            ("Depth factor", "real_field"): "Depth", ("Roughess amplitude", "real_field"): "Depth",   # a length: measured
+            ("Wave height", "real_field"): "Depth", ("Wave spacing", "real_field"): "Wave Spacing",
+            ("Feature size", "real"): "Cell Size", ("Voronoi cell count", "integer"): "Cells",
+            ("Relaxation iterations", "integer"): "Iterations", ("Thickness", "real_field"): "Wall",
+            ("Blend radius", "real"): "Blend", ("Spatial weighting", "real_field"): "Weighting",
+            ("Octaves", "integer"): "Count"}
+    for (name, typ), var in want.items():
+        assert nt.match(name, typ) == var, (name, typ)
     assert nt.match("Seed", "real") is None                         # a rule keeps to its types
     assert nt.match("Mystery", "real") is None
 
@@ -35,7 +40,8 @@ def test_recipe_builds_every_texture_on_the_fake_api(tmp_path):
         assert res["identifiers"][label].startswith(nt.TK)
         assert any(line.startswith(f"{label}: ") and "<- Band Body" in line for line in res["log"]), label
     log = "\n".join(res["log"])
-    assert "Depth factor (real_field) <- Depth Factor" in log and "Direction = [0.0, 0.0, 1.0]" in log
+    assert "Depth factor (real_field) <- Depth" in log and "Direction = [0.0, 0.0, 1.0]" in log
+    assert "no rule" not in log                                      # every input of every block has its variable
     assert "left at nTop's default" in log                           # the enums: the API cannot set them
 
 

@@ -267,3 +267,12 @@ Template:
 - Repro: <the smallest script, or the line from out/api/<name>.driver.py>
 - Workaround: <if any>
 ```
+
+## 2026-11-06 - toolkit texture blocks through the API
+
+- The toolkit textures' input names are only discoverable by adding a block (`list_block_inputs`); their units are
+  only discoverable by building: `simplex_noise_deboss` / `cellular_noise_deboss` take "Depth factor" as a length
+  (a unitless value fails "Operand A (no units) and Operand B (units of length) do not match" - the name suggests a
+  ratio), the voronoi debosses' "Spatial weighting" likewise ("requires units of length"). `list_block_inputs`
+  reporting each input's expected units would have saved a round trip.
+- `surface_roughness`'s amplitude input is spelled "Roughess amplitude".

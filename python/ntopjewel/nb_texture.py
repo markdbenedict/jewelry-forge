@@ -19,25 +19,39 @@ CASES = {
     "Triangle Wave": ([TK + "triangle_wave_texture<implicit,vector,real_field,real_field>"], "triangle_wave_texture"),
 }
 
-# the probe's numbers (notebook inputs): what each texture input gets when its name says what it is
-SPECS = [("Seed", "int"), ("Count", "int"), ("Depth", "mm"), ("Depth Factor", ""), ("Frequency", ""),
-         ("Cell Size", "mm"), ("Wave Spacing", "mm"), ("Blend", "mm")]
-UNITLESS = ("Depth Factor", "Frequency")    # unitless reals: nTopCL inputs need units, so these stay variables inside the
+# the probe's numbers (notebook inputs): what each texture input gets when its name says what it is.
+# The input names, measured by the first build (2026-11-06, texture_probe 0.1.0):
+#   simplex_noise_deboss    Frequency (integer), Depth factor (real_field, a LENGTH), Random seed
+#   cellular_noise_deboss   Frequency (real), Depth factor (real_field, a LENGTH), Distance, Return type (enums), Random seed
+#   surface_roughness       Roughness frequency (integer), Roughess [sic] amplitude (real_field), Seed value
+#   voronoi_deboss / _emboss  Feature size (real), Voronoi cell count, Relaxation iterations (integers), Thickness
+#                           (real_field), Blend type (enum), Blend radius (real), Spatial weighting (real_field, a LENGTH)
+#   triangle_wave_texture   Direction (vector), Wave height, Wave spacing (real_fields)
+# "Depth factor" given a unitless number failed ("Operand A (no units) and Operand B (units of length) do not
+# match"), as did Spatial weighting ("requires units of length"): both take millimetres.
+SPECS = [("Seed", "int"), ("Count", "int"), ("Cells", "int"), ("Iterations", "int"), ("Frequency Count", "int"),
+         ("Depth", "mm"), ("Frequency", ""), ("Cell Size", "mm"), ("Wave Spacing", "mm"), ("Wall", "mm"),
+         ("Weighting", "mm"), ("Blend", "mm")]
+UNITLESS = ("Frequency",)                   # unitless reals: nTopCL inputs need units, so these stay variables inside the
                                             # notebook (their PROBE_VALUES baked in at build), not notebook inputs
-PROBE_VALUES = {"Seed": 1, "Count": 3, "Depth": 0.1, "Depth Factor": 0.1, "Frequency": 1.0, "Cell Size": 1.0,
-                "Wave Spacing": 0.5, "Blend": 0.0}
+PROBE_VALUES = {"Seed": 1, "Count": 3, "Cells": 200, "Iterations": 3, "Frequency Count": 10, "Depth": 0.1,
+                "Frequency": 1.0, "Cell Size": 1.0, "Wave Spacing": 0.5, "Wall": 0.15, "Weighting": 1.0, "Blend": 0.0}
 WAVE_DIRECTION = [0.0, 0.0, 1.0]         # along the ring axis: the waves run round the band as grooves
 
 # (keywords in the lower-cased input name, accepted type substrings, variable) - first match wins
 CASE_RULES = [
     (("seed",), ("integer",), "Seed"),
-    (("factor",), ("real",), "Depth Factor"),
-    (("depth", "height", "amplitude"), ("real",), "Depth"),
+    (("freq",), ("integer",), "Frequency Count"),
     (("freq",), ("real",), "Frequency"),
+    (("factor", "depth", "height", "amplitude"), ("real",), "Depth"),
     (("spacing", "period", "wavelength"), ("real",), "Wave Spacing"),
-    (("size", "cell", "scale", "distance between"), ("real",), "Cell Size"),
+    (("thickness", "wall"), ("real",), "Wall"),
+    (("weight",), ("real",), "Weighting"),
+    (("size", "scale", "distance between"), ("real",), "Cell Size"),
     (("blend", "radius", "fillet", "round"), ("real",), "Blend"),
-    (("count", "octave", "number", "points", "iteration", "level", "detail"), ("integer",), "Count"),
+    (("cell count", "number of", "points"), ("integer",), "Cells"),
+    (("iteration", "relax"), ("integer",), "Iterations"),
+    (("count", "octave", "level", "detail"), ("integer",), "Count"),
 ]
 NEUTRAL = {"real": 1.0, "integer": 1, "bool": False}
 
