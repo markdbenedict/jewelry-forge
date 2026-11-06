@@ -1,0 +1,142 @@
+# A probe, not a product (2026-11-06): what nTop's own texture blocks do to a ring band. The plain profiled band
+# (ring_band_profile's section, opened) with each toolkit texture on its own copy - simplex and cellular noise
+# debosses, surface roughness, voronoi deboss and emboss, the triangle wave - each exported to its own STL in one
+# nTopCL run; Python measures every STL against the designed section (ntopjewel.texture_probe). The probe's
+# numbers are inputs, matched to each block's inputs by name at build time (ntopjewel.nb_texture.CASE_RULES; the
+# build result logs every match; Depth Factor and Frequency, unitless, are fixed in the notebook). Built by
+# ntop/recipes/texture_probe.py.
+notebook: texture_probe.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-06)
+rebuild_since: 0.1.0
+title: nTop's texture blocks on a plain band (probe)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the plain band (the textures are measured from their STLs).
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be small or negative for shallow domes.
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Seed:
+    type: integer
+    min: 0
+    max: 100000
+    default: 1
+    doc: Every input whose name says seed.
+  Count:
+    type: integer
+    min: 1
+    max: 64
+    default: 3
+    doc: Every integer input whose name says count / octave / number / points / iteration / level / detail.
+  Depth:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 2.0
+    default: 0.1
+    doc: Every input whose name says depth / height / amplitude (not a factor).
+  Cell Size:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 20.0
+    default: 1.0
+    doc: Every input whose name says size / cell / scale.
+  Wave Spacing:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 20.0
+    default: 0.5
+    doc: Every input whose name says spacing / period / wavelength.
+  Blend:
+    type: scalar
+    units: mm
+    min: 0.0
+    max: 2.0
+    default: 0.0
+    doc: Every input whose name says blend / radius / fillet / round.
+  Output Simplex:
+    type: text
+    doc: Where Export Mesh writes the simplex texture's STL (texture_probe_simplex.stl).
+  Output Cellular:
+    type: text
+    doc: Where Export Mesh writes the cellular texture's STL (texture_probe_cellular.stl).
+  Output Roughness:
+    type: text
+    doc: Where Export Mesh writes the roughness texture's STL (texture_probe_roughness.stl).
+  Output Voronoi Deboss:
+    type: text
+    doc: Where Export Mesh writes the voronoi deboss texture's STL (texture_probe_voronoi_deboss.stl).
+  Output Voronoi Emboss:
+    type: text
+    doc: Where Export Mesh writes the voronoi emboss texture's STL (texture_probe_voronoi_emboss.stl).
+  Output Triangle Wave:
+    type: text
+    doc: Where Export Mesh writes the triangle wave texture's STL (texture_probe_triangle_wave.stl).

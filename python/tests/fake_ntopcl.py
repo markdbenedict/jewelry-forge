@@ -412,6 +412,27 @@ def main(argv: list[str]) -> int:
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
                         "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "texture_probe" in nb.name:
+        # the texture probe: nTop's toolkit textures on the plain band, one STL each. The stand-in's texture: a row
+        # of dents round the outer face's mid-line (depth = Depth), different per case only in their count - the
+        # measurements, not nTop's noise, are what the offline suite exercises
+        import numpy as np
+        import trimesh
+        from ntopjewel import nb_texture as _nt
+        plain = band_mesh(values)
+        depth, r_out = float(values["Depth"]), float(values["Outer Radius"])
+        for i, label in enumerate(_nt.CASES):
+            n = 24 + 6 * i
+            rad = 1.0
+            dents = [trimesh.creation.icosphere(subdivisions=3, radius=rad).apply_translation(
+                [(r_out + rad - depth) * np.cos(a), (r_out + rad - depth) * np.sin(a), 0.0])
+                for a in np.linspace(0, 2 * np.pi, n, endpoint=False)]
+            mesh = trimesh.boolean.difference([plain] + dents, engine="manifold")
+            mesh.export(values[f"Output {label}"])
+            log("I", f"{label} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(plain.volume) * 1e-9}}]
     elif "texture" in nb.name:
         # ring_texture: the profiled band less a sphere at every centre Import Points reads (comma-separated
         # x,y,z, in the unit Strikes Units names: 1 = mm, 2 = cm, measured by points_probe)

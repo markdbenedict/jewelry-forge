@@ -537,6 +537,22 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    recipe, unlike ring_texture's and the solitaires', waited for it - `lazy_ok` added, and a test now holds every
    recipe carrying the strikes to it. *Real check pending:* `api build ring_shank`, then `shank --size 6 --width 4
    --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered`.
+   **Field textures, nTop's own (6 Nov, Mark: "strongly embrace a number of textures from nTop").** nTop's toolkits
+   carry texture blocks that take any implicit body: simplex and cellular noise debosses, surface roughness, voronoi
+   deboss and emboss, the triangle wave (and, for Python-designed patterns, field math down to an expression field,
+   `evaluate_imp_expression`, and `remap_cylindrical_field` to wrap a field round the ring). Their randomness is nTop's,
+   so Python cannot rebuild them point for point; what a gate can hold them to is an **envelope** - no metal outside
+   the band, no pit deeper than asked, the bore and the rims untouched, the face covered, the walls, the volume within
+   the range the depth allows. Before building on them, a **probe** (`texture_probe.ntop`, `texture-probe`): each
+   block on its own copy of the plain US 6 court 4 x 1.6 band (Mesh Tolerance 0.05), one nTopCL run, one STL each,
+   and Python measures every vertex and triangle against the designed section (`ntopjewel.texture_probe`: signed
+   distance, grouped by the nearest face - outer, bore, sides, edges - deepest / highest, the share of each face
+   touched, the outer face's feature size round the ring, the volume taken). What it must answer: what the "Depth
+   factor" / "Frequency" / unnamed inputs mean in millimetres (input names are matched by keyword at build time and
+   every match logged: only cellular noise's and the triangle wave's names are known), whether the enums nTopCL
+   cannot be given have defaults it accepts, and whether a block textures the bore and rims too (then the products
+   mask it to the outer face). *Real check pending:* `api build texture_probe`, then `texture-probe`; then, from
+   what it measured, the texture notebooks (one per family, the envelope gate) and a second probe for the numbers.
 
 ## Notebook readability (2026-11-04)
 

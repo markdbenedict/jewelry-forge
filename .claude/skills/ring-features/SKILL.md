@@ -240,3 +240,10 @@ python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --width-bottom 2.6 
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 90 --tolerance 0.05 --hammered --dimple 1.0 --depth 0.14 --rim 0.12
 python -m ntopjewel solitaire --size 6 --length 6.5 --hammered        # rebuild the solitaire notebooks first (solitaire 0.12.0 ...)
 ```
+
+nTop's own textures (6 Nov, started): its toolkit blocks - simplex / cellular noise deboss, surface roughness, voronoi
+deboss / emboss, triangle wave - are probed before anything is built on them: `api build texture_probe`, then
+`texture-probe` (one STL per texture on the plain US6 court 4 x 1.6 band, each measured against the designed section:
+depth and height per face, how much of the outer face, bore, sides and edges each touches, feature size, volume taken;
+`texture_probe.json` / `.txt` in `out\texture_probe\<run id>\`; `--set Depth=0.15` etc. for other numbers,
+`--measure DIR` to re-measure). Their noise is nTop's, so their gate will be an envelope, not a design to match.

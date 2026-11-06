@@ -122,6 +122,35 @@ def cmd_run(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_texture_probe(a: argparse.Namespace) -> int:
+    from . import texture_probe
+    if a.measure:
+        res = texture_probe.measure_all(Path(a.measure))
+        path = texture_probe.write(res, Path(a.measure))
+        print(texture_probe.table(res))
+        print(f"measurements: {path}")
+        return 0
+    values = _parse_set(a.set)
+    try:
+        res, run_dir = texture_probe.run(Path(a.out) if a.out else None, values, Path(a.notebook) if a.notebook else None)
+    except (ntopcl.NtopclError, ValueError, runs.RunPathError) as e:
+        print(f"texture-probe failed: {e}")
+        print(summary.error_line("texture_probe", e))
+        return 2
+    print(texture_probe.table(res))
+    for err in res["ntopcl"]["errors"]:
+        print(f"  [E] {err}")
+    print(f"measurements: {run_dir / 'texture_probe.json'}")
+    missing = [k for k, c in res["cases"].items() if "missing" in c]
+    if missing or not res["ntopcl"]["ok"]:
+        print(summary.error_line("texture_probe", f"nTopCL {'ran' if res['ntopcl']['ok'] else 'failed'}; "
+                                 f"{len(res['cases']) - len(missing)}/{len(res['cases'])} textures exported"
+                                 + (f" (no STL: {', '.join(missing)})" if missing else "")))
+        return 1
+    print(summary.paint(f"==> MEASURED texture_probe: {len(res['cases'])} textures", summary.GREEN))
+    return 0
+
+
 def cmd_band(a: argparse.Namespace) -> int:
     spec = _band_spec(a)
     if a.dry_run:
@@ -1022,6 +1051,13 @@ def main(argv: list[str] | None = None) -> int:
     tx.add_argument("--write-design", action="store_true", help="write Python's design (STL + strike centres) to look at - not an nTop build")
     tx.add_argument("--dry-run", action="store_true")
     tx.set_defaults(fn=cmd_texture)
+
+    tp_ = sub.add_parser("texture-probe", help="nTop's own texture blocks on a plain band, each measured against the designed section (texture_probe.ntop)")
+    tp_.add_argument("--set", action="append", help="a probe number: Seed, Count, Depth, Cell Size, Wave Spacing, Blend (Name=value)")
+    tp_.add_argument("--out")
+    tp_.add_argument("--notebook")
+    tp_.add_argument("--measure", metavar="DIR", help="measure the texture_probe_<case>.stl already in DIR (no nTop run)")
+    tp_.set_defaults(fn=cmd_texture_probe)
 
     pv = sub.add_parser("pave", help="a pavé band: rows of small stones in seats with light holes, held by beads (pave_band.ntop)")
     pv.add_argument("--size", default="6")
