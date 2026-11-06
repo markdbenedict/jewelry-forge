@@ -285,3 +285,5 @@ the factor from `--depth`. The ribbed band is eroded by the rib depth first (the
 height input) and the ribs come back up to the design. Coverage the gate asks for: frost ≥ 30 %, pitted ≥ 10 %, cellular
 and ribbed ≥ 50 %. Refused: amplitude under `texture_depth` or over 0.5, a grain under 8 voxels or over twice the band's
 width, ribs under 6 voxels apart.
+All five PASSED in real nTop on 6 Nov at the numbers above (frost ±0.084 for 0.1 asked, pitted 0.082, cellular 0.100,
+ribbed 0.190 for 0.2, voronoi 0.102 for 0.1; the mask held to 0.005 mm on every one; 21-25 s a run).

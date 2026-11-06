@@ -618,9 +618,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    into account (frost: the outer Ø may stand up to +amplitude), the coverage bounds are per kind (frost ≥ 30 %,
    pitted ≥ 10 %, cellular and ribbed ≥ 50 %, voronoi 3-60 % with its cells counted). The simulated nTop
    displaces the band's vertices by a seeded noise / Worley / triangle field inside the zone (faults caught for
-   every kind). Offline PASSED. *Real checks pending:* `api build ring_frost`, `ring_pitted`, `ring_cellular`,
-   `ring_ribbed`, then `texture --kind <kind> --thickness 1.6 --tolerance 0.05 --depth 0.1` for each; the
-   cellular's depth and the ribs' peaks are the two one-point calibrations to confirm.
+   every kind). Offline PASSED. **Real checks PASSED, all four first time (6 Nov, 13:50-13:55, 21-25 s each):**
+   frost ±0.1 built +0.084 / −0.082 (66 % of the face, the volume +0.12 %); pitted 0.082 deep (30 %); cellular
+   0.0998 deep against 0.100 asked (73 %) - the 3.4 x factor x grain reading exact at a 2 mm grain; ribbed 0.5
+   apart 0.2 deep built 0.190 with the peaks on the design (92 %, −6.7 % of the metal) - the wave's peaks three
+   times its height to within 5 %. The mask held on every one (bore, sides and rims within 0.005 mm). Five
+   nTop textures are products; what remains open for them: on a shaped shank or under a head (the zone would
+   follow the taper and keep clear of the head, as the hammer's layout does), and the cellular's scaling at a
+   second grain.
 
 ## Notebook readability (2026-11-04)
 
