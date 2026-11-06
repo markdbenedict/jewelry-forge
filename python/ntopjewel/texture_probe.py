@@ -218,7 +218,10 @@ def run(out_dir: Path | None = None, values: dict | None = None, notebook: Path 
         if result is None:
             raise
     res = measure_all(run_dir)
-    res["ntopcl"] = {"ok": bool(result.ok), "errors": list(result.log.errors)[:20], "seconds": result.seconds,
+    # 2026-11-06: nTopCL built every texture ("nTop successfully built.", no [E]) and exited non-zero after
+    # "[W]: Logout failed." - the textures stand on the log and the STLs, the exit code is reported beside them
+    built = bool(result.log.built) and not result.log.errors
+    res["ntopcl"] = {"ok": built, "exit_code": result.returncode, "errors": list(result.log.errors)[:20], "seconds": result.seconds,
                      "run_dir": str(run_dir), "values": {k: v for k, v in notebook_inputs(probe_band(), outputs, values).items()
                                                          if k in nt.PROBE_VALUES}}
     write(res, run_dir)

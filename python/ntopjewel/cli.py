@@ -147,7 +147,8 @@ def cmd_texture_probe(a: argparse.Namespace) -> int:
                                  f"{len(res['cases']) - len(missing)}/{len(res['cases'])} textures exported"
                                  + (f" (no STL: {', '.join(missing)})" if missing else "")))
         return 1
-    print(summary.paint(f"==> MEASURED texture_probe: {len(res['cases'])} textures", summary.GREEN))
+    tail = f" (nTopCL exit code {res['ntopcl']['exit_code']} after a clean build)" if res["ntopcl"].get("exit_code") else ""
+    print(summary.paint(f"==> MEASURED texture_probe: {len(res['cases'])} textures", summary.GREEN) + tail)
     return 0
 
 

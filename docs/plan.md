@@ -558,8 +558,26 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    match") and the voronois a unitless "Spatial weighting" ("requires units of length") - both take millimetres; the
    build log gave every block's real input names (`nb_texture` lists them), so 0.2.0 matches each to its own
    variable (voronoi cell count, relaxation iterations, an integer frequency, the voronois' wall thickness).
-   *Real check pending:* `api build texture_probe` 0.2.0, then `texture-probe`; then, from what it measured, the
-   texture notebooks (one per family, the envelope gate) and a second probe for the numbers.
+   **Probe measured (6 Nov, 0.2.0; one nTopCL run, 60 s, every STL written - nTopCL exits non-zero after a "Logout
+   failed" warning, so the probe now stands on the log and the STLs):** every block textures the WHOLE surface - bore,
+   sides and rounded edges as much as the outer face - so a product must mask it (texture the band, then intersect
+   / unite with the plain band outside the outer face's zone: the hammer's rim and clear logic again). What each
+   does at the probe's numbers (Depth 0.1, Seed 1, Cell Size 1, 200 cells, 3 relaxations, wave 0.5):
+   *simplex noise deboss* (Frequency 10, Depth factor 0.1 mm): a long-wave dent of at most 0.014 mm, 14 % of the
+   face touched, feature 9 mm - too gentle and too coarse at these numbers (its Frequency is an integer per body?);
+   *cellular noise deboss* (Frequency 1.0, Depth factor 0.1 mm): took 0.158 mm off EVERYWHERE, 100 % touched, no
+   pattern (feature 10 mm) - at frequency 1 the cell is the whole ring: an offset, not a texture (its volume -27 %);
+   *surface roughness* (frequency 10, amplitude 0.1): ±0.015 mm, 35 % touched, long-wave - a matte, not a visible
+   texture, at these numbers; *voronoi deboss* (200 cells, wall 0.15, weighting 1 mm): dents to 0.077 mm, 22 % of the
+   face, feature 0.15 mm (the wall between cells is what the autocorrelation sees), volume -1.6 %: the one block that
+   made a jewellery texture first time (nTop's Depth input is not what it says: 0.1 asked, 0.077 built, the dents
+   shallower towards the cell walls); *voronoi emboss*: the mirror, +0.098 on the faces but +0.28 mm on the side faces
+   and +0.20 on the edges (the raised cells overhang the rims: a mask is not optional); *triangle wave* (height 0.1,
+   spacing 0.5, direction Z): added 0.30 mm everywhere, 100 % touched, feature 0.05 (= the mesh), volume +32 %: the
+   wave stands outside the body (height is peak-to-peak 3x what was asked, or the wave is added not carved) - to be
+   read in the GUI before it is used. Next: a second probe with the numbers these suggest (simplex / roughness
+   frequencies up by 10x, cellular frequency 5-20 per mm, voronoi 400 cells), and the voronoi deboss as the first
+   product texture (`voronoi` on `texture`): nTop's block on the band, masked to the outer face, gated by an envelope.
 
 ## Notebook readability (2026-11-04)
 
