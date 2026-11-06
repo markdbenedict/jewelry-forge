@@ -1,6 +1,7 @@
 """Surface textures: a hammered band - strikes of one round hammer face in a seeded dart-throwing layout,
 the independent model (the band less the strikes' spheres) and its gate."""
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -261,3 +262,24 @@ def test_hammered_solitaire_end_to_end_and_a_lost_hammering_is_caught(fake_ntopc
     monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nostrikes")
     bad = solitaire.build(s, out_dir, notebook=nb)
     assert bad.status == "failed" and "strikes" in {c.name for c in bad.gate.failures()}, bad.text()
+
+
+def test_every_recipe_with_the_strikes_lets_nTopCL_build_the_export():
+    """Import Points' Units is a notebook input only nTopCL sets, so in the GUI session everything downstream of the
+    strikes stays e_DIRTY: a recipe carrying them must not wait for its export to build (2026-11-06: ring_shank
+    0.4.0's build waited 180 s on the export and failed; ring_texture and the solitaires had lazy_ok)."""
+    import importlib.util
+    recipes = Path(__file__).resolve().parents[2] / "ntop" / "recipes"
+    struck = []
+    for f in sorted(recipes.glob("*.py")):
+        spec = importlib.util.spec_from_file_location(f"recipe_{f.stem}", f)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        d = getattr(mod, "DEFAULTS", None)
+        order = (d or {}).get("input_order") or []
+        if callable(order) or not d:
+            continue
+        if "Strikes Units" in order:
+            struck.append(f.stem)
+            assert d.get("lazy_ok"), f"{f.stem}: carries the strikes but waits for its export to build in the session"
+    assert {"ring_shank", "ring_texture"} <= set(struck)

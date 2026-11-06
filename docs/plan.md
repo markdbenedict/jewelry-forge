@@ -529,9 +529,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    engraving, and when the deepest strike and the letters leave less than `wall_good` under an inside one. All four
    solitaire notebooks gain the Strikes section (solitaire 0.12.0, outline 0.8.0, bezel 0.8.0, partial bezel 0.2.0;
    rebuild them). pave_band, ring_artwork and multistone refuse a hammered shank (no Strikes section yet). Offline:
-   PASSED, a notebook that skips the strikes fails `strikes`. *Real check:* `api build ring_shank`, then `shank
-   --size 6 --width 4 --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered`;
-   `api build solitaire`, then `solitaire --size 6 --length 6.5 --hammered`.
+   PASSED, a notebook that skips the strikes fails `strikes`. **Real check, 6 Nov: the hammered solitaire PASSED**
+   (`api build solitaire` 0.12.0, then `solitaire --size 6 --length 6.5 --hammered`): 106/106 strikes within
+   0.045 mm of the design's depth, section shape 0.007 mm, design volume -0.15 % (nTop 277.72 mm³), 32/32 arch
+   beads, stone fit, seat and bore checks as before; 2.81 M triangles. `api build ring_shank` 0.4.0 failed: with
+   the Strikes section its export cannot build in the session (Import Points' Units is set only by nTopCL) and the
+   recipe, unlike ring_texture's and the solitaires', waited for it - `lazy_ok` added, and a test now holds every
+   recipe carrying the strikes to it. *Real check pending:* `api build ring_shank`, then `shank --size 6 --width 4
+   --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered`.
 
 ## Notebook readability (2026-11-04)
 

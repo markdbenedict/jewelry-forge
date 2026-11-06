@@ -60,6 +60,8 @@ DEFAULTS = {
     "recipe_to": str(REPO / "ntop" / "recipes" / "ring_shank.recipe.json"),
     "pause": False,                     # embeds the open_bar block: no paused updates
     "fresh": True,
+    "lazy_ok": True,                    # nTopCL is the test: Import Points' Units (the Strikes section, 0.4.0) is set only at
+                                        # run time, so the export stays e_DIRTY in the session (2026-11-06: the build waited 180 s, failed)
     "wait_s": 180,
     "show": ["Shank", "Shank Body"],
     "volume_hint": "court US6, 4 x 1.6 mm at the head tapering to 2.2 x 1.2 mm: about 242 mm³ (ShankSpec.design_volume_mm3)",
