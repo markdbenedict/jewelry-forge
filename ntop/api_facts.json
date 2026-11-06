@@ -2,5 +2,13 @@
   "combine_transforms_order": "list",
   "mirror_body": "ok",
   "measured": "2026-11-04",
-  "how": "ntop/recipes/transform_probe.py, in nTop's session"
+  "how": "ntop/recipes/transform_probe.py, in nTop's session",
+  "sphere_on_point_list": "list",
+  "import_points_format": "csv",
+  "unit_length_enum_ids": {
+    "mm": 1,
+    "cm": 2
+  },
+  "points_measured": "2026-11-05",
+  "points_how": "ntop/recipes/points_probe.py under nTopCL: three 1 mm balls 0.1 unit apart, Points Units 1..5 -> 4.7346 (mm), 9.8309 (cm), 12.56-12.57 (3, 4, 5: inch and larger)"
 }

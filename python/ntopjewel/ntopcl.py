@@ -371,9 +371,11 @@ def templates(notebook: Path, out_dir: Path, exe: Path | None = None) -> tuple[P
     text = f"{proc.stdout}\n{proc.stderr}"
     if not i.exists():
         raise NtopclError(f"template generation failed: {text}")
-    if "Output of function not built" in text and not o.exists():
+    if "Output of function not built" in text:
         # The Output exists but was never built in the GUI session (an API-authored notebook):
-        # nTopCL cannot type it for the template, yet still builds and reports it at run time.
+        # nTopCL cannot type it for the template, yet still builds and reports it at run time. Written
+        # whether or not an output template is there: one from an earlier build is stale, and leaving it
+        # made the non-zero exit below fail the run (2026-11-05: the first points_probe run after a rebuild).
         o.write_text(json.dumps({"note": "nTopCL: Output of function not built; the output type is known after "
                                          "the first run (out.json)", "outputs": []}, indent=2), encoding="utf-8")
     elif proc.returncode != 0 or not o.exists():

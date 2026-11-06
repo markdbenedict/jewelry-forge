@@ -30,7 +30,9 @@ inputs:
     doc: Mesh from Implicit Body tolerance (2 x voxel size).
   Points Units:
     type: enum
-    doc: Import Points' Units as nTop's integer id - which id is mm is what the probe measures (4.73 mm³ when it is).
+    choices: {mm: 1, cm: 2}    # measured 2026-11-05 (ntop/api_facts.json): 3, 4, 5 are inch or larger
+    default: 1
+    doc: Import Points' Units as nTop's integer id (1 = mm, 2 = cm, measured by this probe).
   Output Path:
     type: text
     doc: Where Export Mesh writes the balls' STL.

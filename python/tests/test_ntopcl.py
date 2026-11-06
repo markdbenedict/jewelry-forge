@@ -151,6 +151,9 @@ def test_templates_tolerate_an_unbuilt_output(fake_ntopcl, tmp_path, capsys):
     nb.write_bytes(b"fake notebook")
     i, o = ntopcl.templates(nb, tmp_path / "t")
     assert i.exists() and o.exists() and "not built" in o.read_text(encoding="utf-8")
+    o.write_text("stale, from an earlier build", encoding="utf-8")                      # a rebuilt notebook: still no failure
+    i, o = ntopcl.templates(nb, tmp_path / "t")
+    assert "not built" in o.read_text(encoding="utf-8")
     assert len(json.loads(i.read_text(encoding="utf-8"))["inputs"]) == 12
     rc = cli.main(["templates", str(nb), "--out", str(tmp_path / "t2"), "--catalog", "ring_band_profile"])
     out = capsys.readouterr().out

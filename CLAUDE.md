@@ -218,11 +218,13 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   `get_block_input_meta` answers `{'type': 'unit_length_enum', 'value': None}`). Most enums default (Import /
   Export Mesh's Units, Blend Type); **Import Points' Units does not** (nTopCL: `Input "Units" is incomplete`).
   `nj.enum_input` wires a `core.var<…_enum>` in and makes it a notebook input, which nTopCL sets as an
-  integer id (catalog `type: enum`). nTop's exported recipe spells an enum value `{"id": "mm"}`.
-- **A list fed to a single-item input looks mapped** (2026-11-05): Import Points' `list<point>` on a Sphere's
-  Center Point makes the Sphere `list<sphere>` in the exported recipe, and that list wires straight into a
-  Boolean Union's Bodies. Not yet measured: `points_probe`'s volume (4.73 mm³) confirms it - how a hammered
-  band's strikes would be built from Python's centres.
+  integer id (catalog `type: enum`, `choices`). **unit_length_enum: 1 = mm, 2 = cm** (measured by
+  `points_probe`, `ntop/api_facts.json`; the `-t` template types it `enum` with no options listed). nTop's
+  exported recipe spells an enum value `{"id": "mm"}`.
+- **A list fed to a single-item input is mapped** (measured 2026-11-05, `points_probe`): Import Points'
+  `list<point>` on a Sphere's Center Point makes one sphere per point (`list<sphere>`), which wires straight into
+  a Boolean Union's Bodies - three 1 mm balls 0.1 mm apart came back 4.7346 mm³, Python's union 4.734. Import
+  Points reads comma-separated `x,y,z` lines. This is how a hammered band's strikes are built from Python's centres.
 - **Custom blocks work through the API** (verified 2026-10-28, `custom_block_probe`): a notebook
   saved with inputs (`move_block_to_input`) and one Output IS a custom block. In a user notebook,
   `embed_custom_block(path)` reads it in (no dialog; again for the same path replaces the copy;
@@ -250,7 +252,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   (`Path_0`: `Input "Input" is incomplete`) - `h.remove()` it; an Output that is an untyped
   variable (`-t`: "Output of function not built") - make the Output typed (a variable
   wrapping the measurement block, or a `core.var<real>`). The runner's `templates` tolerates
-  a missing output template; the first real run is the check.
+  a missing or stale output template; the first real run is the check.
 - **nTop runs its Python at a crawl unless its window has the focus** (2026-11-03: four builds
   took all night in the background - one API call every 20 minutes - then all four finished in
   eight minutes when Mark switched to nTop). Keep nTop in the foreground while `api build` runs.
