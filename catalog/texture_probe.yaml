@@ -6,8 +6,8 @@
 # build result logs every match; Depth Factor and Frequency, unitless, are fixed in the notebook). Built by
 # ntop/recipes/texture_probe.py.
 notebook: texture_probe.ntop
-version: 0.2.0   # 0.1.0: first build (2026-11-06); 0.2.0: the inputs the blocks turned out to have (Cells, Iterations, Frequency Count, Wall, Weighting), Depth factor a length
-rebuild_since: 0.2.0
+version: 0.3.0   # 0.1.0: first build (2026-11-06); 0.2.0: the inputs the blocks turned out to have (Cells, Iterations, Frequency Count, Wall, Weighting), Depth factor a length; 0.3.0: the cellular noise's Frequency baked at 500 (per metre, it seems), Frequency Count's default 500
+rebuild_since: 0.3.0
 title: nTop's texture blocks on a plain band (probe)
 output:
   name: Volume
@@ -110,8 +110,8 @@ inputs:
     type: integer
     min: 1
     max: 1000
-    default: 10
-    doc: An integer Frequency (simplex noise deboss, surface roughness's Roughness frequency).
+    default: 500
+    doc: "An integer Frequency (simplex noise deboss, surface roughness's Roughness frequency) - per metre, it seems: round one, 10 gave 9 mm features."
   Depth:
     type: scalar
     units: mm

@@ -318,9 +318,12 @@ def cmd_ring(a: argparse.Namespace) -> int:
 
 
 def cmd_texture(a: argparse.Namespace) -> int:
-    """A hammered band through ring_texture.ntop (nTopCL + the gate). --dry-run describes and validates the
-    design and lists the notebook's inputs; --write-design writes Python's own model (STL + the strike
-    centres) to look at - not an nTop build."""
+    """A hammered band through ring_texture.ntop, or (--kind voronoi) nTop's voronoi deboss through ring_voronoi.ntop
+    (nTopCL + the gate). --dry-run describes and validates the design and lists the notebook's inputs; --write-design
+    writes Python's own model (STL + the strike centres) to look at - not an nTop build (the hammer only: the
+    voronoi cells are nTop's)."""
+    if a.kind == "voronoi":
+        return _cmd_voronoi(a)
     spec = texture.HammeredSpec(_band_spec(a), dimple_mm=a.dimple, depth_mm=a.depth, depth_var=a.depth_var,
                                 spacing=a.spacing, rim_mm=a.rim, seed=a.seed)
     probs = spec.validate()
@@ -347,6 +350,38 @@ def cmd_texture(a: argparse.Namespace) -> int:
         res = texture.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                             deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
     except (ntopcl.NtopclError, ValueError) as e:
+        print(f"texture failed: {e}")
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        print(summary.error_line(spec.stem, e))
+        return 2
+    print(res.text())
+    print(summary.verdict(res))
+    return 0 if res.ok else 1
+
+
+def _cmd_voronoi(a: argparse.Namespace) -> int:
+    from . import fieldtex
+    spec = fieldtex.VoronoiSpec(_band_spec(a), groove_mm=a.groove, cells=a.cells, cell_size_mm=a.cell_size, iterations=a.iterations,
+                                weighting_mm=a.weighting, blend_mm=a.blend, rim_mm=a.rim)
+    probs = spec.validate()
+    print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+    for w in spec.band.warnings():
+        print("  warning: " + w)
+    if probs:
+        print(summary.error_line(spec.stem, "; ".join(probs)))
+        return 1
+    if a.write_design:
+        print("  --write-design: the voronoi cells are nTop's own; there is no model of them to write (the gate is an envelope)")
+        return 1
+    if a.dry_run:
+        for k, v in spec.notebook_inputs("<output path>").items():
+            print(f"    {k}: {v}")
+        return 0
+    try:
+        res = fieldtex.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                             deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
+    except (ntopcl.NtopclError, ValueError, runs.RunPathError) as e:
         print(f"texture failed: {e}")
         if isinstance(e, ntopcl.NtopclError) and e.result:
             print(e.result.summary())
@@ -1043,7 +1078,17 @@ def main(argv: list[str] | None = None) -> int:
     tx = sub.add_parser("texture", help="a hammered band: strikes of a round hammer face, overlapping into facets (ring_texture.ntop)")
     _add_band_args(tx)
     tx.set_defaults(thickness=1.6, tolerance=0.05)
-    _add_hammer_args(tx, "the texture (the one there is; the default)")
+    tx.add_argument("--kind", default="hammered", choices=["hammered", "voronoi"],
+                    help="hammered: strikes of a round hammer face (ring_texture.ntop); voronoi: nTop's voronoi deboss, the cell walls "
+                         "as half-round grooves on the outer face (ring_voronoi.ntop)")
+    _add_hammer_args(tx, "the hammered texture (the default --kind)")
+    vo = tx.add_argument_group("--kind voronoi")
+    vo.add_argument("--groove", type=float, default=0.2, help="the groove's width, mm; it is half as deep (nTop's Thickness)")
+    vo.add_argument("--cells", type=int, default=200, help="nTop's Voronoi cell count (3-D cells through the band; a few dozen show on the face)")
+    vo.add_argument("--cell-size", type=float, default=1.0, help="nTop's Feature size, mm")
+    vo.add_argument("--iterations", type=int, default=3, help="nTop's Relaxation iterations (evens the cells)")
+    vo.add_argument("--weighting", type=float, default=1.0, help="nTop's Spatial weighting, mm")
+    vo.add_argument("--blend", type=float, default=0.0, help="nTop's Blend radius at the groove junctions, mm")
     tx.add_argument("--out")
     tx.add_argument("--notebook")
     tx.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")

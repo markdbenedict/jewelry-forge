@@ -52,6 +52,7 @@ def test_the_measurements_read_a_texture_and_leave_a_plain_band_alone(tmp_path):
     h.band_mesh().export(tmp_path / "texture_probe_cellular.stl")             # nothing done
     res = tp.measure_all(tmp_path)
     s, c = res["cases"]["Simplex"], res["cases"]["Cellular"]
+    assert (tmp_path / "texture_probe_simplex.png").exists() and "map" in s                  # the depth maps drawn
     assert s["faces"]["outer"]["deepest_mm"] == pytest.approx(h.depth_range[1], abs=0.01)
     assert s["faces"]["outer"]["touched"] > 0.5 and s["faces"]["bore"]["touched"] == 0.0
     assert s["volume_change_pct"] == pytest.approx(-100 * (1 - h.design_volume_mm3() / b.design_volume_mm3()), abs=0.1)
@@ -67,6 +68,7 @@ def test_probe_end_to_end_on_the_simulated_ntop(fake_ntopcl, tmp_path, monkeypat
     nb.write_bytes(b"fake")
     res, run_dir = tp.run(tmp_path / "out", notebook=nb)
     assert res["ntopcl"]["ok"], res["ntopcl"]
+    assert "Frequency Count" in res["ntopcl"]["values"] and res["ntopcl"]["values"]["Frequency Count"] == 500
     assert set(res["cases"]) == set(nt.CASES) and not any("missing" in c for c in res["cases"].values())
     wave = res["cases"]["Triangle Wave"]["faces"]["outer"]
     assert wave["deepest_mm"] > 0.05 and res["cases"]["Triangle Wave"]["faces"]["bore"]["touched"] == 0.0

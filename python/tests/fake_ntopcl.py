@@ -59,7 +59,7 @@ def fail(msg: str) -> None:
 def write_templates(nb: Path) -> None:
     inputs = []
     if ("head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name
-            or "artwork" in nb.name or "texture" in nb.name):
+            or "artwork" in nb.name or "texture" in nb.name or "voronoi" in nb.name):
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
         name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
@@ -172,6 +172,84 @@ def cut_strikes(mesh, values: dict, shape: str):
         return mesh
     out = trimesh.boolean.difference([mesh] + [unit.copy().apply_translation(c) for c in near], engine="manifold")
     return _geom.collapse_short_edges(drop_specks(out), MIN_EDGE_MM)
+
+
+def voronoi_grooves(mesh, values: dict, shape: str):
+    """ring_voronoi.ntop's Voronoi + Mask sections, stood in for: a 2-D voronoi net of seeded random points on the outer
+    face (arc, z), periodic round the ring, its edges grooved by half-round cutters (capsules of radius Groove / 2 lying
+    on the dome), kept inside the zone (Zone Z Bottom .. Zone Z Top). nTop's are 3-D cells with their own points; the
+    gate's envelope does not care which. "notexture": the plain band; "unmasked": the grooves run over the rims and the
+    side faces (the mask did not hold); "deep": grooves 1.6 x as deep."""
+    import numpy as np
+    import trimesh
+    from scipy.spatial import Voronoi
+    from ntopjewel.shank import drop_specks
+    if shape == "notexture":
+        return mesh
+    R = float(values["Outer Radius"])
+    rd, td = float(values["Dome Ring Radius"]), float(values["Dome Tube Radius"])
+    zt, zb = float(values["Zone Z Top"]), float(values["Zone Z Bottom"])
+    half_w = float(values["Z Top"])
+    radius = float(values["Groove"]) / 2 * (1.6 if shape == "deep" else 1.0)
+    if shape == "unmasked":
+        z_lo, z_hi = -half_w - 0.3, half_w + 0.3
+    else:
+        z_lo, z_hi = zb + radius, zt - radius                      # no cutter passes the zone's edge (nTop cuts them there)
+    n = max(8, int(values["Cells"]) // 4)                          # about a quarter of the 3-D cells show on the face
+    rng = np.random.default_rng(int(values["Cells"]) + int(values["Iterations"]))
+    circ = 2 * np.pi * R
+    pts = rng.uniform([0.0, z_lo - 1.0], [circ, z_hi + 1.0], (n, 2))
+    vor = Voronoi(np.concatenate([pts + [k * circ, 0.0] for k in (-1, 0, 1)]))
+
+    def rho(z):
+        return rd + np.sqrt(np.maximum(td * td - z * z, 0.0)) if td > 0 else R
+
+    def p3(a, z):
+        return np.array([rho(z) * np.cos(a / R), rho(z) * np.sin(a / R), z])
+    cutters = []
+    for rv in vor.ridge_vertices:
+        if -1 in rv:
+            continue
+        a, b = vor.vertices[rv[0]], vor.vertices[rv[1]]
+        if not (0.0 <= (a[0] + b[0]) / 2 < circ):
+            continue
+        # clip to the z range
+        ta, tb = 0.0, 1.0
+        dz = b[1] - a[1]
+        for lim, side in ((z_lo, 1), (z_hi, -1)):
+            if abs(dz) < 1e-12:
+                if side * (a[1] - lim) < 0:
+                    ta, tb = 1.0, 0.0
+                continue
+            tcross = (lim - a[1]) / dz
+            if side * dz > 0:
+                ta = max(ta, tcross)
+            else:
+                tb = min(tb, tcross)
+        if tb <= ta:
+            continue
+        a2, b2 = a + ta * (b - a), a + tb * (b - a)
+        length = float(np.hypot(*(b2 - a2)))
+        pieces = max(1, int(np.ceil(length / 0.4)))
+        for i in range(pieces):
+            s0, s1 = a2 + (b2 - a2) * i / pieces, a2 + (b2 - a2) * (i + 1) / pieces
+            q0, q1 = p3(*s0), p3(*s1)
+            seg = q1 - q0
+            h = float(np.linalg.norm(seg))
+            cap = trimesh.creation.capsule(height=h, radius=radius, count=(8, 8))   # centred on the origin, along Z
+            T = trimesh.geometry.align_vectors([0, 0, 1], seg / h) if h > 1e-9 else np.eye(4)
+            cap.apply_transform(T)
+            cap.apply_translation((q0 + q1) / 2)
+            cutters.append(cap)
+    if not cutters:
+        return mesh
+    out = drop_specks(trimesh.boolean.difference([mesh] + cutters, engine="manifold"))
+    # as the STL will hold it: float32 vertices, the sub-micron edges the capsules' junctions leave merged away
+    out = trimesh.Trimesh(np.asarray(out.vertices).astype(np.float32).astype(np.float64), out.faces, process=False)
+    out.merge_vertices()
+    out.update_faces(out.nondegenerate_faces())
+    out.update_faces(out.unique_faces())
+    return out
 
 
 # ----------------------------------------------------------------------------- main
@@ -408,6 +486,16 @@ def main(argv: list[str]) -> int:
             mesh.export(values["Output Path"])
         for name in ("Bar 1 Mesh", "Bar 1", "Bar 1 Opened", "Bars", "Shank", "Pave Beads Mesh", "Pave Beads",
                      "Pave Seats Mesh", "Pave Seats", "Beaded", "Ring", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "voronoi" in nb.name:
+        # ring_voronoi: the profiled band with nTop's voronoi deboss masked to the outer face (voronoi_grooves)
+        mesh = voronoi_grooves(band_mesh(values), values, shape)
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Band Body", "Grooved", "Dents", "Zone", "Dents In Zone", "Textured", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

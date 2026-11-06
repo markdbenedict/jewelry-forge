@@ -23,9 +23,8 @@ import numpy as np
 
 from . import band as bandmod
 from . import nb_texture as nt
+from .fieldtex import FACES, TOUCHED_MM, SectionModel
 
-TOUCHED_MM = 0.01           # a vertex further than this from the designed section has been moved by the texture
-FACES = ("outer", "bore", "side", "edge")
 
 
 def probe_band() -> bandmod.BandSpec:
@@ -40,49 +39,6 @@ def notebook_inputs(b: bandmod.BandSpec, outputs: dict[str, str], values: dict |
     v.update({k: (values or {}).get(k, d) for k, d in nt.PROBE_VALUES.items() if k not in nt.UNITLESS})
     v.update({k: outputs[k] for k in nt.OUTPUTS})
     return v
-
-
-@dataclass
-class SectionModel:
-    """The designed section's boundary, sampled densely, each sample labelled by its face."""
-    b: bandmod.BandSpec
-    step: float = 0.005
-    pts: np.ndarray = field(init=False)
-    face: np.ndarray = field(init=False)
-    polygon: object = field(init=False)
-
-    def __post_init__(self):
-        poly = self.b.design_section()
-        if hasattr(poly, "geoms"):
-            poly = max(poly.geoms, key=lambda g: g.area)
-        self.polygon = poly
-        ring = np.asarray(poly.exterior.coords)                    # (r, z)
-        seg = np.diff(ring, axis=0)
-        n = np.maximum(1, np.ceil(np.hypot(seg[:, 0], seg[:, 1]) / self.step).astype(int))
-        pts = np.concatenate([ring[i] + np.outer(np.arange(n[i]) / n[i], seg[i]) for i in range(len(seg))])
-        self.pts = pts
-        half = self.b.width_mm / 2
-        e = self.b.edge_round + 0.05                               # the rounded edges and a margin
-        r_mid = (self.b.bore_radius_mm + self.b.outer_radius_mm) / 2
-        face = np.full(len(pts), "edge", dtype=object)
-        flat = np.abs(pts[:, 1]) < half - e
-        face[flat & (pts[:, 0] >= r_mid)] = "outer"
-        face[flat & (pts[:, 0] < r_mid)] = "bore"
-        side = (np.abs(pts[:, 1]) >= half - 1e-3) & (pts[:, 0] > self.b.bore_radius_mm + e) & (pts[:, 0] < self.b.outer_radius_mm - e)
-        face[side] = "side"
-        self.face = face
-
-    def signed_distance(self, r, z):
-        """Distance from (r, z) to the section's boundary: − inside the metal, + outside; and the nearest face."""
-        from scipy.spatial import cKDTree
-        from shapely import contains_xy
-        d, k = cKDTree(self.pts).query(np.column_stack([r, z]))
-        inside = contains_xy(self.polygon, r, z)
-        return np.where(inside, -d, d), self.face[k]
-
-    def volume_mm3(self) -> float:
-        c = self.polygon.centroid
-        return 2 * math.pi * c.x * self.polygon.area
 
 
 def measure(stl: Path, model: SectionModel) -> dict:
@@ -163,14 +119,68 @@ def feature_size(theta, z, d, radius, cell=0.05, max_points=300_000, seed=0) -> 
     return float(np.median(lags)) if lags else None
 
 
-def measure_all(directory: Path, b: bandmod.BandSpec | None = None) -> dict:
-    """Every case's STL in `directory` (texture_probe_<case>.stl), measured; a missing one is reported as such."""
+def measure_all(directory: Path, b: bandmod.BandSpec | None = None, maps: bool = True) -> dict:
+    """Every case's STL in `directory` (texture_probe_<case>.stl), measured, and (`maps`) drawn as depth maps of its
+    faces (texture_probe_<case>.png); a missing one is reported as such."""
     model = SectionModel(b or probe_band())
     res = {"band": (b or probe_band()).describe().splitlines()[0], "design_volume_mm3": model.volume_mm3(), "cases": {}}
     for label in nt.CASES:
         stl = Path(directory) / f"texture_probe_{nt.slug(label)}.stl"
-        res["cases"][label] = measure(stl, model) if stl.exists() else {"missing": str(stl)}
+        if not stl.exists():
+            res["cases"][label] = {"missing": str(stl)}
+            continue
+        res["cases"][label] = measure(stl, model)
+        if maps:
+            try:
+                res["cases"][label]["map"] = str(depth_maps(stl, model, stl.with_suffix(".png"), label))
+            except Exception as e:                       # the picture is a convenience; the numbers stand
+                res["cases"][label]["map_error"] = f"{type(e).__name__}: {e}"
     return res
+
+
+def depth_maps(stl: Path, model: SectionModel, png: Path, title: str = "", cell: float = 0.05, max_points: int = 250_000) -> Path:
+    """The texture as pictures: the outer face unrolled (arc, z), the bore unrolled, one side face (arc, r), each
+    coloured by the signed distance to the designed section (blue: metal removed, red: added). What the numbers
+    cannot say - a net, a wave, a noise - a glance at these does (the voronoi deboss turned out to carve the cell
+    WALLS, 2026-11-06)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import trimesh
+    from scipy.interpolate import griddata
+    mesh = trimesh.load_mesh(stl, process=False)
+    v = np.asarray(mesh.vertices)
+    r, z, th = np.hypot(v[:, 0], v[:, 1]), v[:, 2], np.arctan2(v[:, 1], v[:, 0])
+    d, face = model.signed_distance(r, z)
+    R = model.b.outer_radius_mm
+    arc = (th % (2 * math.pi)) * R
+    fig, axes = plt.subplots(3, 1, figsize=(16, 9), constrained_layout=True)
+    rng = np.random.default_rng(0)
+
+    def panel(ax, sel, x, y, name):
+        idx = np.nonzero(sel)[0]
+        if len(idx) == 0:
+            ax.set_title(f"{name}: no vertices")
+            return
+        if len(idx) > max_points:
+            idx = rng.choice(idx, max_points, replace=False)
+        gx = np.arange(x[idx].min(), x[idx].max(), cell)
+        gy = np.arange(y[idx].min(), y[idx].max(), cell)
+        if len(gx) < 2 or len(gy) < 2:
+            ax.set_title(f"{name}: too narrow to draw")
+            return
+        grid = griddata((x[idx], y[idx]), d[idx], (gx[None, :], gy[:, None]), method="linear")
+        lim = max(0.02, float(np.nanpercentile(np.abs(grid), 99.5)))
+        im = ax.imshow(grid, origin="lower", extent=[gx[0], gx[-1], gy[0], gy[-1]], cmap="RdBu_r", vmin=-lim, vmax=lim, aspect="equal")
+        ax.set_title(f"{name}: signed distance to the designed section, mm (blue: metal removed, red: added); ±{lim:.3f}")
+        fig.colorbar(im, ax=ax, shrink=0.8)
+    panel(axes[0], face == "outer", arc, z, "outer face (arc, z)")
+    panel(axes[1], face == "bore", arc, z, "bore (arc, z)")
+    panel(axes[2], (face == "side") & (z > 0), arc, r, "side face z = +W/2 (arc, r)")
+    fig.suptitle(title or stl.name)
+    fig.savefig(png, dpi=110)
+    plt.close(fig)
+    return png
 
 
 def table(res: dict) -> str:

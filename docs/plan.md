@@ -575,9 +575,32 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    and +0.20 on the edges (the raised cells overhang the rims: a mask is not optional); *triangle wave* (height 0.1,
    spacing 0.5, direction Z): added 0.30 mm everywhere, 100 % touched, feature 0.05 (= the mesh), volume +32 %: the
    wave stands outside the body (height is peak-to-peak 3x what was asked, or the wave is added not carved) - to be
-   read in the GUI before it is used. Next: a second probe with the numbers these suggest (simplex / roughness
-   frequencies up by 10x, cellular frequency 5-20 per mm, voronoi 400 cells), and the voronoi deboss as the first
-   product texture (`voronoi` on `texture`): nTop's block on the band, masked to the outer face, gated by an envelope.
+   read in the GUI before it is used. **Seen, not just measured (6 Nov):** the probe's STLs drawn as depth maps of
+   each face (`texture-probe` now writes `texture_probe_<case>.png`: the outer face and the bore unrolled, a side
+   face, coloured by the signed distance to the design). The **voronoi deboss carves the cell WALLS**: half-round
+   grooves along the edges of a 3-D voronoi tessellation of the body - Thickness wide, half as deep (0.15 -> 0.077)
+   - leaving the cells flat: a cracked-earth / mosaic net, cells 2-3 mm across on the face; the emboss is the same
+   net raised (a wire net). The **triangle wave displaces the surface outward along its normal** by a triangle
+   wave of (direction · position): troughs ON the design, peaks 3 x the "height" above it, period = the spacing,
+   the side faces displaced too - ribs round the ring; a product would start from a band eroded by the peak. The
+   noises' frequencies read as **per metre** (nTop's SI inside): at 1 the cellular cell was the whole ring.
+   **First product, `ring_voronoi.ntop` (6 Nov):** the band, nTop's voronoi deboss on it, the dents (band − grooved)
+   kept inside a zone - a hollow cylinder between the rims (Zone Z Top / Bottom, as the band's own Z Top / Bottom)
+   from just under the dome outwards (Zone Inner Radius) - and cut from the band: the outer face grooved, the
+   bore, sides and rims as designed, the grooves stopping at the rims in a clean line (`nb_texture.add_voronoi_deboss`
+   + `add_outer_face_mask`, the same mask for any deboss). `texture --kind voronoi --groove 0.2 --cells 200`
+   (`ntopjewel.fieldtex.VoronoiSpec`: the groove's width is nTop's Thickness, its depth half of it; rim = edge round
+   + 0.1; refused under the `texture_depth` floor, past 1 mm, with too little wall under a groove at the zone's edge,
+   under 3 voxels, past 5 M triangles). **The gate is an envelope** (`check_fieldtex`): the band checks (the cells are
+   flat on the designed surface, so the outer Ø is the plain band's); `texture envelope` - every built vertex inside
+   the zone between +0.04 and −(depth + 0.04) of the design (no metal added, no groove deeper than designed);
+   `untouched outside the zone` - the bore, the sides and the rims within 0.04 of the design (the mask held);
+   `texture coverage` - the grooves' share of the zone's face 3-60 % and the flat cells they enclose counted on a
+   raster (≥ 4; a plain band has one); `design volume` - nTop's volume in [plain − zone face x depth, plain]. The
+   simulated nTop grooves a seeded 2-D net with half-round cutters (faults: `notexture`, `unmasked`, `deep` - each
+   caught). Offline PASSED (30 cells on the face, 13 % grooved, 0.100 deep). *Real checks pending:* `api build
+   ring_voronoi`, then `texture --kind voronoi --thickness 1.6 --tolerance 0.05`; and the probe's round two
+   (`api build texture_probe` 0.3.0 - the noises at 500 per metre - then `texture-probe`, with the depth maps).
 
 ## Notebook readability (2026-11-04)
 

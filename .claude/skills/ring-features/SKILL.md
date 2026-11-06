@@ -246,4 +246,25 @@ deboss / emboss, triangle wave - are probed before anything is built on them: `a
 `texture-probe` (one STL per texture on the plain US6 court 4 x 1.6 band, each measured against the designed section:
 depth and height per face, how much of the outer face, bore, sides and edges each touches, feature size, volume taken;
 `texture_probe.json` / `.txt` in `out\texture_probe\<run id>\`; `--set Depth=0.15` etc. for other numbers,
-`--measure DIR` to re-measure). Their noise is nTop's, so their gate will be an envelope, not a design to match.
+`--measure DIR` to re-measure, and a depth map of each face per texture, `texture_probe_<case>.png`). Their noise is
+nTop's, so their gate is an envelope, not a design to match. Measured 6 Nov: every block textures every face (a product
+masks it to the outer face); the voronoi deboss carves the cell walls as half-round grooves (Thickness wide, half as
+deep) - the first product; the triangle wave displaces the surface outward (peaks 3 x the height); the noises'
+frequencies are per metre.
+
+```powershell
+python -m ntopjewel texture --kind voronoi --thickness 1.6 --tolerance 0.05 --dry-run        # nTop's voronoi deboss: 200 cells, 0.2 mm grooves (0.1 deep) on the outer face
+python -m ntopjewel texture --kind voronoi --thickness 1.6 --tolerance 0.05 --groove 0.3 --cells 300 --rim 0.5
+python -m ntopjewel api build ring_voronoi                                                   # the notebook (nTop open, Python Console open)
+python -m ntopjewel texture --kind voronoi --thickness 1.6 --tolerance 0.05                  # through ring_voronoi.ntop: nTopCL + the envelope gate (out\texture)
+```
+
+Voronoi (`ntopjewel.fieldtex.VoronoiSpec`, `ring_voronoi.ntop`): the band, nTop's `voronoi_deboss` toolkit block on it
+(Feature size = --cell-size, Voronoi cell count = --cells, Relaxation iterations, Thickness = --groove, Blend radius,
+Spatial weighting), the dents (band − grooved) kept inside a zone between the rims and from just under the dome outwards,
+cut from the band: the outer face grooved, the bore / sides / rims as designed, the grooves ending at the rims in a clean
+line. The gate holds the part to an envelope: inside the zone nothing above the design and nothing deeper than the groove;
+outside it nothing moved; the grooves cover 3-60 % of the face and enclose at least 4 flat cells (counted on a raster);
+nTop's volume between the plain band and the band less the zone's face sunk by the depth. The report says what came out
+(deepest, share, cells and their size, volume taken). Refused: grooves under 2 x `texture_depth` (0.2 wide) or over 1 mm,
+too little wall under a groove at the zone's edge, under 3 voxels, past 5 M triangles.
