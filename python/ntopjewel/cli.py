@@ -288,8 +288,9 @@ def cmd_ring(a: argparse.Namespace) -> int:
 
 
 def cmd_texture(a: argparse.Namespace) -> int:
-    """A textured band (hammered first). No notebook yet: --dry-run describes and validates the design,
-    --write-design writes Python's own model (STL + the strike centres) to look at - not an nTop build."""
+    """A hammered band through ring_texture.ntop (nTopCL + the gate). --dry-run describes and validates the
+    design and lists the notebook's inputs; --write-design writes Python's own model (STL + the strike
+    centres) to look at - not an nTop build."""
     spec = texture.HammeredSpec(_band_spec(a), dimple_mm=a.dimple, depth_mm=a.depth, depth_var=a.depth_var,
                                 spacing=a.spacing, rim_mm=a.rim, seed=a.seed)
     probs = spec.validate()
@@ -308,12 +309,22 @@ def cmd_texture(a: argparse.Namespace) -> int:
         print(f"  Python's design (not an nTop build): {stl}")
         print(f"  strike centres: {run_dir / (spec.stem + '.centres.csv')} (sphere radius {spec.sphere_radius:.4f} mm)")
         return 0
-    if not a.dry_run:
-        print("  the texture notebook is not built yet (after the discovery run: `api build discover`); "
-              "--dry-run or --write-design for now")
-        print(summary.error_line(spec.stem, "no texture notebook yet"))
+    if a.dry_run:
+        for k, v in spec.notebook_inputs("<strike centres>", "<output path>").items():
+            print(f"    {k}: {v}")
+        return 0
+    try:
+        res = texture.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                            deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
+    except (ntopcl.NtopclError, ValueError) as e:
+        print(f"texture failed: {e}")
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        print(summary.error_line(spec.stem, e))
         return 2
-    return 0
+    print(res.text())
+    print(summary.verdict(res))
+    return 0 if res.ok else 1
 
 
 def cmd_shank(a: argparse.Namespace) -> int:
@@ -980,7 +991,7 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--dry-run", action="store_true")
     sk.set_defaults(fn=cmd_shank)
 
-    tx = sub.add_parser("texture", help="a textured band: hammered (strikes of a round hammer face, overlapping into facets)")
+    tx = sub.add_parser("texture", help="a hammered band: strikes of a round hammer face, overlapping into facets (ring_texture.ntop)")
     _add_band_args(tx)
     tx.set_defaults(thickness=1.6, tolerance=0.05)
     tx.add_argument("--hammered", action="store_true", help="the texture (the one there is; the default)")
@@ -991,6 +1002,10 @@ def main(argv: list[str] | None = None) -> int:
     tx.add_argument("--rim", type=float, help="polished rim left at each edge of the face, mm (default: the edge round + 0.1)")
     tx.add_argument("--seed", type=int, default=1, help="the layout's random seed: another seed, another hammering")
     tx.add_argument("--out")
+    tx.add_argument("--notebook")
+    tx.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
+    tx.add_argument("--project", default="Bands")
+    tx.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     tx.add_argument("--write-design", action="store_true", help="write Python's design (STL + strike centres) to look at - not an nTop build")
     tx.add_argument("--dry-run", action="store_true")
     tx.set_defaults(fn=cmd_texture)

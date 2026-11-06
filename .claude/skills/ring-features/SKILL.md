@@ -208,6 +208,8 @@ band beside the head, its double-claw prongs and heart gallery (plan step 5/6).
 python -m ntopjewel texture --dry-run                                  # hammered US6 court 4 x 1.6: 150 strikes, ~2.5 M triangles at 0.05
 python -m ntopjewel texture --dimple 2 --depth 0.18 --seed 7 --dry-run  # bigger, deeper strikes; another seed, another hammering
 python -m ntopjewel texture --write-design                             # Python's model (STL + strike centres CSV) to look at - NOT an nTop build
+python -m ntopjewel api build ring_texture                             # the notebook (nTop open, Python Console open)
+python -m ntopjewel texture                                            # through ring_texture.ntop: nTopCL + the gate (out\texture; --deliver)
 ```
 
 Hammered: one round hammer face (radius from `--dimple` x `--depth`, the nominal strike) pressed in along the
@@ -218,4 +220,7 @@ The union of equal spheres is the distance to the nearest centre less one radius
 the centres. The texture defaults the band to 1.6 thick and Mesh Tolerance 0.05: the lightest strike must span 3
 voxels, and `tables.mesh_triangles_estimate` refuses a design past 5 M triangles. Gate (`check_texture`): band
 checks, section shape against the design's sections (whole Mesh Tolerance), design volume, a probe down every
-strike's normal. No notebook yet: the discovery run's field / point blocks decide how the centres reach nTop.
+strike's normal. Notebook `ring_texture.ntop` (5 Nov): the profiled band (opened) less nTop's own spheres - Import
+Points reads the centres CSV (`Strikes Path`), ONE Sphere on the whole list makes one per point (measured,
+`points_probe`), a Boolean Union joins them; `Strikes Units` is a notebook input (the API cannot set an enum,
+Import Points has no default unit; 1 = mm). The strikes are cut after the opening, so their ridges stay crisp.

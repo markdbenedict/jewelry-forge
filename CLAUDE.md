@@ -404,6 +404,8 @@ python -m ntopjewel api build ring_shank                             # ntop\note
 python -m ntopjewel api build pave_band                              # ntop\notebooks\pave_band.ntop: the shank + the seats and beads Python writes, (shank ∪ beads) − seats
 python -m ntopjewel api build multistone                             # ntop\notebooks\multistone.ntop: five outline-head slots spun, placed and turned round the shank (embeds stone_seat + outline_head), pavé beads and seats round the rest
 python -m ntopjewel api build ring_artwork                           # ntop\notebooks\ring_artwork.ntop: the shank − the panel channels Python writes ∪ the relief motifs
+python -m ntopjewel api build ring_texture                           # ntop\notebooks\ring_texture.ntop: the profiled band − a sphere at every strike centre (Import Points -> one Sphere on the list)
+python -m ntopjewel api build points_probe                           # ntop\notebooks\points_probe.ntop: does Sphere map an imported list, which Units id is mm (measured 2026-11-05)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running
@@ -445,7 +447,8 @@ python -m ntopjewel multistone --profile comfort-flat --width 2.6 --thickness 1.
 python -m ntopjewel artwork --size 6 --sides leaves --outer vine     # artwork in relief in sunk panels: leaf rows on the side faces (tips to the head; --leaf-tip shank; scroll-leaves: a volute first), a vine (scroll: with a volute at the head end) outside, 25°-120° from the top (out\artwork)
 python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf-tilt 7.5 --leaf-stem 0.5 --stem-width 0.15   # the leaves turned ±7.5° in turn, threaded on a serpentine stem half their height and 0.15 wide (one united relief body per panel; floor relief_line)
 python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --width-bottom 2 --thickness-bottom 1.5   # ... on a band tapered below the scrollwork (the ease begins just past the panels unless --taper-from says later)
-python -m ntopjewel texture --dry-run                # a hammered band (150 strikes of one round hammer face, seeded; Mesh Tolerance 0.05); --write-design writes Python's model + strike centres (no notebook yet)
+python -m ntopjewel texture --dry-run                # a hammered band (150 strikes of one round hammer face, seeded; Mesh Tolerance 0.05); --write-design writes Python's model + strike centres
+python -m ntopjewel texture                          # ... through ring_texture.ntop (nTop's spheres at Python's centres, less from the band) + the gate (out\texture)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests

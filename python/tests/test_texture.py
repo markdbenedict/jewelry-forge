@@ -81,4 +81,43 @@ def test_cli_texture(capsys, tmp_path):
     assert len(list(tmp_path.rglob("*.design.stl"))) == 1 and len(list(tmp_path.rglob("*.centres.csv"))) == 1
     csv = np.loadtxt(next(tmp_path.rglob("*.centres.csv")), delimiter=",")
     assert csv.shape == (hammered().count, 3)
-    assert cli.main(["texture"]) == 2                                                       # no notebook yet
+    assert cli.main(["texture", "--out", str(tmp_path)]) == 2                              # no notebook built here: refused
+
+
+def test_recipe_builds_on_the_fake_api(tmp_path):
+    """ring_texture.ntop from nTop's own blocks: Import Points -> one Sphere on the list -> Union, less from the band."""
+    from ntopjewel import catalog
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    mod = load_recipe("ring_texture")
+    params = mod.prepare({}, tmp_path)
+    params.update({"save_to": str(tmp_path / "t.ntop"), "recipe_to": str(tmp_path / "t.json"), "test_output": str(tmp_path / "t.stl")})
+    nb = FakeNotebook()
+    res = mod.build(nb, params)
+    assert nb.inputs == mod.INPUT_ORDER == list(catalog.load("ring_texture").inputs)
+    assert nb.lint() == [] and res["warnings"] == []
+    assert res["identifiers"]["Strike Centres"].startswith("import_points") and res["identifiers"]["Strikes Units"] == "core.var<unit_length_enum>"
+    assert params["values"]["Strike Radius"] == pytest.approx(hammered().sphere_radius, abs=1e-6)
+
+
+def test_hammered_end_to_end_and_a_wrong_notebook_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    nb = tmp_path / "ring_texture.ntop"
+    nb.write_bytes(b"fake")
+    s = hammered()
+    res = texture.build(s, out_dir, notebook=nb)
+    assert res.status == "passed", res.text()
+    assert res.ntop_volume_mm3 == pytest.approx(s.design_volume_mm3(), rel=2e-3)
+    csv = np.loadtxt(next(res.run_dir.glob("*.centres.csv")), delimiter=",")
+    assert csv.shape == (s.count, 3)
+    for fault, lost in (("nostrikes", "strikes"), ("light", "strikes")):
+        monkeypatch.setenv("FAKE_NTOPCL_SHAPE", fault)
+        bad = texture.build(s, out_dir, notebook=nb)
+        assert bad.status == "failed" and lost in {c.name for c in bad.gate.failures()}, bad.text()
+
+
+def test_the_unit_reaches_ntopcl_as_its_measured_id():
+    from ntopjewel import catalog
+    s = hammered()
+    entries = {e["name"]: e for e in catalog.load("ring_texture").build_inputs(s.notebook_inputs("c.csv", "o.stl"))}
+    assert entries["Strikes Units"] == {"name": "Strikes Units", "type": "enum", "value": 1}            # 1 = mm (points_probe)
+    assert entries["Strike Radius"]["value"] == pytest.approx(s.sphere_radius, abs=1e-6)

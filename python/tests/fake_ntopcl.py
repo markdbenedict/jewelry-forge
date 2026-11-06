@@ -58,14 +58,15 @@ def fail(msg: str) -> None:
 # ----------------------------------------------------------------------------- templates
 def write_templates(nb: Path) -> None:
     inputs = []
-    if "head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name or "artwork" in nb.name:
+    if ("head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name
+            or "artwork" in nb.name or "texture" in nb.name):
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
         name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
                                                                         "ring_shank" if "shank" in nb.name else "prong_head_harness")
         cat = yaml.safe_load((cat_dir / f"{name}.yaml").read_text())
         for name, e in cat["inputs"].items():
-            t = {"scalar": "real", "integer": "integer", "text": "text"}[e["type"]]
+            t = {"scalar": "real", "integer": "integer", "text": "text", "enum": "enum"}[e["type"]]
             inputs.append({"name": name, "type": t, "value": 0 if t != "text" else "", **({"units": e["units"]} if "units" in e else {})})
     elif "seat" in nb.name:
         inputs = [{"name": "Seat Path", "type": "text", "value": ""},
@@ -380,6 +381,33 @@ def main(argv: list[str]) -> int:
             mesh.export(values["Output Path"])
         for name in ("Bar 1 Mesh", "Bar 1", "Bar 1 Opened", "Bars", "Shank", "Pave Beads Mesh", "Pave Beads",
                      "Pave Seats Mesh", "Pave Seats", "Beaded", "Ring", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "texture" in nb.name:
+        # ring_texture: the profiled band less a sphere at every centre Import Points reads (comma-separated
+        # x,y,z, in the unit Strikes Units names: 1 = mm, 2 = cm, measured by points_probe)
+        import numpy as np
+        import trimesh
+        from ntopjewel.shank import MIN_EDGE_MM, drop_specks
+        from ntopjewel import geom as _geom
+        if not Path(values["Strikes Path"]).exists():
+            fail("Strike Centres: file not found")
+        if values.get("Strikes Units") is None:
+            fail('Strike Centres: Input "Units" is incomplete')
+        scale = {1: 1.0, 2: 10.0}.get(int(values["Strikes Units"]), 25.4)
+        centres = np.atleast_2d(np.loadtxt(values["Strikes Path"], delimiter=",")) * scale
+        radius = float(values["Strike Radius"]) * (0.97 if shape == "light" else 1.0)   # "light": a hammer struck too softly
+        mesh = band_mesh(values)
+        if shape != "nostrikes":                              # a notebook that never subtracts the strikes
+            unit = trimesh.creation.icosphere(subdivisions=4, radius=radius)
+            balls = [unit.copy().apply_translation(c) for c in centres]
+            mesh = trimesh.boolean.difference([mesh] + balls, engine="manifold")
+            mesh = _geom.collapse_short_edges(drop_specks(mesh), MIN_EDGE_MM)
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Band Body", "Strike Centres", "Strikes", "Strikes United", "Struck", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

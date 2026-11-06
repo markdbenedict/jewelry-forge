@@ -42,7 +42,7 @@ def test_every_recipe_imports_without_the_dependencies(name):
     assert r.returncode == 0, r.stderr[-2000:]
 
 
-@pytest.mark.parametrize("name", ["multistone", "pave_band", "ring_shank", "ring_artwork", "open_bar", "transform_probe", "points_probe"])
+@pytest.mark.parametrize("name", ["multistone", "pave_band", "ring_shank", "ring_artwork", "open_bar", "transform_probe", "points_probe", "ring_texture"])
 def test_the_new_recipes_build_without_the_dependencies(name, tmp_path, fake_open_bar):
     """prepare() runs on the laptop (here, with everything); build() then runs in the blocked child."""
     from .fake_notebook import FakeNotebook

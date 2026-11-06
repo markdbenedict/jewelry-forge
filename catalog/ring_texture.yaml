@@ -1,0 +1,98 @@
+# Phase 3 step 7: a hammered band. The profiled band (ring_band_profile's section, opening included) less a
+# sphere at every strike centre - nTop imports Python's centres (Import Points, CSV x,y,z in mm) and puts one
+# Sphere on the whole list (measured: one sphere per point, points_probe 2026-11-05), so no mesh of the dimples
+# goes to nTop. Built by ntop/recipes/ring_texture.py; numbers and centres from ntopjewel.texture.HammeredSpec.
+notebook: ring_texture.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-05)
+rebuild_since: 0.1.0
+title: Hammered band (strikes of one round hammer face)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the struck band.
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be small or negative for shallow domes.
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Strikes Path:
+    type: text
+    doc: The strike centres, one "x,y,z" line each, mm, ring frame (HammeredSpec.write_centres).
+  Strike Radius:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 20.0
+    doc: The hammer face's radius (HammeredSpec.sphere_radius) - every strike is this sphere.
+  Strikes Units:
+    type: enum
+    choices: {mm: 1, cm: 2}    # unit_length_enum ids measured by points_probe (ntop/api_facts.json)
+    default: 1
+    doc: Import Points' Units (it has no default; the API cannot set an enum) - 1 = mm.
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the struck band.

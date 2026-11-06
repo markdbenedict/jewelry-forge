@@ -505,8 +505,14 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    `texture --dry-run` / `--write-design` (Python's model, not an nTop build). *Discovery, 5 Nov:* nTop has
    `import_points<file_path,unit_length_enum>` but no block that places a body at every point of a list; it also
    has its own `cellular_noise_deboss` / `voronoi_deboss` (dents from nTop's own random points - a texture
-   Python could gate by bounds only). `api build points_probe` measures whether Sphere maps over an imported
-   list (three balls' volume or one) and which file Import Points reads, into `ntop/api_facts.json`.
+   Python could gate by bounds only). *points_probe, 5 Nov (four rounds to get there):* the API can neither set
+   nor read an enum and Import Points' Units has no default, so the unit is a notebook input nTopCL sets (id 1 =
+   mm, 2 = cm, measured); a block output used twice keeps one wire in a runner too; and **one Sphere on the
+   imported list makes a sphere per point** (4.7346 mm³ against Python's 4.734). So **`ring_texture.ntop`**:
+   the profiled band (opened) less the union of nTop's spheres at Python's centres (Strikes Path CSV, Strike
+   Radius, Strikes Units = 1). `texture` now runs it through nTopCL and the gate; offline PASSED, and a
+   notebook that skips the strikes or strikes 3 % light fails `strikes`. *Real check:* `api build ring_texture`,
+   then `texture` (US 6 court 4 x 1.6, 150 strikes, Mesh Tolerance 0.05, ~2.5 M triangles).
 
 ## Notebook readability (2026-11-04)
 

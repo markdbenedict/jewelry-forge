@@ -12,7 +12,8 @@ the nearest of a set of points, less one radius. nTop can build that natively as
 centres alone (`write_centres`), and subtract it from the band; Python never sends a mesh of the
 dimples. How the points reach nTop is settled by the discovery run (`api build discover`, its texture
 keywords); this module is the design, the independent model and the gate, and none of it depends on
-that choice.
+that choice - and nTop has it (points_probe, 2026-11-05): Import Points reads the CSV, one Sphere on the whole
+list makes a sphere per point, `ring_texture.ntop` subtracts their union from the profiled band.
 
 The independent model (`design_mesh`) is the band nTop builds (geom.band_mesh, its opening's chamfer
 included) less the spheres, unioned by manifold3d. The gate (`check_texture`): the band checks, the
@@ -31,7 +32,11 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import band, gate, geom, runs, tables
+import json
+import time
+from dataclasses import asdict
+
+from . import band, catalog, config, gate, geom, ntopcl, runs, tables
 
 KINDS = ("hammered",)
 SPHERE_SUBDIV = 4               # icosphere level of a dimple's sphere: 0.15 mm facets, 1 µm sag at R 2.4
@@ -221,6 +226,15 @@ class HammeredSpec:
                 out[k] = t - 2.0
         return out
 
+    # ---- the notebook ------------------------------------------------------------------------------
+    def notebook_inputs(self, centres_path: str, output_path: str) -> dict:
+        """ring_texture.ntop's inputs: the band's, the strike centres file, the hammer's radius, the unit (mm)."""
+        v = self.band.notebook_inputs(output_path)
+        v.pop("Output Path")
+        v.update({"Strikes Path": centres_path, "Strike Radius": round(self.sphere_radius, 6), "Strikes Units": "mm",
+                  "Output Path": output_path})
+        return v
+
     # ---- identity, checks ---------------------------------------------------------------------
     def design(self) -> dict:
         d = self.band.design()
@@ -328,3 +342,58 @@ def check_texture(spec: HammeredSpec, stl: Path, ntop_vol: float | None) -> gate
                                      f"{int(ok.sum())}/{n} dimples within {allowed:.3f} mm of the design's depth along the strike; "
                                      f"worst #{k}: built {got[k]:.3f} vs design {want[k]:.3f} mm"))
     return rep
+
+
+@dataclass
+class TextureResult(band.BandResult):
+    def text(self) -> str:
+        s = self.spec
+        head = (f"Hammered {s.band.profile} {s.band.label}: {s.count} strikes, {s.band.width_mm:g} x {s.band.thickness_mm:g} "
+                f"-> {self.stl.name}")
+        lines = [head, self.run.summary(), self.gate.text(), f"  status: {self.status.upper()}  run {self.run_dir}"]
+        if self.delivered:
+            lines.append(f"  delivered to {self.delivered}")
+        lines += [f"  note: {n}" for n in self.notes]
+        return "\n".join(lines)
+
+
+def build(spec: HammeredSpec, out_dir: Path | None = None, *, notebook: Path | None = None, catalog_name: str = "ring_texture",
+          deliver: bool = False, deliver_project: str = "Bands", cast_metal: str | None = None) -> TextureResult:
+    """Write the strike centres, run ring_texture.ntop through nTopCL, gate the struck band (check_texture)."""
+    problems = spec.validate()
+    if problems:
+        raise ValueError("; ".join(problems))
+    cat = catalog.load(catalog_name)
+    nb = Path(notebook) if notebook else cat.notebook
+    built_notes = runs.require_built(cat, nb) if not notebook else []
+    out_dir = Path(out_dir) if out_dir else config.out_dir() / "texture"
+    stem = spec.stem
+    run_dir, run_id = runs.fresh_run_dir(out_dir, stem)
+    stl = run_dir / f"{stem}.stl"
+    centres = spec.write_centres(run_dir / f"{stem}.centres.csv")
+    values = spec.notebook_inputs(str(centres), str(stl))
+    started = time.time()
+    run = ntopcl.run(nb, cat.build_inputs(values), run_dir, tag=stem)
+    try:
+        runs.require_fresh(stl, started, "the exported mesh")
+    except FileNotFoundError as e:
+        raise ntopcl.NtopclError(f"notebook reported success but {e}", run) from e
+    vol_entry = run.outputs.get(cat.output.get("name", "Volume"))
+    ntop_vol = ntopcl.scalar_value(vol_entry) if vol_entry else None
+    rep = check_texture(spec, stl, ntop_vol)
+    gate.save(rep)
+    result = TextureResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
+    result.notes += built_notes + spec.band.warnings()
+    report = {
+        "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
+        "spec": {**asdict(spec.band), "texture": spec.design()}, "design": spec.design(), "inputs": values, "stl": str(stl),
+        "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(), "strikes": spec.count,
+        "gate": rep.to_dict(), "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings],
+        "notes": result.notes, "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()),
+    }
+    (run_dir / f"{stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    if deliver and result.ok:
+        result.delivered = runs.deliver(stl, run_dir, stem, deliver_project, report, cast_metal=cast_metal)
+    elif deliver:
+        result.notes.append(f"not delivered: status {result.status}")
+    return result
