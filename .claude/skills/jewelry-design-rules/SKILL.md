@@ -35,6 +35,21 @@ entry). Quote the table, not memory.
 | bezel wall | 0.5–0.8 mm | lip 0.3–0.5 mm above the stone girdle for burnishing |
 | moving chain link clearance | ≥ 0.35 mm | printed assembled; fused links for casting as one |
 | unsupported overhang detail | keep features > 0.3 mm | 50 µm pixel printers resolve ~0.1 mm but resin needs bulk |
+| lattice sheet or strut | ≥ 0.6 mm (`floors.lattice_member`, default) | a gyroid sheet is continuous and well supported: between the marginal and the good wall |
+| lattice pore (the sphere that passes through the void) | ≥ 1.0 mm (`floors.lattice_pore`, default) | the investment between the sheets; see below |
+
+**Lattices are exposed, never buried.** A lattice closed inside a skin traps uncured resin (and cups on the FEP);
+in the casting its negative space IS investment, which must survive the burnout and the pour and then come out
+again. An open lattice can do both the way filigree does: its investment is one continuous network anchored to the
+block through the open face, not a free-standing core, and after the quench water goes in at one opening and out at
+another. So every void must reach the outside (the `lattice` gate flood-fills the built mesh from the outer face and
+fails any pocket that does not), the channels must be wide enough for the investment to hold and to wash out
+(`lattice_pore`), the sheets thick enough to print and fill (`lattice_member`), and a solid bore skin (`settings.
+lattice_skin_mm`, 0.8) and solid rims (the good wall) carry the ring. At these floors a gyroid needs a cell of about
+3.5 mm (0.6 mm sheets leave a 1.04 mm pore), so a lattice band is a chunky one (≥ 3.3 mm thick) and saves about a
+third of the metal. A sheet that meets the outer face nearly tangent leaves a feather edge: the lattice body is
+opened by 0.1 mm (offset in, re-distance, offset out), which removes anything thinner than 0.2 and rounds the sheet
+ends. All of it defaults until the first lattice print and cast.
 
 ## Settings
 

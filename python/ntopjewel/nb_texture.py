@@ -179,21 +179,29 @@ def add_ribbed(h, body: str, ids: dict, label: str = "Textured All Over") -> str
     return blk
 
 
+def add_zone(h, ids: dict, label: str = "Zone", top: str = "Zone Z Top", bottom: str = "Zone Z Bottom",
+             inner: str = "Zone Inner Radius", big_var: str | None = None, comment: str = "") -> str:
+    """A hollow cylinder between two heights (the `top` / `bottom` mm variables) from the `inner` radius outwards to
+    ZONE_OUTER_RADIUS_MM (`big_var`, made here when not given): `<label> Top` / `<label> Bottom` points,
+    `<label> Outside` − `<label> Inside` = `<label>`. Returns the zone's id (one use; wrap it for more)."""
+    import ntopjewel.nb_jewel as nj
+    top_pt = nj.point_block(h, f"{label} Top", z_var=ids[top])
+    bottom_pt = nj.point_block(h, f"{label} Bottom", z_var=ids[bottom])
+    big = big_var or h.real_var("Zone Outer Radius", ZONE_OUTER_RADIUS_MM, "mm")
+    outer = h.cylinder(f"{label} Outside", bottom_pt, top_pt, big)
+    inner_cyl = h.cylinder(f"{label} Inside", None, None, ids[inner], z_span=(-10.0, 10.0))   # longer: the points feed one block each
+    return h.subtract(label, outer, [inner_cyl], comment=comment or "The outer face's zone: between the rims, from under the dome outwards.")
+
+
 def add_outer_face_mask(h, band_var: str, textured: str, ids: dict, label: str = "Textured", two_sided: bool = False) -> str:
     """Keep a texture to the outer face: the dents (band − textured) inside a zone - a hollow cylinder between the
     rims (Zone Z Bottom .. Zone Z Top, as the band's own Z Top / Z Bottom), from Zone Inner Radius (just under the
     dome) outwards - cut from the band; `two_sided` (a texture that also adds metal): its bumps (textured − band)
     inside the zone united as well. Returns the "Textured Band" variable."""
-    import ntopjewel.nb_jewel as nj
     if two_sided:
         textured = h.wrap_var("Textured All Over Body", textured)     # used by the dents and the bumps
     dents = h.subtract("Dents", band_var, [textured], comment="What the texture took off, on every face.")
-    top = nj.point_block(h, "Zone Top", z_var=ids["Zone Z Top"])
-    bottom = nj.point_block(h, "Zone Bottom", z_var=ids["Zone Z Bottom"])
-    big = h.real_var("Zone Outer Radius", ZONE_OUTER_RADIUS_MM, "mm")
-    outer = h.cylinder("Zone Outside", bottom, top, big)
-    inner = h.cylinder("Zone Inside", None, None, ids["Zone Inner Radius"], z_span=(-10.0, 10.0))   # longer: the points feed one block each
-    zone = h.subtract("Zone", outer, [inner], comment="The outer face's zone: between the rims, from under the dome outwards.")
+    zone = add_zone(h, ids)
     if two_sided:
         zone = h.wrap_var("Zone Body", zone)                                # used by two intersections
     kept = h.intersect("Dents In Zone", [dents, zone])

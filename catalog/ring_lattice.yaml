@@ -1,0 +1,156 @@
+# Phase 3 step 8: a band whose metal between a bore skin and the outer face is an open gyroid lattice. The profiled band
+# (ring_band_profile's section, opening included); nTop's gyroid_implicit (cubic cells of Cell Size) thickened by
+# thicken_implicit (Wall) and wrapped round the ring (Remap Cylindrical, Wrap Length = whole cells), trimmed to the band
+# inside the grown zone, opened by Lattice Round, united with the band less the zone (the skin and the rims). Built by
+# ntop/recipes/ring_lattice.py; numbers from ntopjewel.lattice.GyroidSpec, which gates the part against its own model
+# of the same geometry (lattice match, sheet thickness, pore width, open voids, design volume).
+notebook: ring_lattice.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-06)
+rebuild_since: 0.1.0
+title: Lattice band (an open gyroid between a bore skin and the rims)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the lattice band.
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be small or negative for shallow domes.
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Cell Size:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 20.0
+    default: 3.5
+    doc: The gyroid's cubic cell in the bar frame (a cell round the ring at the zone's mid radius).
+  Wall:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 2.0
+    default: 0.6
+    doc: The sheet's thickness (thicken_implicit's Thickness, about the surface).
+  Wrap Length:
+    type: scalar
+    units: mm
+    min: 10.0
+    max: 400.0
+    doc: Remap Cylindrical's Y mapping length - cells_around x Cell Size, so the pattern is periodic round the ring (GyroidSpec.wrap_length).
+  Lattice Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: The lattice's opening, the +e offset (lattice.LATTICE_ROUND_MM); feather edges thinner than twice it go.
+  Lattice Round Inward:
+    type: scalar
+    units: mm
+    min: -0.5
+    max: -0.02
+    default: -0.1
+    doc: The lattice's opening, the -e offset.
+  Lattice Inner Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: The grown zone's inside - Zone Inner Radius less the overlap (lattice.LATTICE_OVERLAP_MM), inside the skin.
+  Lattice Z Top:
+    type: scalar
+    units: mm
+    min: 0.25
+    max: 8.0
+    doc: The grown zone's top - Zone Z Top plus the overlap, inside the rim.
+  Lattice Z Bottom:
+    type: scalar
+    units: mm
+    min: -8.0
+    max: -0.25
+    doc: The grown zone's bottom.
+  Zone Z Top:
+    type: scalar
+    units: mm
+    min: 0.25
+    max: 7.5
+    doc: The zone's top, +Width/2 − rim (GyroidSpec.zone_half_width).
+  Zone Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.25
+    doc: The zone's bottom, −(Width/2 − rim).
+  Zone Inner Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: The zone's inside - the top of the bore skin (the bore's highest point inside the zone plus the skin).
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the lattice band's STL.

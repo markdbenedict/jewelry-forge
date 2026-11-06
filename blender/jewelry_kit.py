@@ -50,6 +50,8 @@ _FALLBACK_TABLES = {   # verbatim copy of data/jewelry_tables.json: metals, floo
         "band_min_width":     {"mm": 1.5, "status": "default", "source": "bench practice"},
         "relief_line":        {"mm": 0.15, "status": "default", "source": "a raised line in relief on a face (a leaf row's stem): three to five printer pixels at 30-50 um, and it lies on a surface the investment fills; thinner is a hairline that polishes off"},
         "texture_depth":      {"mm": 0.1, "status": "default", "source": "a surface texture's shallowest cut (a hammered dimple at its lightest strike): two to four printer layers at 25-50 um, and finishing takes a few hundredths off a high-polish face; shallower polishes flat. To calibrate on the first textured print and cast"},
+        "lattice_member":     {"mm": 0.6, "status": "default", "source": "the thinnest sheet (or strut) of an exposed lattice: a gyroid sheet is continuous and well supported, so it stands between the marginal and the good wall - resin prints it, and the silver fills it when the sprue feeds the skin. To calibrate on the first lattice print and cast"},
+        "lattice_pore":       {"mm": 1.0, "status": "default", "source": "the narrowest channel through an exposed lattice's voids (the sphere that passes): it is the investment between the sheets - which has to survive the burnout and the pour as a connected network anchored through the open face, and be washed out after the quench with water in at one opening and out at another; and the uncured resin has to drain through it. Filigree casts at 0.5-0.8 mm gaps; a lattice's channels are longer. To calibrate on the first lattice print and cast"},
     },
 }
 

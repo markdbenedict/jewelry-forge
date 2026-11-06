@@ -397,6 +397,44 @@ def _cmd_fieldtex(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
+def cmd_lattice(a: argparse.Namespace) -> int:
+    """An open gyroid lattice band through ring_lattice.ntop (nTopCL + the lattice gate). --dry-run describes and validates
+    the design and lists the notebook's inputs; --write-design writes Python's own mesh of it (manifold3d's level set of the
+    same field) to look at - not an nTop build."""
+    from . import lattice
+    spec = lattice.GyroidSpec(_band_spec(a), cell_mm=a.cell, wall_mm=a.member, skin_mm=a.skin, rim_mm=a.rim)
+    probs = spec.validate()
+    print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
+    for w in spec.band.warnings():
+        print("  warning: " + w)
+    if probs:
+        print(summary.error_line(spec.stem, "; ".join(probs)))
+        return 1
+    if a.write_design:
+        out = Path(a.out) if a.out else config.out_dir() / "lattice"
+        run_dir, run_id = runs.fresh_run_dir(out, spec.stem)
+        stl = run_dir / f"{spec.stem}.design.stl"
+        spec.design_mesh().export(str(stl))
+        print(f"  Python's design (not an nTop build): {stl}")
+        return 0
+    if a.dry_run:
+        for k, v in spec.notebook_inputs("<output path>").items():
+            print(f"    {k}: {v}")
+        return 0
+    try:
+        res = lattice.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
+                            deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
+    except (ntopcl.NtopclError, ValueError, runs.RunPathError) as e:
+        print(f"lattice failed: {e}")
+        if isinstance(e, ntopcl.NtopclError) and e.result:
+            print(e.result.summary())
+        print(summary.error_line(spec.stem, e))
+        return 2
+    print(res.text())
+    print(summary.verdict(res))
+    return 0 if res.ok else 1
+
+
 def _add_hammer_args(p: argparse.ArgumentParser, what: str) -> None:
     """A hammered face's flags (texture.Hammer): the texture command and the shanks / solitaires share them."""
     p.add_argument("--hammered", action="store_true", help=what)
@@ -1113,6 +1151,23 @@ def main(argv: list[str] | None = None) -> int:
     tp_.add_argument("--notebook")
     tp_.add_argument("--measure", metavar="DIR", help="measure the texture_probe_<case>.stl already in DIR (no nTop run)")
     tp_.set_defaults(fn=cmd_texture_probe)
+
+    la = sub.add_parser("lattice", help="an open gyroid lattice band: nTop's walled gyroid between a bore skin and solid rims, every void "
+                                        "open to the outer face (ring_lattice.ntop)")
+    _add_band_args(la)
+    la.set_defaults(profile="flat", width=7.0, thickness=3.5, tolerance=0.1)
+    la.add_argument("--cell", type=float, default=3.5, help="the gyroid's cell, mm (whole cells round the ring)")
+    la.add_argument("--member", type=float, default=0.6, help="the sheet's thickness, mm (floor: tables lattice_member)")
+    la.add_argument("--skin", type=float, help="the solid bore skin, mm (default: tables lattice_skin_mm, 0.8)")
+    la.add_argument("--rim", type=float, help="the solid rim at each edge, mm (default: the good wall, 0.75)")
+    la.add_argument("--out")
+    la.add_argument("--notebook")
+    la.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
+    la.add_argument("--project", default="Bands")
+    la.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
+    la.add_argument("--write-design", action="store_true", help="write Python's own mesh of the design to look at - not an nTop build")
+    la.add_argument("--dry-run", action="store_true")
+    la.set_defaults(fn=cmd_lattice)
 
     pv = sub.add_parser("pave", help="a pavé band: rows of small stones in seats with light holes, held by beads (pave_band.ntop)")
     pv.add_argument("--size", default="6")

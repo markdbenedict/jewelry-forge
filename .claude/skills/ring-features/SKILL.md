@@ -1,6 +1,6 @@
 ---
 name: ring-features
-description: Add milgrain beads, a channel groove and a wrapped engraving (inside or outside) to a profiled ring band with nTop through ntopjewel - the `ring` command, ring_features.ntop, the engraving STL that Python writes, the gate expectations with features on - and artwork in relief (leaf rows, vine scrolls, volutes) in sunk panels on a band's faces (`artwork`, ring_artwork.ntop), and surface textures (hammered: `texture`). Use for any request to engrave, texture or decorate a band, add milgrain, a groove, leaves, scrollwork or a hammered finish, or to run or debug ring_features / ring_artwork.
+description: Add milgrain beads, a channel groove and a wrapped engraving (inside or outside) to a profiled ring band with nTop through ntopjewel - the `ring` command, ring_features.ntop, the engraving STL that Python writes, the gate expectations with features on - and artwork in relief (leaf rows, vine scrolls, volutes) in sunk panels on a band's faces (`artwork`, ring_artwork.ntop), surface textures (hammered and nTop's own: `texture`), and open lattice bands (a gyroid between a bore skin and the rims: `lattice`, ring_lattice.ntop). Use for any request to engrave, texture, lattice or decorate a band, add milgrain, a groove, leaves, scrollwork, a hammered finish or a gyroid, or to run or debug ring_features / ring_artwork / ring_lattice.
 ---
 
 # ring-features
@@ -287,3 +287,42 @@ and ribbed ≥ 50 %. Refused: amplitude under `texture_depth` or over 0.5, a gra
 width, ribs under 6 voxels apart.
 All five PASSED in real nTop on 6 Nov at the numbers above (frost ±0.084 for 0.1 asked, pitted 0.082, cellular 0.100,
 ribbed 0.190 for 0.2, voronoi 0.102 for 0.1; the mask held to 0.005 mm on every one; 21-25 s a run).
+
+## Lattice bands (`lattice`, `ring_lattice.ntop`, `ntopjewel.lattice`, Phase 3 step 8)
+
+```powershell
+python -m ntopjewel lattice --dry-run                                           # flat US6 7 x 3.5: 3.5 mm gyroid cells, 0.6 sheets, 0.8 skin, 0.75 rims
+python -m ntopjewel lattice --width 6 --thickness 3.3 --cell 3.5 --member 0.6 --dry-run
+python -m ntopjewel lattice --write-design                                      # Python's own mesh of it (manifold3d's level set; half a minute) - NOT an nTop build
+python -m ntopjewel api build ring_lattice                                      # the notebook (nTop open, Python Console open)
+python -m ntopjewel lattice                                                     # through ring_lattice.ntop: nTopCL + the lattice gate (out\lattice; --deliver)
+```
+
+An exposed gyroid, never a buried infill (the design rules say why: the resin and the investment both have to get out).
+The profiled band keeps a solid bore skin (`--skin`, tables `lattice_skin_mm` 0.8) and solid rims (`--rim`, the good
+wall); between them, from the skin's top to the outer face, the metal is nTop's walled gyroid: `gyroid_implicit`
+(`--cell`, cubic cells in the bar frame) thickened by `thicken_implicit` (`--member`, the sheet) and wrapped round the
+ring by Remap Cylindrical with a mapping length of a whole number of cells (`GyroidSpec.cells_around`), so the pattern
+closes on itself. The lattice is trimmed to the band inside the zone (grown by 0.25 into the skin and the rims so the
+union overlaps instead of meeting on a face), opened by 0.1 mm (feather edges thinner than 0.2 go, the sheet ends come
+back rounded) and united with the band less the zone.
+
+Python holds the same geometry exactly (`lattice.GyroidSpec`: the gyroid's formula, its distance by two Newton steps -
+the first-order g / |∇g| alone thins a 0.6 sheet to 0.54 -, the wrap, the opening at the dome), so the gate is not an
+envelope: **lattice match** (the built mesh's inside / outside at 20 000 points in the zone against the model, ≥ 98 %;
+when it fails, the report names the best of the mirrored and shifted gyroids - nTop's convention, to record in
+`GYROID_VARIANT`), **sheet thickness** (rays through the sheets, off their ends: p1 against the member floor, the median
+against the wall asked), **pore width** (rays across the voids to the next sheet, p5 within 85 % of the unit cell's own),
+**open voids** (the built mesh voxelised by scanline rays at 0.1 mm and flood-filled from the outer face: a pocket of
+void that reaches no opening fails the part), **design volume** (nTop's integral against the model's grid integration,
+±2 %), the mask (bore, sides, rims as designed), the band checks (the generic wall rays kept off the sheet ends). The
+result says what the lattice saves (sterling, against the solid band). Refused: a member under `lattice_member`, a cell
+whose pore (`unit_cell_stats`, the sphere that passes) is under `lattice_pore`, a zone under half a cell deep, a skin
+under the good wall, a design whose metal is not one piece or whose voids do not all reach the face (the same flood
+fill on the model), a sheet under 6 voxels.
+
+What the first real run tells (6 Nov, pending): the sheet's median thickness against the wall asked (is Thicken
+symmetric, is nTop's gyroid field a distance), the lattice match and its best variant (nTop's gyroid convention and
+phase), the volume (nTop's field against ours). Any of them off is a calibration in `data/jewelry_tables.json` or a
+line in `lattice.py`, not a redesign.
+

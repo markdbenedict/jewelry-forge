@@ -27,7 +27,7 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
 | 0 — environment + hello band | `ring_band.ntop`, runner, gate | a band built headless from JSON passes the gate | passed 25 Oct |
 | 1 — rings | profiled bands; milgrain, groove, engraving; Notebook API authoring | **one printed and cast band** (any profile) measured on the mandrel and weighed | steps 1 and 2 verified 27 Oct, `ring_features.ntop` committed; print + cast waits for the kit (printer/resin being bought) |
 | 2 — custom-block library | `ntop/blocks/`: stone seat, prong heads (round, outline, V-prongs), bezel; gem bodies (round, oval, pear, cushion, emerald, marquise); the solitaire assembly (cathedral arches, milgrain, engraving) | a solitaire (6.5 mm round, 6-prong) in sizes 5–7 passes the gate, prints with every prong intact | software half PASSED 29 Oct (round US 5-7, every fancy shape, pear and marquise with V-prongs, bezels offline); the print is what remains (band profile / bead / groove / wrap as library blocks deferred to Phase 3 step 1) |
-| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands), 1c (split and rope shanks) and 1d (the solitaire on a tapered or split shank) PASSED in nTop (30 Oct - 1 Nov); the edge-round opening found never to have built, fixed in every notebook and calibrated (31 Oct: band 0.00 %, solitaire −0.08 %); 1e Celtic knotwork written (1 Nov): the plait band and ring 01's trinity-knot shank and solitaire; the trinity's real runs failed on a self-intersecting bar (1-2 Nov), traced to the mesh union's micrometre seams - every shank now goes to nTop as up to four bars that nTop unites (2 Nov); with that the trinity shank, the trinity solitaire and the plait built in one shell (gate tuned for the mesher's zero-volume bubbles and the knots' crease fill); the split's seam groove then moved the opening before the union (four notebooks to rebuild again), real check pending; step 2/3 (`multistone.ntop`, `pave_band.ntop`: the three-stone rings incl. the ruby demo, the pavé band) and step 5 (`ring_artwork.ntop`: the Seraphine's leaf rows and vine) PASSED in nTop 3 Nov; the same panels carved under a solitaire's head (the three solitaire notebooks, `--no-arches` plain shoulders, the `scroll` motif) PASSED in nTop 3 Nov 22:30, and with trinity knots tucked under the head on the shoulders 23:31 (`solitaire.ntop`; the outline and bezel notebooks still to rebuild); the Seraphine then tuned against the photos (4 Nov: knot apex at the head, volute + leaves on the sides) |
+| 3 — ring styles | the twelve reference rings in `docs/reference/rings/`: blended junctions; shank shaping (taper, contours, split and twisted, knotwork); multi-stone placement and galleries; pavé and accents; pearl, cabochon and asscher bodies; artwork on the band; organic motifs | each capability proven on one reference ring (gated); a three-stone ring and a pavé-shoulder ring printed with every seat open | started 30 Oct: step 0 (blends) built and PASSED in nTop, factor calibrated; step 1a (tapered shank, `ring_shank.ntop`), 1b (contour/chevron centrelines, double bands), 1c (split and rope shanks) and 1d (the solitaire on a tapered or split shank) PASSED in nTop (30 Oct - 1 Nov); the edge-round opening found never to have built, fixed in every notebook and calibrated (31 Oct: band 0.00 %, solitaire −0.08 %); 1e Celtic knotwork written (1 Nov): the plait band and ring 01's trinity-knot shank and solitaire; the trinity's real runs failed on a self-intersecting bar (1-2 Nov), traced to the mesh union's micrometre seams - every shank now goes to nTop as up to four bars that nTop unites (2 Nov); with that the trinity shank, the trinity solitaire and the plait built in one shell (gate tuned for the mesher's zero-volume bubbles and the knots' crease fill); the split's seam groove then moved the opening before the union (four notebooks to rebuild again), real check pending; step 2/3 (`multistone.ntop`, `pave_band.ntop`: the three-stone rings incl. the ruby demo, the pavé band) and step 5 (`ring_artwork.ntop`: the Seraphine's leaf rows and vine) PASSED in nTop 3 Nov; the same panels carved under a solitaire's head (the three solitaire notebooks, `--no-arches` plain shoulders, the `scroll` motif) PASSED in nTop 3 Nov 22:30, and with trinity knots tucked under the head on the shoulders 23:31 (`solitaire.ntop`; the outline and bezel notebooks still to rebuild); the Seraphine then tuned against the photos (4 Nov: knot apex at the head, volute + leaves on the sides); step 7 (surface textures: the hammer, then nTop's own - voronoi, frost, pitted, cellular, ribbed) PASSED in nTop 5-6 Nov; step 8 (the open gyroid lattice band) written and gated offline 6 Nov, real check pending |
 | 4 — pendants, bracelets, chains | bezel/disc/tag pendants with bail, cuffs and bangles, chain links with ≥ 0.35 mm clearance | a text pendant hangs level; a 10-link cable segment prints with every link free | not started |
 | 5 — casting prep | sprues, trees, shrink scaling, weight and metal estimates, flask layout | a tree of Phase 1–3 parts cast in one pour; `cast_ring_size_offset` and the shrink factors calibrated | not started |
 | 6 — hardening | sweeps (`values: [...]`), batch delivery, second-laptop build server, skills polished | the full suite plus the real checks below pass on both laptops | continuous |
@@ -626,6 +626,48 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    nTop textures are products; what remains open for them: on a shaped shank or under a head (the zone would
    follow the taper and keep clear of the head, as the hammer's layout does), and the cellular's scaling at a
    second grain.
+8. **Lattices** *(6 Nov: written and gated offline, Mark's call - "lattice hollowing", with two conditions of his that
+   settled the design: the lattice has to be exposed or the trapped resin never gets out, and in the casting the
+   lattice's negative space is investment that has to be supported and then removed)*. **An open gyroid band** -
+   `lattice`, `ring_lattice.ntop`, `ntopjewel.lattice.GyroidSpec`, `nb_lattice.py`. A lattice buried inside a skin
+   (nTop's "shell and gyroid") fails both of Mark's conditions, so it is not built. What is: the profiled band keeps a
+   solid bore skin (tables `lattice_skin_mm` 0.8) and solid rims (the good wall, 0.75); between them, from the skin's
+   top to the outer face, the metal is nTop's walled gyroid - `gyroid_implicit` (cell) + `thicken_implicit` (sheet) -
+   built in the bar frame and wrapped round the ring by Remap Cylindrical with a mapping length of a whole number of
+   cells, so the pattern closes on itself; trimmed to the band inside the zone (grown 0.25 into the skin and the rims:
+   a union never meets on a face), opened by 0.1 (a sheet meeting the dome nearly tangent leaves a feather edge; the
+   opening takes anything thinner than 0.2 and rounds the sheet ends), united with the band less the zone. Two new
+   floors in the tables, defaults for the first lattice print and cast: `lattice_member` 0.6 (a continuous, supported
+   sheet: between the marginal and the good wall) and `lattice_pore` 1.0 (the sphere that passes through the void: the
+   investment channel - it must hold through the burnout and the pour as a network anchored through the open face, and
+   wash out afterwards with water in at one opening and out at another; the resin drains through it too). At those
+   floors a gyroid needs a cell of about 3.5 mm (0.6 sheets leave a 1.04 pore, the sheet 51 % of the cell), so a lattice
+   band is a chunky band (6-7 wide, 3.3-3.5 thick, less than a cell deep) and saves about a third of the metal (flat
+   US 6 7 x 3.5: 1538 -> 1020 mm³, 15.9 -> 10.6 g sterling). **Python holds the same geometry exactly**, so the gate
+   is a comparison, not an envelope: the gyroid's formula, its distance by two Newton steps along the gradient (the
+   first-order g / |∇g| over-reads the distance by a tenth at the face and thins a 0.6 sheet to 0.54 - measured on the
+   unit cell), the wrap (geom.remap_cylindrical's), the opening at the dome (the eroded sheet ∩ the eroded half-space
+   is a wedge; the opened body is everything within the round of it). Checks: **lattice match** (the built mesh's inside
+   / outside at 20 000 points in the zone against the model, ≥ 98 %; failing, the report names the best of the mirrored
+   and shifted gyroids - nTop's convention, to record), **sheet thickness** (rays through the sheets off their ends: p1
+   against the member floor, the median against the wall), **pore width** (rays across the voids to the next sheet, p5
+   within 85 % of the unit cell's own), **open voids** (the built mesh voxelised by scanline rays at 0.1 mm and
+   flood-filled from the outer face: a pocket of void that reaches no opening fails the part - the trapped-resin check,
+   on the built geometry), **design volume** (nTop's integral against the model's grid integration over one angular
+   period, ±2 %: the level set of the same field agrees with it to 0.02 %), the mask, the band checks. The design is
+   refused for a member under the floor, a cell whose pore (the unit cell's distance transform) is under the floor, a
+   zone under half a cell deep, a skin under the good wall, metal that is not one piece or a void that does not reach
+   the face (the same flood fill on the model), a sheet under 6 voxels. The simulated nTop builds the band from the
+   notebook inputs alone with manifold3d's level set of the same field (faults `nolattice`, `closed` - a skin over the
+   face, every void a pocket -, `thin`: each caught). Offline PASSED (flat US 6 6 x 3.3, 18 cells round, 30 % saved).
+   *Real check pending:* `api build ring_lattice`, then `lattice` (flat 7 x 3.5, Mesh Tolerance 0.1, ~3 M triangles).
+   What that run measures of nTop's blocks: the sheet's median against 0.6 (is Thicken symmetric, is the gyroid's field a
+   distance), the match and its best variant (nTop's gyroid convention and phase), the volume. Then the print: do 0.6
+   mm sheets and 1 mm pores print and wash, and after the cast, does the investment come out - the two floors'
+   calibration. Open after that: other TPMS (nTop has schwarz, diamond, lidinoid, neovius implicits with the same one
+   input), a beam lattice (sparser: 0.8 struts in 2.5-3 mm cells leave 2 mm gaps, a cage rather than a sponge), the
+   lattice on a shaped shank or under a head, fillets at the sheet feet (a blended union with the skin, the overlap
+   past the blend).
 
 ## Notebook readability (2026-11-04)
 

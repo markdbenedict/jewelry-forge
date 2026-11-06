@@ -22,6 +22,8 @@ would, so the rejections are tested rather than assumed:
                       relief lost) | noknot (the shoulder knots' layers lost) | noblend (the blend radii ignored:
                       sharp junctions) | noprongs (outline_head: the prongs mesh lost - claws, a pearl's post) | noside / nohood / fullbezel (partial_bezel_head: a wall never mirrored, the hoods lost, the mask's walls lost) | nowrap (ring_shank: the bar exported unwrapped) | annulus : a flat
                       rectangular section instead of the designed one (what a notebook that ignores the tori produces)
+                      | nolattice / closed / thin (ring_lattice: the zone emptied and no lattice built; the zone's outer face left
+                      as a skin over the lattice, every void a pocket; the sheets 0.6 x the Wall asked)
   FAKE_NTOPCL_EXPORT  1 (default) | 0 : do not write the STL (an unwired Export block)
   FAKE_NTOPCL_VOLUME  mesh (default) | none : report no Volume output
   FAKE_NTOPCL_SLEEP   seconds to sleep before writing (default 0)
@@ -60,7 +62,7 @@ def write_templates(nb: Path) -> None:
     inputs = []
     if ("head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name
             or "artwork" in nb.name or "texture" in nb.name
-            or any(k in nb.name for k in ("voronoi", "frost", "pitted", "cellular", "ribbed"))):
+            or any(k in nb.name for k in ("voronoi", "frost", "pitted", "cellular", "ribbed", "lattice"))):
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
         name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
@@ -552,6 +554,25 @@ def main(argv: list[str]) -> int:
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Band Body", "Textured All Over", "Dents", "Zone", "Dents In Zone", "Textured", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif "lattice" in nb.name:
+        # ring_lattice: the band less the zone ∪ the walled gyroid wrapped round the ring inside the grown zone, opened at the
+        # dome - manifold3d's level set of the same field nTop's blocks make, from the inputs alone (lattice.lattice_mesh)
+        from ntopjewel import lattice as _lat
+        zh = (float(values["Zone Z Top"]) - float(values["Zone Z Bottom"])) / 2
+        overlap = float(values["Zone Inner Radius"]) - float(values["Lattice Inner Radius"])
+        wall = float(values["Wall"]) * (0.6 if shape == "thin" else 1.0)
+        mesh = _lat.lattice_mesh(values, float(values["Cell Size"]), wall, float(values["Wrap Length"]), zh,
+                                 float(values["Zone Inner Radius"]), float(values["Mesh Tolerance"]), lattice=shape != "nolattice",
+                                 closed=shape == "closed", overlap=overlap, round_mm=float(values["Lattice Round"]))
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Band Body", "Gyroid", "Walled Gyroid", "Lattice Wrapped", "Zone", "Lattice Zone", "Lattice Trimmed", "Lattice Eroded",
+                     "Lattice Re-distanced Mesh", "Lattice Re-distanced", "Lattice Opened", "Skin And Rims", "Lattice Band", "Mesh",
+                     "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

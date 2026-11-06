@@ -49,6 +49,9 @@ SIGNATURES = {
     "boolean_union<blend_enum,real_field,list<implicit>>[5.44.0]": ("Boolean Union", BOOL_N, "implicit"),
     "offset_implicit<implicit,real_field>": ("Offset Body", [("Body", "implicit"), ("Distance", "real_field")], "implicit"),
     "thicken_implicit<implicit,real_field>": ("Thicken Body", [("Body", "implicit"), ("Thickness", "real_field")], "implicit"),
+    # discovery 2026-11-05: the TPMS implicits take one real (the cell size; the input's name is the fake's guess)
+    "gyroid_implicit<real>[1.1.0]": ("Gyroid", [("Cell Size", "real")], "implicit"),
+    "gyroid_implicit<real>": ("Gyroid", [("Cell Size", "real")], "implicit"),
     "mass_properties<mesh,real>[2.1.0]": ("Mass Properties", [("Mesh", "mesh"), ("Density", "real")], "body_mass_props"),
     "mass_properties<implicit,real_field,real>[1.1.0]": ("Mass Properties", [("Body", "implicit"), ("Density", "real_field"), ("Relative Error", "real")], "body_mass_props"),
     "mass_properties_from_body<implicit,real_field,real>": ("Mass Properties", [("Body", "implicit"), ("Density", "real_field"), ("Relative error", "real")], "body_mass_props"),

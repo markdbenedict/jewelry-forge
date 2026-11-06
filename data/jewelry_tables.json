@@ -228,6 +228,16 @@
       "mm": 0.1,
       "status": "default",
       "source": "a surface texture's shallowest cut (a hammered dimple at its lightest strike): two to four printer layers at 25-50 um, and finishing takes a few hundredths off a high-polish face; shallower polishes flat. To calibrate on the first textured print and cast"
+    },
+    "lattice_member": {
+      "mm": 0.6,
+      "status": "default",
+      "source": "the thinnest sheet (or strut) of an exposed lattice: a gyroid sheet is continuous and well supported, so it stands between the marginal and the good wall - resin prints it, and the silver fills it when the sprue feeds the skin. To calibrate on the first lattice print and cast"
+    },
+    "lattice_pore": {
+      "mm": 1.0,
+      "status": "default",
+      "source": "the narrowest channel through an exposed lattice's voids (the sphere that passes): it is the investment between the sheets - which has to survive the burnout and the pour as a connected network anchored through the open face, and be washed out after the quench with water in at one opening and out at another; and the uncured resin has to drain through it. Filigree casts at 0.5-0.8 mm gaps; a lattice's channels are longer. To calibrate on the first lattice print and cast"
     }
   },
   "casting": {
@@ -379,6 +389,11 @@
       "value": 0.05,
       "status": "default",
       "source": "Mesh Tolerance for a pavé ring (25 µm voxels): the webs between seats are 0.1 mm and the beads 0.5 mm, which 0.1 mm (50 µm voxels) blurs"
+    },
+    "lattice_skin_mm": {
+      "value": 0.8,
+      "status": "default",
+      "source": "the solid bore skin under an exposed lattice band: above the good wall (0.75), it is the band the finger feels and the jeweller sizes, and the sprue feeds the lattice through it"
     }
   },
   "calibration_log": [

@@ -254,6 +254,10 @@ class FieldTextureSpec:
     def texture_line(self) -> str:
         raise NotImplementedError
 
+    def result_notes(self, ntop_vol: float | None) -> list[str]:
+        """Lines a kind adds to the result (a lattice: the weight it saves)."""
+        return []
+
     def describe(self) -> str:
         b = self.band
         take = f"take at most {self.max_removal_mm3():.2f}"
@@ -605,15 +609,18 @@ class FieldTextureResult(bandmod.BandResult):
 
 
 def build(spec: FieldTextureSpec, out_dir: Path | None = None, *, notebook: Path | None = None, catalog_name: str | None = None,
-          deliver: bool = False, deliver_project: str = "Bands", cast_metal: str | None = None) -> FieldTextureResult:
-    """Run the kind's notebook (ring_<kind>.ntop) through nTopCL, gate the textured band by its envelope (check_fieldtex)."""
+          deliver: bool = False, deliver_project: str = "Bands", cast_metal: str | None = None, check=None,
+          family: str = "texture") -> FieldTextureResult:
+    """Run the kind's notebook (spec.notebook_name) through nTopCL, gate the band (`check(spec, stl, ntop_vol)`, the envelope
+    gate check_fieldtex by default; a lattice brings its own) into out\\<family>."""
+    check = check or check_fieldtex
     problems = spec.validate()
     if problems:
         raise ValueError("; ".join(problems))
     cat = catalog.load(catalog_name or spec.notebook_name)
     nb = Path(notebook) if notebook else cat.notebook
     built_notes = runs.require_built(cat, nb) if not notebook else []
-    out_dir = Path(out_dir) if out_dir else config.out_dir() / "texture"
+    out_dir = Path(out_dir) if out_dir else config.out_dir() / family
     stem = spec.stem
     run_dir, run_id = runs.fresh_run_dir(out_dir, stem)
     stl = run_dir / f"{stem}.stl"
@@ -626,15 +633,16 @@ def build(spec: FieldTextureSpec, out_dir: Path | None = None, *, notebook: Path
         raise ntopcl.NtopclError(f"notebook reported success but {e}", run) from e
     vol_entry = run.outputs.get(cat.output.get("name", "Volume"))
     ntop_vol = ntopcl.scalar_value(vol_entry) if vol_entry else None
-    rep = check_fieldtex(spec, stl, ntop_vol)
+    rep = check(spec, stl, ntop_vol)
     gate.save(rep)
     result = FieldTextureResult(spec, stl, run, rep, ntop_vol, run_dir, run_id)
-    result.notes += built_notes + spec.band.warnings()
+    result.notes += built_notes + spec.band.warnings() + spec.result_notes(ntop_vol)
     report = {
         "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
         "spec": {**asdict(spec.band), "texture": spec.design()}, "design": spec.design(), "inputs": values, "stl": str(stl),
         "ntop_volume_mm3": ntop_vol, "plain_volume_mm3": spec.plain_volume_mm3(), "max_removal_mm3": spec.max_removal_mm3(),
-        "max_addition_mm3": spec.max_addition_mm3(), "texture": getattr(rep, "texture", {}),
+        "max_addition_mm3": spec.max_addition_mm3(), "design_volume_mm3": spec.design_volume_mm3() if hasattr(spec, "design_volume_mm3") else None,
+        "texture": getattr(rep, "texture", {}),
         "gate": rep.to_dict(), "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings],
         "notes": result.notes, "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version()),
     }
