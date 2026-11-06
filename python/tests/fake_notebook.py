@@ -33,6 +33,7 @@ SIGNATURES = {
     "ntoptoolkits.architected_materials.voronoi_emboss<implicit,real,integer,integer,real_field,blend_enum,real,real_field>[2.0.0]": ("Voronoi Emboss", [("Body", "implicit"), ("Feature size", "real"), ("Voronoi cell count", "integer"), ("Relaxation iterations", "integer"), ("Thickness", "real_field"), ("Blend type", "blend_enum"), ("Blend radius", "real"), ("Spatial weighting", "real_field")], "implicit"),
     "ntoptoolkits.architected_materials.triangle_wave_texture<implicit,vector,real_field,real_field>": ("Triangle Wave Texture", [("Body", "implicit"), ("Direction", "vector"), ("Wave height", "real_field"), ("Wave spacing", "real_field")], "implicit"),
     "core.var<integer>": ("Integer Variable", [("Input", "integer")], "integer"),
+    "divide<real,real>": ("Divide", [("A", "real"), ("B", "real")], "real"),
     "point<real,real,real>": ("Point", [("X", "real"), ("Y", "real"), ("Z", "real")], "point"),
     "vector<real,real,real>": ("Vector", [("X", "real"), ("Y", "real"), ("Z", "real")], "vector"),
     "cylinder<point,point,real>": ("Cylinder", [("Point 1", "point"), ("Point 2", "point"), ("Radius", "real")], "cylinder"),

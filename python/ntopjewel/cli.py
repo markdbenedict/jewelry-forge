@@ -322,8 +322,8 @@ def cmd_texture(a: argparse.Namespace) -> int:
     (nTopCL + the gate). --dry-run describes and validates the design and lists the notebook's inputs; --write-design
     writes Python's own model (STL + the strike centres) to look at - not an nTop build (the hammer only: the
     voronoi cells are nTop's)."""
-    if a.kind == "voronoi":
-        return _cmd_voronoi(a)
+    if a.kind != "hammered":
+        return _cmd_fieldtex(a)
     spec = texture.HammeredSpec(_band_spec(a), dimple_mm=a.dimple, depth_mm=a.depth, depth_var=a.depth_var,
                                 spacing=a.spacing, rim_mm=a.rim, seed=a.seed)
     probs = spec.validate()
@@ -360,10 +360,15 @@ def cmd_texture(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
-def _cmd_voronoi(a: argparse.Namespace) -> int:
+def _cmd_fieldtex(a: argparse.Namespace) -> int:
     from . import fieldtex
-    spec = fieldtex.VoronoiSpec(_band_spec(a), groove_mm=a.groove, cells=a.cells, cell_size_mm=a.cell_size, iterations=a.iterations,
-                                weighting_mm=a.weighting, blend_mm=a.blend, rim_mm=a.rim)
+    if a.kind == "voronoi":
+        kw = dict(groove_mm=a.groove, cells=a.cells, cell_size_mm=a.cell_size, iterations=a.iterations, weighting_mm=a.weighting, blend_mm=a.blend)
+    elif a.kind == "ribbed":
+        kw = dict(rib_mm=a.rib, rib_depth_mm=a.depth)
+    else:
+        kw = dict(grain_mm=a.grain, amplitude_mm=a.depth, seed=a.seed)
+    spec = fieldtex.make_spec(a.kind, _band_spec(a), rim_mm=a.rim, **kw)
     probs = spec.validate()
     print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
     for w in spec.band.warnings():
@@ -372,7 +377,7 @@ def _cmd_voronoi(a: argparse.Namespace) -> int:
         print(summary.error_line(spec.stem, "; ".join(probs)))
         return 1
     if a.write_design:
-        print("  --write-design: the voronoi cells are nTop's own; there is no model of them to write (the gate is an envelope)")
+        print(f"  --write-design: the {a.kind} texture is nTop's own; there is no model of it to write (the gate is an envelope)")
         return 1
     if a.dry_run:
         for k, v in spec.notebook_inputs("<output path>").items():
@@ -1078,10 +1083,14 @@ def main(argv: list[str] | None = None) -> int:
     tx = sub.add_parser("texture", help="a hammered band: strikes of a round hammer face, overlapping into facets (ring_texture.ntop)")
     _add_band_args(tx)
     tx.set_defaults(thickness=1.6, tolerance=0.05)
-    tx.add_argument("--kind", default="hammered", choices=["hammered", "voronoi"],
-                    help="hammered: strikes of a round hammer face (ring_texture.ntop); voronoi: nTop's voronoi deboss, the cell walls "
-                         "as half-round grooves on the outer face (ring_voronoi.ntop)")
+    tx.add_argument("--kind", default="hammered", choices=["hammered", "voronoi", "frost", "pitted", "cellular", "ribbed"],
+                    help="hammered: strikes of a round hammer face (ring_texture.ntop); the rest are nTop's own blocks masked to the outer face - "
+                         "voronoi: the cell walls as half-round grooves; frost: simplex noise both ways (--grain, --depth = the amplitude, --seed); "
+                         "pitted: the noise cut in only; cellular: soft dimples at a Worley noise's cells; ribbed: ribs round the ring (--rib, --depth)")
     _add_hammer_args(tx, "the hammered texture (the default --kind)")
+    no = tx.add_argument_group("--kind frost | pitted | cellular | ribbed")
+    no.add_argument("--grain", type=float, default=2.0, help="the noise's period, mm (nTop's frequency is 1000 / grain per metre)")
+    no.add_argument("--rib", type=float, default=0.5, help="--kind ribbed: the ribs' spacing along the ring axis, mm (--depth: how deep)")
     vo = tx.add_argument_group("--kind voronoi")
     vo.add_argument("--groove", type=float, default=0.2, help="the groove's width, mm; it is half as deep (nTop's Thickness)")
     vo.add_argument("--cells", type=int, default=200, help="nTop's Voronoi cell count (3-D cells through the band; a few dozen show on the face)")

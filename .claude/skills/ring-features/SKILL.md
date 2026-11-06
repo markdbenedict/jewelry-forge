@@ -268,3 +268,20 @@ outside it nothing moved; the grooves cover 3-60 % of the face and enclose at le
 nTop's volume between the plain band and the band less the zone's face sunk by the depth. The report says what came out
 (deepest, share, cells and their size, volume taken). Refused: grooves under 2 x `texture_depth` (0.2 wide) or over 1 mm,
 too little wall under a groove at the zone's edge, under 3 voxels, past 5 M triangles.
+
+The other kinds (`fieldtex.NoiseSpec`, `RibbedSpec`; `ring_<kind>.ntop`, the same mask and envelope):
+
+```powershell
+python -m ntopjewel texture --kind frost --thickness 1.6 --tolerance 0.05 --grain 2 --depth 0.1 --seed 1   # surface roughness: a ±0.1 frost, 2 mm grain
+python -m ntopjewel texture --kind pitted --thickness 1.6 --tolerance 0.05 --grain 1.5 --depth 0.1       # simplex deboss: the same noise cut in only
+python -m ntopjewel texture --kind cellular --thickness 1.6 --tolerance 0.05 --grain 2 --depth 0.15      # cellular deboss: soft dimples at the cells, --depth the deepest
+python -m ntopjewel texture --kind ribbed --thickness 1.6 --tolerance 0.05 --rib 0.5 --depth 0.2         # the triangle wave: ribs round the ring, 0.5 apart, 0.2 deep
+```
+
+`--grain` is the noise's period in mm (nTop's frequency is per metre: 1000 / grain); `--depth` the amplitude (the frost
+rises as much as it cuts; the gate's outer-Ø expectation grows by it); `--seed` nTop's. The cellular block's "Depth
+factor" is not a depth - the dimples come out about 3.4 x factor x grain deep (tables, one measurement), so the spec sets
+the factor from `--depth`. The ribbed band is eroded by the rib depth first (the wave only stands outward, peaks 3 x its
+height input) and the ribs come back up to the design. Coverage the gate asks for: frost ≥ 30 %, pitted ≥ 10 %, cellular
+and ribbed ≥ 50 %. Refused: amplitude under `texture_depth` or over 0.5, a grain under 8 voxels or over twice the band's
+width, ribs under 6 voxels apart.

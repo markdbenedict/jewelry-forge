@@ -325,6 +325,16 @@
       "status": "calibrated",
       "source": "triangles nTop's Mesh from Implicit Body makes per voxel-sized square of surface (a voxel = half the Mesh Tolerance): the up-front mesh-density estimate a texture is refused by (calibration_log 2026-11-05; two runs, 2.79 and 2.77)"
     },
+    "cellular_noise_depth_per_factor_per_mm": {
+      "value": 3.4,
+      "status": "calibrated",
+      "source": "nTop's cellular_noise_deboss: the deepest dimple per unit of its Depth factor (a length) per mm of the noise's period (1000 / its per-metre frequency) - the input is not a depth. One measurement (calibration_log 2026-11-06); a second frequency would confirm the scaling with the period"
+    },
+    "triangle_wave_peak_per_height": {
+      "value": 3.0,
+      "status": "calibrated",
+      "source": "nTop's triangle_wave_texture: its peaks stand this many times the Wave height input above the surface it is given (troughs on the surface; the surface is displaced outward only). One measurement (calibration_log 2026-11-06)"
+    },
     "blend_volume_factor": {
       "value": 0.32,
       "status": "calibrated",
@@ -403,6 +413,22 @@
       "to": 2.78,
       "status": "calibrated",
       "evidence": "nTop 6.3.3: the hammered band (court US6 4 x 1.6, 150 strikes of 1.6 x 0.15, ring_texture.ntop) meshed at Mesh Tolerance 0.05 came out 2,443,428 triangles; its design mesh's surface is 551.29 mm2: 2443428 x 0.025^2 / 551.29 = 2.77, against 2.79 for the partial-bezel ring - a faceted textured face and a smooth one mesh alike. The mean of the two."
+    },
+    {
+      "date": "2026-11-06",
+      "entry": "settings.cellular_noise_depth_per_factor_per_mm",
+      "from": null,
+      "to": 3.4,
+      "status": "calibrated",
+      "evidence": "nTop 6.3.3, texture_probe round two on the plain court US6 4 x 1.6 band: cellular_noise_deboss with Frequency 500 (per metre: a 2 mm period) and Depth factor 0.1 mm cut 0.677 mm at its deepest (0.72 on the bore), the whole surface touched; 0.677 / (0.1 x 2) = 3.4. Round one at frequency 1 (a 1 m period) had cut a uniform 0.158 everywhere. One frequency; the scaling with the period is assumed."
+    },
+    {
+      "date": "2026-11-06",
+      "entry": "settings.triangle_wave_peak_per_height",
+      "from": null,
+      "to": 3.0,
+      "status": "calibrated",
+      "evidence": "nTop 6.3.3, texture_probe on the plain court US6 4 x 1.6 band: triangle_wave_texture with Wave height 0.1, Wave spacing 0.5, Direction Z displaced the outer face outward by 0 (troughs, on the design) to 0.299 (peaks) with a 0.5 mm period; the bore and the side faces likewise (+0.30, +0.28). Same in both rounds."
     }
   ],
   "notes": [

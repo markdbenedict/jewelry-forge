@@ -1,0 +1,120 @@
+# Phase 3 step 7: a band with nTop's triangle wave on its outer face - the band eroded by the rib depth, the wave standing back up to
+# the design: ribs round the ring - kept inside a zone between the rims. Built by ntop/recipes/ring_ribbed.py; numbers from
+# ntopjewel.fieldtex.RibbedSpec, gated by an envelope.
+notebook: ring_ribbed.ntop
+version: 0.1.0   # 0.1.0: first build (2026-11-06)
+rebuild_since: 0.1.0
+title: Ribbed band (nTop's triangle wave on the outer face)
+output:
+  name: Volume
+  type: scalar
+  units: mm^3
+  doc: Volume Integral of 1 over the textured band.
+inputs:
+  Outer Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: Bore radius + thickness at the mid-plane.
+  Bore Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 15.0
+    doc: Inner diameter / 2 (size + allowance), measured at the mid-plane.
+  Z Top:
+    type: scalar
+    units: mm
+    min: 0.75
+    max: 7.5
+    doc: +Width/2. The band is centred on the origin along Z.
+  Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.75
+    doc: -Width/2.
+  Dome Ring Radius:
+    type: scalar
+    units: mm
+    min: -200.0
+    max: 25.0
+    doc: Centre-line radius of the dome torus (outer radius - tube radius); may be small or negative for shallow domes.
+  Dome Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the dome torus = (W²/4 + dome²) / (2·dome).
+  Comfort Ring Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 600.0
+    doc: Centre-line radius of the comfort torus (bore radius + tube radius).
+  Comfort Tube Radius:
+    type: scalar
+    units: mm
+    min: 0.5
+    max: 500.0
+    doc: Tube radius of the comfort torus = (W²/4 + comfort²) / (2·comfort).
+  Edge Round:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 1.0
+    doc: Second Offset Body distance (+e); rounds every edge with this radius.
+  Edge Round Inward:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: -0.02
+    doc: First Offset Body distance (-e).
+  Mesh Tolerance:
+    type: scalar
+    units: mm
+    min: 0.02
+    max: 0.5
+    default: 0.1
+    doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Rib Spacing:
+    type: scalar
+    units: mm
+    min: 0.2
+    max: 5.0
+    default: 0.5
+    doc: nTop's Wave spacing - the ribs' period along the ring axis.
+  Wave Height:
+    type: scalar
+    units: mm
+    min: 0.01
+    max: 0.5
+    doc: nTop's Wave height; the peaks stand about 3 x it above the eroded band (RibbedSpec.wave_height = depth / 3).
+  Erosion:
+    type: scalar
+    units: mm
+    min: -0.5
+    max: -0.1
+    doc: "Offset Body's distance, negative - the rib depth the band is sunk by before the wave stands back up to the design."
+  Zone Z Top:
+    type: scalar
+    units: mm
+    min: 0.25
+    max: 7.5
+    doc: The zone's top, +Width/2 − rim (VoronoiSpec.zone_half_width).
+  Zone Z Bottom:
+    type: scalar
+    units: mm
+    min: -7.5
+    max: -0.25
+    doc: The zone's bottom, −(Width/2 − rim).
+  Zone Inner Radius:
+    type: scalar
+    units: mm
+    min: 5.0
+    max: 25.0
+    doc: The zone's inside, just under the dome's lowest point inside the zone less the groove's depth and a margin (the bore stays out of it).
+  Output Path:
+    type: text
+    doc: Where Export Mesh writes the textured band's STL.

@@ -598,9 +598,29 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    `texture coverage` - the grooves' share of the zone's face 3-60 % and the flat cells they enclose counted on a
    raster (≥ 4; a plain band has one); `design volume` - nTop's volume in [plain − zone face x depth, plain]. The
    simulated nTop grooves a seeded 2-D net with half-round cutters (faults: `notexture`, `unmasked`, `deep` - each
-   caught). Offline PASSED (30 cells on the face, 13 % grooved, 0.100 deep). *Real checks pending:* `api build
-   ring_voronoi`, then `texture --kind voronoi --thickness 1.6 --tolerance 0.05`; and the probe's round two
-   (`api build texture_probe` 0.3.0 - the noises at 500 per metre - then `texture-probe`, with the depth maps).
+   caught). Offline PASSED (30 cells on the face, 13 % grooved, 0.100 deep). **Real check PASSED (6 Nov, 11:37):**
+   `api build ring_voronoi`, then `texture --kind voronoi --thickness 1.6 --tolerance 0.05`: 21 s in nTopCL, grooves
+   0.102 deep against 0.100 asked (the half-round reading holds), the bore / sides / rims within 0.005 mm of the design
+   (the 0.033 the gate first read was on the grooves' cut walls at the zone's edge - those vertices now belong to
+   neither side), 30 % of the face grooved, **114 cells of 1.1 mm²** enclosed (the depth map confirms it: the same
+   net as the probe's), volume −1.14 %; 2.55 M triangles. **The probe's round two (11:42, 500 per metre):** simplex
+   deboss 0.082 deep, 34 % touched, 0.45 mm features; surface roughness ±0.085, 75 %, 0.45 mm; cellular noise
+   0.677 deep (its Depth factor 0.1 is not a depth: tables `cellular_noise_depth_per_factor_per_mm` 3.4, one
+   point); the voronois and the wave as before (`triangle_wave_peak_per_height` 3.0). Depth maps drawn for all six.
+   **Every usable block is now a product (6 Nov):** `texture --kind frost | pitted | cellular | ribbed` beside
+   `voronoi` - `ring_<kind>.ntop` each (`nb_texture.product_body`: the band, nTop's block on it, the mask, the
+   export; `fieldtex.NoiseSpec` / `RibbedSpec` on the `FieldTextureSpec` base the voronoi now shares). frost =
+   surface roughness, ±amplitude, the mask two-sided (the dents cut, the bumps united); pitted = simplex deboss;
+   cellular = cellular deboss, its factor set from the wanted depth and the grain (the notebook makes nTop's
+   unitless per-metre Frequency as 1000 mm / Grain); ribbed = the triangle wave on the band eroded by the rib
+   depth (Erosion, negative), the peaks back on the design. `--grain` (the noise's period: frequency = 1000 /
+   grain per metre), `--depth` (the amplitude / rib depth), `--seed`, `--rib`. The envelope gate takes the rise
+   into account (frost: the outer Ø may stand up to +amplitude), the coverage bounds are per kind (frost ≥ 30 %,
+   pitted ≥ 10 %, cellular and ribbed ≥ 50 %, voronoi 3-60 % with its cells counted). The simulated nTop
+   displaces the band's vertices by a seeded noise / Worley / triangle field inside the zone (faults caught for
+   every kind). Offline PASSED. *Real checks pending:* `api build ring_frost`, `ring_pitted`, `ring_cellular`,
+   `ring_ribbed`, then `texture --kind <kind> --thickness 1.6 --tolerance 0.05 --depth 0.1` for each; the
+   cellular's depth and the ribs' peaks are the two one-point calibrations to confirm.
 
 ## Notebook readability (2026-11-04)
 

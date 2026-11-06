@@ -29,8 +29,8 @@ from ntopjewel import nb_texture as nt
 
 HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
-SPECS = nt.VORONOI_SPECS
-INPUT_ORDER = list(nj.BAND_INPUTS) + [n for n, _ in SPECS] + ["Output Path"]
+SPECS = nt.product_specs("voronoi")
+INPUT_ORDER = nt.product_input_order("voronoi")
 
 DEFAULTS = {
     "values": {},
@@ -56,21 +56,6 @@ def prepare(params: dict, work_dir: Path) -> dict:
     return params
 
 
-def _body(h, p, values, test_output):
-    nj.add_band_inputs(h, values)
-    ids = nj.add_typed_inputs(h, SPECS, values)
-    out_var = nj.path_variable(h, "Output Path", test_output)
-    with h.section("Band"):
-        band = nj.add_profiled_band(h)
-    with h.section("Voronoi"):
-        grooved = nt.add_voronoi_deboss(h, band, ids)
-    with h.section("Mask"):
-        body = nt.add_outer_face_mask(h, band, grooved, ids)
-    with h.section("Textured"):
-        integ, _mesh, export = nj.add_measure_mesh_export(h, body, out_var, h.blocks["Mesh Tolerance"])
-    return integ, export
-
-
 def build(notebook, params: dict | None = None) -> dict:
     """Entry point for `api build ring_voronoi`."""
-    return nj.standard_build(notebook, params, DEFAULTS, _body, "ring_voronoi")
+    return nj.standard_build(notebook, params, DEFAULTS, nt.product_body("voronoi"), "ring_voronoi")

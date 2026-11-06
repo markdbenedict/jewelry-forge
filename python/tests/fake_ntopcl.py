@@ -59,7 +59,8 @@ def fail(msg: str) -> None:
 def write_templates(nb: Path) -> None:
     inputs = []
     if ("head" in nb.name or "solitaire" in nb.name or "shank" in nb.name or "pave" in nb.name or "multistone" in nb.name
-            or "artwork" in nb.name or "texture" in nb.name or "voronoi" in nb.name):
+            or "artwork" in nb.name or "texture" in nb.name
+            or any(k in nb.name for k in ("voronoi", "frost", "pitted", "cellular", "ribbed"))):
         import yaml
         cat_dir = HERE.parents[2] / "catalog"
         name = nb.stem if (cat_dir / f"{nb.stem}.yaml").exists() else ("solitaire" if "solitaire" in nb.name else
@@ -250,6 +251,60 @@ def voronoi_grooves(mesh, values: dict, shape: str):
     out.update_faces(out.nondegenerate_faces())
     out.update_faces(out.unique_faces())
     return out
+
+
+def displace_texture(mesh, values: dict, kind: str, shape: str):
+    """ring_frost / ring_pitted / ring_cellular / ring_ribbed stood in for: the band's vertices inside the zone moved
+    along the radial direction by a seeded field - frost: a smooth noise both ways (±Amplitude); pitted: the same cut
+    in only; cellular: a Worley F1 (dimples, 3.4 x Factor x Grain deep as nTop's measured); ribbed: a triangle wave of z
+    (the troughs Erosion deep, the peaks on the design). nTop's noises are its own; the gate's envelope does not care
+    which. "notexture": the plain band; "unmasked": every vertex moved, the bore and rims too; "deep": 1.6 x."""
+    import numpy as np
+    import trimesh
+    if shape == "notexture":
+        return mesh
+    v = np.array(mesh.vertices, float)
+    r = np.hypot(v[:, 0], v[:, 1]); z = v[:, 2]; th = np.arctan2(v[:, 1], v[:, 0])
+    R = float(values["Outer Radius"])
+    arc = (th % (2 * np.pi)) * R
+    circ = 2 * np.pi * R
+    zt, zb, r_in = float(values["Zone Z Top"]), float(values["Zone Z Bottom"]), float(values["Zone Inner Radius"])
+    zone = np.ones(len(v), bool) if shape == "unmasked" else ((z <= zt) & (z >= zb) & (r >= r_in))
+    deep = 1.6 if shape == "deep" else 1.0
+    if kind in ("frost", "pitted"):
+        grain = 1000.0 / float(values["Frequency"])
+        amp = float(values["Amplitude"]) * deep
+        rng = np.random.default_rng(int(values["Seed"]))
+        k = max(1, int(round(circ / grain)))                        # whole waves round the ring: periodic
+        field = np.zeros(len(v))
+        for _ in range(6):
+            kk = rng.integers(max(1, k // 2), k * 2 + 1)
+            ph, ph2 = rng.uniform(0, 2 * np.pi, 2)
+            field += np.cos(2 * np.pi * kk * arc / circ + ph) * np.cos(2 * np.pi * z / grain + ph2)
+        field /= np.abs(field).max()
+        disp = amp * field if kind == "frost" else -amp * np.maximum(field, 0.0)
+    elif kind == "cellular":
+        grain = float(values["Grain"])
+        depth = 3.4 * float(values["Factor"]) * grain * deep
+        rng = np.random.default_rng(int(values["Seed"]))
+        n = max(4, int(round(circ / grain))) * max(1, int(round((zt - zb) / grain)))
+        pts = rng.uniform([0, zb - grain], [circ, zt + grain], (n, 2))
+        pts = np.concatenate([pts + [kx * circ, 0] for kx in (-1, 0, 1)])
+        from scipy.spatial import cKDTree
+        f1, _ = cKDTree(pts).query(np.column_stack([arc, z]))
+        disp = -depth * f1 / f1.max()
+    elif kind == "ribbed":
+        depth = -float(values["Erosion"]) * deep
+        rib = float(values["Rib Spacing"])
+        tri = 1.0 - 2.0 * np.abs((z / rib) % 1.0 - 0.5)              # 0 at the troughs, 1 at the peaks
+        disp = -depth * (1.0 - tri)
+    else:
+        raise ValueError(kind)
+    disp = np.where(zone, disp, 0.0)
+    scale = (r + disp) / r
+    v[:, 0] *= scale
+    v[:, 1] *= scale
+    return trimesh.Trimesh(v, mesh.faces, process=False)
 
 
 # ----------------------------------------------------------------------------- main
@@ -486,6 +541,17 @@ def main(argv: list[str]) -> int:
             mesh.export(values["Output Path"])
         for name in ("Bar 1 Mesh", "Bar 1", "Bar 1 Opened", "Bars", "Shank", "Pave Beads Mesh", "Pave Beads",
                      "Pave Seats Mesh", "Pave Seats", "Beaded", "Ring", "Mesh", "Export Mesh", "Volume Integral"):
+            log("I", f"{name} complete 1ms")
+        if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
+            outputs = [{"name": "Volume", "type": "real", "components": [],
+                        "value": {"isFinite": True, "units": {"length": 3}, "val": float(mesh.volume) * 1e-9}}]
+    elif any(k in nb.name for k in ("frost", "pitted", "cellular", "ribbed")):
+        # ring_frost / pitted / cellular / ribbed: nTop's noise or wave masked to the outer face (displace_texture)
+        kind = next(k for k in ("frost", "pitted", "cellular", "ribbed") if k in nb.name)
+        mesh = displace_texture(band_mesh(values), values, kind, shape)
+        if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
+            mesh.export(values["Output Path"])
+        for name in ("Band Body", "Textured All Over", "Dents", "Zone", "Dents In Zone", "Textured", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],
