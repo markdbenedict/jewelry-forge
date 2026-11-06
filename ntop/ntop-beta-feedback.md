@@ -243,6 +243,20 @@ Windows 11 laptops, Python per nTop's bundled console.
   (`ntop/recipes/transform_probe.py`, `ntop/api_facts.json`): list order, the first applied first. A
   sentence in the block doc would do.
 
+### 2026-11-05 — enum inputs can be neither set nor read; Import Points' Units has no default
+- Call: `notebook.set_block_input("Point List_0", "Units", "mm")` (and "Millimeters", "millimeter", "MM"),
+  `notebook.get_block_input("Mesh_0", "Units")`.
+- Happened: 'Parameter "Units" of block "Point List_0" has type "unit_length_enum", which cannot be set yet;
+  only "real", "vector", "point", "bool", "integer" and "text" parameters can.' Reading: '... cannot be read yet'.
+  `get_block_input_meta` gives `{'type': 'unit_length_enum', 'value': None}` even on Import Mesh, whose Units
+  defaults to mm. Import Points has no default, so an API-built notebook with one never builds (nTopCL:
+  `Point List_0: Input "Units" is incomplete`) - and the GUI session hides that (the block just stays e_DIRTY).
+- Expected: enums settable like integers (the exported recipe spells the value `{"id": "mm"}`, so a string id
+  would do), or Import Points defaulting to mm like Import Mesh.
+- Workaround: a `core.var<unit_length_enum>` wired in and made a notebook input, set by nTopCL as an integer id.
+- Also: a block output wired to two inputs keeps one wire in a runner notebook (the Union fed Mesh from Implicit
+  Body and Volume Integral; the exported recipe had the integral's Body `null`), with no error at wiring time.
+
 Template:
 
 ```

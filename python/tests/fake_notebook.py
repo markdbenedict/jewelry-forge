@@ -484,7 +484,24 @@ class FakeNotebook:
                 if src.get("units", "") not in DENSITY_UNITS:
                     problems.append(f"{bid}: 'Density' requires units of mass/length^3, but received "
                                     f"{src.get('units') or 'no units'}.")
+        problems += self.used_twice()
         return problems
+
+    def used_twice(self) -> list[str]:
+        """A block's output (not a variable's) consumed by more than one input: nTop keeps only one of the
+        wires (2026-11-05, points_probe: the Union fed the Mesh and the Volume Integral, and the recipe nTop
+        exported had the integral's Body null - nTopCL: `Input "Body" is incomplete`). A variable may feed
+        any number (CLAUDE.md: a block output used twice goes through a variable)."""
+        uses: dict[str, list[str]] = {}
+        for bid, b in self.blocks.items():
+            for name, (src, prop) in b["wired"].items():
+                if src in self.blocks and not prop:
+                    uses.setdefault(src, []).append(f"{bid}.{name}")
+            for name, srcs in b["lists"].items():
+                for src in srcs:
+                    if src in self.blocks:
+                        uses.setdefault(src, []).append(f"{bid}.{name}")
+        return [f"{src}: its output feeds {sorted(u)} - wrap it in a variable" for src, u in uses.items() if len(u) > 1]
 
     # ---- files --------------------------------------------------------------------
     def new_notebook(self):

@@ -2,8 +2,8 @@
 # balls at points 0.1 unit apart, united; the volume says (4.73 mm³: mm, and one ball per point). Built by
 # ntop/recipes/points_probe.py; the hammered texture's notebook rests on the answer (ntopjewel.texture).
 notebook: points_probe.ntop
-version: 0.2.0   # 0.1.0: first build (2026-11-05); 0.2.0: Points Units an input (no default; the API cannot set an enum), points 0.1 unit apart
-rebuild_since: 0.2.0
+version: 0.2.1   # 0.1.0: first build (2026-11-05); 0.2.0: Points Units an input (no default; the API cannot set an enum), points 0.1 unit apart; 0.2.1: the union wrapped (measured and meshed)
+rebuild_since: 0.2.1
 title: Spheres at the points of a file (probe)
 output:
   name: Volume

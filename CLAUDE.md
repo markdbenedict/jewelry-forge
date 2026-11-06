@@ -214,6 +214,15 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   Radius`, `Distance`: 'has type "real_field", which cannot be set yet', with or without
   units). Feed it by **wiring a `core.var<real>`** into it (`add_real_variable` +
   `connect_block_property`), as the band does for the offsets.
+- **Nor can an enum be set or read** (2026-11-05: 'has type "unit_length_enum", which cannot be set yet';
+  `get_block_input_meta` answers `{'type': 'unit_length_enum', 'value': None}`). Most enums default (Import /
+  Export Mesh's Units, Blend Type); **Import Points' Units does not** (nTopCL: `Input "Units" is incomplete`).
+  `nj.enum_input` wires a `core.var<…_enum>` in and makes it a notebook input, which nTopCL sets as an
+  integer id (catalog `type: enum`). nTop's exported recipe spells an enum value `{"id": "mm"}`.
+- **A list fed to a single-item input looks mapped** (2026-11-05): Import Points' `list<point>` on a Sphere's
+  Center Point makes the Sphere `list<sphere>` in the exported recipe, and that list wires straight into a
+  Boolean Union's Bodies. Not yet measured: `points_probe`'s volume (4.73 mm³) confirms it - how a hammered
+  band's strikes would be built from Python's centres.
 - **Custom blocks work through the API** (verified 2026-10-28, `custom_block_probe`): a notebook
   saved with inputs (`move_block_to_input`) and one Output IS a custom block. In a user notebook,
   `embed_custom_block(path)` reads it in (no dialog; again for the same path replaces the copy;
@@ -258,9 +267,11 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   block with a name already used** (an input variable's especially): `NotebookHelper.add` refuses it, since
   the later block takes the name over and `finish` then makes it the notebook input (2026-11-03: rotation
   blocks "Spin 2" / "Turn 2" shadowed slot 2's inputs).
-  **A block output used twice goes through a variable** (`h.wrap_var`) - in a custom block this is
-  not style but validity: a block notebook in which one Point fed both a cylinder and a sphere was
-  refused by `embed_custom_block` ("Not a valid custom block"; bisected 2026-10-28). Variables may
+  **A block output used twice goes through a variable** (`h.wrap_var`) - not style but validity: a block
+  notebook in which one Point fed both a cylinder and a sphere was refused by `embed_custom_block` ("Not a
+  valid custom block"; bisected 2026-10-28), and in a runner nTop keeps only one of the wires (2026-11-05:
+  a Union fed the Mesh and the Volume Integral, the exported recipe had the integral's Body null, nTopCL
+  `Input "Body" is incomplete`). The fake Notebook API's `lint` names any such output. Variables may
   feed any number of inputs. Variables are notebook inputs once
   `move_block_to_input` is called; one `set_block_as_output`.
 - **Recipes are written in `nj.Helper` verbs** (2026-11-04): `h.union / intersect / subtract / offset /

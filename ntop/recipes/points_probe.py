@@ -22,7 +22,9 @@ union, POINT_UNIT_VOLUMES: mm 4.73 mm³, cm 9.83, inch / foot / metre 12.57 - ap
     ... Points Units 1, 2, 3 ... until one comes back 4.73 mm³
 
 A volume of 4.73 says that id is mm AND that Sphere maps the list (one ball alone is 4.19); 9.83 / 12.57 / 4.19
-another unit; an [E] line what nTop could not read. Comma-separated `x,y,z` lines (.csv) and whitespace-separated
+another unit; an [E] line what nTop could not read. (Run 3, 5 Nov: `Scalar_0: Input "Body" is incomplete` - the
+Union fed the Mesh and the Volume Integral unwrapped, and nTop's exported recipe kept only the Mesh's wire;
+the recipe also showed Sphere typed `list<sphere>`: nTop maps the list.) Comma-separated `x,y,z` lines (.csv) and whitespace-separated
 (.txt) are both written, to learn which Import Points reads.
 """
 from __future__ import annotations
@@ -87,8 +89,9 @@ def _body(h, p, values, test_output):
         h.comment(ball, "The imported list wired to one Sphere: nTop maps it if this unites into three balls.")
         union = h.add("Union", mask="union", must=nj.UNION)
         h.wire(ball, union, nj.BODIES)                  # the list of balls into Bodies
+        balls = h.wrap_var("Balls Body", union)         # measured AND meshed: a block output used twice loses a wire
     with h.section("Result"):
-        integ, _mesh, export = nj.add_measure_mesh_export(h, union, out_var, ids["Mesh Tolerance"])
+        integ, _mesh, export = nj.add_measure_mesh_export(h, balls, out_var, ids["Mesh Tolerance"])
     return integ, export
 
 
