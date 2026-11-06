@@ -15,6 +15,10 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
                united with the opened band BEFORE the arches and the head join it - the panels stop
                short of the arches' wedge, or of the head (and the knots) on a plain-shouldered ring.
                No artwork: a cutter speck far outside the ring and relief/knot specks buried in the band
+    strikes    Carved Band − a sphere (Strike Radius) at every centre Import Points reads (Strikes Path, Units =
+               Strikes Units) = Struck Band (nj.add_strikes, as ring_texture.ntop): a hammered shank, struck before
+               the arches and the head join it and none within their reach (texture.Hammer.clear_deg). Not
+               hammered: one centre a metre off, which cuts nothing
     seat       stone_seat(Seat Path, Clearance), embedded -> Seat Local (head frame)
     head       prong_head(Seat Local + 14 numbers), outline_head(Seat Local, Prongs Path + 5 rail
                numbers) or bezel_head(Seat Local, Windows Path, Wall, Bezel Bottom/Top), embedded -> head frame
@@ -27,7 +31,7 @@ outline_head block -> solitaire_outline.ntop). Runs inside nTop's Python Console
                Count, Bead Spacing) about the axis through the +y arch's centre ∥ Z; the -y row its mirror
     engraving  Import Mesh (Engraving Path) -> Implicit from Mesh -> Remap Cylindrical (Engraving Wrap
                Length) -> turned 180° about +Z (the text opposite the head)
-    ring       ((Carved Band ∪ arches ∪ milgrain) ∪ placed head, blended by Shank Blend) - placed seat - engraving
+    ring       ((Struck Band ∪ arches ∪ milgrain) ∪ placed head, blended by Shank Blend) - placed seat - engraving
                -> Volume, Mesh, Export. The cuts come AFTER the blend: a smooth union fills every corner
                two surfaces make within its radius, and the seat's corners must stay empty
 
@@ -50,6 +54,7 @@ PARTIAL_HEAD = [("Wall", "mm"), ("Bezel Bottom", "mm"), ("Cup Top", "mm"), ("Bez
                 ("Wall From Angle", "deg"), ("Wall To Angle", "deg"), ("Hood X", "mm"), ("Hood 2 X", "mm"), ("Hood Reach", "mm"),
                 ("Hood Top", "mm"), ("Head Blend", "mm")]
 JOIN = [("Shank Blend", "mm")]
+STRIKES = nj.STRIKE_SPECS                              # Strikes Path, Strike Radius; Strikes Units comes from nj.add_strikes
 BLOCK_INPUT = {"Head Blend": "Blend Radius"}          # a notebook input whose name differs from the block input it feeds
 HEAD_LABEL = {"round": "Prong Head", "outline": "Outline Head", "bezel": "Bezel Head", "partial": "Partial Bezel Head"}
 ARCH = [("Pivot X", "mm"), ("Pivot Z", "mm"),
@@ -70,11 +75,11 @@ def head_specs(kind: str) -> list[tuple[str, str]]:
 
 def specs(kind: str) -> list[tuple[str, str]]:
     return (SHANK + ARTWORK + [(n, "mm") for n in BAND_FOR_ARCHES] + [("Seat Path", "path"), ("Clearance", "mm")] + head_specs(kind)
-            + ARCH + ENGRAVING + JOIN)
+            + ARCH + ENGRAVING + JOIN + STRIKES)
 
 
 def input_order(kind: str) -> list[str]:
-    return [n for n, _ in specs(kind)] + ["Output Path"]
+    return [n for n, _ in specs(kind)] + ["Strikes Units", "Output Path"]
 
 
 def mirror_plane(h) -> str:
@@ -142,6 +147,8 @@ def body(kind: str):
         with h.section("Artwork"):                                  # the panels and the knots, before anything joins the band
             carved = h.wrap_var("Carved Band", nj.add_carved(h, band, ids["Cut Path"], ids["Relief Path"],
                                                              knot_vars=[ids["Knot Path"], ids["Knot Path 2"]]))
+        with h.section("Strikes"):                                  # a hammered shank: struck before the arches and the head join it
+            struck = nj.add_strikes(h, carved, ids)
         with h.section("Arches"):
             # rounded on their own and united sharp: opening the union (band + arches) grew a 0.07 mm layer
             # over the arch feet, where the arch dome lies on the band's dome (2026-10-31)
@@ -173,7 +180,7 @@ def body(kind: str):
         with h.section("Engraving"):
             text = engraving(h, ids)
         with h.section("Ring"):
-            shank = h.union("Shank Union", [carved, arch_body, *rows])
+            shank = h.union("Shank Union", [struck, arch_body, *rows])
             joined = h.union("Joined", [shank, placed_head], blend=ids["Shank Blend"], comment=(
                 "The head melts into the shank (a smooth union, Shank Blend). The seat and the engraving are cut AFTER it: "
                 "a blend fills every corner within its radius, the seat's included."))
@@ -201,9 +208,11 @@ def prepare(spec, params: dict, test_dir: Path, tag: str) -> dict:
     spec.slot_mesh().export(str(slot))
     cut, relief = spec.write_artwork(test_dir, f"{tag}_test")                     # <tag>_test.cut.stl / .relief.stl (specks: no artwork)
     knot, knot2 = spec.write_knots(test_dir, f"{tag}_test")                       # <tag>_test.knot.stl / .knot2.stl (specks: no knots)
+    strikes = spec.shank_spec.write_strikes(test_dir / f"{tag}_test.strikes.csv")  # the far point: not hammered
     v = spec.notebook_inputs(str(env), prongs_path=str(prongs) if spec.outline else "", engraving_path=str(eng),
                              windows_path=str(win) if spec.bezel else "", shank_paths=bars, slot_path=str(slot),
-                             cut_path=cut, relief_path=relief, knot_paths=(knot, knot2))
+                             cut_path=cut, relief_path=relief, knot_paths=(knot, knot2), strikes_path=str(strikes))
+    v.pop("Strikes Units", None)                                                  # an enum: nTopCL sets it, the API cannot
     params["values"] = {**v, **(params.get("values") or {})}
     return params
 

@@ -121,3 +121,143 @@ def test_the_unit_reaches_ntopcl_as_its_measured_id():
     entries = {e["name"]: e for e in catalog.load("ring_texture").build_inputs(s.notebook_inputs("c.csv", "o.stl"))}
     assert entries["Strikes Units"] == {"name": "Strikes Units", "type": "enum", "value": 1}            # 1 = mm (points_probe)
     assert entries["Strike Radius"]["value"] == pytest.approx(s.sphere_radius, abs=1e-6)
+
+
+# ---- a hammered shank (ring_shank 0.4.0's Strikes) -------------------------------------------------------
+def court(**kw):
+    return band.BandSpec(size=6, profile="court", width_mm=4.0, thickness_mm=1.6, mesh_tolerance_mm=0.05, **kw)
+
+
+def test_the_plain_band_layout_is_the_one_real_ntop_passed():
+    """The hammer and its faces were factored out of HammeredSpec after its first real run (2026-11-05): the
+    layout must be draw for draw the same, or that run's evidence no longer describes the design."""
+    s = hammered()
+    assert s.spec_id == "0c808bd0" and s.count == 150
+    assert s.centres()[0] == pytest.approx([-11.78746, -0.87716, 1.25161], abs=2e-5)       # the first line of that run's centres file
+
+
+def test_a_tapered_shank_is_hammered_where_its_face_is(tmp_path):
+    from ntopjewel import shank
+    s = shank.ShankSpec(court(), width_bottom_mm=2.6, thickness_bottom_mm=1.4, hammer=texture.Hammer())
+    assert s.validate() == [] and s.warnings() == [] and "_hammered1.6x0.15_" in s.stem
+    u, z, d = s.strike_layout()
+    f = s.hammer_face()
+    h = s.hammer
+    for uu, zz, dd in zip(u, z, d):                                  # every footprint inside its stretch, short of the rims
+        t = np.degrees(uu / f.radius)
+        a, b = [iv for iv in f.intervals(t) if iv[0] <= zz <= iv[1]][0]
+        assert min(zz - a, b - zz) - h.footprint_mm(dd) / 2 >= h.rim(s.band.edge_round) - 0.02
+    bottom = [zz for uu, zz in zip(u, z) if abs(np.degrees(uu / f.radius) - 180) < 20]
+    assert bottom and max(abs(q) for q in bottom) < 0.4                 # one row where the shank is narrowest
+    m = s.struck_mesh()
+    assert m.is_watertight and m.body_count == 1 and m.volume < s.design_mesh().volume - 5
+    m.export(tmp_path / "s.stl")
+    rep = shank.check_shank(s, tmp_path / "s.stl", s.expected_volume_mm3())
+    assert rep.status == "passed", rep.text()
+    assert "strikes" in {c.name for c in rep.checks}
+
+
+def test_a_split_shank_warns_where_its_halves_are_too_narrow():
+    from ntopjewel import shank
+    s = shank.ShankSpec(court(), split_mm=1.6, split_span_deg=100, hammer=texture.Hammer())
+    assert s.validate() == [] and any("stays polished" in w for w in s.warnings())
+    small = shank.ShankSpec(court(), split_mm=1.6, split_span_deg=100, hammer=texture.Hammer(dimple_mm=1.0, depth_mm=0.14, rim_mm=0.12))
+    assert small.validate() == [] and not any("stays polished" in w for w in small.warnings()) and small.strike_count > 300
+
+
+def test_what_a_hammered_shank_refuses():
+    from ntopjewel import shank
+    assert "not a rope or a knot" in shank.ShankSpec(court(), rope=2, hammer=texture.Hammer()).validate()[0]
+    assert "voxels" in shank.ShankSpec(band.BandSpec(size=6, width_mm=4.0, thickness_mm=1.6), hammer=texture.Hammer()).validate()[0]
+    assert "polishes flat" in shank.ShankSpec(court(), hammer=texture.Hammer(depth_mm=0.12)).validate()[0]
+    plain = shank.ShankSpec(court(), width_bottom_mm=2.6, thickness_bottom_mm=1.4)
+    assert "hammer" not in plain.design() and "_hammered" not in plain.stem               # earlier designs keep their ids
+    assert plain.strike_inputs("x.csv") == {"Strikes Path": "x.csv", "Strike Radius": 1.0, "Strikes Units": "mm"}
+
+
+def test_hammered_shank_end_to_end_and_a_wrong_notebook_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    from ntopjewel import shank
+    nb = tmp_path / "ring_shank.ntop"
+    nb.write_bytes(b"fake")
+    s = shank.ShankSpec(court(), width_bottom_mm=2.6, thickness_bottom_mm=1.4, hammer=texture.Hammer())
+    res = shank.build(s, out_dir, notebook=nb)
+    assert res.status == "passed", res.text()
+    assert np.loadtxt(next(res.run_dir.glob("*.strikes.csv")), delimiter=",").shape == (s.strike_count, 3)
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nostrikes")
+    bad = shank.build(s, out_dir, notebook=nb)
+    assert bad.status == "failed" and "strikes" in {c.name for c in bad.gate.failures()}, bad.text()
+    monkeypatch.delenv("FAKE_NTOPCL_SHAPE")
+    plain = shank.build(shank.ShankSpec(court(), width_bottom_mm=2.6, thickness_bottom_mm=1.4), out_dir, notebook=nb)
+    assert plain.status == "passed"                                                          # the far point cuts nothing
+    assert np.loadtxt(next(plain.run_dir.glob("*.strikes.csv")), delimiter=",").tolist() == list(texture.FAR_STRIKE)
+
+
+def test_ring_shank_recipe_takes_the_strikes(tmp_path, fake_open_bar):
+    from ntopjewel import catalog
+    from .fake_notebook import FakeNotebook
+    from .test_notebook_api import load_recipe
+    mod = load_recipe("ring_shank")
+    params = mod.prepare({}, tmp_path)
+    params.update({"save_to": str(tmp_path / "s.ntop"), "recipe_to": str(tmp_path / "s.json"), "test_output": str(tmp_path / "s.stl"),
+                   "open_bar_block": str(fake_open_bar)})
+    nb = FakeNotebook()
+    res = mod.build(nb, params)
+    assert nb.inputs == mod.INPUT_ORDER == list(catalog.load("ring_shank").inputs) and nb.lint() == [] and res["warnings"] == []
+    assert res["identifiers"]["Strike Centres"].startswith("import_points")
+
+
+# ---- a hammered solitaire: the shank struck before the arches and the head join it -----------------------------------
+def hammered_solitaire(**kw):
+    from ntopjewel import gems, heads, solitaire
+    kw.setdefault("shank_blend_mm", 0.0)                       # as test_solitaire.spec: the simulated blend is square-cornered
+    kw.setdefault("hammer", texture.Hammer())
+    return solitaire.SolitaireSpec(band.BandSpec(size=6, profile="court", mesh_tolerance_mm=0.05),
+                                   heads.HeadSpec(gems.StoneSpec("round", 6.5), prongs=6), **kw)
+
+
+def test_a_hammered_solitaire_keeps_its_strikes_off_the_head_and_the_arches():
+    import json
+    from ntopjewel import runs, solitaire
+    s = hammered_solitaire(text="M+K")
+    assert s.validate() == []
+    sh = s.shank_spec
+    assert sh.hammer.clear_deg == s.head_clear_deg() == s.shoulder_deg + solitaire.WEDGE_EXTRA_DEG + solitaire.PANEL_WEDGE_CLEAR_DEG
+    P = sh.strikes()[0]
+    th = np.degrees(np.abs(np.arctan2(P[:, 1], P[:, 0])))                               # from the top (+X), either way
+    assert sh.strike_count > 50 and th.min() > sh.hammer.clear_deg
+    assert "_hammered1.6x0.15_" in s.stem
+    v = s.notebook_inputs("")
+    assert v["Strike Radius"] == pytest.approx(sh.hammer.sphere_radius, abs=1e-6) and v["Strikes Units"] == "mm"
+    plain = hammered_solitaire(hammer=None)                                             # an unhammered ring keeps its identity
+    assert "hammer" not in json.dumps(plain.design()) and plain.notebook_inputs("")["Strike Radius"] == 1.0
+    assert runs.spec_id(plain.design()) != runs.spec_id(s.design())
+    flat = hammered_solitaire(cathedral=False)                                          # plain shoulders: past the head's reach
+    assert flat.shank_spec.hammer.clear_deg == flat.head_clear_deg() < s.head_clear_deg()
+    # the design: the shank struck, the rest as before
+    assert s.carved_shank_mesh().volume < plain.carved_shank_mesh().volume - 0.5 * sh.strike_count * 0.1
+
+
+def test_what_a_hammered_solitaire_refuses():
+    from ntopjewel import artwork, shank
+    b = band.BandSpec(size=6, profile="court", mesh_tolerance_mm=0.05)
+    assert "not its shank" in hammered_solitaire(hammer=None, shank=shank.ShankSpec(b, hammer=texture.Hammer())).validate()[0]
+    assert "shoulder knots" in hammered_solitaire(cathedral=False, shoulder_knot="trinity").validate()[0]
+    assert "artwork" in hammered_solitaire(cathedral=False, panels=artwork.seraphine_panels(outer="scroll", sides="none")).validate()[0]
+    assert "outside engraving" in hammered_solitaire(text="M+K", engrave_side="outside").validate()[0]
+    deep = hammered_solitaire(text="M+K", engrave_depth_mm=0.5).validate()
+    assert deep and "under the engraving" in deep[0]
+    assert "trinity" in hammered_solitaire(shank=shank.ShankSpec(b, split_mm=1.6, split_span_deg=100, knot="trinity")).validate()[0]
+
+
+def test_hammered_solitaire_end_to_end_and_a_lost_hammering_is_caught(fake_ntopcl, tmp_path, out_dir, monkeypatch):
+    from ntopjewel import solitaire
+    nb = tmp_path / "solitaire.ntop"
+    nb.write_bytes(b"fake")
+    s = hammered_solitaire()
+    res = solitaire.build(s, out_dir, notebook=nb)
+    assert res.status == "passed", res.text()
+    assert "strikes" in {c.name for c in res.gate.checks}
+    assert np.loadtxt(next(res.run_dir.glob("*.strikes.csv")), delimiter=",").shape == (s.shank_spec.strike_count, 3)
+    monkeypatch.setenv("FAKE_NTOPCL_SHAPE", "nostrikes")
+    bad = solitaire.build(s, out_dir, notebook=nb)
+    assert bad.status == "failed" and "strikes" in {c.name for c in bad.gate.failures()}, bad.text()

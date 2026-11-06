@@ -327,6 +327,23 @@ def cmd_texture(a: argparse.Namespace) -> int:
     return 0 if res.ok else 1
 
 
+def _add_hammer_args(p: argparse.ArgumentParser, what: str) -> None:
+    """A hammered face's flags (texture.Hammer): the texture command and the shanks / solitaires share them."""
+    p.add_argument("--hammered", action="store_true", help=what)
+    p.add_argument("--dimple", type=float, default=1.6, help="--hammered: a nominal strike's footprint across, mm")
+    p.add_argument("--depth", type=float, default=0.15, help="--hammered: a nominal strike's depth, mm")
+    p.add_argument("--depth-var", type=float, default=0.25, help="--hammered: each strike's depth varies by up to this fraction either way")
+    p.add_argument("--spacing", type=float, default=0.5, help="--hammered: strike centres at least this many dimples apart (0.5: no point unstruck)")
+    p.add_argument("--rim", type=float, help="--hammered: polished rim left at each edge of the face, mm (default: the edge round + 0.1)")
+    p.add_argument("--seed", type=int, default=1, help="--hammered: the layout's random seed - another seed, another hammering")
+
+
+def _hammer(a: argparse.Namespace, clear_deg: float = 0.0):
+    from . import texture
+    return (texture.Hammer(a.dimple, a.depth, a.depth_var, a.spacing, a.rim, a.seed, clear_deg)
+            if getattr(a, "hammered", False) else None)
+
+
 def cmd_shank(a: argparse.Namespace) -> int:
     bridges = tuple(float(x) for x in a.bridges.split(",")) if a.bridges else (180.0,)
     spec = shank.ShankSpec(_band_spec(a), width_bottom_mm=a.width_bottom, thickness_bottom_mm=a.thickness_bottom,
@@ -334,7 +351,7 @@ def cmd_shank(a: argparse.Namespace) -> int:
                            dip_shape=a.dip_shape, strands=2 if a.double else 1, gap_mm=a.gap, mirror=a.mirror,
                            bridges_deg=bridges, bridge_mm=a.bridge, split_mm=a.split, split_span_deg=a.split_span,
                            split_shape=a.split_shape, rope=a.rope, rope_turns=a.rope_turns, rope_strand_mm=a.rope_strand,
-                           rope_offset_frac=a.rope_offset, **_knot_kwargs(a))
+                           rope_offset_frac=a.rope_offset, hammer=_hammer(a), **_knot_kwargs(a))
     if a.dry_run:
         probs = spec.validate()
         print(spec.describe() if not probs else f"{spec.stem}: problems: " + "; ".join(probs))
@@ -558,7 +575,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                                    vein=not a.no_vein, shoulder_knot=a.shoulder_knot or "", knot_at_deg=a.knot_at,
                                    knot_width_mm=a.knot_width or 0.0, knot_ribbon_mm=a.strand_width or 0.6,
                                    knot_thickness_mm=a.knot_thickness or 0.5, knot_point=a.knot_point, leaf_tip=a.leaf_tip,
-                                   leaf_tilt_deg=a.leaf_tilt, leaf_stem=a.leaf_stem, stem_width_mm=a.stem_width)
+                                   leaf_tilt_deg=a.leaf_tilt, leaf_stem=a.leaf_stem, stem_width_mm=a.stem_width,
+                                   hammer=_hammer(a))           # its clear_deg: the solitaire's head_clear_deg
     probs = spec.validate()
     if probs:
         print("solitaire: problems: " + "; ".join(probs))
@@ -569,7 +587,7 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                                          engraving_path="<engraving path>", shank_paths=spec.shank_spec.bar_placeholders(),
                                          windows_path="<windows path>" if spec.bezel else "",
                                          cut_path="<cut path>", relief_path="<relief path>",
-                                         knot_paths=("<knot path>", "<knot path 2>")).items():
+                                         knot_paths=("<knot path>", "<knot path 2>"), strikes_path="<strikes path>").items():
             print(f"    {k}: {v}")
         return 0
     try:
@@ -982,6 +1000,7 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--rope-strand", type=float, default=1.2, help="--rope: a strand's diameter, mm")
     sk.add_argument("--rope-offset", type=float, default=0.7, help="--rope: a strand centre's distance off the rope's centreline, in strand radii")
     _add_knot_args(sk)
+    _add_hammer_args(sk, "a hammered outer face: strikes of one round hammer face, overlapping into facets (texture.Hammer)")
     sk.add_argument("--catalog", default="ring_shank")
     sk.add_argument("--out")
     sk.add_argument("--notebook")
@@ -994,13 +1013,7 @@ def main(argv: list[str] | None = None) -> int:
     tx = sub.add_parser("texture", help="a hammered band: strikes of a round hammer face, overlapping into facets (ring_texture.ntop)")
     _add_band_args(tx)
     tx.set_defaults(thickness=1.6, tolerance=0.05)
-    tx.add_argument("--hammered", action="store_true", help="the texture (the one there is; the default)")
-    tx.add_argument("--dimple", type=float, default=1.6, help="a nominal strike's footprint across, mm")
-    tx.add_argument("--depth", type=float, default=0.15, help="a nominal strike's depth, mm")
-    tx.add_argument("--depth-var", type=float, default=0.25, help="each strike's depth varies by up to this fraction either way")
-    tx.add_argument("--spacing", type=float, default=0.5, help="strike centres at least this many dimples apart (0.5: no point unstruck)")
-    tx.add_argument("--rim", type=float, help="polished rim left at each edge of the face, mm (default: the edge round + 0.1)")
-    tx.add_argument("--seed", type=int, default=1, help="the layout's random seed: another seed, another hammering")
+    _add_hammer_args(tx, "the texture (the one there is; the default)")
     tx.add_argument("--out")
     tx.add_argument("--notebook")
     tx.add_argument("--deliver", action="store_true", help="copy a PASSED part + evidence to the Jewelry folder")
@@ -1199,6 +1212,7 @@ def main(argv: list[str] | None = None) -> int:
                     "the panels (plain shoulders; --knot-width, --strand-width and --knot-thickness size it)")
     so.add_argument("--knot-at", type=float, default=0.0, help="--shoulder-knot: the knot's centre from the top, degrees (default: just past the head)")
     so.add_argument("--knot-point", default="head", choices=list(ornament.POINTS_AT), help="--shoulder-knot: where its lone lobe points (default head)")
+    _add_hammer_args(so, "a hammered shank: strikes of one round hammer face, none within the head's and the arches' reach (texture.Hammer)")
     so.add_argument("--notebook")
     so.add_argument("--out")
     so.add_argument("--deliver", action="store_true")

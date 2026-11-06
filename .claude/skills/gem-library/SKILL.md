@@ -206,6 +206,7 @@ python -m ntopjewel solitaire --size 6 --shape marquise --length 10 --stone-widt
 python -m ntopjewel solitaire --size 6 --length 6.5 --split 1.6 --split-span 120 --knot twist   # rings 06 / 07: the halves cross on each shoulder
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides leaves --outer scroll   # artwork panels under the head, plain shoulders
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity   # the Seraphine: a trinity knot tucked under the head on each shoulder, a volute then leaves (tips to the head) on the sides, the scroll outside
+python -m ntopjewel solitaire --size 6 --length 6.5 --hammered        # a hammered band under the head: struck before the arches and the head join it, none within their reach (ring-features skill: textures)
 ```
 
 A cabochon or a pearl (`SolitaireSpec.unfaceted`) is placed by the head's lowest metal, not a culet: the plate

@@ -5,8 +5,8 @@
 # Cylindrical Body (Y mapping length = Wrap Length, one turn). Built by ntop/recipes/ring_shank.py
 # through the Notebook API. Verify names: python -m ntopjewel templates ntop/notebooks/ring_shank.ntop --catalog ring_shank
 notebook: ring_shank.ntop
-version: 0.3.2   # 0.3.2: each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.3.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); .3: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook (api build ring_shank)
-rebuild_since: 0.3.2   # the notebook body changed then (each bar opened before the union): a notebook built for an older version is refused (runs.require_built)
+version: 0.4.0   # 0.4.0: the Strikes section - a hammered face (Strikes Path, Strike Radius, Strikes Units; 2026-11-05) - rebuild the notebook; 0.3.2: each bar opened by the open_bar block (same inputs; 2026-11-04) - rebuild the notebook; 0.3.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); .3: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook (api build ring_shank)
+rebuild_since: 0.4.0   # the notebook body changed then (each bar opened before the union): a notebook built for an older version is refused (runs.require_built)
 title: Shaped shank (tapered width and thickness) from wrapped bars
 output:
   name: Volume
@@ -51,6 +51,20 @@ inputs:
     max: 0.5
     default: 0.1
     doc: Mesh from Implicit Body tolerance = 2 x voxel size; 0.1 mm = 50 µm voxels.
+  Strikes Path:
+    type: text
+    doc: A hammered face's strike centres, x,y,z in mm, ring frame (ShankSpec.write_strikes); one point a metre off when there is no hammering.
+  Strike Radius:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 20.0
+    doc: The hammer face's radius (texture.Hammer.sphere_radius); 1 when there is no hammering.
+  Strikes Units:
+    type: enum
+    choices: {mm: 1, cm: 2}    # unit_length_enum ids measured by points_probe (ntop/api_facts.json)
+    default: 1
+    doc: Import Points' Units (no default; the API cannot set an enum) - 1 = mm.
   Output Path:
     type: text
     doc: Absolute path of the STL to write (Export Mesh block; a Text variable in nTop).

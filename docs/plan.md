@@ -497,7 +497,7 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    Mesh Tolerance: a ridge is a crease the mesher rounds), design volume (US6 4 x 1.6 court: 150 strikes take 4.4 %
    of the metal, so a missing texture fails), and a probe down every strike's normal. **Mesh density** is the
    texture's constraint: the lightest strike must span 3 voxels (Mesh Tolerance 0.05 for a 0.1 mm strike) and
-   `tables.mesh_triangles_estimate` (new setting `mesh_triangles_per_voxel_area` 2.79, calibrated on the partial-bezel
+   `tables.mesh_triangles_estimate` (new setting `mesh_triangles_per_voxel_area` 2.79 - 2.78 with the hammered band's point - calibrated on the partial-bezel
    ring's 5.29 M at 0.05) refuses a design past 5 M before anything runs (the default: ~2.5 M). Offline: the design
    passes its gate; a plain band and a too-light hammering are caught. *Next:* the discovery run (`api build discover`,
    its new field / noise / cell / point keywords) shows which blocks nTop has for points and point-distance fields;
@@ -511,8 +511,27 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    imported list makes a sphere per point** (4.7346 mm³ against Python's 4.734). So **`ring_texture.ntop`**:
    the profiled band (opened) less the union of nTop's spheres at Python's centres (Strikes Path CSV, Strike
    Radius, Strikes Units = 1). `texture` now runs it through nTopCL and the gate; offline PASSED, and a
-   notebook that skips the strikes or strikes 3 % light fails `strikes`. *Real check:* `api build ring_texture`,
-   then `texture` (US 6 court 4 x 1.6, 150 strikes, Mesh Tolerance 0.05, ~2.5 M triangles).
+   notebook that skips the strikes or strikes 3 % light fails `strikes`. **Real check PASSED (5 Nov):** `api build
+   ring_texture`, then `texture` (US 6 court 4 x 1.6, Mesh Tolerance 0.05): 150/150 strikes within 0.028 mm of the
+   design's depth, section shape 0.007 mm, design volume -0.13 % (nTop 292.07 mm³ against 292.46), 2.44 M
+   triangles in 20 s - the second point of `mesh_triangles_per_voxel_area` (2.77; the setting now 2.78, the mean
+   of two). Rendered (`out\blender\hammered\hammered_band.png`; `blender/photo.py` now gives an STL import,
+   which has no material slot, the silver - it had rendered matte white).
+   **Any ring hammered (5 Nov):** the layout moved onto a face (`texture.Hammer`, `strike_layout` over `BandFace`
+   - draw for draw the band's first layout, pinned to the real run's centres - or `ShankFace`, any profiled
+   shank's outer face tabulated from its sections every 1°), so a **shank** takes `hammer=` (`shank --hammered`;
+   tapered, split, dipped, double; refused on a rope or a knot): `ring_shank.ntop` 0.4.0 gains the Strikes section
+   (`nj.add_strikes`, shared with ring_texture) after the wrap; a face too narrow for a strike stays polished and
+   warns where (a split's 1.2 mm halves take `--dimple 1.0 --depth 0.14 --rim 0.12`). A **solitaire** takes
+   `hammer=` (`solitaire --hammered`): the carved band struck before the arches and the head join it, no strike
+   within `head_clear_deg` (the arches' wedge + 1°, or on plain shoulders the head's reach + the shank blend +
+   0.5 mm) plus half a footprint; refused with artwork panels, shoulder knots, a knot shank or an outside
+   engraving, and when the deepest strike and the letters leave less than `wall_good` under an inside one. All four
+   solitaire notebooks gain the Strikes section (solitaire 0.12.0, outline 0.8.0, bezel 0.8.0, partial bezel 0.2.0;
+   rebuild them). pave_band, ring_artwork and multistone refuse a hammered shank (no Strikes section yet). Offline:
+   PASSED, a notebook that skips the strikes fails `strikes`. *Real check:* `api build ring_shank`, then `shank
+   --size 6 --width 4 --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered`;
+   `api build solitaire`, then `solitaire --size 6 --length 6.5 --hammered`.
 
 ## Notebook readability (2026-11-04)
 

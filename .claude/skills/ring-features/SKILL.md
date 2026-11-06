@@ -224,3 +224,19 @@ strike's normal. Notebook `ring_texture.ntop` (5 Nov): the profiled band (opened
 Points reads the centres CSV (`Strikes Path`), ONE Sphere on the whole list makes one per point (measured,
 `points_probe`), a Boolean Union joins them; `Strikes Units` is a notebook input (the API cannot set an enum,
 Import Points has no default unit; 1 = mm). The strikes are cut after the opening, so their ridges stay crisp.
+Real check PASSED 5 Nov (150/150 strikes, section 0.007 mm, volume -0.13 %, 2.44 M triangles).
+
+Any ring (5 Nov): the strikes are laid out on a face (`texture.Hammer` + `strike_layout` over `BandFace` or a shank's
+`ShankFace`, tabulated from its sections), so `shank --hammered` strikes any profiled shank (tapered, split, dipped,
+double; ring_shank.ntop 0.4.0) and `solitaire --hammered` the solitaire's band before the arches and the head join it,
+no strike within `head_clear_deg` of the top. The same flags (`--dimple --depth --depth-var --spacing --rim --seed`).
+A face too narrow for a strike (a split's halves, a taper's bottom) stays polished and the run warns where and what
+fits. Refused: a rope or a knot shank; on a solitaire, artwork panels, shoulder knots, an outside engraving, or an
+inside one with less than `wall_good` left under the deepest strike and the letters; pave / multistone / artwork
+runners (no Strikes section yet).
+
+```powershell
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 90 --tolerance 0.05 --hammered --dimple 1.0 --depth 0.14 --rim 0.12
+python -m ntopjewel solitaire --size 6 --length 6.5 --hammered        # rebuild the solitaire notebooks first (solitaire 0.12.0 ...)
+```

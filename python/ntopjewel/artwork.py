@@ -844,6 +844,8 @@ class ArtworkSpec:
 
     # ---- checks on the design ---------------------------------------------------------------------
     def validate(self) -> list[str]:
+        if self.shank.hammer is not None:
+            return ["a hammered shank goes through ring_shank.ntop or a solitaire: ring_artwork.ntop has no Strikes section yet"]
         p = list(self.shank.validate())
         sh, b = self.shank, self.band
         if sh.rope or sh.knot or sh.strands > 1 or sh.split_mm or sh.dip_mm:

@@ -321,9 +321,9 @@
       "source": "nTop Boolean blend radius at metal-to-metal junctions (prongs into rails, head into shank, rail and bezel edges): a castable fillet; 0 = sharp. Mark tried 0.1 mm and a range of values with the default Blend Type in the GUI (2026-10-30): all built; 0.3 is the visible fillet of the reference rings"
     },
     "mesh_triangles_per_voxel_area": {
-      "value": 2.79,
+      "value": 2.78,
       "status": "calibrated",
-      "source": "triangles nTop's Mesh from Implicit Body makes per voxel-sized square of surface (a voxel = half the Mesh Tolerance): the up-front mesh-density estimate a texture is refused by (calibration_log 2026-11-05; one run)"
+      "source": "triangles nTop's Mesh from Implicit Body makes per voxel-sized square of surface (a voxel = half the Mesh Tolerance): the up-front mesh-density estimate a texture is refused by (calibration_log 2026-11-05; two runs, 2.79 and 2.77)"
     },
     "blend_volume_factor": {
       "value": 0.32,
@@ -395,6 +395,14 @@
       "to": 2.79,
       "status": "calibrated",
       "evidence": "nTop 6.3.3: the partial-bezel reference ring (10 x 7 pear, half-round 9.5 x 3.3 tapering to 2.8 x 1.7, lip 0.8) meshed at Mesh Tolerance 0.05 came out 5.29 M triangles; its design mesh's surface is 1184.9 mm2: 5.29e6 x 0.025^2 / 1184.9 = 2.79. One run: a second (a plain band's count at 0.1) would confirm it."
+    },
+    {
+      "date": "2026-11-05",
+      "entry": "settings.mesh_triangles_per_voxel_area",
+      "from": 2.79,
+      "to": 2.78,
+      "status": "calibrated",
+      "evidence": "nTop 6.3.3: the hammered band (court US6 4 x 1.6, 150 strikes of 1.6 x 0.15, ring_texture.ntop) meshed at Mesh Tolerance 0.05 came out 2,443,428 triangles; its design mesh's surface is 551.29 mm2: 2443428 x 0.025^2 / 551.29 = 2.77, against 2.79 for the partial-bezel ring - a faceted textured face and a smooth one mesh alike. The mean of the two."
     }
   ],
   "notes": [

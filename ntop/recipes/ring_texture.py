@@ -29,8 +29,8 @@ from ntopjewel import nb_jewel as nj
 HERE = Path(__file__).resolve()
 REPO = HERE.parents[2]
 CENTRES = REPO / "out" / "api" / "ring_texture_test_centres.csv"
-STRIKE_SPECS = [("Strikes Path", "path"), ("Strike Radius", "mm")]
-INPUT_ORDER = list(nj.BAND_INPUTS) + [n for n, _ in STRIKE_SPECS] + ["Strikes Units", "Output Path"]
+STRIKE_SPECS = nj.STRIKE_SPECS
+INPUT_ORDER = list(nj.BAND_INPUTS) + nj.STRIKE_INPUTS + ["Output Path"]
 
 DEFAULTS = {
     "values": {},
@@ -66,21 +66,8 @@ def _body(h, p, values, test_output):
     with h.section("Band"):
         band = nj.add_profiled_band(h)
     with h.section("Strikes"):
-        pts = h.add("Strike Centres", "import_points<file_path,unit_length_enum>", mask="import_points", must=[["import_points"]])
-        h.wire(ids["Strikes Path"], pts, [h.input_of_type(pts, "file_path")])
-        nj.enum_input(h, "Strikes Units", "unit_length_enum", pts, "Units")
-        h.comment(pts, "Python's strike centres (x,y,z in mm, ring frame); Units is the notebook input Strikes Units (1 = mm).")
-        balls = h.add("Strikes", nj.SPHERE, mask="sphere", must=[["sphere<point,real>"], ["sphere", "point", "real"]])
-        h.wire(pts, balls, nj.CENTRE)
-        h.wire(ids["Strike Radius"], balls, ["Radius"])
-        h.comment(balls, "One Sphere on the whole list: nTop makes one per point (measured, points_probe) - the hammer's face at every strike.")
-        united = h.add("Strikes United", mask="union", must=nj.UNION)
-        h.wire(balls, united, nj.BODIES)
-        strikes = h.wrap_var("Strikes Body", united)
+        body = nj.add_strikes(h, band, ids)
     with h.section("Struck"):
-        struck = h.subtract("Struck", band, [strikes],
-                            comment="The strikes cut after the opening: the ridges between them stay crisp, as a hammer leaves them.")
-        body = h.wrap_var("Struck Band", struck)
         integ, _mesh, export = nj.add_measure_mesh_export(h, body, out_var, h.blocks["Mesh Tolerance"])
     return integ, export
 

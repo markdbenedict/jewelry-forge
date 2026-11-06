@@ -400,7 +400,7 @@ python -m ntopjewel api build partial_bezel_head                     # ntop\bloc
 python -m ntopjewel api build solitaire_partial_bezel                # ntop\notebooks\solitaire_partial_bezel.ntop: the solitaire with the partial bezel
 python -m ntopjewel api build transform_probe                        # measures Combine Transforms' list order + Mirror Body in the session -> ntop\api_facts.json (commit it)
 python -m ntopjewel api build open_bar                               # ntop\blocks\open_bar.ntop (one bar imported + opened by the edge round) + its harness; every shank runner embeds it
-python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bars Python writes, united in nTop (prepare() writes the test bar)
+python -m ntopjewel api build ring_shank                             # ntop\notebooks\ring_shank.ntop: a shaped shank from the bars Python writes, united in nTop, struck when hammered (0.4.0; prepare() writes the test bar)
 python -m ntopjewel api build pave_band                              # ntop\notebooks\pave_band.ntop: the shank + the seats and beads Python writes, (shank ∪ beads) − seats
 python -m ntopjewel api build multistone                             # ntop\notebooks\multistone.ntop: five outline-head slots spun, placed and turned round the shank (embeds stone_seat + outline_head), pavé beads and seats round the rest
 python -m ntopjewel api build ring_artwork                           # ntop\notebooks\ring_artwork.ntop: the shank − the panel channels Python writes ∪ the relief motifs
@@ -419,6 +419,7 @@ python -m ntopjewel shank --size 6 --rope 2 --rope-turns 10 --rope-strand 1.2   
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --knot plait --knot-strands 3 --knot-repeats 4   # a Celtic plait: 2..4 ribbons (or --knot-profile round wires) interlaced round the ring
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 100 --knot trinity      # trinity knots woven from a split shank's halves on each shoulder (ring 01)
 python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --split 1.6 --split-span 110 --knot twist        # the halves cross over each other on each shoulder (rings 06, 07; --twist-length 8)
+python -m ntopjewel shank --size 6 --width 4 --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered   # any profiled shank hammered (the Strikes section; a face too narrow for a strike stays polished, with a warning)
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --engrave-side inside --out out\ring   # --deliver copies a PASSED part + evidence to the Jewelry folder
 python -m ntopjewel ring --size 4.5 --profile court --milgrain --groove 0.25 --engrave "Makena" --show   # that ring built in nTop's GUI session (out\api\preview), to look at
 python -m ntopjewel gem --shape pear --length 12.3 --width 8.9 --depth 4.6 --material glass   # stone body STL + carats (out\gems)
@@ -449,6 +450,7 @@ python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --leaf
 python -m ntopjewel artwork --size 6 --sides scroll-leaves --outer scroll --width-bottom 2 --thickness-bottom 1.5   # ... on a band tapered below the scrollwork (the ease begins just past the panels unless --taper-from says later)
 python -m ntopjewel texture --dry-run                # a hammered band (150 strikes of one round hammer face, seeded; Mesh Tolerance 0.05); --write-design writes Python's model + strike centres
 python -m ntopjewel texture                          # ... through ring_texture.ntop (nTop's spheres at Python's centres, less from the band) + the gate (out\texture)
+python -m ntopjewel solitaire --size 6 --length 6.5 --hammered        # a hammered solitaire: the band struck before the arches and the head join it, none within their reach (all four solitaire notebooks; not with artwork, shoulder knots or a knot shank)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests

@@ -775,6 +775,8 @@ class MultiStoneSpec:
 
     # ---- checks on the design -------------------------------------------------------------------
     def validate(self) -> list[str]:
+        if self.shank_spec.hammer is not None:
+            return ["a hammered shank goes through ring_shank.ntop or a solitaire: multistone.ntop has no Strikes section yet"]
         p = list(self.shank_spec.validate())
         for role, h in (("centre", self.centre), ("side", self.side)):
             if h is None:

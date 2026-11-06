@@ -81,6 +81,8 @@ def test_an_unwrapped_or_untapered_export_is_caught(tmp_path):
 def test_inputs_match_the_catalog_and_identity():
     s = spec()
     v = s.notebook_inputs("B", "O")
+    out = v.pop("Output Path")
+    v = {**v, **s.strike_inputs("S"), "Output Path": out}                 # the Strikes section's inputs (0.4.0), the export last
     assert list(v) == list(catalog.load("ring_shank").inputs)
     assert v["Wrap Length"] == pytest.approx(2 * math.pi * (s.band.bore_radius_mm + 0.8), abs=1e-3)
     assert spec(taper_from_deg=45).stem != s.stem and spec(stations=72).stem != s.stem

@@ -131,6 +131,8 @@ def setup(scene, rings, samples=256, resolution=(1920, 1280), gpu=True):
     for r, (px, py, lift, rx, rz) in zip(rings, poses):
         c = bpy.data.objects.new(r.name + " (photo)", r.data)
         col.objects.link(c)
+        if not c.material_slots:                              # an STL import has none: silver goes on no slot
+            c.data.materials.append(silver)                   # (2026-11-05, the hammered band rendered matte white)
         for slot in c.material_slots:
             slot.link = 'OBJECT'
             slot.material = silver

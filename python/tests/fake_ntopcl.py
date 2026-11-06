@@ -149,6 +149,31 @@ def offset_convex(mesh, c: float):
     return trimesh.convex.convex_hull(pts)
 
 
+def cut_strikes(mesh, values: dict, shape: str):
+    """The Strikes section (nj.add_strikes): mesh less a sphere at every centre Import Points reads (x,y,z, in the
+    unit Strikes Units names: 1 = mm, 2 = cm, measured by points_probe). "nostrikes": never cut; "light": a hammer
+    struck 3 % softer."""
+    import numpy as np
+    import trimesh
+    from ntopjewel.shank import MIN_EDGE_MM, drop_specks
+    from ntopjewel import geom as _geom
+    if not Path(values["Strikes Path"]).exists():
+        fail("Strike Centres: file not found")
+    if values.get("Strikes Units") is None:
+        fail('Strike Centres: Input "Units" is incomplete')
+    if shape == "nostrikes":
+        return mesh
+    scale = {1: 1.0, 2: 10.0}.get(int(values["Strikes Units"]), 25.4)
+    centres = np.atleast_2d(np.loadtxt(values["Strikes Path"], delimiter=",")) * scale
+    radius = float(values["Strike Radius"]) * (0.97 if shape == "light" else 1.0)
+    unit = trimesh.creation.icosphere(subdivisions=4, radius=radius)
+    near = [c for c in centres if np.linalg.norm(c) < 200.0]               # a far point (no hammering) cuts nothing
+    if not near:
+        return mesh
+    out = trimesh.boolean.difference([mesh] + [unit.copy().apply_translation(c) for c in near], engine="manifold")
+    return _geom.collapse_short_edges(drop_specks(out), MIN_EDGE_MM)
+
+
 # ----------------------------------------------------------------------------- main
 def main(argv: list[str]) -> int:
     if argv == ["--version"]:
@@ -214,6 +239,8 @@ def main(argv: list[str]) -> int:
         else:                                                               # the bars at Shank Path .., wrapped, carved by the
             shank_mesh = solitaire.carved_shank_from_inputs(values, cut=shape != "nocut", relief=shape != "norelief",
                                                             knots=shape != "noknot")                      # artwork and knot layers
+        if "Strikes Path" in values:                                        # the Strikes section (solitaire 0.12.0 ...): the carved band struck
+            shank_mesh = cut_strikes(shank_mesh, values, shape)
         mesh = solitaire.ring_mesh(values, envelope, cut_seat=shape != "noseat", beads=shape != "nobeads",
                                    engrave=shape != "noengrave", ops=ops, shank_mesh=shank_mesh)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
@@ -388,23 +415,7 @@ def main(argv: list[str]) -> int:
     elif "texture" in nb.name:
         # ring_texture: the profiled band less a sphere at every centre Import Points reads (comma-separated
         # x,y,z, in the unit Strikes Units names: 1 = mm, 2 = cm, measured by points_probe)
-        import numpy as np
-        import trimesh
-        from ntopjewel.shank import MIN_EDGE_MM, drop_specks
-        from ntopjewel import geom as _geom
-        if not Path(values["Strikes Path"]).exists():
-            fail("Strike Centres: file not found")
-        if values.get("Strikes Units") is None:
-            fail('Strike Centres: Input "Units" is incomplete')
-        scale = {1: 1.0, 2: 10.0}.get(int(values["Strikes Units"]), 25.4)
-        centres = np.atleast_2d(np.loadtxt(values["Strikes Path"], delimiter=",")) * scale
-        radius = float(values["Strike Radius"]) * (0.97 if shape == "light" else 1.0)   # "light": a hammer struck too softly
-        mesh = band_mesh(values)
-        if shape != "nostrikes":                              # a notebook that never subtracts the strikes
-            unit = trimesh.creation.icosphere(subdivisions=4, radius=radius)
-            balls = [unit.copy().apply_translation(c) for c in centres]
-            mesh = trimesh.boolean.difference([mesh] + balls, engine="manifold")
-            mesh = _geom.collapse_short_edges(drop_specks(mesh), MIN_EDGE_MM)
+        mesh = cut_strikes(band_mesh(values), values, shape)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Band Body", "Strike Centres", "Strikes", "Strikes United", "Struck", "Mesh", "Export Mesh", "Volume Integral"):
@@ -429,6 +440,8 @@ def main(argv: list[str]) -> int:
             # wrapped bars united (nTop unites the implicits before the wrap; same thing)
             from ntopjewel.shank import bars_from_inputs
             mesh = bars_from_inputs(values)
+        if "Strikes Path" in values:                          # ring_shank 0.4.0: the Strikes section
+            mesh = cut_strikes(mesh, values, shape)
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
         for name in ("Bar 1 Mesh", "Bar 1", "Bar 2 Mesh", "Bar 2", "Bar 1 Eroded", "Bar 1 Re-distanced Mesh", "Bar 1 Re-distanced", "Bar 1 Opened", "Bars", "Shank", "Mesh", "Export Mesh", "Volume Integral"):

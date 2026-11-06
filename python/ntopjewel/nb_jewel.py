@@ -87,6 +87,10 @@ SHANK_SPECS = [(n, "path") for n in SLOT_NAMES] + [("Wrap Length", "mm"), ("Edge
 
 
 OPEN_BAR_SPECS = [("Bar Path", "path"), ("Edge Round Inward", "mm"), ("Edge Round", "mm"), ("Mesh Tolerance", "mm")]
+# a hammered face (ntopjewel.texture): the strike centres file and the hammer's radius; Strikes Units, an enum the API
+# cannot set, follows them as a notebook input (enum_input, nTopCL sets 1 = mm)
+STRIKE_SPECS = [("Strikes Path", "path"), ("Strike Radius", "mm")]
+STRIKE_INPUTS = [n for n, _ in STRIKE_SPECS] + ["Strikes Units"]
 BLOCK_DEFAULTS = {"open_bar_block": ("ntop", "blocks", "open_bar.ntop")}   # library blocks every runner of that kind embeds
 
 
@@ -411,6 +415,28 @@ def enum_input(h: NotebookHelper, name: str, enum_type: str, target: str, input_
     h.log.append(f"var {name}: {ident} (id {var_id}), no value - nTopCL sets it")
     h.wire(var_id, target, [input_name])
     return var_id
+
+
+def add_strikes(h: "Helper", body: str, ids: dict) -> str:
+    """A hammered face, nTop's own way (measured by points_probe, 2026-11-05): Import Points reads the strike
+    centres (Strikes Path; Units the notebook input Strikes Units, 1 = mm), ONE Sphere (Strike Radius) on the
+    whole list makes a sphere per point, a Boolean Union joins them, and `body` less that union is returned as
+    the variable "Struck Band". Cut after any opening, so the ridges between strikes stay crisp. An unhammered
+    ring gets one centre a metre off (texture.FAR_STRIKE): the cut takes nothing."""
+    pts = h.add("Strike Centres", "import_points<file_path,unit_length_enum>", mask="import_points", must=[["import_points"]])
+    h.wire(ids["Strikes Path"], pts, [h.input_of_type(pts, "file_path")])
+    enum_input(h, "Strikes Units", "unit_length_enum", pts, "Units")
+    h.comment(pts, "Python's strike centres (x,y,z in mm, ring frame); Units is the notebook input Strikes Units (1 = mm).")
+    balls = h.add("Strikes", SPHERE, mask="sphere", must=[["sphere<point,real>"], ["sphere", "point", "real"]])
+    h.wire(pts, balls, CENTRE)
+    h.wire(ids["Strike Radius"], balls, ["Radius"])
+    h.comment(balls, "One Sphere on the whole list: nTop makes one per point (measured, points_probe) - the hammer's face at every strike.")
+    united = h.add("Strikes United", mask="union", must=UNION)
+    h.wire(balls, united, BODIES)
+    strikes = h.wrap_var("Strikes Body", united)
+    struck = h.subtract("Struck", body, [strikes],
+                        comment="The strikes cut after the opening: the ridges between them stay crisp, as a hammer leaves them.")
+    return h.wrap_var("Struck Band", struck)
 
 
 def integer_variable(h: NotebookHelper, name: str, value: int) -> str:

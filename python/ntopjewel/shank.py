@@ -135,6 +135,7 @@ class ShankSpec:
     knot_tail_mm: float = 3.0                       # trinity: the tails from the knot's crossings to where the halves' lofts begin
     twist_length_mm: float = 8.0                    # twist: the halves cross over this run of each shoulder (mm along the ring),
                                                     # between the band under the head (to ±knot_pad_deg) and the split
+    hammer: object = None                           # texture.Hammer: a hammered outer face (ring_shank's Strikes; the solitaires')
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     # ---- the law -------------------------------------------------------------------------
@@ -917,6 +918,8 @@ class ShankSpec:
         """The section the gate expects nTop to have built at an angle (section_shape with the
         mesher's chamfer); through a trinity shank's knots and pad, the design itself (the 2-D
         section model is the halves' lofts, not the woven strands)."""
+        if self.hammer:                                     # the struck face: the design itself
+            return gate.section_geometry(self.struck_mesh(), theta_deg)
         if self.woven_section(theta_deg):
             return gate.section_geometry(self.design_mesh(), theta_deg)
         return self.section_shape(theta_deg, chamfer_mm=self.opening_chamfer_mm)
@@ -928,6 +931,8 @@ class ShankSpec:
         the mesher fills by a voxel at each of its two round trips (0.056 mm at 0.1 mm, 2026-11-02;
         a pass missing or lifted wrong reads ten times that)."""
         t = band.section_shape_tolerance(self.band.mesh_tolerance_mm)
+        if self.hammer:                                     # a ridge between two strikes is a crease the mesher rounds
+            return max(t, float(self.band.mesh_tolerance_mm))
         if self.woven_section(theta_deg):
             return max(t, float(self.band.mesh_tolerance_mm))
         return t
@@ -1307,7 +1312,47 @@ class ShankSpec:
         return self._cache["design_mesh"]
 
     def design_volume_mm3(self) -> float:
-        return float(self.design_mesh().volume)
+        return float((self.struck_mesh() if self.hammer else self.design_mesh()).volume)
+
+    # ---- a hammered face (texture.Hammer): nTop's spheres at Python's centres, cut after the opening ----
+    def hammer_face(self):
+        if "hammer_face" not in self._cache:
+            from . import texture
+            self._cache["hammer_face"] = texture.ShankFace(self)
+        return self._cache["hammer_face"]
+
+    def strike_layout(self):
+        if "strike_layout" not in self._cache:
+            from . import texture
+            self._cache["strike_layout"] = texture.strike_layout(self.hammer, self.hammer_face())
+        return self._cache["strike_layout"]
+
+    def strikes(self):
+        """(face points, normals, depths, sphere centres) of the hammer's strikes, ring frame."""
+        from . import texture
+        return texture.strike_points(self.hammer, self.hammer_face(), self.strike_layout())
+
+    @property
+    def strike_count(self) -> int:
+        return len(self.strike_layout()[0]) if self.hammer else 0
+
+    def struck_mesh(self):
+        """The design less a sphere of the hammer's radius at every strike (the notebook cuts them after the
+        bars are opened and wrapped, so the ridges between strikes stay sharp)."""
+        if "struck_mesh" not in self._cache:
+            from . import texture
+            self._cache["struck_mesh"] = texture.struck(self.design_mesh(), self.strikes()[3], self.hammer.sphere_radius)
+        return self._cache["struck_mesh"]
+
+    def write_strikes(self, path) -> Path:
+        """The strike centres for Import Points (x,y,z in mm); an unhammered shank gets one far point, cutting nothing."""
+        from . import texture
+        return texture.write_centres_file(path, self.strikes()[3] if self.hammer else [])
+
+    def strike_inputs(self, strikes_path: str) -> dict:
+        """The Strikes inputs (ring_shank.ntop 0.2.0, the solitaires): the centres file, the hammer's radius, mm."""
+        return {"Strikes Path": str(strikes_path), "Strike Radius": round(self.hammer.sphere_radius, 6) if self.hammer else 1.0,
+                "Strikes Units": "mm"}
 
     def wrapped_ring(self):
         """One turn of the bar wrapped round the axis vertex-wise (wrap_bar): what Remap Cylindrical
@@ -1354,10 +1399,10 @@ class ShankSpec:
         """The largest radius the ring reaches (at the head)."""
         if self.rope:
             return self.rope_centre_radius + self.rope_offset + self.rope_radius
-        if self.trinity or self.twist:
+        if self.trinity or self.twist or self.hammer:
             import numpy as np
-            v = self.design_mesh().vertices
-            return float(np.hypot(v[:, 0], v[:, 1]).max())                    # a strand passing over stands proud
+            v = (self.struck_mesh() if self.hammer else self.design_mesh()).vertices
+            return float(np.hypot(v[:, 0], v[:, 1]).max())                    # a strand passing over stands proud; the crown struck
         return self.band.outer_radius_mm
 
     # ---- identity, inputs, checks ------------------------------------------------------------
@@ -1383,6 +1428,8 @@ class ShankSpec:
                   "knot_width": self.trinity_width if self.trinity else 0.0, "knot_ratio": self.knot_ratio if self.trinity else 0.0,
                   "knot_pad_deg": self.knot_pad_deg if (self.trinity or self.twist) else 0.0,
                   "knot_tail": self.knot_tail_mm if self.trinity else 0.0})
+        if self.hammer:                                    # (only when set: earlier designs keep their ids)
+            d["hammer"] = self.hammer.design()
         if self.twist:                                     # (new fields enter only when set: earlier designs keep their ids)
             d.update({"twist_length": self.twist_length_mm, "twist_thickness": round(self.twist_thickness, 4),
                       "twist_over": TWIST_OVER, "loft_stations": self.loft_stations})
@@ -1414,6 +1461,8 @@ class ShankSpec:
             shape += f"_trinity{self.trinity_width:g}"
         if self.twist:
             shape += f"_twist{self.twist_length_mm:g}"
+        if self.hammer:
+            shape += f"_hammered{self.hammer.dimple_mm:g}x{self.hammer.depth_mm:g}"
         return f"w{b.width_mm:g}-{self.width_bottom:g}_t{b.thickness_mm:g}-{self.thickness_bottom:g}{shape}"
 
     @property
@@ -1458,6 +1507,39 @@ class ShankSpec:
         return self.design_volume_mm3() - self.sharp_edge_round_mm3() - self.opening_overcut_mm3()
 
     def validate(self) -> list[str]:
+        if self.hammer:
+            if self.rope or self.knot:
+                return ["a hammered face goes on a profiled shank (plain, tapered, dipped, double, split), not a rope or a knot"]
+            p = self._validate_unhammered()
+            return p or self._validate_hammer()
+        return self._validate_unhammered()
+
+    def _validate_hammer(self) -> list[str]:
+        from . import texture
+        h = self.hammer
+        p = h.problems()
+        if p:
+            return p
+        if self.strike_count == 0:
+            return ["no strike fits the face (a narrow band, wide rims or big strikes)"]
+        d = self.strike_layout()[2]
+        voxel = self.band.mesh_tolerance_mm / 2
+        light = float(d.min())
+        if light < texture.DEPTH_VOXELS * voxel - 1e-9:
+            return [f"the lightest strike ({light:.3f} mm) spans {light / voxel:.1f} voxels at Mesh Tolerance "
+                    f"{self.band.mesh_tolerance_mm:g}; at least {texture.DEPTH_VOXELS:g}: --tolerance "
+                    f"{math.floor(2 * light / texture.DEPTH_VOXELS * 100) / 100:g} or finer"]
+        thin = min(self.thickness_at(t) for t in range(0, 360, 5))
+        if thin - float(d.max()) < tables.FLOORS["wall_good"]:
+            return [f"the deepest strike leaves {thin - float(d.max()):.2f} mm where the shank is thinnest; at least "
+                    f"{tables.FLOORS['wall_good']:g}"]
+        est = tables.mesh_triangles_estimate(float(self.struck_mesh().area), self.band.mesh_tolerance_mm)
+        if est > texture.MAX_TRIANGLES:
+            return [f"meshed at {self.band.mesh_tolerance_mm:g} it would be about {est / 1e6:.1f} M triangles, past the "
+                    f"{texture.MAX_TRIANGLES / 1e6:g} M limit: a coarser --tolerance with deeper strikes"]
+        return []
+
+    def _validate_unhammered(self) -> list[str]:
         if self.rope:
             return self._validate_rope()
         if self.knot == "plait":
@@ -1688,6 +1770,31 @@ class ShankSpec:
         return p
 
     def warnings(self) -> list[str]:
+        w = self._warnings()
+        if self.hammer and not self.validate():
+            w += self.hammer_gaps()
+        return w
+
+    def hammer_gaps(self) -> list[str]:
+        """Where the face is too narrow for a strike (a split's halves, a taper's bottom): the angles, and what fits."""
+        h, f = self.hammer, self.hammer_face()
+        need = 2 * (h.rim(self.band.edge_round) + h.floor_half)
+        bare = [t for t in range(0, 360) if (not h.clear_deg or min(t, 360 - t) > h.clear_deg)
+                and all(b - a < need for a, b in f.intervals(float(t)))]
+        if not bare:
+            return []
+        widest = max((b - a) for t in bare for a, b in f.intervals(float(t)))
+        runs, start = [], bare[0]
+        for a, b in zip(bare, bare[1:] + [None]):
+            if b != a + 1:
+                runs.append((start, a))
+                start = b
+        span = ", ".join(f"{lo}°..{hi}°" if hi > lo else f"{lo}°" for lo, hi in runs[:4]) + (" ..." if len(runs) > 4 else "")
+        return [f"no strike where the face is narrower than {need:.2f} mm (two {h.rim(self.band.edge_round):.2f} mm rims and a lightest "
+                f"strike's footprint): {len(bare)}° of the ring ({span}) stays polished - the widest there is {widest:.2f} mm; "
+                f"smaller strikes (--dimple) or narrower rims (--rim) reach it"]
+
+    def _warnings(self) -> list[str]:
         if self.rope:
             return []
         if self.twist:
@@ -1762,6 +1869,12 @@ class ShankSpec:
                      f"the {'upper' if TWIST_OVER else 'lower'} half passes over, both thinned to {self.twist_thickness:.2f} mm there, "
                      f"lifted {lay['lift']:.2f} mm over {lay['plat_lo'] + lay['plat_hi']:.2f} mm; an eye {self.split_mm:g} mm wide either "
                      f"side of each crossing")
+        if self.hammer:
+            h, d = self.hammer, self.strike_layout()[2]
+            line += (f"\n  hammered: {self.strike_count} strikes of a {h.sphere_radius:.2f} mm hammer face, "
+                     + (f"{d.min():.3f}..{d.max():.3f} mm deep" if len(d) else "none fits")
+                     + f", centres {h.spacing * h.dimple_mm:.2f} mm apart at least, rims {h.rim(self.band.edge_round):.2f}"
+                     + (f", none within ±{h.clear_deg:g}° of the head" if h.clear_deg else "") + f"; seed {h.seed}")
         line += (f"\n  {self.loft_stations} stations x {SECTION_POINTS} points; wrap length {self.wrap_length_mm:.3f} mm; "
                  f"overall width {self.overall_width_mm:.2f} mm; design volume {self.design_volume_mm3():.2f} mm³")
         rounded, overcut = self.sharp_edge_round_mm3(), self.opening_overcut_mm3()
@@ -2072,6 +2185,10 @@ def check_shank(spec: ShankSpec, stl: Path, ntop_vol: float | None) -> gate.Gate
         c.detail += (f" [design {spec.design_volume_mm3():.2f}" + (f" less {rounded:.2f} mm³ of edge rounding" if rounded else "")
                      + (f" less {overcut:.2f} mm³ the mesher's chamfer takes off the rounds" if overcut else "") + "]")
     rep.checks.append(c)
+    if spec.hammer:
+        from . import texture
+        P, N, _, _ = spec.strikes()
+        rep.checks.append(texture.strikes_check(P, N, spec.struck_mesh(), gate.load_mesh(stl), spec.band.mesh_tolerance_mm))
     return rep
 
 
@@ -2118,8 +2235,9 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
     run_dir, run_id = runs.fresh_run_dir(out_dir, stem)
     stl = run_dir / f"{stem}.stl"
     bars = write_bars(spec, run_dir, stem)
-
-    inputs = cat.build_inputs(spec.notebook_inputs(bars, str(stl)))
+    strikes = spec.write_strikes(run_dir / f"{stem}.strikes.csv")      # the hammer's centres, or one far point
+    values = {**spec.notebook_inputs(bars, str(stl)), **spec.strike_inputs(str(strikes))}
+    inputs = cat.build_inputs(values)
     started = time.time()
     run = ntopcl.run(nb, inputs, run_dir, tag=stem)
     try:
@@ -2136,7 +2254,7 @@ def build(spec: ShankSpec, out_dir: Path | None = None, *, notebook: Path | None
     report = {
         "stem": stem, "spec_id": spec.spec_id, "run_id": run_id, "status": result.status, "ok": result.ok,
         "band": asdict(spec.band), "shank": {k: v for k, v in asdict(spec).items() if k not in ("band", "_cache")},
-        "design": spec.design(), "inputs": spec.notebook_inputs(bars, str(stl)), "stl": str(stl), "bar": bars[0], "bars": bars,
+        "design": spec.design(), "inputs": values, "stl": str(stl), "bar": bars[0], "bars": bars, "strikes": spec.strike_count,
         "ntop_volume_mm3": ntop_vol, "design_volume_mm3": spec.design_volume_mm3(),
         "expected_volume_mm3": spec.expected_volume_mm3(), "opening_overcut_mm3": spec.opening_overcut_mm3(), "gate": rep.to_dict(),
         "ntopcl_seconds": run.seconds, "block_timings": [t.__dict__ for t in run.log.timings], "notes": result.notes,

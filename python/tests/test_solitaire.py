@@ -118,7 +118,8 @@ def test_solitaire_recipe_embeds_both_blocks_and_places_the_head(tmp_path):
     assert nb.blocks[b["Arches Eroded"]]["wired"]["Body"][0] == b["Split Arches"]
     assert nb.blocks[b["Arches Re-distanced Mesh"]]["wired"]["Tolerance"][0] == "Mesh Tolerance"
     assert nb.blocks[b["Arches"]]["wired"]["Body"][0] == b["Arches Re-distanced"] and nb.blocks[b["Arches"]]["wired"]["Distance"][0] == "Edge Round"
-    assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Carved Band"} <= set(nb.blocks[b["Shank Union"]]["lists"]["Bodies"])
+    assert {b["Arches"], b["Milgrain+"], b["Milgrain-"], "Struck Band"} <= set(nb.blocks[b["Shank Union"]]["lists"]["Bodies"])
+    assert nb.blocks[b["Struck"]]["wired"]["Primary Body"][0] == "Carved Band"           # struck before the arches join (0.12.0)
     assert "Band Body" not in nb.blocks[b["Shank Union"]]["lists"]["Bodies"]                     # the carved band, not the bare one
     # the arch is its +y half ∩ the half's mirror across y = 0; the -y bead rows are the +y rows' mirror
     assert nb.blocks[b["Arch"]]["lists"]["Bodies"] == ["Arch Half", b["Arch Half Mirrored"]]

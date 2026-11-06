@@ -13,8 +13,10 @@ Phase 3, step 1 (ntopjewel.shank).
                           micrometres apart along its seams, which the import read as self-intersecting,
                           2026-11-02); an unused slot imports the smallest bar again, which changes nothing
                        -> Remap Cylindrical Body (Y mapping length = Wrap Length)   the bar wrapped round Z
-                       -> Shank Body -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance),
-                          Export Mesh (Output Path)
+                       -> Shank Body -> less the strikes (nj.add_strikes: Import Points (Strikes Path, Strikes
+                          Units) -> one Sphere on the list (Strike Radius) -> Boolean Union; a hammered face, or
+                          one centre a metre off) = Struck Band
+                       -> Volume Integral of 1 (Output "Volume"), Mesh (Mesh Tolerance), Export Mesh (Output Path)
 
 A bar is the ring unrolled: X radial, Y along the ring (Y = Wrap Length is one turn, angle 0 at
 Y = 0), Z axial, one cross-section every few degrees (the band profile at that angle's width and
@@ -39,8 +41,8 @@ REPO = HERE.parents[2]
 TEST_DIR = REPO / "out" / "api"
 TEST_STEM = "ring_shank_test"                                     # prepare() writes ring_shank_test.bar.stl
 
-SPECS = nj.SHANK_SPECS
-INPUT_ORDER = nj.input_order(SPECS)
+SPECS = nj.SHANK_SPECS + nj.STRIKE_SPECS
+INPUT_ORDER = [n for n, _ in SPECS] + ["Strikes Units", "Output Path"]
 
 
 def _spec():
@@ -71,6 +73,8 @@ def prepare(params: dict, work_dir: Path) -> dict:
     spec = _spec()
     TEST_DIR.mkdir(parents=True, exist_ok=True)
     v = spec.notebook_inputs(shank.write_bars(spec, TEST_DIR, TEST_STEM))
+    v.update(spec.strike_inputs(str(spec.write_strikes(TEST_DIR / f"{TEST_STEM}.strikes.csv"))))
+    v.pop("Strikes Units")                                       # an enum: a notebook input nTopCL sets
     v.pop("Output Path")
     params["values"] = {**v, **(params.get("values") or {})}
     return params
@@ -83,9 +87,11 @@ def _body(h, p, values, test_output):
         wrapped = nj.add_wrapped_shank(h, [ids[n] for n in SLOT_NAMES], ids["Wrap Length"], ids["Edge Round Inward"],
                                        ids["Edge Round"], ids["Mesh Tolerance"],
                                        opener=h.embed_block(p["open_bar_block"]))
-    with h.section("Result"):
         ring = h.wrap_var("Shank Body", wrapped)
-        integ, _mesh, export = nj.add_measure_mesh_export(h, ring, out_var, ids["Mesh Tolerance"])
+    with h.section("Strikes"):                                  # a hammered face; one far point when there is none
+        struck = nj.add_strikes(h, ring, ids)
+    with h.section("Result"):
+        integ, _mesh, export = nj.add_measure_mesh_export(h, struck, out_var, ids["Mesh Tolerance"])
     return integ, export
 
 

@@ -53,7 +53,7 @@ def test_solitaire_blends_in_inputs_and_identity():
     s = solitaire.SolitaireSpec(band.BandSpec(size=6, profile="court", mesh_tolerance_mm=0.05),
                                 heads.HeadSpec(gems.StoneSpec("round", 6.5), prongs=6))
     v = s.notebook_inputs("E", "O")
-    assert v["Head Blend"] == s.head.blend and v["Shank Blend"] == s.shank_blend and list(v)[-2:] == ["Shank Blend", "Output Path"]
+    assert v["Head Blend"] == s.head.blend and v["Shank Blend"] == s.shank_blend and list(v)[-5:] == ["Shank Blend", "Strikes Path", "Strike Radius", "Strikes Units", "Output Path"]
     sharp = solitaire.SolitaireSpec(s.band, s.head, shank_blend_mm=0.0)
     assert sharp.stem != s.stem and sharp.blend_volume_mm3() < s.blend_volume_mm3()
     assert s.bead_head_gap >= solitaire.BEAD_HEAD_GAP

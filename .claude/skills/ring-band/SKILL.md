@@ -97,6 +97,7 @@ A band whose section changes round the ring: full width and thickness at the hea
 python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.2 --thickness-bottom 1.2
 python -m ntopjewel shank --size 6 --profile court --width 5 --width-bottom 2.5 --taper-from 45   # the taper starts 45° from the head
 python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.2 --thickness-bottom 1.2 --dry-run
+python -m ntopjewel shank --size 6 --profile court --thickness 1.6 --width-bottom 2.6 --thickness-bottom 1.4 --tolerance 0.05 --hammered   # hammered (ring-features skill: textures)
 python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 1.5 --dip-span 70                 # a contoured band: a smooth 1.5 mm bump at the head
 python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron             # a V (chevron) band
 python -m ntopjewel shank --size 6 --width 3 --thickness 1.5 --dip 2 --dip-shape chevron --double --gap 0.6 --bridges 180,100,-100   # ring 04's double chevron

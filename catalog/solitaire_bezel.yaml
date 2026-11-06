@@ -2,8 +2,8 @@
 # (body: ntopjewel.nb_solitaire); run by `python -m ntopjewel solitaire --bezel ...`; every number from
 # ntopjewel.solitaire.SolitaireSpec.notebook_inputs.
 notebook: solitaire_bezel.ntop
-version: 0.7.0   # 0.7.0: the arches and milgrain a +y half and its mirror (Mirror Body) - Arch Centre Y Minus, Wedge Angle Minus, Bead Start X/Y Minus gone - and each bar opened by the open_bar block (2026-11-04) - rebuild the notebook; 0.6.0: the shoulder knots - Knot Path / Knot Path 2 united with the carved band (2026-11-03) - rebuild the notebook; 0.5.0: artwork under the head - Cut Path / Relief Path, the band carved before the arches join (2026-11-03) - rebuild the notebook; 0.4.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.4.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
-rebuild_since: 0.7.0   # the notebook body changed then (the mirrored halves, open_bar): a notebook built for an older version is refused (runs.require_built)
+version: 0.8.0   # 0.8.0: the Strikes section - a hammered shank, the strikes cut from the carved band before the arches and the head join it (Strikes Path, Strike Radius, Strikes Units; 2026-11-05) - rebuild the notebook; 0.7.0: the arches and milgrain a +y half and its mirror (Mirror Body) - Arch Centre Y Minus, Wedge Angle Minus, Bead Start X/Y Minus gone - and each bar opened by the open_bar block (2026-11-04) - rebuild the notebook; 0.6.0: the shoulder knots - Knot Path / Knot Path 2 united with the carved band (2026-11-03) - rebuild the notebook; 0.5.0: artwork under the head - Cut Path / Relief Path, the band carved before the arches join (2026-11-03) - rebuild the notebook; 0.4.1: each bar opened on its own before the union (a union's field eroded a groove along a split's seam; same inputs, rebuild the notebook; 2026-11-02); 0.4.0: four bar inputs united in nTop (Shank Path 2..4; 2026-11-02) - rebuild the notebook; 0.3.1: ranges widened for the arch stubs a knot shank buries under the head (same inputs, no rebuild; 2026-11-01); 0.3.0: the shank from a bar (Shank Path, Wrap Length, Slot Path; the primitive band inputs gone, 2026-11-01)
+rebuild_since: 0.8.0   # the notebook body changed then (the Strikes section): a notebook built for an older version is refused (runs.require_built)
 title: 'Solitaire (any stone, bezel_head): gothic cathedral arches, arch milgrain,
   optional engraving'
 output:
@@ -233,6 +233,20 @@ inputs:
     max: 1.0
     doc: Blend radius where the head meets the shank; the seat and engraving are cut
       after the blend (0 = sharp).
+  Strikes Path:
+    type: text
+    doc: A hammered shank's strike centres, x,y,z in mm, ring frame (SolitaireSpec.shank_spec.write_strikes, none within the head's and the arches' reach); one point a metre off when there is no hammering.
+  Strike Radius:
+    type: scalar
+    units: mm
+    min: 0.3
+    max: 20.0
+    doc: The hammer face's radius (texture.Hammer.sphere_radius); 1 when there is no hammering.
+  Strikes Units:
+    type: enum
+    choices: {mm: 1, cm: 2}    # unit_length_enum ids measured by points_probe (ntop/api_facts.json)
+    default: 1
+    doc: Import Points' Units (no default; the API cannot set an enum) - 1 = mm.
   Output Path:
     type: text
     doc: Where Export Mesh writes the ring.

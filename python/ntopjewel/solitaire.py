@@ -106,6 +106,8 @@ class SolitaireSpec:
     leaf_tilt_deg: float = 0.0              # each leaf turned about its base, alternately + and - (artwork)
     leaf_stem: float = 0.0                  # a serpentine stem through the leaf rows, this fraction of the relief high
     stem_width_mm: float = 0.0              # the stem's width (0: the stroke)
+    hammer: "object | None" = None          # a hammered shank (texture.Hammer): struck before the arches and the head join it,
+                                            # none within their reach (its clear_deg is set from head_clear_deg)
     _cache: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self):
@@ -274,7 +276,8 @@ class SolitaireSpec:
         plain shank."""
         if "carved_shank" not in self._cache:
             art = self.artwork
-            body = art.design_mesh() if art is not None else self.shank_spec.design_mesh()
+            sh = self.shank_spec
+            body = art.design_mesh() if art is not None else (sh.struck_mesh() if sh.hammer else sh.design_mesh())
             if self.has_knot:
                 body = shankmod.united([body] + self.ornament.design_parts())
             self._cache["carved_shank"] = body
@@ -294,7 +297,15 @@ class SolitaireSpec:
 
     @property
     def shank_spec(self) -> "shankmod.ShankSpec":
-        """The shank Python writes as a bar for the notebook: the given shape, or the band all round."""
+        """The shank Python writes as a bar for the notebook: the given shape, or the band all round - hammered
+        when `hammer` is set, no strike within head_clear_deg of the top (the head's reach and the shank blend,
+        or the arches' wedge: they join the band after the strikes and would fill them)."""
+        if self.hammer is not None:
+            if "hammered_shank" not in self._cache:
+                from dataclasses import replace
+                base = self.shank if self.shank is not None else shankmod.ShankSpec(self.band)
+                self._cache["hammered_shank"] = replace(base, hammer=replace(self.hammer, clear_deg=self.head_clear_deg()))
+            return self._cache["hammered_shank"]
         if self.shank is not None:
             return self.shank
         if "plain_shank" not in self._cache:
@@ -525,10 +536,11 @@ class SolitaireSpec:
     # ---- the notebook's numbers ----------------------------------------------------------------
     def notebook_inputs(self, seat_path: str, output_path: str | None = None, *, prongs_path: str = "",
                         engraving_path: str = "", windows_path: str = "", shank_paths="", slot_path: str = "",
-                        cut_path: str = "", relief_path: str = "", knot_paths=("", "")) -> dict:
+                        cut_path: str = "", relief_path: str = "", knot_paths=("", ""), strikes_path: str = "") -> dict:
         """`shank_paths`: the shank's shankmod.BAR_SLOTS bar files (shankmod.write_bars), or one path for every slot;
         `cut_path` / `relief_path`: the artwork layers (write_artwork; specks when there is no artwork); `knot_paths`:
-        the knots' two layers (write_knots; specks when there are none)."""
+        the knots' two layers (write_knots; specks when there are none); `strikes_path`: the hammer's centres
+        (shank_spec.write_strikes; one far point when not hammered)."""
         from .nb_solitaire import BAND_FOR_ARCHES
         band_ins = self.band.notebook_inputs("")
         sh = self.shank_spec.notebook_inputs(shank_paths, "")
@@ -554,6 +566,7 @@ class SolitaireSpec:
         ins.update(self.bead_inputs())
         ins.update({"Engraving Path": engraving_path, "Engraving Wrap Length": round(self.engraving_wrap_length, 4),
                     "Shank Blend": round(self.shank_blend, 4)})
+        ins.update(self.shank_spec.strike_inputs(strikes_path))
         if output_path is not None:
             ins["Output Path"] = output_path
         return ins
@@ -716,13 +729,19 @@ class SolitaireSpec:
         from . import runs
         b, s = self.band, self.head.stone
         setting = {"bezel": "bezel", "partial": "pbezel"}.get(self.kind, f"{self.prong_count}prong")
-        shape = f"_{self.shank_spec.shape_tag}" if self.shaped else ""
+        shape = f"_{self.shank_spec.shape_tag}" if self.shaped or self.hammer is not None else ""
         art = ("_art" if self.has_artwork else "") + ("_knot" if self.has_knot else "")
         return (f"solitaire_{b.profile}_{b.label}{shape}_{setting}_{s.stem[len('stone_'):]}{art}_"
                 f"{runs.spec_id(self.design())}")
 
     # ---- checks on the design ---------------------------------------------------------------
     def validate(self) -> list[str]:
+        if self.shank is not None and self.shank.hammer is not None:
+            return ["the hammer goes to the solitaire (SolitaireSpec.hammer, solitaire --hammered), not its shank: the strikes must clear the head"]
+        if self.hammer is not None:
+            p = self._hammer_problems()
+            if p:
+                return p
         p = self.shank_spec.validate() + self.placed_head.validate()
         if self.shank is not None:
             sh = self.shank
@@ -814,6 +833,25 @@ class SolitaireSpec:
                 p.append(f"only {len(bd['angles'])} beads fit on each arch edge before the head: smaller beads or a lower shoulder angle")
         return p
 
+    def _hammer_problems(self) -> list[str]:
+        """What a hammered solitaire refuses before the shank's own hammer checks: a knot shank, the artwork and the shoulder knots (they stand on or in the hammered face), an
+        outside engraving; and under an inside one, the wall the deepest strike and the letters leave."""
+        if self.knot:
+            return [f"a hammered {self.knot} shank under a head: not yet (a hammered face goes on a profiled shank)"]
+        if self.has_knot:
+            return ["a hammered shank with shoulder knots: not together (the knots stand on the face the hammer strikes)"]
+        if self.has_artwork:
+            return ["a hammered shank with artwork panels: not together (the panels are carved into the face the hammer strikes)"]
+        if self.has_engraving and self.engrave_side == "outside":
+            return ["an outside engraving on a hammered shank: not together (engrave it inside)"]
+        if self.has_engraving:
+            deepest = self.hammer.depth_range[1]
+            left = self.shank_spec.engraving_band().thickness_mm - deepest - self.engrave_depth_mm
+            if left < tables.FLOORS["wall_good"] - 1e-9:
+                return [f"under the engraving the deepest strike ({deepest:.2f} mm) and the letters ({self.engrave_depth_mm:g} mm) "
+                        f"leave {left:.2f} mm of wall; at least {tables.FLOORS['wall_good']:g} (shallower strikes, a thicker shank)"]
+        return []
+
     def free_angles(self) -> list[float]:
         """The gate's section-shape angles (gate.SHAPE_ANGLES_DEG) that see the plain shank: clear of
         the arches' wedge (and the head at 0°), and of the engraving opposite the head."""
@@ -839,7 +877,7 @@ class SolitaireSpec:
         a = self.arch()
         px, pz = self.pivot
         low = self.placed_head.lowest_z() if self.floored else self.placed_head.layout()["z_base"]
-        return (f"{self.stem}\n  {self.shank_spec.describe() if self.shaped else self.band.describe()}\n  {self.placed_head.describe()}\n"
+        return (f"{self.stem}\n  {self.shank_spec.describe() if self.shaped or self.hammer is not None else self.band.describe()}\n  {self.placed_head.describe()}\n"
                 f"  placement: girdle at r {self.girdle_radius:.3f}, "
                 + ("" if self.unfaceted else f"culet {self.finger_clear} mm above the bore, ") +
                 f"{'lowest metal' if self.floored else 'feet'} at r {self.girdle_radius + low:.3f}; "
@@ -1159,6 +1197,10 @@ def check_solitaire(spec: SolitaireSpec, stl: Path, ntop_vol: float | None):
         rep.checks += partial_bezel_checks(spec.placed_head, local)
     if spec.milgrain:
         rep.checks.append(milgrain_check(spec, ring))
+    if sh.hammer is not None:                                                # every dimple, down its normal, against the design
+        from . import texture
+        P, N, _, _ = sh.strikes()
+        rep.checks.append(texture.strikes_check(P, N, design, ring, b.mesh_tolerance_mm))
     if art is not None:
         rep.checks += artmod.artwork_checks(art, ring)                       # every panel probed, built against the carved band
     if spec.has_knot:
@@ -1268,10 +1310,12 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     spec.slot_mesh().export(str(slot))
     cut, relief = spec.write_artwork(run_dir, spec.stem)                        # the panel cutters and the relief, or specks
     knots = spec.write_knots(run_dir, spec.stem)                                 # the shoulder knots' two layers, or specks
+    strikes = spec.shank_spec.write_strikes(run_dir / f"{spec.stem}.strikes.csv")   # the hammer's centres, or one far point
     stl = run_dir / f"{spec.stem}.stl"
     inputs = spec.notebook_inputs(str(envelope), str(stl), prongs_path=str(prongs) if spec.outline else "",
                                   engraving_path=str(engraving), windows_path=str(windows) if spec.bezel else "",
-                                  shank_paths=bars, slot_path=str(slot), cut_path=cut, relief_path=relief, knot_paths=knots)
+                                  shank_paths=bars, slot_path=str(slot), cut_path=cut, relief_path=relief, knot_paths=knots,
+                                  strikes_path=str(strikes))
     started = time.time()
     run = ntopcl.run(nb, cat.build_inputs(inputs), run_dir, tag=spec.stem)
     try:
@@ -1287,18 +1331,21 @@ def build(spec: SolitaireSpec, out_dir: Path | None = None, *, notebook: Path | 
     stone = spec.head.stone
     res.notes.append(f"stone {stone.carats():.2f} ct {stone.material}; metal " +
                      ", ".join(f"{k} {v:.2f} g" for k, v in tables.weights_g(rep.volume_mm3).items()))
-    res.notes += (spec.artwork.warnings() if spec.has_artwork else spec.band.warnings()) + built_notes
+    res.notes += (spec.artwork.warnings() if spec.has_artwork else
+                  spec.shank_spec.warnings() if spec.hammer is not None else spec.band.warnings()) + built_notes
     if spec.blend_bore_note():
         res.notes.append(spec.blend_bore_note())
     report = {"stem": spec.stem, "spec_id": runs.spec_id(spec.design()), "run_id": run_id, "status": res.status,
               "design": spec.design(), "inputs": inputs, "stl": str(stl), "cut": cut, "relief": relief, "knots": list(knots),
+              "strikes": spec.shank_spec.strike_count,
               "ntop_volume_mm3": ntop_vol, "gate": rep.to_dict(), "notes": res.notes,
               "notebook": runs.notebook_identity(nb), "environment": runs.environment(ntopcl.version())}
     (run_dir / f"{spec.stem}.report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     if deliver and res.ok:
         res.delivered = runs.deliver(stl, run_dir, spec.stem, deliver_project, report, cast_metal=cast_metal,
                                      extra_files=([Path(cut), Path(relief)] if spec.has_artwork else [])
-                                     + ([Path(k) for k in knots] if spec.has_knot else []))
+                                     + ([Path(k) for k in knots] if spec.has_knot else [])
+                                     + ([Path(strikes)] if spec.hammer is not None else []))
     elif deliver:
         res.notes.append(f"not delivered: status {res.status}")
     return res
