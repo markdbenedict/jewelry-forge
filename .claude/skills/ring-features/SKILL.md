@@ -334,7 +334,8 @@ The first real run (6 Nov, flat 7 x 3.5, 16 s): one shell, the match 98.7 % (nTo
 Thicken symmetric, the wrap ours), the pore 1.07, every void open, the mask held - and the sheet 0.450 for 0.6, which
 is where the seed pipeline (0.2.0) comes from. The second (7 Nov): the sheet 0.602 for 0.6, the volume +0.26 %, the
 match 100 % - and lips 0.26 thick where sheets run under the outer face, which is where the inset seed (0.3.0) comes
-from. The gate learnt from both: flakes (mean thickness under 0.025 and a fifth of their length) and components under
+from. The third (0.3.0, 7 Nov, 53 s): PASSED - the sheet 0.600, every end and lip ≥ 0.578, the design volume +0.08 %,
+one shell, every void open; 32 % of the metal saved (10.8 g of sterling for the 7 x 3.5 band, 15.9 solid). The gate learnt from both: flakes (mean thickness under 0.025 and a fifth of their length) and components under
 0.025 mm every way are the mesher's bubbles, counted apart; a void pocket is only one above 0.03 mm³ (slivers at the
 grid's size are reported, not failed).
 

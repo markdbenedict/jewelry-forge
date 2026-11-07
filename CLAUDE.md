@@ -343,7 +343,8 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   thin lip (0.26 mm under the lattice band's dome, 2026-11-07). Trimming the SEED by the band inset by the growth g, then
   growing it by g, gives dilate(seed ∩ (band − g), g) - exactly the opening by g of the trimmed wall-thick sheet (erosion
   distributes over an intersection): every end rounded by g, every lip at least 2 g, and no separate opening (one mesh
-  round trip fewer). ring_lattice 0.3.0 does it with g = half the marginal wall.
+  round trip fewer). ring_lattice 0.3.0 does it with g = half the marginal wall: PASSED 2026-11-07 (every end and lip
+  ≥ 0.578, the sheet 0.600, the design volume +0.08 %).
 - **Offset Body adds a constant to the field; it does not re-distance.** Two offsets back to
   back (-e then +e, the opening that rounds every convex edge) cancel exactly - five band
   profiles matched their UNopened sections to 0.05 % (2026-10-30): no edge round was ever built
