@@ -394,6 +394,11 @@
       "value": 0.8,
       "status": "default",
       "source": "the solid bore skin under an exposed lattice band: above the good wall (0.75), it is the band the finger feels and the jeweller sizes, and the sprue feeds the lattice through it"
+    },
+    "lattice_sheet_correction_mm": {
+      "value": 0.0,
+      "status": "default",
+      "source": "what the lattice's two mesh round trips (the seed's re-distance, the opening's) take off a gyroid sheet in nTop, added back to the sheet's growth: the first run (6 Nov, one round trip on a 0.27 mm eroded sheet at Mesh Tolerance 0.1) read about 0.02 under the field's own arithmetic; the second run, with the seed pipeline, measures it as the built sheet's median against the wall asked"
     }
   },
   "calibration_log": [

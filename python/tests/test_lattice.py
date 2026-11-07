@@ -73,9 +73,13 @@ def test_spec_inputs_identity_and_refusals():
     assert s.zone_inner_radius == pytest.approx(s.band.bore_radius_mm + 0.8) and s.zone_half_width == pytest.approx(2.25)
     v = s.notebook_inputs("O")
     assert list(v) == list(catalog.load("ring_lattice").inputs)
-    assert v["Wrap Length"] == pytest.approx(s.cells_around * 3.5) and v["Wall"] == 0.6 and v["Cell Size"] == 3.5
-    assert v["Lattice Inner Radius"] == pytest.approx(v["Zone Inner Radius"] - lattice.LATTICE_OVERLAP_MM)
-    assert v["Lattice Z Top"] == pytest.approx(v["Zone Z Top"] + lattice.LATTICE_OVERLAP_MM) and v["Lattice Round Inward"] == -v["Lattice Round"]
+    assert v["Wrap Length"] == pytest.approx(s.cells_around * 3.5) and v["Cell Size"] == 3.5 and "Wall" not in v
+    assert s.seed_mm == pytest.approx(0.2) and v["Seed Thickness"] == pytest.approx(0.2 * 1.6)      # the field's units: api_facts' 1.6
+    assert v["Sheet Growth"] == pytest.approx((0.6 - 0.2) / 2) and s.seed_mm + 2 * v["Sheet Growth"] == pytest.approx(0.6)
+    assert s.overlap == pytest.approx(0.2 + lattice.LATTICE_ROUND_MM + 0.05) and s.overlap >= lattice.LATTICE_OVERLAP_MM
+    assert v["Lattice Inner Radius"] == pytest.approx(v["Zone Inner Radius"] - s.overlap)
+    assert v["Lattice Z Top"] == pytest.approx(v["Zone Z Top"] + s.overlap) and v["Lattice Round Inward"] == -v["Lattice Round"]
+    assert spec(band=flat_band(mesh_tolerance_mm=0.3), wall_mm=0.9).seed_mm == pytest.approx(0.3)   # two voxels when that is more
     assert 0.6 < s.design_volume_mm3() / s.plain_volume_mm3() < 0.8
     assert s.design_volume_mm3() == pytest.approx(s.plain_volume_mm3() - s.zone_band_volume_mm3() + s.sheet_volume_mm3())
     assert s.stem.startswith("ring_lattice_gyroid_flat_US6_w6_t3.3_c3.5w0.6_")
@@ -88,6 +92,7 @@ def test_spec_inputs_identity_and_refusals():
     assert "rim" in spec(rim_mm=0.3).validate()[0]
     assert "voxels" in spec(band=flat_band(mesh_tolerance_mm=0.3)).validate()[0]
     assert "no void" in spec(wall_mm=2.0).validate()[0]
+    assert any("skin" in m for m in spec(wall_mm=1.4, cell_mm=8.0).validate())           # the growth reaches through the skin
     v = s.model_voids()
     assert v["metal_pieces"] == 1 and v["pockets"] == [] and v["void_components"] >= 1
 
@@ -124,12 +129,18 @@ def test_recipe_builds_on_the_fake_api(tmp_path):
     assert nb.inputs == mod.INPUT_ORDER == list(catalog.load("ring_lattice").inputs)
     assert nb.lint() == [] and res["warnings"] == []
     b = res["blocks"]
-    assert res["identifiers"]["Gyroid"] == "gyroid_implicit<real>[1.1.0]" and res["identifiers"]["Walled Gyroid"].startswith("thicken_implicit")
+    assert res["identifiers"]["Gyroid"] == "gyroid_implicit<real>[1.1.0]" and res["identifiers"]["Seed Sheet"].startswith("thicken_implicit")
     assert nb.blocks[b["Gyroid"]]["wired"]["Cell Size"][0] == "Cell Size"
-    w = nb.blocks[b["Walled Gyroid"]]["wired"]
-    assert w["Body"][0] == b["Gyroid"] and w["Thickness"][0] == "Wall"
-    assert nb.blocks[b["Lattice Wrapped"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
-    assert set(nb.blocks[b["Lattice Trimmed"]]["lists"]["Bodies"]) == {"Band Body", b["Lattice Zone"], b["Lattice Wrapped"]}
+    w = nb.blocks[b["Seed Sheet"]]["wired"]
+    assert w["Body"][0] == b["Gyroid"] and w["Thickness"][0] == "Seed Thickness"
+    assert nb.blocks[b["Seed Wrapped"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
+    assert set(nb.blocks[b["Seed Trimmed"]]["lists"]["Bodies"]) == {"Band Body", "Lattice Zone Body", b["Seed Wrapped"]}
+    assert nb.blocks[b["Seed Re-distanced Mesh"]]["wired"]["Body"][0] == b["Seed Trimmed"]
+    assert nb.blocks[b["Seed Re-distanced"]]["wired"]["Mesh"][0] == b["Seed Re-distanced Mesh"]
+    g = nb.blocks[b["Sheet Grown"]]["wired"]
+    assert g["Body"][0] == b["Seed Re-distanced"] and g["Distance"][0] == "Sheet Growth"
+    assert set(nb.blocks[b["Lattice Trimmed"]]["lists"]["Bodies"]) == {"Band Body", "Lattice Zone Body", b["Sheet Grown"]}
+    assert nb.blocks[b["Lattice Eroded"]]["wired"]["Body"][0] == b["Lattice Trimmed"]
     assert nb.blocks[b["Lattice Eroded"]]["wired"]["Distance"][0] == "Lattice Round Inward"
     assert nb.blocks[b["Lattice Opened"]]["wired"]["Distance"][0] == "Lattice Round"
     assert nb.blocks[b["Skin And Rims"]]["wired"]["Primary Body"][0] == "Band Body"

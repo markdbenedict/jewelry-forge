@@ -120,9 +120,10 @@ def _open_bar_block_default(monkeypatch, fake_open_bar):
 @pytest.fixture(autouse=True)
 def _api_facts(tmp_path_factory, monkeypatch):
     """What ntop/recipes/transform_probe.py measures in nTop, for builds on the fake (the fake
-    cannot measure it): Combine Transforms applies its list in order, Mirror Body works."""
+    cannot measure it): Combine Transforms applies its list in order, Mirror Body works; and what
+    the first lattice run measured, the gyroid field's gradient (1.6)."""
     import json
     f = tmp_path_factory.getbasetemp() / "api_facts.json"
     if not f.exists():
-        f.write_text(json.dumps({"combine_transforms_order": "list", "mirror_body": "ok"}))
+        f.write_text(json.dumps({"combine_transforms_order": "list", "mirror_body": "ok", "gyroid_field_gradient": 1.6}))
     monkeypatch.setenv("NTOPJEWEL_API_FACTS", str(f))

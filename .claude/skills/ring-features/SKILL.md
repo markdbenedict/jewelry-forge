@@ -300,12 +300,16 @@ python -m ntopjewel lattice                                                     
 
 An exposed gyroid, never a buried infill (the design rules say why: the resin and the investment both have to get out).
 The profiled band keeps a solid bore skin (`--skin`, tables `lattice_skin_mm` 0.8) and solid rims (`--rim`, the good
-wall); between them, from the skin's top to the outer face, the metal is nTop's walled gyroid: `gyroid_implicit`
-(`--cell`, cubic cells in the bar frame) thickened by `thicken_implicit` (`--member`, the sheet) and wrapped round the
-ring by Remap Cylindrical with a mapping length of a whole number of cells (`GyroidSpec.cells_around`), so the pattern
-closes on itself. The lattice is trimmed to the band inside the zone (grown by 0.25 into the skin and the rims so the
-union overlaps instead of meeting on a face), opened by 0.1 mm (feather edges thinner than 0.2 go, the sheet ends come
-back rounded) and united with the band less the zone.
+wall); between them, from the skin's top to the outer face, the metal is nTop's gyroid sheet. `gyroid_implicit`
+(`--cell`, cubic cells in the bar frame) gives the surface, but its field is the gyroid function scaled by cell / 2π, not
+a distance (measured 6 Nov: Thicken 0.6 came out 0.45, varying with the gradient), so the notebook thickens only a thin
+seed (two voxels, in field units x `api_facts` gyroid_field_gradient 1.6), wraps it round the ring by Remap Cylindrical
+with a mapping length of a whole number of cells (`GyroidSpec.cells_around`, so the pattern closes on itself), trims it
+to the band inside the zone (grown into the skin and the rims past the growth and the round, so the union overlaps
+instead of meeting on a face), re-distances it by the mesh round trip and grows it to `--member` by an Offset (exact on
+a distance field), trims it again, opens it by 0.1 mm (feather edges thinner than 0.2 go, the sheet ends come back
+rounded) and unites it with the band less the zone. `lattice_sheet_correction_mm` (tables settings) is what the round
+trips take off the sheet, measured by the second run.
 
 Python holds the same geometry exactly (`lattice.GyroidSpec`: the gyroid's formula, its distance by two Newton steps -
 the first-order g / |∇g| alone thins a 0.6 sheet to 0.54 -, the wrap, the opening at the dome), so the gate is not an
@@ -321,8 +325,10 @@ whose pore (`unit_cell_stats`, the sphere that passes) is under `lattice_pore`, 
 under the good wall, a design whose metal is not one piece or whose voids do not all reach the face (the same flood
 fill on the model), a sheet under 6 voxels.
 
-What the first real run tells (6 Nov, pending): the sheet's median thickness against the wall asked (is Thicken
-symmetric, is nTop's gyroid field a distance), the lattice match and its best variant (nTop's gyroid convention and
-phase), the volume (nTop's field against ours). Any of them off is a calibration in `data/jewelry_tables.json` or a
-line in `lattice.py`, not a redesign.
+The first real run (6 Nov, flat 7 x 3.5, 16 s): one shell, the match 98.7 % (nTop's gyroid standard and unshifted,
+Thicken symmetric, the wrap ours), the pore 1.07, every void open, the mask held - and the sheet 0.450 for 0.6, which
+is where the seed pipeline (0.2.0) comes from. The gate learnt two rules from it: flakes with no thickness where the
+sheets lean on the skin are the mesher's (counted apart, like the specks), and a void pocket is only one above 0.03 mm³
+(slivers at the grid's size are reported, not failed). The second run's one number: the sheet's median against the
+wall asked, into `lattice_sheet_correction_mm`.
 

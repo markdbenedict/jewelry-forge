@@ -28,9 +28,17 @@ designed) and the band checks. The design refuses a cell the floors cannot hold 
 and the pore - the sphere that passes - of the cell), a zone shallower than half a cell, a model whose metal is not
 one piece or whose voids do not all reach the face (model_voids, the same flood fill on the design).
 
-What nTop's blocks do is measured by the first real run: `sheet thickness` p50 against the wall asked (is Thicken
-symmetric, is the gyroid's field a distance), `lattice match` with its variants (which gyroid convention and phase
-nTop uses: the report names the best of the mirrored and shifted forms when the configured one does not match).
+What nTop's blocks do, measured by the first real run (6 Nov, flat US 6 7 x 3.5, Mesh Tolerance 0.1; api_facts.json):
+nTop's gyroid is the standard convention, unshifted (lattice match 98.7 %), Thicken is symmetric about the surface - but
+**gyroid_implicit's field is the gyroid function scaled by cell / 2π, not a distance**: its gradient on the surface is
+1.43-1.70 per cell radian (median 1.51), so Thicken Body's t gives a sheet t / |∇f| thick (0.450 for 0.6 asked, thinner
+where the gradient is larger), and an Offset moves its faces by the offset / |∇f|. So the notebook thickens only a thin
+SEED (`Seed Thickness`, in field units: GYROID_FIELD_GRADIENT x the true seed, two voxels or 0.2 mm), re-distances it by
+the mesh round trip (a true distance field of the trimmed seed), grows it to the wall by an Offset (`Sheet Growth` =
+(wall − seed) / 2, exact on a distance field), trims it to the band again (the growth crosses the dome) and opens it
+(nj.add_opening). The sheet comes out uniform to the seed's share of the wall (±6 % of a third: ±2 %); the model stays
+the distance-based sheet. `lattice_sheet_correction_mm` (tables settings, default 0) is what the second run measures: the
+two mesh round trips' loss on the sheet, added to the growth.
 """
 from __future__ import annotations
 
@@ -58,11 +66,27 @@ LATTICE_ROUND_MM = 0.1       # the lattice body's opening (offset in, re-distanc
 LATTICE_OVERLAP_MM = LATTICE_ROUND_MM + 0.15   # the lattice body reaches this far into the skin and the rims: the union
                              # overlaps instead of meeting on a face (a face shared by two bodies is a membrane in the
                              # field and a crumb factory in a mesh boolean: 638 of them, 2026-11-06), by more than the round
-POCKET_MIN_MM3 = 0.004       # a void pocket counted only above this (four 0.1 mm voxels): under it the grid cannot tell
+POCKET_MIN_MM3 = 0.03        # a void pocket counted only above this (thirty 0.1 mm voxels, a 0.3 mm pocket): under it the grid
+                             # cannot tell a pocket from a sliver where a sheet leans on the skin (four of 0.004 mm³ on the first
+                             # real part, at the grid's own size); slivers are counted and reported, not failed
+SEED_MIN_MM = 0.2            # the thin seed sheet nTop thickens before the re-distance: at least this, and two voxels, so the
+                             # re-distance mesh resolves it
 PORE_SHARE = 0.85            # the built pore statistic within this of the unit cell's own (the wrap stretches cells ±8 %)
 RAY_SAMPLES = 4000
 VOID_STEP_MM = 0.1           # the flood fill's voxel (the pore floor is ten of them)
-GYROID_VARIANT = "standard"  # which convention nTop's gyroid_implicit follows: measured by the first run (api_facts)
+GYROID_VARIANT = "standard"  # which convention nTop's gyroid_implicit follows: measured 2026-11-06 (api_facts: standard, unshifted)
+
+
+def gyroid_field_gradient() -> float:
+    """|∇f| of nTop's gyroid_implicit field at its surface (api_facts.json `gyroid_field_gradient`, measured 2026-11-06: 1.6):
+    the field is the gyroid function scaled by cell / 2π, so a thickness or an offset in it is that many times smaller
+    in millimetres. Refuses, naming the run, when it has not been measured."""
+    from . import nb_jewel as nj
+    try:
+        return float(nj.api_fact("gyroid_field_gradient"))
+    except nj.ConsoleError:
+        raise ValueError("gyroid_field_gradient has not been measured on this nTop (ntop/api_facts.json): run `python -m ntopjewel "
+                         "lattice` once with the fact set to 1.6 and read the sheet thickness the gate reports") from None
 
 
 # ---- the gyroid --------------------------------------------------------------------------------------------
@@ -309,20 +333,42 @@ class GyroidSpec(FieldTextureSpec):
 
     # -- the notebook --
     @property
+    def seed_mm(self) -> float:
+        """The thin seed sheet nTop thickens and re-distances before growing it to the wall: two voxels or SEED_MIN_MM, never
+        more than the wall."""
+        return min(self.wall_mm, max(SEED_MIN_MM, self.band.mesh_tolerance_mm))
+
+    @property
+    def seed_field_mm(self) -> float:
+        """Thicken Body's input for the seed: the true seed times the field's gradient (api_facts gyroid_field_gradient)."""
+        return round(self.seed_mm * gyroid_field_gradient(), 4)
+
+    @property
+    def growth_mm(self) -> float:
+        """The Offset that grows the re-distanced seed to the wall (exact on a distance field), plus half the measured loss of
+        the two mesh round trips (tables settings lattice_sheet_correction_mm)."""
+        return round((self.wall_mm - self.seed_mm + tables.SETTINGS["lattice_sheet_correction_mm"]) / 2, 4)
+
+    @property
     def overlap(self) -> float:
-        return LATTICE_OVERLAP_MM
+        """How far the lattice zone reaches into the skin and the rims: past the growth and the opening's round, so the union
+        overlaps and nothing the growth or the round touches is exposed."""
+        return round(max(LATTICE_OVERLAP_MM, self.growth_mm + LATTICE_ROUND_MM + 0.05), 4)
 
     def texture_inputs(self) -> dict:
-        """The lattice's inputs (nb_lattice.LATTICE_SPECS, before the zone's): the gyroid, the opening, the grown zone."""
+        """The lattice's inputs (nb_lattice.LATTICE_SPECS, before the zone's): the gyroid, the seed and its growth, the opening,
+        the grown zone."""
         zh = self.zone_half_width
-        return {"Cell Size": self.cell_mm, "Wall": self.wall_mm, "Wrap Length": round(self.wrap_length, 4),
+        return {"Cell Size": self.cell_mm, "Seed Thickness": self.seed_field_mm, "Sheet Growth": self.growth_mm,
+                "Wrap Length": round(self.wrap_length, 4),
                 "Lattice Round": LATTICE_ROUND_MM, "Lattice Round Inward": -LATTICE_ROUND_MM,
                 "Lattice Inner Radius": round(self.zone_inner_radius - self.overlap, 4),
                 "Lattice Z Top": round(zh + self.overlap, 4), "Lattice Z Bottom": -round(zh + self.overlap, 4)}
 
     def texture_design(self) -> dict:
         return {"cell": self.cell_mm, "wall": self.wall_mm, "skin": round(self.skin, 4), "cells_around": self.cells_around,
-                "round": LATTICE_ROUND_MM, "variant": GYROID_VARIANT}
+                "round": LATTICE_ROUND_MM, "variant": GYROID_VARIANT, "seed": round(self.seed_mm, 4), "seed_field": self.seed_field_mm,
+                "growth": self.growth_mm, "overlap": self.overlap}
 
     @property
     def tag(self) -> str:
@@ -477,6 +523,11 @@ class GyroidSpec(FieldTextureSpec):
             p.append(f"{deep:.1f} cells deep: at most {MAX_CELLS_DEEP:g}")
         if self.depth_mm < self.wall_mm:
             p.append(f"at the zone's edge the lattice is {self.depth_mm:.2f} mm deep, under the wall ({self.wall_mm:g})")
+        if self.overlap + 0.1 > self.skin + 1e-9:
+            p.append(f"the lattice reaches {self.overlap:.2f} mm into the {self.skin:g} mm skin (the sheet's growth {self.growth_mm:g} plus the "
+                     f"round): a thicker --skin or a thinner --member")
+        if self.overlap + self.band.edge_round > self.rim + 1e-9:
+            p.append(f"the lattice reaches {self.overlap:.2f} mm into the {self.rim:g} mm rims: a wider --rim")
         voxel = self.band.mesh_tolerance_mm / 2
         if self.wall_mm < 6 * voxel - 1e-9:
             p.append(f"a {self.wall_mm:g} mm sheet spans under 6 voxels at Mesh Tolerance {self.band.mesh_tolerance_mm:g}: "
@@ -503,9 +554,10 @@ class GyroidSpec(FieldTextureSpec):
 
     def texture_line(self) -> str:
         c = self.cell()
-        return (f"gyroid (nTop's gyroid_implicit + thicken_implicit, wrapped): {self.cell_mm:g} mm cells, {self.wall_mm:g} mm sheets, "
-                f"{self.cells_around} cells round the ring (wrap length {self.wrap_length:.3f}), {self.cells_deep:.2f} cells deep; "
-                f"the sheet {c['fraction']:.0%} of the cell, pore {c['pore_mm']:.2f} mm; skin {self.skin:g}")
+        return (f"gyroid (nTop's gyroid_implicit, a {self.seed_mm:g} seed thickened, re-distanced and grown by {self.growth_mm:g}, wrapped): "
+                f"{self.cell_mm:g} mm cells, {self.wall_mm:g} mm sheets, {self.cells_around} cells round the ring (wrap length "
+                f"{self.wrap_length:.3f}), {self.cells_deep:.2f} cells deep; the sheet {c['fraction']:.0%} of the cell, pore "
+                f"{c['pore_mm']:.2f} mm; skin {self.skin:g}")
 
     def result_notes(self, ntop_vol: float | None) -> list[str]:
         plain = self.plain_volume_mm3()
@@ -604,8 +656,12 @@ def _void_components(void: np.ndarray, r_xy: np.ndarray, zs: np.ndarray, spec: G
     reach[0] = True
     sizes = np.bincount(lab.ravel(), minlength=n + 1)
     pockets = []
+    slivers = 0
     for i in range(1, n + 1):
-        if reach[i] or sizes[i] * step ** 3 < POCKET_MIN_MM3:
+        if reach[i]:
+            continue
+        if sizes[i] * step ** 3 < POCKET_MIN_MM3:
+            slivers += 1
             continue
         idx = np.argwhere(lab == i)
         c = idx.mean(axis=0)
@@ -616,7 +672,7 @@ def _void_components(void: np.ndarray, r_xy: np.ndarray, zs: np.ndarray, spec: G
         pockets.append({"mm3": float(sizes[i] * step ** 3), "theta_deg": float(math.degrees(math.atan2(y, x)) % 360),
                         "z": float(zs[min(iz, len(zs) - 1)]), "r": float(math.hypot(x, y))})
     pockets.sort(key=lambda d: -d["mm3"])
-    return {"void_components": int((sizes[1:] * step ** 3 >= POCKET_MIN_MM3).sum()), "pockets": pockets,
+    return {"void_components": int((sizes[1:] * step ** 3 >= POCKET_MIN_MM3).sum()), "pockets": pockets, "slivers": slivers,
             "open_voxels": int(outer.sum())}
 
 
@@ -899,16 +955,20 @@ def check_lattice(spec: GyroidSpec, stl: Path, ntop_vol: float | None) -> gate.G
         c.append(gate.incomplete("open voids", voids["incomplete"]))
     else:
         pk = voids["pockets"]
+        sl = voids.get("slivers", 0)
+        sliver_note = (f"; {sl} sliver{'s' if sl != 1 else ''} under {POCKET_MIN_MM3:g} mm³ where a sheet leans on the skin, at the grid's "
+                       f"own size, not counted") if sl else ""
         if pk:
             w = pk[0]
             c.append(gate.Check("open voids", False,
                                 f"{len(pk)} pocket{'s' if len(pk) > 1 else ''} of void never reach the outer face (the largest "
-                                f"{w['mm3']:.3f} mm³ at {w['theta_deg']:.0f}°, z {w['z']:+.2f}, r {w['r']:.2f}): resin and investment trapped"))
+                                f"{w['mm3']:.3f} mm³ at {w['theta_deg']:.0f}°, z {w['z']:+.2f}, r {w['r']:.2f}): resin and investment trapped"
+                                + sliver_note))
         else:
             c.append(gate.Check("open voids", True,
                                 f"every void reaches the outer face ({voids['void_components']} channel{'s' if voids['void_components'] != 1 else ''}; "
                                 f"{voids['open_share']:.0%} of the face open; metal {voids['zone_metal_share']:.0%} of the zone; "
-                                f"{voids['step_mm']:g} mm voxels)"))
+                                f"{voids['step_mm']:g} mm voxels)" + sliver_note))
     design = spec.design_volume_mm3()
     if ntop_vol is None:
         c.append(gate.incomplete("design volume", "nTop reported no volume; the notebook cannot be checked against the design"))

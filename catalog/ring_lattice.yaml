@@ -1,12 +1,14 @@
 # Phase 3 step 8: a band whose metal between a bore skin and the outer face is an open gyroid lattice. The profiled band
-# (ring_band_profile's section, opening included); nTop's gyroid_implicit (cubic cells of Cell Size) thickened by
-# thicken_implicit (Wall) and wrapped round the ring (Remap Cylindrical, Wrap Length = whole cells), trimmed to the band
-# inside the grown zone, opened by Lattice Round, united with the band less the zone (the skin and the rims). Built by
-# ntop/recipes/ring_lattice.py; numbers from ntopjewel.lattice.GyroidSpec, which gates the part against its own model
-# of the same geometry (lattice match, sheet thickness, pore width, open voids, design volume).
+# (ring_band_profile's section, opening included); nTop's gyroid_implicit (cubic cells of Cell Size) thickened into a thin
+# seed (Seed Thickness, in the field's units: the field is the gyroid function scaled by cell / 2π, not a distance), wrapped
+# round the ring (Remap Cylindrical, Wrap Length = whole cells), trimmed to the band inside the grown zone, re-distanced by
+# the mesh round trip and grown to the wall by an Offset (Sheet Growth), trimmed again, opened by Lattice Round, united with
+# the band less the zone (the skin and the rims). Built by ntop/recipes/ring_lattice.py; numbers from
+# ntopjewel.lattice.GyroidSpec, which gates the part against its own model of the same geometry (lattice match, sheet
+# thickness, pore width, open voids, design volume).
 notebook: ring_lattice.ntop
-version: 0.1.0   # 0.1.0: first build (2026-11-06)
-rebuild_since: 0.1.0
+version: 0.2.0   # 0.1.0: first build (2026-11-06); 0.2.0: the seed re-distanced and grown to the wall (Seed Thickness, Sheet Growth replace Wall) - the first run read the field's scale (7 Nov)
+rebuild_since: 0.2.0
 title: Lattice band (an open gyroid between a bore skin and the rims)
 output:
   name: Volume
@@ -88,13 +90,18 @@ inputs:
     max: 20.0
     default: 3.5
     doc: The gyroid's cubic cell in the bar frame (a cell round the ring at the zone's mid radius).
-  Wall:
+  Seed Thickness:
     type: scalar
     units: mm
-    min: 0.3
-    max: 2.0
-    default: 0.6
-    doc: The sheet's thickness (thicken_implicit's Thickness, about the surface).
+    min: 0.1
+    max: 4.0
+    doc: Thicken Body's thickness for the seed sheet, in the gyroid field's units - the true seed (two voxels or 0.2 mm) times api_facts gyroid_field_gradient (1.6).
+  Sheet Growth:
+    type: scalar
+    units: mm
+    min: -1.0
+    max: 1.0
+    doc: The Offset that grows the re-distanced seed to the wall, (wall − seed) / 2 plus half tables lattice_sheet_correction_mm.
   Wrap Length:
     type: scalar
     units: mm

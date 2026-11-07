@@ -10,5 +10,8 @@
     "cm": 2
   },
   "points_measured": "2026-11-05",
-  "points_how": "ntop/recipes/points_probe.py under nTopCL: three 1 mm balls 0.1 unit apart, Points Units 1..5 -> 4.7346 (mm), 9.8309 (cm), 12.56-12.57 (3, 4, 5: inch and larger)"
+  "points_how": "ntop/recipes/points_probe.py under nTopCL: three 1 mm balls 0.1 unit apart, Points Units 1..5 -> 4.7346 (mm), 9.8309 (cm), 12.56-12.57 (3, 4, 5: inch and larger)",
+  "gyroid_field_gradient": 1.6,
+  "gyroid_measured": "2026-11-06",
+  "gyroid_how": "ring_lattice under nTopCL (flat US 6 7 x 3.5, 3.5 mm cells, Mesh Tolerance 0.1): gyroid_implicit's field is the gyroid function scaled by cell / 2pi, not a distance - Thicken Body 0.6 then the 0.1 opening gave a 0.450 mm sheet (p5 0.422, p95 0.487, thinner where the gyroid's gradient is larger, +6 % from the skin to the dome with the wrap's stretch): (0.3 - 0.1) / |grad f| + 0.1 = 0.225 -> |grad f| = 1.6 (the gyroid's gradient per cell radian on its surface is 1.43-1.70, median 1.51; the rest is the re-distance mesh's loss on a 0.27 mm sheet). Thicken is symmetric about the surface and nTop's gyroid is the standard convention, unshifted (the lattice match read 98.7 %)."
 }

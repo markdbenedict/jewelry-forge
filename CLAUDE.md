@@ -165,6 +165,9 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   inside the blend): 2 on the plait, 7 on the trinity solitaire (2026-11-02). The gate counts a
   closed component under `gate.SPECK_VOLUME_MM3` (1e-6 mm³, a 10 µm cube) as a degenerate speck,
   reported beside the shell count, not as a shell; a 0.05 mm bead adrift (5e-4 mm³) still counts.
+  Along a kissing LINE the bubble stretches into a flake (28 of them, 0.3 mm long and a micron thick,
+  where the lattice's sheets lean on the skin, 2026-11-06): a component thinner than `gate.FLAKE_THICKNESS_MM`
+  (volume / area under 5 µm) is a speck too.
 
 ## Notebook API rules (doc Oct 2026; console, SSH and discovery verified 2026-10-26 on nTop 6.3.3)
 
@@ -326,6 +329,13 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   2026-11-05). A one-rail head sends the other slab to `heads.EMPTY_RAIL`. **And a blended intersection rounds
   an acute edge back further than one radius**: a rail following a steep pavilion lost 0.215 mm a side along the
   finger (the asscher solitaire), so the extents allowance is two of `OutlineHeadSpec.rail_corner_shrink`.
+- **nTop's TPMS implicits are not distance fields** (measured 2026-11-06, `ring_lattice`'s first run, `ntop/api_facts.json`
+  `gyroid_field_gradient`): `gyroid_implicit<real>`'s field is the gyroid function scaled by cell / 2π, with a gradient of
+  1.43-1.70 per cell radian on its surface (median 1.51, 1.6 effective with the re-distance mesh's loss), so Thicken Body's
+  t gives a sheet t / |∇f| thick (0.450 for 0.6 asked), varying with the gradient, and an Offset moves its faces by the
+  offset / |∇f|. Thicken only a thin seed (two voxels), re-distance it by the mesh round trip (`nj.add_redistance`) and
+  grow it to the wall by an Offset - exact on a distance field (`nb_lattice.add_grown_sheet`). Thicken is symmetric about
+  the surface, and the gyroid is the standard convention, unshifted (the lattice match read 98.7 %).
 - **Offset Body adds a constant to the field; it does not re-distance.** Two offsets back to
   back (-e then +e, the opening that rounds every convex edge) cancel exactly - five band
   profiles matched their UNopened sections to 0.05 % (2026-10-30): no edge round was ever built
@@ -413,7 +423,7 @@ python -m ntopjewel api build points_probe                           # ntop\note
 python -m ntopjewel api build texture_probe                          # ntop\notebooks\texture_probe.ntop: nTop's toolkit textures (noise, cellular, roughness, voronoi, triangle wave) each on the plain band (2026-11-06)
 python -m ntopjewel api build ring_voronoi                           # ntop\notebooks\ring_voronoi.ntop: the profiled band with nTop's voronoi deboss (the cell walls as half-round grooves) masked to the outer face
 python -m ntopjewel api build ring_frost                             # ntop\notebooks\ring_frost.ntop: nTop's surface roughness (±amplitude) masked to the outer face; likewise ring_pitted (simplex deboss), ring_cellular (cellular deboss), ring_ribbed (the triangle wave on the eroded band)
-python -m ntopjewel api build ring_lattice                           # ntop\notebooks\ring_lattice.ntop: an open gyroid lattice between a bore skin and the rims (gyroid_implicit -> thicken_implicit -> Remap Cylindrical, trimmed, opened, ∪ the band less the zone)
+python -m ntopjewel api build ring_lattice                           # ntop\notebooks\ring_lattice.ntop: an open gyroid lattice between a bore skin and the rims (gyroid_implicit -> a thin seed thickened, wrapped, trimmed, re-distanced and grown to the wall, trimmed, opened, ∪ the band less the zone)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running

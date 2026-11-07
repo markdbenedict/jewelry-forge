@@ -564,15 +564,17 @@ def main(argv: list[str]) -> int:
         from ntopjewel import lattice as _lat
         zh = (float(values["Zone Z Top"]) - float(values["Zone Z Bottom"])) / 2
         overlap = float(values["Zone Inner Radius"]) - float(values["Lattice Inner Radius"])
-        wall = float(values["Wall"]) * (0.6 if shape == "thin" else 1.0)
+        from ntopjewel import nb_jewel as _nj
+        seed = float(values["Seed Thickness"]) / float(_nj.api_fact("gyroid_field_gradient"))    # nTop's field: cell / 2π x the function
+        wall = (seed + 2 * float(values["Sheet Growth"])) * (0.6 if shape == "thin" else 1.0)
         mesh = _lat.lattice_mesh(values, float(values["Cell Size"]), wall, float(values["Wrap Length"]), zh,
                                  float(values["Zone Inner Radius"]), float(values["Mesh Tolerance"]), lattice=shape != "nolattice",
                                  closed=shape == "closed", overlap=overlap, round_mm=float(values["Lattice Round"]))
         if os.environ.get("FAKE_NTOPCL_EXPORT", "1") != "0":
             mesh.export(values["Output Path"])
-        for name in ("Band Body", "Gyroid", "Walled Gyroid", "Lattice Wrapped", "Zone", "Lattice Zone", "Lattice Trimmed", "Lattice Eroded",
-                     "Lattice Re-distanced Mesh", "Lattice Re-distanced", "Lattice Opened", "Skin And Rims", "Lattice Band", "Mesh",
-                     "Export Mesh", "Volume Integral"):
+        for name in ("Band Body", "Gyroid", "Seed Sheet", "Seed Wrapped", "Zone", "Lattice Zone", "Seed Trimmed", "Seed Re-distanced Mesh",
+                     "Seed Re-distanced", "Sheet Grown", "Lattice Trimmed", "Lattice Eroded", "Lattice Re-distanced Mesh", "Lattice Re-distanced",
+                     "Lattice Opened", "Skin And Rims", "Lattice Band", "Mesh", "Export Mesh", "Volume Integral"):
             log("I", f"{name} complete 1ms")
         if os.environ.get("FAKE_NTOPCL_VOLUME", "mesh") != "none":
             outputs = [{"name": "Volume", "type": "real", "components": [],

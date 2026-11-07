@@ -146,6 +146,10 @@ MIN_WALL_SAMPLES = 1000      # fewer usable rays and p1 rests on a handful of th
 SPECK_VOLUME_MM3 = 1e-6      # a closed component under this (a 10 µm cube) is the mesher's, not the part's: nTop's Mesh from
                              # Implicit Body leaves 12-face bubbles of no volume where two surfaces kiss (a ribbon's rounded
                              # corner passing another's, a rail's foot on the band's dome; 2026-11-02) - no print resolves one
+FLAKE_THICKNESS_MM = 0.005   # ... and a closed component whose volume / area is under this (a flake 5 µm thick, a tenth of
+                             # a voxel) is the same bubble stretched along a kissing line: 28 of them, 0.3 mm long and a micron
+                             # thick, where a lattice's sheets lean on the skin (2026-11-06). A 0.05 mm bead adrift (r / 3 = 0.017)
+                             # still counts as a shell
 
 
 def ring_axis(mesh: trimesh.Trimesh) -> int:
@@ -167,6 +171,16 @@ def ring_axis(mesh: trimesh.Trimesh) -> int:
         if not bool(hits[0]):
             open_axes.append(i)
     return open_axes[0] if len(open_axes) == 1 else int(np.argmin(ext))
+
+
+def is_speck(part) -> bool:
+    """A closed component that is the mesher's, not the part's: no volume to speak of (SPECK_VOLUME_MM3) or a flake with
+    no thickness (volume / area under FLAKE_THICKNESS_MM)."""
+    v = abs(float(part.volume))
+    if v < SPECK_VOLUME_MM3:
+        return True
+    a = float(part.area)
+    return a > 0 and v / a < FLAKE_THICKNESS_MM
 
 
 def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None, centre: str = "bbox") -> tuple[str, float, float, float]:
@@ -322,7 +336,7 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
         mesh.invert()
         rep.normals_flipped = True
     parts = mesh.split(only_watertight=False)
-    rep.specks = int(sum(1 for q in parts if abs(float(q.volume)) < SPECK_VOLUME_MM3)) if len(parts) > 1 else 0
+    rep.specks = int(sum(1 for q in parts if is_speck(q))) if len(parts) > 1 else 0
     rep.shells = (int(len(parts)) - rep.specks) if len(parts) else 1
     rep.volume_mm3 = float(abs(mesh.volume)) if rep.watertight else float(abs(mesh.volume))
     rep.area_mm2 = float(mesh.area)
@@ -344,8 +358,8 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     c.append(Check("watertight", rep.watertight, "closed mesh" if rep.watertight else "open edges or holes"))
     c.append(Check("winding", rep.winding_consistent, "consistent" if rep.winding_consistent else "inconsistent face winding"))
     c.append(Check("shells", rep.shells == shells, f"{rep.shells} (expected {shells})"
-                   + (f"; {rep.specks} degenerate speck{'s' if rep.specks > 1 else ''} under {SPECK_VOLUME_MM3:g} mm³ not counted "
-                      "(the mesher's bubbles where two surfaces kiss)" if rep.specks else "")))
+                   + (f"; {rep.specks} degenerate speck{'s' if rep.specks > 1 else ''} not counted (under {SPECK_VOLUME_MM3:g} mm³ or "
+                      f"thinner than {FLAKE_THICKNESS_MM:g} mm: the mesher's bubbles where two surfaces kiss)" if rep.specks else "")))
     if rep.thickness and rep.thickness["samples"] < MIN_WALL_SAMPLES and wall_floor > 0:
         t = rep.thickness
         c.append(incomplete("wall thickness", f"only {t['samples']} usable rays (need {MIN_WALL_SAMPLES}): p1 {t['p01']:.3f} mm "

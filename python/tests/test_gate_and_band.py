@@ -47,11 +47,16 @@ def test_gate_counts_the_meshers_specks_apart_from_shells(tmp_path):
     trimesh.util.concatenate([m, bubble]).export(p)
     rep = gate.check(p, expect_inner=16.51, wall_samples=0, write_report=False)
     names = {c.name: c for c in rep.checks}
-    assert rep.shells == 1 and rep.specks == 1 and names["shells"].ok and "1 degenerate speck under" in names["shells"].detail
+    assert rep.shells == 1 and rep.specks == 1 and names["shells"].ok and "1 degenerate speck not counted" in names["shells"].detail
     assert "(+1 degenerate specks)" in rep.text()
     trimesh.util.concatenate([m, bubble, bead]).export(p)
     rep = gate.check(p, expect_inner=16.51, wall_samples=0, write_report=False)
     assert rep.shells == 2 and rep.specks == 1 and not {c.name: c for c in rep.checks}["shells"].ok
+    # a flake with no thickness (0.3 mm long, a micron thick: 28 of them where a lattice's sheets leaned on the skin, 2026-11-06)
+    flake = trimesh.creation.box(extents=(0.3, 0.3, 0.001)).apply_translation([12.0, 2.0, 0.0])       # 9e-5 mm³, v / a = 0.0005
+    trimesh.util.concatenate([m, flake]).export(p)
+    rep = gate.check(p, expect_inner=16.51, wall_samples=0, write_report=False)
+    assert rep.shells == 1 and rep.specks == 1
 
 
 def test_section_shape_tolerance_may_depend_on_the_angle(tmp_path):
