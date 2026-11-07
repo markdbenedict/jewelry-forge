@@ -146,10 +146,16 @@ MIN_WALL_SAMPLES = 1000      # fewer usable rays and p1 rests on a handful of th
 SPECK_VOLUME_MM3 = 1e-6      # a closed component under this (a 10 µm cube) is the mesher's, not the part's: nTop's Mesh from
                              # Implicit Body leaves 12-face bubbles of no volume where two surfaces kiss (a ribbon's rounded
                              # corner passing another's, a rail's foot on the band's dome; 2026-11-02) - no print resolves one
-FLAKE_THICKNESS_MM = 0.005   # ... and a closed component whose volume / area is under this (a flake 5 µm thick, a tenth of
-                             # a voxel) is the same bubble stretched along a kissing line: 28 of them, 0.3 mm long and a micron
-                             # thick, where a lattice's sheets lean on the skin (2026-11-06). A 0.05 mm bead adrift (r / 3 = 0.017)
-                             # still counts as a shell
+FLAKE_THICKNESS_MM = 0.025   # ... and a closed component whose mean thickness (2 x volume / area) is under this - half a
+                             # voxel at the default Mesh Tolerance, under a print layer - and under FLAKE_ASPECT of its own
+                             # length is the same bubble stretched along a kissing line or a kissing patch: 28 flakes 0.3 mm
+                             # long and a micron thick where a lattice's sheets lean on the skin (2026-11-06), 6 cavities
+                             # 0.27 mm across and 12 µm thick where a sheet's face kisses the skin's top (2026-11-07). A
+                             # 0.05 mm bead adrift (mean thickness r x 2/3 = 0.033, a third of its length) still counts
+FLAKE_ASPECT = 0.2
+SPECK_EXTENT_MM = 0.025      # ... and a closed component smaller than this every way is under half a voxel at the default
+                             # Mesh Tolerance: the mesher cannot build a real feature that small (two 12-face cavities 16 µm
+                             # across at the skin's corner with a rim, 3e-6 mm³, 2026-11-07); nothing prints at that size
 
 
 def ring_axis(mesh: trimesh.Trimesh) -> int:
@@ -174,13 +180,17 @@ def ring_axis(mesh: trimesh.Trimesh) -> int:
 
 
 def is_speck(part) -> bool:
-    """A closed component that is the mesher's, not the part's: no volume to speak of (SPECK_VOLUME_MM3) or a flake with
-    no thickness (volume / area under FLAKE_THICKNESS_MM)."""
+    """A closed component that is the mesher's, not the part's: no volume to speak of (SPECK_VOLUME_MM3), smaller than half
+    a voxel every way (SPECK_EXTENT_MM), or a flake - its mean thickness (2 x volume / area) under FLAKE_THICKNESS_MM and
+    under FLAKE_ASPECT of its length."""
     v = abs(float(part.volume))
-    if v < SPECK_VOLUME_MM3:
+    if v < SPECK_VOLUME_MM3 or float(max(part.extents)) < SPECK_EXTENT_MM:
         return True
     a = float(part.area)
-    return a > 0 and v / a < FLAKE_THICKNESS_MM
+    if a <= 0:
+        return False
+    t = 2 * v / a
+    return t < FLAKE_THICKNESS_MM and t < FLAKE_ASPECT * float(max(part.extents))
 
 
 def ring_metrics(mesh: trimesh.Trimesh, axis: str | None = None, centre: str = "bbox") -> tuple[str, float, float, float]:
@@ -359,7 +369,8 @@ def check(path: Path, *, expect_inner: float | None = None, expect_outer: float 
     c.append(Check("winding", rep.winding_consistent, "consistent" if rep.winding_consistent else "inconsistent face winding"))
     c.append(Check("shells", rep.shells == shells, f"{rep.shells} (expected {shells})"
                    + (f"; {rep.specks} degenerate speck{'s' if rep.specks > 1 else ''} not counted (under {SPECK_VOLUME_MM3:g} mm³ or "
-                      f"thinner than {FLAKE_THICKNESS_MM:g} mm: the mesher's bubbles where two surfaces kiss)" if rep.specks else "")))
+                      f"{SPECK_EXTENT_MM:g} mm across, or flakes under {FLAKE_THICKNESS_MM:g} mm thick: the mesher's bubbles where two "
+                      f"surfaces kiss)" if rep.specks else "")))
     if rep.thickness and rep.thickness["samples"] < MIN_WALL_SAMPLES and wall_floor > 0:
         t = rep.thickness
         c.append(incomplete("wall thickness", f"only {t['samples']} usable rays (need {MIN_WALL_SAMPLES}): p1 {t['p01']:.3f} mm "

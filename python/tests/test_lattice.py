@@ -56,13 +56,26 @@ def test_the_gyroid_model_is_a_distance_and_the_wrap_is_periodic():
     a = s.lattice_sdf(r * np.cos(th), r * np.sin(th), z)
     b = s.lattice_sdf(r * np.cos(th + 2 * math.pi / N), r * np.sin(th + 2 * math.pi / N), z)
     assert np.abs(a - b).max() < 1e-9
-    k, half = 2 * math.pi / cell, wall / 2
-    scalar = np.array([lattice._opened_lattice_sdf_scalar(float(rr), float(L * (tt % (2 * math.pi)) / (2 * math.pi)), float(zz),
-                                                            s.band.outer_radius_mm, k, half, lattice.LATTICE_ROUND_MM)
+    k, g, seed = 2 * math.pi / cell, s.growth_mm, s.seed_design_mm
+    near = lattice.NEAR_WALLS * (seed + 2 * g)
+    scalar = np.array([lattice._seeded_sheet_sdf_scalar(float(rr), float(L * (tt % (2 * math.pi)) / (2 * math.pi)), float(zz),
+                                                         s.band.outer_radius_mm, k, seed / 2, g, L / (2 * math.pi * rr), near)
                        for rr, tt, zz in zip(r[:300], th[:300], z[:300])])
     assert np.abs(scalar - a[:300]).max() < 1e-9
-    # the opening at the dome: a point just under the dome on a sheet leaning on it is outside the opened body
-    sharp = lattice.sheet_sdf_ring(r * np.cos(th), r * np.sin(th), z, cell, wall, L)
+    # the inset seed grown by the growth: away from the dome it is the seed's ring distance less the growth - the bar-frame
+    # sheet scaled by the wrap's stretch across it (ring_factor: 1 where the wrap does not stretch, r = L / 2π)
+    x, y, zz = lattice.bar_coordinates(r * np.cos(th), r * np.sin(th), z, L)
+    d, sign, (nx, ny, nz) = lattice.surface_distance(x, y, zz, cell, normal=True, near=near)
+    f = lattice.ring_factor(nx, ny, nz, r, L)
+    deep = (r < s.outer_radius_at(z) - 1.0) & ((d - seed / 2) / f < 0.5)    # near a sheet, far from the dome (far from the
+    assert np.abs(a[deep] - ((d[deep] - seed / 2) / f[deep] - g)).max() < 1e-9   # seed only the sign matters)
+    lam = L / (2 * math.pi * r)                                 # the stretch's bounds: 1 (a normal across the wrap) .. L / 2πr (along it)
+    assert np.all(f >= np.minimum(1.0, lam) - 1e-9) and np.all(f <= np.maximum(1.0, lam) + 1e-9) and f.min() < 0.95 and f.max() > 1.05
+    unwrapped = (np.abs(r - L / (2 * math.pi)) < 0.02) & deep
+    assert np.abs(f[unwrapped] - 1.0).max() < 0.01
+    # ... and at the dome the growth is the opening: within g of the dome the sheet ends rounded, never more metal than
+    # the wall-thick sheet cut by the dome, and somewhere less (the lips and the corners it took)
+    sharp = np.maximum((d - seed / 2) / f - g, r - s.outer_radius_at(z))
     assert np.all(a >= sharp - 1e-9) and (a > sharp + 1e-6).any()
 
 
@@ -74,12 +87,14 @@ def test_spec_inputs_identity_and_refusals():
     v = s.notebook_inputs("O")
     assert list(v) == list(catalog.load("ring_lattice").inputs)
     assert v["Wrap Length"] == pytest.approx(s.cells_around * 3.5) and v["Cell Size"] == 3.5 and "Wall" not in v
-    assert s.seed_mm == pytest.approx(0.2) and v["Seed Thickness"] == pytest.approx(0.2 * 1.6)      # the field's units: api_facts' 1.6
-    assert v["Sheet Growth"] == pytest.approx((0.6 - 0.2) / 2) and s.seed_mm + 2 * v["Sheet Growth"] == pytest.approx(0.6)
-    assert s.overlap == pytest.approx(0.2 + lattice.LATTICE_ROUND_MM + 0.05) and s.overlap >= lattice.LATTICE_OVERLAP_MM
+    g = tables.FLOORS["wall_marginal"] / 2                                                  # the growth: the lips' round
+    assert s.growth_mm == pytest.approx(g) and v["Sheet Growth"] == pytest.approx(g) and v["Band Inset"] == pytest.approx(-g)
+    assert s.seed_mm == pytest.approx(0.6 - 2 * g) and v["Seed Thickness"] == pytest.approx((0.6 - 2 * g) * 1.6)   # api_facts' 1.6
+    assert v["Seed Mesh Tolerance"] == pytest.approx(0.05)                                  # four voxels across a 0.1 seed
+    assert spec(band=flat_band(mesh_tolerance_mm=0.05), wall_mm=0.9).seed_tolerance_mm == pytest.approx(0.05)   # never coarser
+    assert s.overlap == pytest.approx(g + 0.05) and s.overlap >= lattice.LATTICE_OVERLAP_MM
     assert v["Lattice Inner Radius"] == pytest.approx(v["Zone Inner Radius"] - s.overlap)
-    assert v["Lattice Z Top"] == pytest.approx(v["Zone Z Top"] + s.overlap) and v["Lattice Round Inward"] == -v["Lattice Round"]
-    assert spec(band=flat_band(mesh_tolerance_mm=0.3), wall_mm=0.9).seed_mm == pytest.approx(0.3)   # two voxels when that is more
+    assert v["Lattice Z Top"] == pytest.approx(v["Zone Z Top"] + s.overlap)
     assert 0.6 < s.design_volume_mm3() / s.plain_volume_mm3() < 0.8
     assert s.design_volume_mm3() == pytest.approx(s.plain_volume_mm3() - s.zone_band_volume_mm3() + s.sheet_volume_mm3())
     assert s.stem.startswith("ring_lattice_gyroid_flat_US6_w6_t3.3_c3.5w0.6_")
@@ -92,7 +107,8 @@ def test_spec_inputs_identity_and_refusals():
     assert "rim" in spec(rim_mm=0.3).validate()[0]
     assert "voxels" in spec(band=flat_band(mesh_tolerance_mm=0.3)).validate()[0]
     assert "no void" in spec(wall_mm=2.0).validate()[0]
-    assert any("skin" in m for m in spec(wall_mm=1.4, cell_mm=8.0).validate())           # the growth reaches through the skin
+    assert not any("skin" in m for m in spec(skin_mm=0.75, rim_mm=1.0).validate())          # 0.3 + 0.25 + 0.1 inside a 0.75 skin
+    assert any("rims" in m for m in spec(rim_mm=0.6).validate())                             # 0.3 + 0.25 + 0.1 past a 0.6 rim
     v = s.model_voids()
     assert v["metal_pieces"] == 1 and v["pockets"] == [] and v["void_components"] >= 1
 
@@ -134,18 +150,18 @@ def test_recipe_builds_on_the_fake_api(tmp_path):
     w = nb.blocks[b["Seed Sheet"]]["wired"]
     assert w["Body"][0] == b["Gyroid"] and w["Thickness"][0] == "Seed Thickness"
     assert nb.blocks[b["Seed Wrapped"]]["wired"]["Y Mapping Length"][0] == "Wrap Length"
-    assert set(nb.blocks[b["Seed Trimmed"]]["lists"]["Bodies"]) == {"Band Body", "Lattice Zone Body", b["Seed Wrapped"]}
+    inset = nb.blocks[b["Band Inset By Growth"]]["wired"]
+    assert inset["Body"][0] == "Band Body" and inset["Distance"][0] == "Band Inset"
+    assert set(nb.blocks[b["Seed Trimmed"]]["lists"]["Bodies"]) == {b["Band Inset By Growth"], "Lattice Zone Body", b["Seed Wrapped"]}
     assert nb.blocks[b["Seed Re-distanced Mesh"]]["wired"]["Body"][0] == b["Seed Trimmed"]
+    assert nb.blocks[b["Seed Re-distanced Mesh"]]["wired"]["Tolerance"][0] == "Seed Mesh Tolerance"
     assert nb.blocks[b["Seed Re-distanced"]]["wired"]["Mesh"][0] == b["Seed Re-distanced Mesh"]
-    g = nb.blocks[b["Sheet Grown"]]["wired"]
+    g = nb.blocks[b["Lattice Sheet"]]["wired"]
     assert g["Body"][0] == b["Seed Re-distanced"] and g["Distance"][0] == "Sheet Growth"
-    assert set(nb.blocks[b["Lattice Trimmed"]]["lists"]["Bodies"]) == {"Band Body", "Lattice Zone Body", b["Sheet Grown"]}
-    assert nb.blocks[b["Lattice Eroded"]]["wired"]["Body"][0] == b["Lattice Trimmed"]
-    assert nb.blocks[b["Lattice Eroded"]]["wired"]["Distance"][0] == "Lattice Round Inward"
-    assert nb.blocks[b["Lattice Opened"]]["wired"]["Distance"][0] == "Lattice Round"
+    assert not any(k in b for k in ("Lattice Trimmed", "Lattice Eroded", "Lattice Opened"))       # the growth is the opening
     assert nb.blocks[b["Skin And Rims"]]["wired"]["Primary Body"][0] == "Band Body"
     assert nb.blocks[b["Skin And Rims"]]["lists"]["Subtraction Bodies"] == [b["Zone"]]
-    assert set(nb.blocks[b["Lattice Band"]]["lists"]["Bodies"]) == {b["Skin And Rims"], b["Lattice Opened"]}
+    assert set(nb.blocks[b["Lattice Band"]]["lists"]["Bodies"]) == {b["Skin And Rims"], b["Lattice Sheet"]}
     assert nb.blocks[b["Lattice Zone Inside"]]["wired"]["Radius"][0] == "Lattice Inner Radius"
 
 
@@ -156,11 +172,13 @@ def test_end_to_end_and_the_faults_are_caught(fake_ntopcl, tmp_path, out_dir, mo
     res = lattice.build(s, out_dir, notebook=nb)
     assert res.status == "passed", res.text()
     names = {c.name for c in res.gate.checks}
-    assert {"lattice envelope", "untouched outside the zone", "lattice match", "sheet thickness", "pore width", "open voids",
-            "design volume"} <= names
+    assert {"lattice envelope", "untouched outside the zone", "lattice match", "sheet thickness", "lips at the outer face", "pore width",
+            "open voids", "design volume"} <= names
     t = res.gate.texture
     assert t["match"]["agreement"] > 0.99 and "best_variant" not in t["match"]
     assert t["rays"]["thickness"]["median"] == pytest.approx(0.6, abs=0.03) and t["rays"]["gap"]["p05"] > 0.85
+    lips = t["rays"]["lips"]                                    # the sheets running under the outer face: no lip under 2 x growth
+    assert lips["samples"] >= lattice.LIP_MIN_SAMPLES and lips["p01"] > 2 * s.growth_mm - 0.07
     assert t["voids"]["pockets"] == [] and 0.4 < t["voids"]["open_share"] < 0.8
     assert abs(res.ntop_volume_mm3 - s.design_volume_mm3()) / s.design_volume_mm3() < 0.005
     assert any("saves" in n for n in res.notes)

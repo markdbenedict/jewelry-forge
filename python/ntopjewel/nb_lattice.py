@@ -5,21 +5,22 @@
     Gyroid                         nTop's gyroid_implicit: the surface, Cell Size (cubic cells, the bar frame). Its field is
                                    the gyroid function scaled by cell / 2π, NOT a distance (measured 2026-11-06, api_facts
                                    gyroid_field_gradient 1.6): a thickness or an offset in it is that many times smaller
-    Seed Sheet                     thicken_implicit: a thin seed, Seed Thickness in field units (two voxels or 0.2 mm true)
+    Seed Sheet                     thicken_implicit: a thin seed, Seed Thickness in field units (wall − 2 x growth, 0.1 mm
+                                   true at the 0.6 member floor)
     Seed Wrapped                   Remap Cylindrical Body (Wrap Length = whole cells round the ring: X -> r, Y -> angle)
     Zone / Lattice Zone            hollow cylinders between the rims from the skin's top outwards; the lattice's
                                    reaches Lattice Inner Radius / Lattice Z Top .. Bottom - into the skin and the rims
-                                   by the overlap (past the growth and the round), so the union overlaps instead of
-                                   meeting on a face
-    Seed Trimmed                   Band Body ∩ Lattice Zone ∩ Seed Wrapped (bounded: the mesh round trip needs it)
-    Seed Re-distanced              Mesh from Implicit Body -> Implicit Body from Mesh: a true distance field of the seed
-    Sheet Grown                    Offset Body by Sheet Growth, (wall − seed) / 2: exact on a distance field, the sheet
-                                   uniform to the seed's share of the wall
-    Lattice Trimmed                Band Body ∩ Lattice Zone ∩ Sheet Grown (the growth crossed the dome)
-    Lattice Opened                 the opening by Lattice Round (offset in, re-distance, offset out): a feather edge where
-                                   a sheet meets the dome nearly tangent goes, the sheet ends come back rounded
+                                   by the overlap (past the growth), so the union overlaps instead of meeting on a face
+    Band Inset By Growth           Offset Body of the band by Band Inset (−growth): the dome pulled in by the growth
+    Seed Trimmed                   Band Inset By Growth ∩ Lattice Zone ∩ Seed Wrapped (bounded: the mesh round trip needs it)
+    Seed Re-distanced              Mesh from Implicit Body at Seed Mesh Tolerance -> Implicit Body from Mesh: a true
+                                   distance field of the seed (four voxels across it)
+    Lattice Sheet                  Offset Body by Sheet Growth: the seed grown to the wall - exact on a distance field, and
+                                   since the seed was trimmed by the inset band, the growth IS the opening of the trimmed
+                                   sheet: a sheet crossing the dome ends in a round of radius growth, a lip where a sheet
+                                   runs under the dome is at least 2 x growth (the marginal wall) thick
     Skin And Rims                  Band Body − Zone
-    Lattice Band                   Skin And Rims ∪ Lattice Opened (sharp)
+    Lattice Band                   Skin And Rims ∪ Lattice Sheet (sharp)
     -> Volume Integral (the Output) / Mesh from Implicit Body -> Export Mesh (Output Path)
 
 Every number is a notebook input (ntopjewel.lattice.GyroidSpec.notebook_inputs). The gyroid block's one real input
@@ -31,8 +32,8 @@ from . import nb_texture as nt
 
 GYROID = ["gyroid_implicit<real>[1.1.0]", "gyroid_implicit<real>"]
 THICKEN = ["thicken_implicit<implicit,real_field>"]
-LATTICE_SPECS = [("Cell Size", "mm"), ("Seed Thickness", "mm"), ("Sheet Growth", "mm"), ("Wrap Length", "mm"), ("Lattice Round", "mm"),
-                 ("Lattice Round Inward", "mm"), ("Lattice Inner Radius", "mm"), ("Lattice Z Top", "mm"), ("Lattice Z Bottom", "mm")] + nt.ZONE_SPECS
+LATTICE_SPECS = [("Cell Size", "mm"), ("Seed Thickness", "mm"), ("Seed Mesh Tolerance", "mm"), ("Sheet Growth", "mm"), ("Band Inset", "mm"),
+                 ("Wrap Length", "mm"), ("Lattice Inner Radius", "mm"), ("Lattice Z Top", "mm"), ("Lattice Z Bottom", "mm")] + nt.ZONE_SPECS
 INPUT_ORDER = list(nj.BAND_INPUTS) + [n for n, _ in LATTICE_SPECS] + ["Output Path"]
 
 
@@ -54,18 +55,23 @@ def add_seed_gyroid(h, ids: dict) -> str:
 
 
 def add_grown_sheet(h, band_var: str, lzone_var: str, wrapped: str, ids: dict) -> str:
-    """The seed trimmed to the band inside the grown zone, re-distanced (the mesh round trip: a true distance field) and
-    grown to the wall by an Offset (exact on a distance field), then trimmed again (the growth crossed the dome).
-    Returns the trimmed sheet's id."""
-    seed_trimmed = h.intersect("Seed Trimmed", [band_var, lzone_var, wrapped],
-                               comment="The wrapped seed inside the band and the grown zone: bounded, so it can be meshed.")
-    exact = nj.add_redistance(h, "Seed", seed_trimmed, h.blocks["Mesh Tolerance"])
-    h.comment(exact, "The seed with a true distance field (Mesh from Implicit Body at the Mesh Tolerance -> Implicit Body from Mesh): "
-                     "an Offset of it moves its faces by exactly the offset.")
-    grown = h.offset("Sheet Grown", exact, ids["Sheet Growth"])
-    h.comment(grown, "The seed grown to the wall: Sheet Growth = (wall − seed) / 2 each side, uniform to the seed's share of the wall.")
-    return h.intersect("Lattice Trimmed", [band_var, lzone_var, grown],
-                       comment="Trimmed again: the growth crossed the dome, and reached further into the skin and the rims (inside them).")
+    """The seed trimmed by the band inset by the growth inside the grown zone, re-distanced (the mesh round trip at the
+    seed's own tolerance: a true distance field) and grown to the wall by an Offset - exact on a distance field, and the
+    opening of the trimmed sheet, since erosion distributes over an intersection: dilate(seed ∩ (band − g), g). Returns the
+    grown sheet's id."""
+    inset = h.offset("Band Inset By Growth", band_var, ids["Band Inset"])
+    h.comment(inset, "The band pulled in by the growth (Band Inset = −growth): the seed stops this far under the dome, so the "
+                     "growth brings it back to the dome with a rounded end - and no lip thinner than twice the growth.")
+    seed_trimmed = h.intersect("Seed Trimmed", [inset, lzone_var, wrapped],
+                               comment="The wrapped seed inside the inset band and the grown zone: bounded, so it can be meshed.")
+    exact = nj.add_redistance(h, "Seed", seed_trimmed, ids["Seed Mesh Tolerance"])
+    h.comment(exact, "The seed with a true distance field (Mesh from Implicit Body at Seed Mesh Tolerance, four voxels across "
+                     "the seed -> Implicit Body from Mesh): an Offset of it moves its faces by exactly the offset.")
+    grown = h.offset("Lattice Sheet", exact, ids["Sheet Growth"])
+    h.comment(grown, "The seed grown to the wall by Sheet Growth each side: the sheet uniform to the seed's share of the wall, and "
+                     "- the seed having been trimmed by the inset band - the opening of the trimmed sheet: its ends at the dome "
+                     "rounded by the growth, every lip at least twice the growth (the marginal wall).")
+    return grown
 
 
 def body(h, p, values, test_output):
@@ -85,14 +91,10 @@ def body(h, p, values, test_output):
                                        big_var=big, comment="The same zone grown into the skin and the rims by the overlap: what the lattice "
                                                             "fills, so it is united overlapping, never meeting the skin on a face."))
     with h.section("Lattice In Zone"):
-        trimmed = add_grown_sheet(h, band, lzone, wrapped, ids)
-        opened = nj.add_opening(h, trimmed, ids["Lattice Round Inward"], ids["Lattice Round"], h.blocks["Mesh Tolerance"],
-                                name="Lattice Opened", base="Lattice")
-        h.comment(opened, "The lattice opened by Lattice Round: a feather edge where a sheet meets the dome nearly tangent "
-                          "(thinner than twice the round) goes, and the sheet ends come back rounded - castable. " + nj.OPENING_NOTE)
+        sheet = add_grown_sheet(h, band, lzone, wrapped, ids)
         skin = h.subtract("Skin And Rims", band, [zone], comment="The band less the zone: the bore skin and the rims, as designed.")
-        joined = h.union("Lattice Band", [skin, opened], comment="The skin and rims with the opened lattice (sharp union; the lattice "
-                                                                 "reaches into both by the overlap).")
+        joined = h.union("Lattice Band", [skin, sheet], comment="The skin and rims with the lattice sheet (sharp union; the sheet "
+                                                                "reaches into both by the overlap).")
         body_var = h.wrap_var("Lattice Band Body", joined)
     with h.section("Export"):
         integ, _mesh, export = nj.add_measure_mesh_export(h, body_var, out_var, h.blocks["Mesh Tolerance"])

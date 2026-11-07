@@ -47,9 +47,10 @@ fails any pocket that does not), the channels must be wide enough for the invest
 (`lattice_pore`), the sheets thick enough to print and fill (`lattice_member`), and a solid bore skin (`settings.
 lattice_skin_mm`, 0.8) and solid rims (the good wall) carry the ring. At these floors a gyroid needs a cell of about
 3.5 mm (0.6 mm sheets leave a 1.04 mm pore), so a lattice band is a chunky one (≥ 3.3 mm thick) and saves about a
-third of the metal. A sheet that meets the outer face nearly tangent leaves a feather edge: the lattice body is
-opened by 0.1 mm (offset in, re-distance, offset out), which removes anything thinner than 0.2 and rounds the sheet
-ends. All of it defaults until the first lattice print and cast.
+third of the metal. A sheet that runs nearly parallel under the outer face, cut by it, leaves a thin lip (0.26 mm on
+the second real run): the lattice is grown from a seed trimmed by the band inset by the growth, so the growth is the
+opening - every sheet end at the outer face is rounded by half the marginal wall and no lip is thinner than the
+marginal wall (0.5). All of it defaults until the first lattice print and cast.
 
 ## Settings
 

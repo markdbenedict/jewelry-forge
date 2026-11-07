@@ -33,12 +33,17 @@ nTop's gyroid is the standard convention, unshifted (lattice match 98.7 %), Thic
 **gyroid_implicit's field is the gyroid function scaled by cell / 2π, not a distance**: its gradient on the surface is
 1.43-1.70 per cell radian (median 1.51), so Thicken Body's t gives a sheet t / |∇f| thick (0.450 for 0.6 asked, thinner
 where the gradient is larger), and an Offset moves its faces by the offset / |∇f|. So the notebook thickens only a thin
-SEED (`Seed Thickness`, in field units: GYROID_FIELD_GRADIENT x the true seed, two voxels or 0.2 mm), re-distances it by
-the mesh round trip (a true distance field of the trimmed seed), grows it to the wall by an Offset (`Sheet Growth` =
-(wall − seed) / 2, exact on a distance field), trims it to the band again (the growth crosses the dome) and opens it
-(nj.add_opening). The sheet comes out uniform to the seed's share of the wall (±6 % of a third: ±2 %); the model stays
-the distance-based sheet. `lattice_sheet_correction_mm` (tables settings, default 0) is what the second run measures: the
-two mesh round trips' loss on the sheet, added to the growth.
+SEED (`Seed Thickness`, in field units: gyroid_field_gradient x the true seed), re-distances it by the mesh round trip
+(a true distance field) and grows it to the wall by an Offset (`Sheet Growth`, exact on a distance field). The second
+run (7 Nov) read the sheet off the trim at p1 0.574, median 0.602 for 0.6, the faces where the ring-frame model puts
+them (the seed is re-distanced AFTER the wrap, so the growth is a ring-frame distance: `seeded_sheet_sdf`), the design
+volume +0.26 % - and found the LIPS: where a sheet runs nearly parallel under the outer face, the trim leaves a thin
+plate (0.26-0.5 mm on that run). So the seed is trimmed by the band INSET by the growth before it is re-distanced and
+grown: dilate(seed ∩ (band − g), g) is exactly the opening by g of the wall-thick sheet trimmed by the band (erosion
+distributes over an intersection), so the growth is the opening - every lip is at least 2 g thick, and g = half the
+marginal wall (tables floors.wall_marginal) - and one mesh round trip is gone. The seed is then wall − 2 g (0.1 at the
+0.6 member floor), re-distanced at `Seed Mesh Tolerance` (SEED_VOXELS voxels across it). `lattice_sheet_correction_mm`
+(tables settings) is the re-distance's loss on the sheet, added to the seed.
 """
 from __future__ import annotations
 
@@ -60,17 +65,16 @@ MAX_CELLS_DEEP = 6.0
 MATCH_MIN = 0.98             # agreement of the built mesh with the model, point by point, inside the zone
 MATCH_POINTS = 20000
 VOLUME_TOL_PCT = 2.0         # nTop's integral against the model's (the first real run calibrates nTop's gyroid field)
-LATTICE_ROUND_MM = 0.1       # the lattice body's opening (offset in, re-distance, offset out): a feather edge where a sheet
-                             # meets the dome nearly tangent is thinner than twice this and goes, the sheet ends come
-                             # back rounded (castable); the model keeps the ends sharp (a few tenths of a percent)
-LATTICE_OVERLAP_MM = LATTICE_ROUND_MM + 0.15   # the lattice body reaches this far into the skin and the rims: the union
-                             # overlaps instead of meeting on a face (a face shared by two bodies is a membrane in the
-                             # field and a crumb factory in a mesh boolean: 638 of them, 2026-11-06), by more than the round
+LATTICE_OVERLAP_MM = 0.25    # the lattice body reaches at least this far into the skin and the rims (and past the growth): the
+                             # union overlaps instead of meeting on a face (a face shared by two bodies is a membrane in the
+                             # field and a crumb factory in a mesh boolean: 638 of them, 2026-11-06)
 POCKET_MIN_MM3 = 0.03        # a void pocket counted only above this (thirty 0.1 mm voxels, a 0.3 mm pocket): under it the grid
                              # cannot tell a pocket from a sliver where a sheet leans on the skin (four of 0.004 mm³ on the first
                              # real part, at the grid's own size); slivers are counted and reported, not failed
-SEED_MIN_MM = 0.2            # the thin seed sheet nTop thickens before the re-distance: at least this, and two voxels, so the
-                             # re-distance mesh resolves it
+SEED_MIN_MM = 0.1            # the thin seed sheet nTop thickens before the re-distance: at least this (the member floor less the
+                             # lips' floor), re-distanced at a tolerance that puts SEED_VOXELS voxels across it
+SEED_VOXELS = 4
+LIP_MIN_SAMPLES = 100        # rays through lips for a p1; fewer are judged by their minimum
 PORE_SHARE = 0.85            # the built pore statistic within this of the unit cell's own (the wrap stretches cells ±8 %)
 RAY_SAMPLES = 4000
 VOID_STEP_MM = 0.1           # the flood fill's voxel (the pore floor is ten of them)
@@ -119,29 +123,41 @@ NEAR_WALLS = 1.5             # refine the distance only within this many walls o
                              # small) lands anywhere
 
 
-def surface_distance(x, y, z, cell: float, variant: str = "standard", steps: int = NEWTON_STEPS, near: float | None = None):
+def surface_distance(x, y, z, cell: float, variant: str = "standard", steps: int = NEWTON_STEPS, near: float | None = None,
+                     normal: bool = False):
     """The distance from (x, y, z) to the gyroid surface. The first-order reading g / |∇g| everywhere; within `near`
     of the surface by that reading, the point projected onto the surface by `steps` Newton steps along the gradient
     (p -> p − g ∇g / |∇g|²) and the distance to where it lands. One step is the first-order reading, which over-reads
     the distance by a tenth at the sheet's face (so a 0.6 mm sheet in a 3.5 mm cell comes out 0.54); two read it to 1 %
-    (measured on the unit cell, 2026-11-06)."""
+    (measured on the unit cell, 2026-11-06). `normal`: also the unit gradient at the foot (where the point projects;
+    at the point itself when it was not refined) and the sign of g at the point - (d, sign, (nx, ny, nz))."""
     x0, y0, z0 = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float), np.asarray(z, dtype=float))
+    scalar = x0.ndim == 0
+    if scalar:
+        x0, y0, z0 = x0.reshape(1), y0.reshape(1), z0.reshape(1)
     g, gx, gy, gz = gyroid_field(x0, y0, z0, cell, variant)
     n2 = np.maximum(gx * gx + gy * gy + gz * gz, 1e-12)
-    d1 = np.abs(g) / np.sqrt(n2)
-    if steps <= 1 or d1.ndim == 0:
-        return d1 if d1.ndim else float(d1)
-    sel = np.ones(d1.shape, dtype=bool) if near is None else d1 < near
-    if not sel.any():
-        return d1
-    px, py, pz = x0[sel] - (g * gx / n2)[sel], y0[sel] - (g * gy / n2)[sel], z0[sel] - (g * gz / n2)[sel]
-    for _ in range(steps - 1):
-        g2, gx2, gy2, gz2 = gyroid_field(px, py, pz, cell, variant)
-        m2 = np.maximum(gx2 * gx2 + gy2 * gy2 + gz2 * gz2, 1e-12)
-        px, py, pz = px - g2 * gx2 / m2, py - g2 * gy2 / m2, pz - g2 * gz2 / m2
-    d = d1.copy()
-    d[sel] = np.sqrt((px - x0[sel]) ** 2 + (py - y0[sel]) ** 2 + (pz - z0[sel]) ** 2)
-    return d
+    n = np.sqrt(n2)
+    d = np.abs(g) / n
+    nx, ny, nz = gx / n, gy / n, gz / n
+    sel = (np.ones(d.shape, dtype=bool) if near is None else d < near) if steps > 1 else np.zeros(d.shape, dtype=bool)
+    if sel.any():
+        px, py, pz = x0[sel] - (g * gx / n2)[sel], y0[sel] - (g * gy / n2)[sel], z0[sel] - (g * gz / n2)[sel]
+        for _ in range(steps - 1):
+            g2, gx2, gy2, gz2 = gyroid_field(px, py, pz, cell, variant)
+            m2 = np.maximum(gx2 * gx2 + gy2 * gy2 + gz2 * gz2, 1e-12)
+            px, py, pz = px - g2 * gx2 / m2, py - g2 * gy2 / m2, pz - g2 * gz2 / m2
+        d[sel] = np.sqrt((px - x0[sel]) ** 2 + (py - y0[sel]) ** 2 + (pz - z0[sel]) ** 2)
+        if normal:
+            _, ex, ey, ez = gyroid_field(px, py, pz, cell, variant)
+            en = np.sqrt(np.maximum(ex * ex + ey * ey + ez * ez, 1e-12))
+            nx[sel], ny[sel], nz[sel] = ex / en, ey / en, ez / en
+    if not normal:
+        return float(d[0]) if scalar else d
+    sign = np.where(g >= 0, 1.0, -1.0)
+    if scalar:
+        return float(d[0]), float(sign[0]), (float(nx[0]), float(ny[0]), float(nz[0]))
+    return d, sign, (nx, ny, nz)
 
 
 def sheet_sdf(x, y, z, cell: float, wall: float, variant: str = "standard", shift=(0.0, 0.0, 0.0)):
@@ -152,31 +168,33 @@ def sheet_sdf(x, y, z, cell: float, wall: float, variant: str = "standard", shif
     return d - wall / 2.0
 
 
-def _surface_distance_scalar(x: float, y: float, z: float, k: float, near: float):
-    """surface_distance for one point in plain Python (manifold3d's level set calls it a million times): the
-    distance and the sheet face's outward normal's radial component (cos θ for the opening at the dome)."""
+def _gyroid_scalar(x: float, y: float, z: float, k: float):
     sx, cx, sy, cy, sz, cz = math.sin(k * x), math.cos(k * x), math.sin(k * y), math.cos(k * y), math.sin(k * z), math.cos(k * z)
-    g = sx * cy + sy * cz + sz * cx
-    gx, gy, gz = k * (cx * cy - sz * sx), k * (-sx * sy + cy * cz), k * (-sy * sz + cz * cx)
+    return sx * cy + sy * cz + sz * cx, k * (cx * cy - sz * sx), k * (-sx * sy + cy * cz), k * (-sy * sz + cz * cx)
+
+
+def _surface_distance_scalar(x: float, y: float, z: float, k: float, near: float):
+    """surface_distance(normal=True) for one point in plain Python (manifold3d's level set calls it a million times):
+    the distance, the sign of g at the point and the unit gradient at the foot."""
+    g, gx, gy, gz = _gyroid_scalar(x, y, z, k)
     n2 = max(gx * gx + gy * gy + gz * gz, 1e-12)
     n = math.sqrt(n2)
-    cos_t = (1.0 if g >= 0 else -1.0) * gx / n
+    sign = 1.0 if g >= 0 else -1.0
     d1 = abs(g) / n
     if d1 >= near:
-        return d1, cos_t
+        return d1, sign, gx / n, gy / n, gz / n
     px, py, pz = x - g * gx / n2, y - g * gy / n2, z - g * gz / n2
     for _ in range(NEWTON_STEPS - 1):
-        sx, cx, sy, cy, sz, cz = math.sin(k * px), math.cos(k * px), math.sin(k * py), math.cos(k * py), math.sin(k * pz), math.cos(k * pz)
-        g2 = sx * cy + sy * cz + sz * cx
-        gx2, gy2, gz2 = k * (cx * cy - sz * sx), k * (-sx * sy + cy * cz), k * (-sy * sz + cz * cx)
+        g2, gx2, gy2, gz2 = _gyroid_scalar(px, py, pz, k)
         m2 = max(gx2 * gx2 + gy2 * gy2 + gz2 * gz2, 1e-12)
         px, py, pz = px - g2 * gx2 / m2, py - g2 * gy2 / m2, pz - g2 * gz2 / m2
-    return math.sqrt((px - x) ** 2 + (py - y) ** 2 + (pz - z) ** 2), cos_t
+    _, ex, ey, ez = _gyroid_scalar(px, py, pz, k)
+    en = math.sqrt(max(ex * ex + ey * ey + ez * ez, 1e-12))
+    return math.sqrt((px - x) ** 2 + (py - y) ** 2 + (pz - z) ** 2), sign, ex / en, ey / en, ez / en
 
 
 def _sheet_sdf_scalar(x: float, y: float, z: float, k: float, half: float) -> float:
-    d, _ = _surface_distance_scalar(x, y, z, k, NEAR_WALLS * 2 * half)
-    return d - half
+    return _surface_distance_scalar(x, y, z, k, NEAR_WALLS * 2 * half)[0] - half
 
 
 def _wedge_distance_scalar(a: float, b: float, cos_t: float) -> float:
@@ -193,10 +211,13 @@ def _wedge_distance_scalar(a: float, b: float, cos_t: float) -> float:
     return math.sqrt(max(a * a + b * b - 2 * a * b * cos_t, 0.0) / sin2)
 
 
-def _opened_lattice_sdf_scalar(r: float, y: float, z: float, outer: float, k: float, half: float, e: float) -> float:
-    """opened_lattice_sdf for one point (bar coordinates r, y, z; `outer` the dome's radius at z)."""
-    d, cos_t = _surface_distance_scalar(r, y, z, k, NEAR_WALLS * 2 * half)
-    return _wedge_distance_scalar(d - (half - e), (r - outer) + e, cos_t) - e
+def _seeded_sheet_sdf_scalar(r: float, y: float, z: float, outer: float, k: float, seed_half: float, growth: float,
+                             lam: float, near: float) -> float:
+    """seeded_sheet_sdf for one point (bar coordinates r, y, z; `outer` the dome's radius at z; `lam` the wrap's
+    L / 2πr)."""
+    d, sign, nx, ny, nz = _surface_distance_scalar(r, y, z, k, near)
+    factor = math.sqrt(nx * nx + (lam * ny) ** 2 + nz * nz)
+    return _wedge_distance_scalar((d - seed_half) / factor, (r - outer) + growth, sign * nx / factor) - growth
 
 
 def bar_coordinates(X, Y, Z, wrap_length: float):
@@ -227,25 +248,35 @@ def _wedge_distance(a, b, cos_t):
     return np.where(np.isinf(out), corner, out)
 
 
-def opened_lattice_sdf(X, Y, Z, cell: float, wall: float, wrap_length: float, outer_radius_at, round_mm: float = LATTICE_ROUND_MM,
-                       variant: str = "standard"):
-    """Signed distance (negative inside) to the lattice body nTop builds in the zone: the walled gyroid wrapped round
-    the ring, cut by the dome (`outer_radius_at(z)`) and OPENED by `round_mm` - offset in, re-distance, offset out -
-    which takes every feather edge thinner than twice the round (a sheet meeting the dome nearly tangent) and rounds
-    the sheet ends. The opening is modelled where it acts, at the dome: the eroded sheet ∩ the eroded half-space is a
-    wedge, and the opened body is everything within the round of it (_wedge_distance on the sheet's signed distance
-    and the dome's, the angle between them the sheet normal's radial component). Elsewhere the sheet is itself."""
+def ring_factor(nx, ny, nz, r, wrap_length: float):
+    """A distance across the gyroid surface measured in the bar frame, divided by this, is the same distance in the ring
+    frame: the wrap scales the bar's Y by 2πr / L, so a surface with unit bar normal n is |J^-T n| = sqrt(n_r² + (L / 2πr)²
+    n_t² + n_z²) times closer in the ring frame. 0.96-1.08 across a 3.5 mm-cell band (7 Nov)."""
+    lam = wrap_length / (2 * math.pi * np.maximum(r, 1e-9))
+    return np.sqrt(nx * nx + (lam * ny) ** 2 + nz * nz)
+
+
+def seeded_sheet_sdf(X, Y, Z, cell: float, seed: float, growth: float, wrap_length: float, outer_radius_at,
+                     variant: str = "standard", shift=(0.0, 0.0, 0.0)):
+    """Signed distance (negative inside) to the lattice sheet nTop builds in the zone, in the ring frame: the seed (the
+    gyroid surface thickened to `seed` mm in the bar frame) wrapped round the ring, trimmed by the band inset by
+    `growth`, re-distanced (in the ring frame: after the wrap) and grown by `growth` - dilate(seed ∩ (band − g), g),
+    which is the opening by g of the wall-thick sheet trimmed by the band. Away from the dome that is the seed's ring
+    distance less g (the bar distance over ring_factor: measured on the second run, rms 0.006 against the bar-frame
+    sheet's 0.010); near it the inset seed ∩ the inset dome is a wedge whose two faces' outward normals meet at the
+    angle whose cosine is the seed normal's radial component (_wedge_distance), and the sheet is everything within g of
+    it: a sheet crossing the dome ends in a round of radius g, and a lip where a sheet runs under the dome is at least
+    2 g thick."""
     r = np.hypot(X, Y)
     th = np.mod(np.arctan2(Y, X), 2 * math.pi)
-    x, y, z = r, wrap_length * th / (2 * math.pi), np.asarray(Z, float)
-    d = surface_distance(x, y, z, cell, variant, near=NEAR_WALLS * wall)
-    g, gx, gy, gz = gyroid_field(x, y, z, cell, variant)
-    n = np.sqrt(np.maximum(gx * gx + gy * gy + gz * gz, 1e-12))
-    cos_t = np.sign(g) * gx / n                                 # the sheet face's outward normal, radial component
-    e = round_mm
-    a = d - (wall / 2 - e)                                      # outside the eroded sheet by this
-    b = (r - outer_radius_at(z)) + e                            # outside the eroded dome by this
-    return _wedge_distance(a, b, cos_t) - e
+    z = np.asarray(Z, float)
+    x, y = r, wrap_length * th / (2 * math.pi)
+    d, sign, (nx, ny, nz) = surface_distance(x - shift[0], y - shift[1], z - shift[2], cell, variant,
+                                             near=NEAR_WALLS * (seed + 2 * growth), normal=True)
+    factor = ring_factor(nx, ny, nz, r, wrap_length)
+    a = (d - seed / 2) / factor                                 # outside the seed, in the ring frame
+    b = (r - outer_radius_at(z)) + growth                       # outside the dome inset by the growth
+    return _wedge_distance(a, b, sign * nx / factor) - growth
 
 
 _CELL_STATS: dict = {}
@@ -333,10 +364,21 @@ class GyroidSpec(FieldTextureSpec):
 
     # -- the notebook --
     @property
+    def growth_mm(self) -> float:
+        """The Offset that grows the re-distanced seed to the wall - and the lattice's round: the seed is trimmed by the band
+        inset by it, so the growth is the opening of the trimmed sheet and every lip where a sheet runs under the outer face
+        comes out at least 2 g thick. Half the marginal wall (tables floors.wall_marginal), so the lips are walls."""
+        return round(tables.FLOORS["wall_marginal"] / 2, 4)
+
+    @property
+    def seed_design_mm(self) -> float:
+        """The seed as it should come out of the re-distance: the wall less twice the growth (0.1 at the member floor)."""
+        return round(self.wall_mm - 2 * self.growth_mm, 4)
+
+    @property
     def seed_mm(self) -> float:
-        """The thin seed sheet nTop thickens and re-distances before growing it to the wall: two voxels or SEED_MIN_MM, never
-        more than the wall."""
-        return min(self.wall_mm, max(SEED_MIN_MM, self.band.mesh_tolerance_mm))
+        """The seed asked of nTop: the design's plus the re-distance's measured loss (tables lattice_sheet_correction_mm)."""
+        return round(self.seed_design_mm + tables.SETTINGS["lattice_sheet_correction_mm"], 4)
 
     @property
     def seed_field_mm(self) -> float:
@@ -344,30 +386,41 @@ class GyroidSpec(FieldTextureSpec):
         return round(self.seed_mm * gyroid_field_gradient(), 4)
 
     @property
-    def growth_mm(self) -> float:
-        """The Offset that grows the re-distanced seed to the wall (exact on a distance field), plus half the measured loss of
-        the two mesh round trips (tables settings lattice_sheet_correction_mm)."""
-        return round((self.wall_mm - self.seed_mm + tables.SETTINGS["lattice_sheet_correction_mm"]) / 2, 4)
+    def seed_tolerance_mm(self) -> float:
+        """The seed's re-distance mesh: the band's Mesh Tolerance, or finer, so SEED_VOXELS voxels (half the tolerance each)
+        span the seed - 0.05 for a 0.1 seed."""
+        return round(min(self.band.mesh_tolerance_mm, 2 * self.seed_design_mm / SEED_VOXELS), 4)
 
     @property
     def overlap(self) -> float:
-        """How far the lattice zone reaches into the skin and the rims: past the growth and the opening's round, so the union
-        overlaps and nothing the growth or the round touches is exposed."""
-        return round(max(LATTICE_OVERLAP_MM, self.growth_mm + LATTICE_ROUND_MM + 0.05), 4)
+        """How far the lattice zone reaches into the skin and the rims: past the growth, so the union overlaps and the grown
+        seed's ends stay buried."""
+        return round(max(LATTICE_OVERLAP_MM, self.growth_mm + 0.05), 4)
+
+    @property
+    def end_margin(self) -> float:
+        """Rays along a sheet's normal start this far from the dome, the skin's top and the rims: off the rounded ends (a ray
+        from a nose reads the nose)."""
+        return self.growth_mm + 0.15
+
+    @property
+    def lip_margin(self) -> float:
+        """The generic wall check's radial and axial rays keep this far from the dome inside the zone: a lip's nose spans 2 g
+        below it, and a chord through a round is no wall."""
+        return 2 * self.growth_mm + 0.15
 
     def texture_inputs(self) -> dict:
-        """The lattice's inputs (nb_lattice.LATTICE_SPECS, before the zone's): the gyroid, the seed and its growth, the opening,
-        the grown zone."""
+        """The lattice's inputs (nb_lattice.LATTICE_SPECS, before the zone's): the gyroid, the seed, its re-distance and growth
+        (the band inset by the growth trims it), the grown zone."""
         zh = self.zone_half_width
-        return {"Cell Size": self.cell_mm, "Seed Thickness": self.seed_field_mm, "Sheet Growth": self.growth_mm,
-                "Wrap Length": round(self.wrap_length, 4),
-                "Lattice Round": LATTICE_ROUND_MM, "Lattice Round Inward": -LATTICE_ROUND_MM,
+        return {"Cell Size": self.cell_mm, "Seed Thickness": self.seed_field_mm, "Seed Mesh Tolerance": self.seed_tolerance_mm,
+                "Sheet Growth": self.growth_mm, "Band Inset": -self.growth_mm, "Wrap Length": round(self.wrap_length, 4),
                 "Lattice Inner Radius": round(self.zone_inner_radius - self.overlap, 4),
                 "Lattice Z Top": round(zh + self.overlap, 4), "Lattice Z Bottom": -round(zh + self.overlap, 4)}
 
     def texture_design(self) -> dict:
         return {"cell": self.cell_mm, "wall": self.wall_mm, "skin": round(self.skin, 4), "cells_around": self.cells_around,
-                "round": LATTICE_ROUND_MM, "variant": GYROID_VARIANT, "seed": round(self.seed_mm, 4), "seed_field": self.seed_field_mm,
+                "variant": GYROID_VARIANT, "seed": self.seed_mm, "seed_field": self.seed_field_mm, "seed_tolerance": self.seed_tolerance_mm,
                 "growth": self.growth_mm, "overlap": self.overlap}
 
     @property
@@ -395,8 +448,9 @@ class GyroidSpec(FieldTextureSpec):
         return (np.abs(z) <= zh) & (r >= self.zone_inner_radius + margin) & (r <= self.outer_radius_at(z) - margin)
 
     def lattice_sdf(self, X, Y, Z):
-        """The lattice body as nTop builds it in the zone, opened at the dome (opened_lattice_sdf)."""
-        return opened_lattice_sdf(X, Y, Z, self.cell_mm, self.wall_mm, self.wrap_length, self.outer_radius_at, LATTICE_ROUND_MM, GYROID_VARIANT)
+        """The lattice sheet as nTop builds it in the zone (seeded_sheet_sdf: the inset seed grown by the growth)."""
+        return seeded_sheet_sdf(X, Y, Z, self.cell_mm, self.seed_design_mm, self.growth_mm, self.wrap_length, self.outer_radius_at,
+                                GYROID_VARIANT)
 
     def in_sheet(self, X, Y, Z):
         return self.lattice_sdf(X, Y, Z) <= 0.0
@@ -482,8 +536,9 @@ class GyroidSpec(FieldTextureSpec):
         less the zone): what the simulated nTop exports and what --write-design writes. Not the gate's reference -
         the gate's arithmetic never touches a mesh of the design."""
         if "mesh" not in self._cache:
-            self._cache["mesh"] = lattice_mesh(self.band.notebook_inputs(""), self.cell_mm, self.wall_mm, self.wrap_length,
-                                               self.zone_half_width, self.zone_inner_radius, self.band.mesh_tolerance_mm)
+            self._cache["mesh"] = lattice_mesh(self.band.notebook_inputs(""), self.cell_mm, self.seed_design_mm, self.growth_mm,
+                                               self.wrap_length, self.zone_half_width, self.zone_inner_radius, self.band.mesh_tolerance_mm,
+                                               overlap=self.overlap)
         return self._cache["mesh"]
 
     # -- checks --
@@ -523,11 +578,14 @@ class GyroidSpec(FieldTextureSpec):
             p.append(f"{deep:.1f} cells deep: at most {MAX_CELLS_DEEP:g}")
         if self.depth_mm < self.wall_mm:
             p.append(f"at the zone's edge the lattice is {self.depth_mm:.2f} mm deep, under the wall ({self.wall_mm:g})")
-        if self.overlap + 0.1 > self.skin + 1e-9:
-            p.append(f"the lattice reaches {self.overlap:.2f} mm into the {self.skin:g} mm skin (the sheet's growth {self.growth_mm:g} plus the "
-                     f"round): a thicker --skin or a thinner --member")
-        if self.overlap + self.band.edge_round > self.rim + 1e-9:
-            p.append(f"the lattice reaches {self.overlap:.2f} mm into the {self.rim:g} mm rims: a wider --rim")
+        if self.seed_design_mm < SEED_MIN_MM - 1e-9:
+            p.append(f"a {self.wall_mm:g} mm member leaves a {self.seed_design_mm:.2f} seed under the lips' {2 * self.growth_mm:g} round: "
+                     f"at least {2 * self.growth_mm + SEED_MIN_MM:g}")
+        reach = self.overlap + self.growth_mm
+        if reach + 0.1 > self.skin + 1e-9:
+            p.append(f"the lattice reaches {reach:.2f} mm into the {self.skin:g} mm skin (the overlap and the growth): a thicker --skin")
+        if reach + 0.1 > self.rim + 1e-9:
+            p.append(f"the lattice reaches {reach:.2f} mm into the {self.rim:g} mm rims (the overlap and the growth): a wider --rim")
         voxel = self.band.mesh_tolerance_mm / 2
         if self.wall_mm < 6 * voxel - 1e-9:
             p.append(f"a {self.wall_mm:g} mm sheet spans under 6 voxels at Mesh Tolerance {self.band.mesh_tolerance_mm:g}: "
@@ -554,7 +612,8 @@ class GyroidSpec(FieldTextureSpec):
 
     def texture_line(self) -> str:
         c = self.cell()
-        return (f"gyroid (nTop's gyroid_implicit, a {self.seed_mm:g} seed thickened, re-distanced and grown by {self.growth_mm:g}, wrapped): "
+        return (f"gyroid (nTop's gyroid_implicit: a {self.seed_design_mm:g} seed wrapped, trimmed by the band inset {self.growth_mm:g}, "
+                f"re-distanced at {self.seed_tolerance_mm:g} and grown by {self.growth_mm:g} - lips at least {2 * self.growth_mm:g}): "
                 f"{self.cell_mm:g} mm cells, {self.wall_mm:g} mm sheets, {self.cells_around} cells round the ring (wrap length "
                 f"{self.wrap_length:.3f}), {self.cells_deep:.2f} cells deep; the sheet {c['fraction']:.0%} of the cell, pore "
                 f"{c['pore_mm']:.2f} mm; skin {self.skin:g}")
@@ -592,12 +651,12 @@ def _manifold_to_trimesh(man):
     return trimesh.Trimesh(np.asarray(mm.vert_properties)[:, :3].astype(float), np.asarray(mm.tri_verts), process=False)
 
 
-def lattice_mesh(values: dict, cell: float, wall: float, wrap_length: float, zone_half_width: float, zone_inner_radius: float,
-                 mesh_tolerance: float, lattice: bool = True, closed: bool = False, overlap: float = LATTICE_OVERLAP_MM,
-                 min_edge: float = 0.12, round_mm: float = LATTICE_ROUND_MM):
+def lattice_mesh(values: dict, cell: float, seed: float, growth: float, wrap_length: float, zone_half_width: float,
+                 zone_inner_radius: float, mesh_tolerance: float, lattice: bool = True, closed: bool = False,
+                 overlap: float = LATTICE_OVERLAP_MM, min_edge: float = 0.12):
     """The lattice band from ring_lattice's numbers: the profiled band (geom.band_mesh of the band inputs, opened) less
-    the zone, united with manifold3d's level set of the walled gyroid wrapped round the ring inside the zone ∩ band
-    (the sheet reaching `overlap` into the skin and the rims, so the union overlaps). The level set's edge is the
+    the zone, united with manifold3d's level set of the seeded sheet (seeded_sheet_sdf: the seed inset and grown)
+    inside the zone (reaching `overlap` into the skin and the rims, so the union overlaps). The level set's edge is the
     Mesh Tolerance (at least `min_edge`): a 0.1 edge on a 7 x 3.5 band is 1.1 M triangles and half a minute.
     `lattice=False`: the zone simply emptied (a notebook whose lattice never built); `closed=True`: the zone's outer
     face left as a skin over the lattice (every void a pocket)."""
@@ -614,17 +673,16 @@ def lattice_mesh(values: dict, cell: float, wall: float, wrap_length: float, zon
     if not lattice:
         return body
     k = 2 * math.pi / cell
-    half = wall / 2.0
     two_pi = 2 * math.pi
-
-    e = round_mm
+    seed_half, near = seed / 2.0, NEAR_WALLS * (seed + 2 * growth)
 
     def sdf(x, y, z):                                           # positive inside (manifold's convention)
         r = math.hypot(x, y)
         th = math.atan2(y, x) % two_pi
         dome = rd + math.sqrt(max(td * td - z * z, 0.0)) if td < 400 else R_out
         outer = min(R_out, dome)
-        body = _opened_lattice_sdf_scalar(r, wrap_length * th / two_pi, z, outer, k, half, e)
+        lam = wrap_length / (two_pi * max(r, 1e-9))
+        body = _seeded_sheet_sdf_scalar(r, wrap_length * th / two_pi, z, outer, k, seed_half, growth, lam, near)
         d = max(r_in - overlap - r, abs(z) - zh - overlap, body)
         return -d
 
@@ -767,7 +825,8 @@ def lattice_match(mesh, spec: GyroidSpec, points: int = MATCH_POINTS, seed: int 
         for variant in ("standard", "mirrored"):
             for sh in _VARIANT_SHIFTS:
                 shift = tuple(s * spec.cell_mm for s in sh)
-                dd = sheet_sdf_ring(X, Y, z, spec.cell_mm, spec.wall_mm, spec.wrap_length, variant, shift)   # unopened: the ends are few
+                dd = seeded_sheet_sdf(X, Y, z, spec.cell_mm, spec.seed_design_mm, spec.growth_mm, spec.wrap_length, spec.outer_radius_at,
+                                      variant, shift)
                 a = float((built == (dd <= 0)).mean())
                 if best is None or a > best[0]:
                     best = (a, variant, sh)
@@ -775,20 +834,22 @@ def lattice_match(mesh, spec: GyroidSpec, points: int = MATCH_POINTS, seed: int 
     return out
 
 
-END_MARGIN_MM = LATTICE_ROUND_MM + 0.15   # rays start this far from the dome, the skin's top and the rims: off the sheets'
-                                          # rounded ends (a ray from a nose reads the nose, 0.2 mm, not the sheet)
+def _zone_face_filter(spec: GyroidSpec, margin: float | None = None):
+    """Keep sample points on the sheets: inside the zone, off the skin's top, the dome and the rims' faces (by the spec's
+    end margin)."""
+    margin = spec.end_margin if margin is None else margin
 
-
-def _zone_face_filter(spec: GyroidSpec, margin: float = END_MARGIN_MM):
-    """Keep sample points on the sheets: inside the zone, off the skin's top, the dome and the rims' faces."""
     def f(points, normals):
         r = np.hypot(points[:, 0], points[:, 1])
         return spec.in_zone_band(r, points[:, 2], margin=margin)
     return f
 
 
-def _band_wall_filter(spec: GyroidSpec, margin: float = END_MARGIN_MM):
-    """The generic wall check's rays: everywhere but the sheets' ends at the dome (the skin, the rims, the sheets)."""
+def _band_wall_filter(spec: GyroidSpec, margin: float | None = None):
+    """The generic wall check's rays (radial and axial, not along the normal): everywhere but within the lip margin of the
+    dome inside the zone, where a chord through a lip's round reads short (the lattice's own checks measure there)."""
+    margin = spec.lip_margin if margin is None else margin
+
     def f(points, normals):
         r = np.hypot(points[:, 0], points[:, 1])
         z = points[:, 2]
@@ -798,29 +859,41 @@ def _band_wall_filter(spec: GyroidSpec, margin: float = END_MARGIN_MM):
 
 
 def sheet_rays(mesh, spec: GyroidSpec, samples: int = RAY_SAMPLES, seed: int = 7, min_exit_cos: float = 0.3) -> dict:
-    """From points on the sheets: inward along the normal to the sheet's other face (its thickness) and outward to
-    the next surface (the void's width across). A ray leaving through a face it barely crosses started at a sheet's
-    cut edge (a feather edge where a sheet meets the dome nearly tangent) and is counted, not measured."""
+    """From points on the sheets (inside the zone, off the skin's top and the rims, up to and on the outer face): inward
+    along the normal to the sheet's other face (its thickness) and outward to the next surface (the void's width across).
+    A thickness ray that starts within the end margin of the outer face or leaves through it crossed a sheet's END - its
+    round, or a LIP where a sheet runs under the dome and is cut by it - and is reported apart (`lips`, held to twice the
+    growth: the opening's inscribed ball), from four times the samples (the ends are a few percent of the sheets). A ray
+    leaving through a face it barely crosses is counted, not measured."""
     import trimesh
     fast = gate.ray_backend(mesh) == "embree"
     if not fast:
         samples = min(samples, 300 if len(mesh.faces) > 200_000 else 800)
     rng = np.random.default_rng(seed)
-    pts, fidx = trimesh.sample.sample_surface(mesh, samples * 4, seed=rng)
+    pts, fidx = trimesh.sample.sample_surface(mesh, samples * 16, seed=rng)
     normals = mesh.face_normals[fidx]
-    keep = _zone_face_filter(spec)(pts, normals)
-    pts, normals = pts[keep][:samples], normals[keep][:samples]
+    lip_tol = spec.band.mesh_tolerance_mm / 2 + 0.02
+    r0, z0 = np.hypot(pts[:, 0], pts[:, 1]), pts[:, 2]
+    m = spec.end_margin
+    keep = (np.abs(z0) <= spec.zone_half_width - m) & (r0 >= spec.zone_inner_radius + m) & (r0 <= spec.outer_radius_at(z0) + lip_tol)
+    pts, normals = pts[keep][:samples * 4], normals[keep][:samples * 4]
     if len(pts) == 0:
         return {}
+    at_end = np.hypot(pts[:, 0], pts[:, 1]) > spec.outer_radius_at(pts[:, 2]) - m
     eps = 1e-4
-    out = {"samples": int(len(pts))}
+    out = {"samples": int(min(int((~at_end).sum()), samples))}
     for key, sign in (("thickness", -1.0), ("gap", 1.0)):
-        origins = pts + normals * eps * sign
-        dirs = normals * sign
-        dists, hits, grazing = [], [], 0
-        batch = len(pts) if fast else 50
+        if key == "thickness":
+            p_use, n_use, end_use = pts, normals, at_end
+        else:
+            p_use, n_use = pts[~at_end][:samples], normals[~at_end][:samples]
+            end_use = np.zeros(len(p_use), dtype=bool)
+        origins = p_use + n_use * eps * sign
+        dirs = n_use * sign
+        dists, hits, ends, grazing = [], [], [], 0
+        batch = len(p_use) if fast else 50
         try:
-            for s in range(0, len(pts), batch):
+            for s in range(0, len(p_use), batch):
                 locs, ray_idx, tri = mesh.ray.intersects_location(origins[s:s + batch], dirs[s:s + batch], multiple_hits=False)
                 if len(ray_idx):
                     dd = np.linalg.norm(locs - origins[s:s + batch][ray_idx], axis=1)
@@ -829,23 +902,30 @@ def sheet_rays(mesh, spec: GyroidSpec, samples: int = RAY_SAMPLES, seed: int = 7
                     grazing += int((~ok).sum())
                     dists.append(dd[ok])
                     hits.append(locs[ok])
+                    ends.append(end_use[s:s + batch][ray_idx][ok])
         except BaseException:
             return out
         if not dists:
             continue
         d = np.concatenate(dists)
         hit = np.concatenate(hits)
+        started_at_end = np.concatenate(ends)
         ok = d > 10 * eps
+        hr = np.hypot(hit[:, 0], hit[:, 1])
         if key == "gap":                                            # across a void to the next SHEET: a hit on the skin's top or a
-            hr = np.hypot(hit[:, 0], hit[:, 1])                     # rim's face is the wedge where a sheet leans on them, a ray out
-            ok &= spec.in_zone_band(hr, hit[:, 2], margin=0.05)     # through an opening is the ring's far side - neither a pore
-            ok &= hr < spec.outer_radius_at(hit[:, 2]) - END_MARGIN_MM
-            ok &= d < 2 * spec.cell_mm
-        d = d[ok]
-        if d.size == 0:
-            continue
-        out[key] = {"p01": float(np.percentile(d, 1)), "p05": float(np.percentile(d, 5)), "median": float(np.median(d)),
-                    "min": float(d.min()), "samples": int(d.size), "grazing": grazing}
+            ok &= spec.in_zone_band(hr, hit[:, 2], margin=0.05)     # rim's face is the wedge where a sheet leans on them, a ray out
+            ok &= hr < spec.outer_radius_at(hit[:, 2]) - spec.end_margin   # through an opening is the ring's far side - neither
+            ok &= d < 2 * spec.cell_mm                              # a pore
+            groups = {"gap": ok}
+        else:
+            lip = started_at_end | (hr >= spec.outer_radius_at(hit[:, 2]) - lip_tol)   # an end's round, or out through the dome
+            groups = {"thickness": ok & ~lip, "lips": ok & lip}
+        for name, sel in groups.items():
+            q = d[sel]
+            if q.size == 0:
+                continue
+            out[name] = {"p01": float(np.percentile(q, 1)), "p05": float(np.percentile(q, 5)), "median": float(np.median(q)),
+                         "min": float(q.min()), "samples": int(q.size), "grazing": grazing}
     return out
 
 
@@ -931,11 +1011,25 @@ def check_lattice(spec: GyroidSpec, stl: Path, ntop_vol: float | None) -> gate.G
         floor = fl["lattice_member"]
         c.append(gate.Check("sheet thickness", th["p01"] >= min(floor, spec.wall_mm) - pad,
                             f"p1 {th['p01']:.3f} mm, median {th['median']:.3f} against the {spec.wall_mm:g} mm wall asked (floor "
-                            f"{floor:g}; allowed {min(floor, spec.wall_mm) - pad:.3f}); {th['samples']} rays, {th['grazing']} off feather edges"))
+                            f"{floor:g}; allowed {min(floor, spec.wall_mm) - pad:.3f}); {th['samples']} rays off the lips, "
+                            f"{th['grazing']} off feather edges"))
     elif th:
         c.append(gate.incomplete("sheet thickness", f"only {th['samples']} usable rays (need {gate.MIN_WALL_SAMPLES})"))
     else:
         c.append(gate.incomplete("sheet thickness", "no ray through a sheet came back"))
+    lips = rays.get("lips")
+    lip_floor = 2 * spec.growth_mm
+    if lips:
+        n = lips["samples"]
+        stat, what = (lips["p01"], "p1") if n >= LIP_MIN_SAMPLES else (lips["min"], "min")
+        share = n / max(1, n + (th["samples"] if th else 0))
+        c.append(gate.Check("lips at the outer face", stat >= lip_floor - pad,
+                            f"the sheets' ends at the outer face - their rounds, and the lips where a sheet runs under it and is cut by it "
+                            f"({n} rays, {share:.1%} of those through the sheets): {what} {stat:.3f} mm, median {lips['median']:.3f}; the "
+                            f"seed's inset and growth keep every end at least 2 x {spec.growth_mm:g} = {lip_floor:g} thick, the marginal "
+                            f"wall (allowed {lip_floor - pad:.3f})"))
+    elif th:
+        c.append(gate.Check("lips at the outer face", True, "no ray through a sheet left by the outer face: no sheet runs under it"))
     gp = rays.get("gap")
     if gp and gp["samples"] >= gate.MIN_WALL_SAMPLES:
         want = PORE_SHARE * cellr["gap"]["p05"]

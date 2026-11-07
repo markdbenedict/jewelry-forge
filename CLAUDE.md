@@ -165,9 +165,11 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   inside the blend): 2 on the plait, 7 on the trinity solitaire (2026-11-02). The gate counts a
   closed component under `gate.SPECK_VOLUME_MM3` (1e-6 mm³, a 10 µm cube) as a degenerate speck,
   reported beside the shell count, not as a shell; a 0.05 mm bead adrift (5e-4 mm³) still counts.
-  Along a kissing LINE the bubble stretches into a flake (28 of them, 0.3 mm long and a micron thick,
-  where the lattice's sheets lean on the skin, 2026-11-06): a component thinner than `gate.FLAKE_THICKNESS_MM`
-  (volume / area under 5 µm) is a speck too.
+  Along a kissing LINE or patch the bubble stretches into a flake (28 of them, 0.3 mm long and a micron thick,
+  where the lattice's sheets lean on the skin, 2026-11-06; six cavities 0.27 mm across and 12 µm thick where a
+  sheet's face kisses the skin's top, 2026-11-07): a component whose mean thickness (2 x volume / area) is under
+  `gate.FLAKE_THICKNESS_MM` (0.025) and a fifth of its length is a speck too, and so is one under `gate.SPECK_EXTENT_MM`
+  (0.025 mm, half a voxel) every way.
 
 ## Notebook API rules (doc Oct 2026; console, SSH and discovery verified 2026-10-26 on nTop 6.3.3)
 
@@ -333,9 +335,15 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   `gyroid_field_gradient`): `gyroid_implicit<real>`'s field is the gyroid function scaled by cell / 2π, with a gradient of
   1.43-1.70 per cell radian on its surface (median 1.51, 1.6 effective with the re-distance mesh's loss), so Thicken Body's
   t gives a sheet t / |∇f| thick (0.450 for 0.6 asked), varying with the gradient, and an Offset moves its faces by the
-  offset / |∇f|. Thicken only a thin seed (two voxels), re-distance it by the mesh round trip (`nj.add_redistance`) and
-  grow it to the wall by an Offset - exact on a distance field (`nb_lattice.add_grown_sheet`). Thicken is symmetric about
-  the surface, and the gyroid is the standard convention, unshifted (the lattice match read 98.7 %).
+  offset / |∇f|. Thicken only a thin seed, re-distance it by the mesh round trip (`nj.add_redistance`) and grow it to the
+  wall by an Offset - exact on a distance field (`nb_lattice.add_grown_sheet`; the second run read the sheet 0.602 for
+  0.6). Thicken is symmetric about the surface, and the gyroid is the standard convention, unshifted (the match read
+  98.7 %, then 100 %). The re-distance happens after the wrap, so the growth is a ring-frame distance (`lattice.ring_factor`).
+- **Trim before you grow, and the growth is the opening.** A sheet trimmed by a surface it runs nearly parallel to leaves a
+  thin lip (0.26 mm under the lattice band's dome, 2026-11-07). Trimming the SEED by the band inset by the growth g, then
+  growing it by g, gives dilate(seed ∩ (band − g), g) - exactly the opening by g of the trimmed wall-thick sheet (erosion
+  distributes over an intersection): every end rounded by g, every lip at least 2 g, and no separate opening (one mesh
+  round trip fewer). ring_lattice 0.3.0 does it with g = half the marginal wall.
 - **Offset Body adds a constant to the field; it does not re-distance.** Two offsets back to
   back (-e then +e, the opening that rounds every convex edge) cancel exactly - five band
   profiles matched their UNopened sections to 0.05 % (2026-10-30): no edge round was ever built
@@ -423,7 +431,7 @@ python -m ntopjewel api build points_probe                           # ntop\note
 python -m ntopjewel api build texture_probe                          # ntop\notebooks\texture_probe.ntop: nTop's toolkit textures (noise, cellular, roughness, voronoi, triangle wave) each on the plain band (2026-11-06)
 python -m ntopjewel api build ring_voronoi                           # ntop\notebooks\ring_voronoi.ntop: the profiled band with nTop's voronoi deboss (the cell walls as half-round grooves) masked to the outer face
 python -m ntopjewel api build ring_frost                             # ntop\notebooks\ring_frost.ntop: nTop's surface roughness (±amplitude) masked to the outer face; likewise ring_pitted (simplex deboss), ring_cellular (cellular deboss), ring_ribbed (the triangle wave on the eroded band)
-python -m ntopjewel api build ring_lattice                           # ntop\notebooks\ring_lattice.ntop: an open gyroid lattice between a bore skin and the rims (gyroid_implicit -> a thin seed thickened, wrapped, trimmed, re-distanced and grown to the wall, trimmed, opened, ∪ the band less the zone)
+python -m ntopjewel api build ring_lattice                           # ntop\notebooks\ring_lattice.ntop: an open gyroid lattice between a bore skin and the rims (gyroid_implicit -> a thin seed thickened, wrapped, trimmed by the band inset by the growth, re-distanced and grown to the wall - the growth is the opening -, ∪ the band less the zone)
 python -m ntopjewel api build band_profile --dry-run                 # driver to paste into the GUI console, then `api collect band_profile`
 python -m ntopjewel api line "print(notebook.list_available_blocks('torus'))"
 # running

@@ -5,16 +5,16 @@ lattice (2026-11-06).
     python -m ntopjewel lattice                       # a lattice band through it: nTopCL + the lattice gate (out\\lattice)
 
 The band is ring_band_profile's (cylinders, dome and comfort tori, the opening by the edge round). The lattice is nTop's
-own: `gyroid_implicit` (the surface, cubic cells of Cell Size) thickened by `thicken_implicit` (Wall) and wrapped round
-the ring by Remap Cylindrical Body (Wrap Length = a whole number of cells, so the pattern closes on itself), trimmed to
-the band inside the zone, opened by Lattice Round (the feather edges where a sheet meets the dome nearly tangent go,
-the sheet ends come back rounded), and united with the band less the zone - the bore skin and the rims
-(nb_lattice.body). Python holds the same geometry exactly (ntopjewel.lattice.GyroidSpec), so the gate measures the
-built mesh against it point by point, and flood-fills the voids from the outer face: a pocket that reaches no
-opening (trapped resin, trapped investment) fails the part.
-
-What the first real run measures of nTop's blocks: the sheet's thickness against the Wall asked (is Thicken symmetric,
-is the gyroid's field a distance), the lattice match and its best variant (nTop's gyroid convention and phase).
+own `gyroid_implicit` (the surface, cubic cells of Cell Size) - whose field is not a distance (6 Nov), so only a thin seed
+is thickened (`thicken_implicit`, Seed Thickness in field units), wrapped round the ring by Remap Cylindrical Body (Wrap
+Length = a whole number of cells, so the pattern closes on itself), trimmed by the band inset by the growth inside the
+zone, re-distanced (the mesh round trip at Seed Mesh Tolerance) and grown to the wall by Sheet Growth - which is the
+opening of the trimmed sheet: its ends at the dome rounded, every lip where a sheet runs under the outer face at least
+twice the growth (the marginal wall; the second run, 7 Nov, found lips of 0.26 before this) - and united with the band
+less the zone, the bore skin and the rims (nb_lattice.body). Python holds the same geometry exactly
+(ntopjewel.lattice.GyroidSpec, seeded_sheet_sdf), so the gate measures the built mesh against it point by point, and
+flood-fills the voids from the outer face: a pocket that reaches no opening (trapped resin, trapped investment) fails
+the part.
 """
 from __future__ import annotations
 

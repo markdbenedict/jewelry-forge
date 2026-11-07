@@ -397,8 +397,8 @@
     },
     "lattice_sheet_correction_mm": {
       "value": 0.0,
-      "status": "default",
-      "source": "what the lattice's two mesh round trips (the seed's re-distance, the opening's) take off a gyroid sheet in nTop, added back to the sheet's growth: the first run (6 Nov, one round trip on a 0.27 mm eroded sheet at Mesh Tolerance 0.1) read about 0.02 under the field's own arithmetic; the second run, with the seed pipeline, measures it as the built sheet's median against the wall asked"
+      "status": "calibrated",
+      "source": "what the seed's re-distance (the mesh round trip) takes off a lattice sheet in nTop, added to the seed: the second run (7 Nov, seed 0.2 re-distanced at Mesh Tolerance 0.1 and grown 0.2) read the sheet off the trim at median 0.602 for 0.6 (p1 0.574) and the growth off the faces at 0.2036 for 0.2 - nothing to correct. Ring_lattice 0.3.0 re-distances a 0.1 seed at 0.05: the next run re-reads it"
     }
   },
   "calibration_log": [
@@ -449,6 +449,14 @@
       "to": 3.0,
       "status": "calibrated",
       "evidence": "nTop 6.3.3, texture_probe on the plain court US6 4 x 1.6 band: triangle_wave_texture with Wave height 0.1, Wave spacing 0.5, Direction Z displaced the outer face outward by 0 (troughs, on the design) to 0.299 (peaks) with a 0.5 mm period; the bore and the side faces likewise (+0.30, +0.28). Same in both rounds."
+    },
+    {
+      "date": "2026-11-07",
+      "entry": "settings.lattice_sheet_correction_mm",
+      "from": 0.0,
+      "to": 0.0,
+      "status": "calibrated",
+      "evidence": "ring_lattice 0.2.0 under nTopCL (flat US 6 7 x 3.5, 3.5 mm cells, 0.6 asked; out\\lattice\\ring_lattice_gyroid_flat_US6_w7_t3.5_c3.5w0.6_b5d490fb\\20261107-162139): the sheet off the trim p1 0.574, p5 0.580, median 0.602 over 11588 rays; the faces at the ring-frame model's 0.1 + 0.2 x ring_factor to +0.0036 (rms 0.0058); design volume +0.26 %"
     }
   ],
   "notes": [

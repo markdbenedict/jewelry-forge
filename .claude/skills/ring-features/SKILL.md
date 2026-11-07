@@ -303,20 +303,25 @@ The profiled band keeps a solid bore skin (`--skin`, tables `lattice_skin_mm` 0.
 wall); between them, from the skin's top to the outer face, the metal is nTop's gyroid sheet. `gyroid_implicit`
 (`--cell`, cubic cells in the bar frame) gives the surface, but its field is the gyroid function scaled by cell / 2π, not
 a distance (measured 6 Nov: Thicken 0.6 came out 0.45, varying with the gradient), so the notebook thickens only a thin
-seed (two voxels, in field units x `api_facts` gyroid_field_gradient 1.6), wraps it round the ring by Remap Cylindrical
-with a mapping length of a whole number of cells (`GyroidSpec.cells_around`, so the pattern closes on itself), trims it
-to the band inside the zone (grown into the skin and the rims past the growth and the round, so the union overlaps
-instead of meeting on a face), re-distances it by the mesh round trip and grows it to `--member` by an Offset (exact on
-a distance field), trims it again, opens it by 0.1 mm (feather edges thinner than 0.2 go, the sheet ends come back
-rounded) and unites it with the band less the zone. `lattice_sheet_correction_mm` (tables settings) is what the round
-trips take off the sheet, measured by the second run.
+seed (`--member` less twice the growth, in field units x `api_facts` gyroid_field_gradient 1.6), wraps it round the
+ring by Remap Cylindrical with a mapping length of a whole number of cells (`GyroidSpec.cells_around`, so the pattern
+closes on itself), trims it by the band INSET by the growth inside the zone (grown into the skin and the rims past the
+growth, so the union overlaps instead of meeting on a face), re-distances it by the mesh round trip at its own
+tolerance (four voxels across the seed) and grows it to `--member` by an Offset - exact on a distance field, and the
+opening of the trimmed sheet: every sheet end at the outer face rounded by the growth (half the marginal wall, 0.25),
+every lip where a sheet runs under the outer face at least 0.5 - then unites it with the band less the zone.
+`lattice_sheet_correction_mm` (tables settings, calibrated 0 on the second run) is what the re-distance takes off the
+sheet.
 
 Python holds the same geometry exactly (`lattice.GyroidSpec`: the gyroid's formula, its distance by two Newton steps -
 the first-order g / |∇g| alone thins a 0.6 sheet to 0.54 -, the wrap, the opening at the dome), so the gate is not an
-envelope: **lattice match** (the built mesh's inside / outside at 20 000 points in the zone against the model, ≥ 98 %;
+envelope (the sheet a ring-frame distance - the re-distance comes after the wrap, `ring_factor` - grown from the inset
+seed): **lattice match** (the built mesh's inside / outside at 20 000 points in the zone against the model, ≥ 98 %;
 when it fails, the report names the best of the mirrored and shifted gyroids - nTop's convention, to record in
 `GYROID_VARIANT`), **sheet thickness** (rays through the sheets, off their ends: p1 against the member floor, the median
-against the wall asked), **pore width** (rays across the voids to the next sheet, p5 within 85 % of the unit cell's own),
+against the wall asked), **lips at the outer face** (every ray that starts at a sheet's end or leaves through the dome,
+p1 against twice the growth - the opening's inscribed ball; the 0.2.0 part read 0.237 there), **pore width** (rays
+across the voids to the next sheet, p5 within 85 % of the unit cell's own),
 **open voids** (the built mesh voxelised by scanline rays at 0.1 mm and flood-filled from the outer face: a pocket of
 void that reaches no opening fails the part), **design volume** (nTop's integral against the model's grid integration,
 ±2 %), the mask (bore, sides, rims as designed), the band checks (the generic wall rays kept off the sheet ends). The
@@ -327,8 +332,9 @@ fill on the model), a sheet under 6 voxels.
 
 The first real run (6 Nov, flat 7 x 3.5, 16 s): one shell, the match 98.7 % (nTop's gyroid standard and unshifted,
 Thicken symmetric, the wrap ours), the pore 1.07, every void open, the mask held - and the sheet 0.450 for 0.6, which
-is where the seed pipeline (0.2.0) comes from. The gate learnt two rules from it: flakes with no thickness where the
-sheets lean on the skin are the mesher's (counted apart, like the specks), and a void pocket is only one above 0.03 mm³
-(slivers at the grid's size are reported, not failed). The second run's one number: the sheet's median against the
-wall asked, into `lattice_sheet_correction_mm`.
+is where the seed pipeline (0.2.0) comes from. The second (7 Nov): the sheet 0.602 for 0.6, the volume +0.26 %, the
+match 100 % - and lips 0.26 thick where sheets run under the outer face, which is where the inset seed (0.3.0) comes
+from. The gate learnt from both: flakes (mean thickness under 0.025 and a fifth of their length) and components under
+0.025 mm every way are the mesher's bubbles, counted apart; a void pocket is only one above 0.03 mm³ (slivers at the
+grid's size are reported, not failed).
 

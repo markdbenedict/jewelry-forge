@@ -57,6 +57,16 @@ def test_gate_counts_the_meshers_specks_apart_from_shells(tmp_path):
     trimesh.util.concatenate([m, flake]).export(p)
     rep = gate.check(p, expect_inner=16.51, wall_samples=0, write_report=False)
     assert rep.shells == 1 and rep.specks == 1
+    # ... and a cavity lens 0.27 across and 12 µm thick where a sheet's face kisses the skin's top (6 of them, 2026-11-07)
+    lens = trimesh.creation.icosphere(subdivisions=3, radius=1.0)
+    lens.apply_scale([0.135, 0.135, 0.009]).apply_translation([12.0, -2.0, 0.0])
+    lens.invert()                                                                                   # a cavity: inward normals
+    assert gate.is_speck(lens) and not gate.is_speck(bead)
+    tiny = trimesh.creation.box(extents=(0.016, 0.016, 0.013)).apply_translation([12.0, 0.0, 1.0])     # 3e-6 mm³, 16 µm across
+    assert gate.is_speck(tiny)
+    trimesh.util.concatenate([m, lens]).export(p)
+    rep = gate.check(p, expect_inner=16.51, wall_samples=0, write_report=False)
+    assert rep.shells == 1 and rep.specks == 1
 
 
 def test_section_shape_tolerance_may_depend_on_the_angle(tmp_path):
