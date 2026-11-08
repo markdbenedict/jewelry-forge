@@ -163,6 +163,8 @@ def cmd_band(a: argparse.Namespace) -> int:
             for k, v in spec.notebook_inputs("<output path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = band.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                          catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project,
@@ -174,9 +176,7 @@ def cmd_band(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(_error_verdict)
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def _add_band_args(p: argparse.ArgumentParser) -> None:
@@ -271,6 +271,115 @@ def _band_spec(a: argparse.Namespace) -> band.BandSpec:
                          allowance_mm=a.allowance, mesh_tolerance_mm=a.tolerance)
 
 
+def _add_prep_args(p: argparse.ArgumentParser) -> None:
+    """The print preparation's flags (printprep): every ring command takes them."""
+    g = p.add_argument_group("print preparation")
+    g.add_argument("--prep", action="store_true",
+                   help="after a PASSED build: orient the part, support it on polished faces and the bore only, stand it on a "
+                        "raft -> <stem>.supported.stl (scaled for casting with --metal: .supported_<metal>.stl) + .prep.json, .prep.png")
+    g.add_argument("--prep-stl", metavar="STL",
+                   help="prepare an existing STL of this design instead of building it (its file name must carry this design's "
+                        "stem); files in out\\prep, --deliver adds them to the design's PASSED delivery")
+    g.add_argument("--bore", choices=("allow", "avoid"), default="allow",
+                   help="supports in the bore: allow (default), or avoid (a bore the mandrel reads)")
+    g.add_argument("--orient", help="force the orientation: a rank from the search (2 = the runner-up), or TILT,HEAD in degrees "
+                                    "(the ring axis to the plate, the head above level)")
+
+
+def _parse_orient(text):
+    """--orient: None, a rank (int), a (tilt, head) pair or a build direction (3 numbers, ring frame)."""
+    if not text:
+        return None
+    parts = [float(x) for x in str(text).replace(" ", "").split(",") if x]
+    if len(parts) == 1 and parts[0].is_integer():
+        return int(parts[0])
+    if len(parts) in (2, 3):
+        return tuple(parts)
+    raise ValueError(f"--orient {text!r}: give a rank (2), TILT,HEAD degrees (45,45) or a direction (x,y,z)")
+
+
+def _prep(a: argparse.Namespace, spec, stl: Path, out_dir: Path):
+    """The print preparation of a part of this design: its report printed; (result, None) or (None, error)."""
+    from . import printprep
+    try:
+        res = printprep.prepare(stl, spec, out_dir, stem=spec.stem, metal=getattr(a, "metal", None), bore=a.bore,
+                                orient=_parse_orient(a.orient), progress=lambda m: print(f"  ... {m}", file=sys.stderr, flush=True))
+    except (ValueError, OSError) as e:
+        return None, e
+    print(res.text())
+    return res, None
+
+
+def _add_to_delivery(folder: Path, prep, bore: str) -> Path | None:
+    """Copy a prepared print file and its evidence into a design's delivered folder, noting it in the manifest; None when
+    the folder holds no PASSED delivery of the design."""
+    import shutil
+    man = Path(folder) / "manifest.json"
+    if not man.exists():
+        return None
+    doc = json.loads(man.read_text(encoding="utf-8"))
+    if doc.get("status") != gate.PASSED:
+        return None
+    for f in prep.files.values():
+        shutil.copy2(f, Path(folder) / Path(f).name)
+    printed = prep.files.get("print file")
+    doc["prep"] = {"status": prep.status, "print_file": Path(printed).name if printed else None,
+                   "sha256": runs.sha256(Path(printed)) if printed else None, "supports": len(prep.supports),
+                   "orientation": prep.headline(), "bore": bore, "metal": prep.metal, "scale": prep.scale,
+                   "cautions": prep.cautions()}
+    man.write_text(json.dumps(doc, indent=2, default=str), encoding="utf-8")
+    return Path(folder)
+
+
+def _finish(a: argparse.Namespace, spec, res) -> int:
+    """The end of a build command: the report, the print preparation when asked (a PASSED part only), ONE verdict line."""
+    print(res.text())
+    prep = None
+    if getattr(a, "prep", False):
+        if res.ok:
+            prep, err = _prep(a, spec, Path(res.stl), Path(res.run_dir))
+            if err is not None:
+                print(f"print prep failed: {err}")
+                print(summary.error_line(f"{spec.stem} print prep", err))
+                return 2
+            if res.delivered and prep.ok:
+                _add_to_delivery(Path(res.delivered).parent, prep, a.bore)
+        else:
+            print("  print prep: not run - the part did not pass")
+    print(summary.verdict(res, prep=prep))
+    return 0 if res.ok and (prep is None or prep.ok) else 1
+
+
+def _prep_only(a: argparse.Namespace, spec) -> int:
+    """--prep-stl: the print preparation of an existing STL of this design (nothing is built)."""
+    stl = Path(a.prep_stl)
+    if not stl.is_file():
+        print(summary.error_line("prep", f"{stl} is not a file"))
+        return 2
+    if spec.stem not in stl.name:
+        print(summary.error_line("prep", f"{stl.name} is not this design: these arguments describe {spec.stem} "
+                                         "(give the arguments the part was built with)"))
+        return 2
+    try:
+        run_dir, _ = runs.fresh_run_dir(Path(a.out) if a.out else config.out_dir() / "prep", spec.stem)
+    except runs.RunPathError as e:
+        print(summary.error_line("prep", e))
+        return 2
+    prep, err = _prep(a, spec, stl, run_dir)
+    if err is not None:
+        print(f"print prep failed: {err}")
+        print(summary.error_line("prep", err))
+        return 2
+    delivered = None
+    if getattr(a, "deliver", False):
+        folder = config.deliver_dir() / a.project / spec.stem
+        delivered = _add_to_delivery(folder, prep, a.bore) if prep.ok else None
+        if delivered is None:
+            print(f"  not delivered: " + (f"{folder} holds no PASSED delivery of this design" if prep.ok else f"status {prep.status}"))
+    print(summary.prep_verdict(prep, delivered))
+    return 0 if prep.ok else 1
+
+
 def cmd_ring(a: argparse.Namespace) -> int:
     spec = features.RingSpec(_band_spec(a), milgrain=a.milgrain, bead_radius_mm=a.bead_radius, bead_pitch=a.bead_pitch,
                              groove_depth_mm=a.groove or 0.0, groove_width_mm=a.groove_width, groove_z_mm=a.groove_z,
@@ -301,6 +410,8 @@ def cmd_ring(a: argparse.Namespace) -> int:
         print(res.text())
         print(summary.verdict(res))
         return 0 if res.ok else 1
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = features.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                              catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project,
@@ -312,9 +423,7 @@ def cmd_ring(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(_error_verdict)
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def cmd_texture(a: argparse.Namespace) -> int:
@@ -346,6 +455,8 @@ def cmd_texture(a: argparse.Namespace) -> int:
         for k, v in spec.notebook_inputs("<strike centres>", "<output path>").items():
             print(f"    {k}: {v}")
         return 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = texture.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                             deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -355,9 +466,7 @@ def cmd_texture(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(summary.error_line(spec.stem, e))
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def _cmd_fieldtex(a: argparse.Namespace) -> int:
@@ -383,6 +492,8 @@ def _cmd_fieldtex(a: argparse.Namespace) -> int:
         for k, v in spec.notebook_inputs("<output path>").items():
             print(f"    {k}: {v}")
         return 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = fieldtex.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                              deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -392,9 +503,7 @@ def _cmd_fieldtex(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(summary.error_line(spec.stem, e))
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def cmd_lattice(a: argparse.Namespace) -> int:
@@ -421,6 +530,8 @@ def cmd_lattice(a: argparse.Namespace) -> int:
         for k, v in spec.notebook_inputs("<output path>").items():
             print(f"    {k}: {v}")
         return 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = lattice.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                             deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -430,9 +541,7 @@ def cmd_lattice(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(summary.error_line(spec.stem, e))
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def _add_hammer_args(p: argparse.ArgumentParser, what: str) -> None:
@@ -474,6 +583,8 @@ def cmd_shank(a: argparse.Namespace) -> int:
             for k, v in spec.notebook_inputs(spec.bar_placeholders(), "<output path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = shank.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                           catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -484,9 +595,7 @@ def cmd_shank(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(_error_verdict)
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def cmd_pave(a: argparse.Namespace) -> int:
@@ -506,6 +615,8 @@ def cmd_pave(a: argparse.Namespace) -> int:
             for k, v in spec.notebook_inputs(sh.bar_placeholders(), "<seats path>", "<beads path>", "<output path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = pave.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                          catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -516,9 +627,7 @@ def cmd_pave(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(_error_verdict)
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def _add_stone_body_args(p) -> None:
@@ -698,6 +807,8 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
                                          knot_paths=("<knot path>", "<knot path 2>"), strikes_path="<strikes path>").items():
             print(f"    {k}: {v}")
         return 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = solitaire.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                               deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -708,9 +819,7 @@ def cmd_solitaire(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(_error_verdict)
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def cmd_multistone(a: argparse.Namespace) -> int:
@@ -750,6 +859,8 @@ def cmd_multistone(a: argparse.Namespace) -> int:
         for k, v in spec.notebook_inputs(spec.shank_spec.bar_placeholders(), files, "<output path>").items():
             print(f"    {k}: {v}")
         return 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = multistone.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                                deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -760,9 +871,7 @@ def cmd_multistone(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(_error_verdict)
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def _taper_from(a: argparse.Namespace, default: float = 60.0) -> float:
@@ -786,6 +895,8 @@ def cmd_artwork(a: argparse.Namespace) -> int:
             for k, v in spec.notebook_inputs(spec.shank.bar_placeholders(), "<cut path>", "<relief path>", "<output path>").items():
                 print(f"    {k}: {v}")
         return 1 if probs else 0
+    if getattr(a, "prep_stl", None):
+        return _prep_only(a, spec)
     try:
         res = artwork.build(spec, Path(a.out) if a.out else None, notebook=Path(a.notebook) if a.notebook else None,
                             catalog_name=a.catalog, deliver=a.deliver, deliver_project=a.project, cast_metal=a.metal)
@@ -796,9 +907,7 @@ def cmd_artwork(a: argparse.Namespace) -> int:
             print(e.result.summary())
         print(_error_verdict)
         return 2
-    print(res.text())
-    print(summary.verdict(res))
-    return 0 if res.ok else 1
+    return _finish(a, spec, res)
 
 
 def cmd_gate(a: argparse.Namespace) -> int:
@@ -1064,6 +1173,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--project", default="Bands")
     b.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     b.add_argument("--dry-run", action="store_true")
+    _add_prep_args(b)
     b.set_defaults(fn=cmd_band)
 
     rg = sub.add_parser("ring", help="profiled band with milgrain, groove and engraving (ring_features.ntop)")
@@ -1089,6 +1199,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="build THIS ring in nTop's open session (Notebook API) to look at it in the GUI; "
                          "saves out/api/preview/<stem>.ntop, gates the exported mesh, runs no nTopCL")
     rg.add_argument("--timeout", type=float, default=900, help="--show: seconds to wait for nTop")
+    _add_prep_args(rg)
     rg.set_defaults(fn=cmd_ring)
 
     sk = sub.add_parser("shank", help="a shaped shank: tapered, contoured, double, split, rope or Celtic plait (ring_shank.ntop)")
@@ -1116,6 +1227,7 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--project", default="Bands")
     sk.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     sk.add_argument("--dry-run", action="store_true")
+    _add_prep_args(sk)
     sk.set_defaults(fn=cmd_shank)
 
     tx = sub.add_parser("texture", help="a hammered band: strikes of a round hammer face, overlapping into facets (ring_texture.ntop)")
@@ -1143,6 +1255,7 @@ def main(argv: list[str] | None = None) -> int:
     tx.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     tx.add_argument("--write-design", action="store_true", help="write Python's design (STL + strike centres) to look at - not an nTop build")
     tx.add_argument("--dry-run", action="store_true")
+    _add_prep_args(tx)
     tx.set_defaults(fn=cmd_texture)
 
     tp_ = sub.add_parser("texture-probe", help="nTop's own texture blocks on a plain band, each measured against the designed section (texture_probe.ntop)")
@@ -1167,6 +1280,7 @@ def main(argv: list[str] | None = None) -> int:
     la.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     la.add_argument("--write-design", action="store_true", help="write Python's own mesh of the design to look at - not an nTop build")
     la.add_argument("--dry-run", action="store_true")
+    _add_prep_args(la)
     la.set_defaults(fn=cmd_lattice)
 
     pv = sub.add_parser("pave", help="a pavé band: rows of small stones in seats with light holes, held by beads (pave_band.ntop)")
@@ -1193,6 +1307,7 @@ def main(argv: list[str] | None = None) -> int:
     pv.add_argument("--project", default="Pave")
     pv.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     pv.add_argument("--dry-run", action="store_true")
+    _add_prep_args(pv)
     pv.set_defaults(fn=cmd_pave)
 
     mu = sub.add_parser("multistone", help="a centre stone and side stones in a row along the band (multistone.ntop)")
@@ -1242,6 +1357,7 @@ def main(argv: list[str] | None = None) -> int:
     mu.add_argument("--project", default="Multistone")
     mu.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     mu.add_argument("--dry-run", action="store_true")
+    _add_prep_args(mu)
     mu.set_defaults(fn=cmd_multistone, width=2.6, thickness=1.8, tolerance=0.05)
 
     aw = sub.add_parser("artwork", help="artwork in relief in sunk panels on the band's faces: leaf rows, a vine scroll (ring_artwork.ntop)")
@@ -1255,6 +1371,7 @@ def main(argv: list[str] | None = None) -> int:
     aw.add_argument("--project", default="Artwork")
     aw.add_argument("--metal", choices=sorted(tables.METALS), help="with --deliver: also write the print file scaled for this metal's casting shrink")
     aw.add_argument("--dry-run", action="store_true")
+    _add_prep_args(aw)
     aw.set_defaults(fn=cmd_artwork, profile="flat", width=2.8, thickness=2.0, tolerance=0.05)
 
     gm = sub.add_parser("gem", help="a parametric stone body (round, oval, pear, marquise, cushion, emerald, asscher, cabochon, pearl) as STL")
@@ -1365,6 +1482,7 @@ def main(argv: list[str] | None = None) -> int:
     so.add_argument("--project", default="Solitaires")
     so.add_argument("--metal", choices=sorted(tables.METALS))
     so.add_argument("--dry-run", action="store_true")
+    _add_prep_args(so)
     so.set_defaults(fn=cmd_solitaire)
 
     g = sub.add_parser("gate")

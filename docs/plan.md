@@ -57,6 +57,9 @@ updated from here, not the other way round. Dates are evenings-and-weekends pace
   that float32 STL and Import Mesh turn into self-intersections (Phase 3 step 1e). Bodies that
   cross each other travel in separate bars (up to four) and nTop unites them; a design needing
   more than four mutually crossing bodies has no notebook yet.
+- The print preparation's numbers (overhang angle, tip, spacing, lift) are defaults and its island and suction
+  models are geometric: what the resin does at a contact (the swelling of 6 Nov), how small an island the printer
+  still bonds, and whether a long thin column sways are for the test prints to say. It does not set exposures.
 - Blender scripts run only on the laptops (bpy); the offline suite imports them with stubs.
 - nTop runs on the main laptop only (32 GB); casting trees may need the 128 GB machine.
 
@@ -707,6 +710,45 @@ explore the ring space fully before pendants, bracelets and chains; blends first
    lattice on a shaped shank or under a head, fillets at the sheet feet (a blended union with the skin, the overlap
    past the blend).
 
+## Print preparation (2026-11-07)
+
+Mark's first test prints (6 Nov: the court band with milgrain, groove and "M+K 2026" inside; the hammered band; the
+Seraphine) printed, but the slicer's supports swelled where they met the part and no orientation found by hand kept
+them off the features. Chosen (7 Nov): our own orientation and supports, the slicer adding nothing. **Done**
+(`printprep.py`, `raster.py`; `--prep` on every ring command after a PASSED build, `--prep-stl` for a part built
+earlier with the same arguments):
+
+1. **Surface classes from the design.** Each family names its plain body - the band's section, or the shank's at every
+   2° - and the zones on it that are features all the same (a texture, the lattice, artwork panels, pavé, shoulder
+   knots, the text). A face on the plain section is a polished face, or the bore when it faces the axis; anything off
+   it - beads, groove, engraving, head, prongs, seat, arches, relief, a slot's walls - is a feature; plain faces within
+   0.5 mm of a feature count as feature (the nub and its sanding stay on plain metal). `--bore avoid` makes the bore
+   off-limits too.
+2. **Orientation.** 600 build directions scored from the faces' normals (overhang area by class, height); the best ten
+   (15° apart) and the usual ones (standing, 30/45/60° tilts head up, flat) sliced exactly in height on 0.1 mm
+   columns: every down-facing point with no solid within 45° below it, every island (a layer's piece touching nothing
+   printed before it), every suction cup (resin walled in by a layer and sealed below), the largest layer, the height.
+   Score: feature islands 30 each, uncovered feature overhang 40 per mm², contacts 1 (bore 1.5), suction 4 per mm²,
+   peel and height a little. The winner is sliced again at 0.05 mm / the printer's layer.
+3. **Supports.** A contact on every plain island, then along every plain overhang at 1.5 mm, lowest first; each a
+   0.25 mm breakaway tip reaching 0.1 mm in (more on a slope), a cone to a 0.8 mm column (thicker when long), straight
+   down to a chamfered raft 5 mm below the part, or standing on the part (plain metal) where it lies below; every
+   column 0.3 mm off the part. Part ∪ supports ∪ raft as one manifold: `<stem>.supported.stl`
+   (`.supported_<metal>.stl` with `--metal`), `<stem>.prep.json`, `<stem>.prep.png`.
+
+On the three test prints' own STLs (here, 7 Nov): the court band with the bore kept clear stands at 30°, 14 supports on
+the dome's polished strips, but every orientation leaves bead islands (58 at 30°) and the bore's crown overhangs
+unsupported (49 mm²); with the bore allowed it tilts 39°, 27 supports (18 reaching the bore from the raft through its
+opening), 66 bead islands, 21 mm² of feature overhang. The hammered band lies flat on a side face: 33 supports on its
+polished side, nothing on the texture, no feature islands (73 s for 2.4 M triangles). The Seraphine stands head up at
+6°: 36 supports (14 in the bore, from the raft past the shank's bottom, 8 struts), 14 islands at the panels' ends,
+16 mm² of feature overhang on the relief and knots, a 4 mm² suction cup (the knots' lobes) - 82 s for 3 M triangles.
+*Real check:* print the three from these files at the same settings as on 6 Nov; compare the contacts (swelling,
+nubs), the bead row, the bore on the mandrel, the panels' ends against `prep.json`'s list of unsupported spots;
+then calibrate `print_overhang_deg`, `support_tip_mm` and `support_spacing_mm` (tables, dated log entries).
+*Open:* angled tips (a contact's approach along the surface normal rather than straight up), braces between tall
+columns, supporting a feature island on demand, the slicer's exposure kept out of it (bloom is the printer's).
+
 ## Notebook readability (2026-11-04)
 
 Mark's ask: the notebooks simpler and readable by a person, without restructuring the codebase. Done:
@@ -747,7 +789,7 @@ variables stay at the top level (layout only; rebuild a runner to see its sectio
    and `ntop\recipes\ring_features.recipe.json`.
 2. Choose the band to print (profile, size, with or without features); `python -m ntopjewel ring … --deliver`
    produces `OneDrive\Documents\Jewelry\Rings\<stem>\` with the STL, inputs, reports and manifest.
-3. Print it; measure the inner diameter on the mandrel; set `allowance_mm` (and, if the
+3. Print it from its prepared file (`--prep`, the bore kept clear: `--bore avoid`); measure the inner diameter on the mandrel; set `allowance_mm` (and, if the
    printer under-sizes bores consistently, a calibrated `print_bore_offset` entry in the tables).
 4. Cast it; weigh it; record the cast size offset and the measured density in
    `data/jewelry_tables.json` with a dated `calibration_log` entry and `status: calibrated`.
@@ -771,7 +813,8 @@ laptop whenever a notebook, a build script or the gate changes:
 | Headless run + gate | `python -m ntopjewel band …` / `ring …` / `shank …` | `status: PASSED`, design volume within tolerance, section shape within 0.03 mm (an edge left sharp fails here, 30 Oct) |
 | Visual | `python -m ntopjewel ring … --show`; eyes on the ring in nTop | beads, groove, text where designed |
 | Blender | `blender -b -P blender\monstera\test_ring.py -- 6`; the product shot (skill `blender-jewelry-render`) | check_model report and renders written under `out\blender\` |
-| Physical | print, measure, cast, weigh (above) | the Phase 1 gate |
+| Print file | `python -m ntopjewel <ring command> … --prep` (or `--prep-stl` for a part built earlier) | `==> PASSED` with the print file: one body on the plate, every contact on plain metal; the preview's unsupported spots acceptable |
+| Physical | print the prepared file, measure, cast, weigh (above) | the Phase 1 gate |
 
 `pytest python\tests -q -m slow` is reserved for tests that call the real nTopCL; none exist yet
 (the first will wrap the headless run above once a printer and resin are chosen).

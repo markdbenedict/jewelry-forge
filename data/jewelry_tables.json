@@ -399,6 +399,66 @@
       "value": 0.0,
       "status": "calibrated",
       "source": "what the seed's re-distance (the mesh round trip) takes off a lattice sheet in nTop, added to the seed: the second run (7 Nov, seed 0.2 re-distanced at Mesh Tolerance 0.1 and grown 0.2) read the sheet off the trim at median 0.602 for 0.6 (p1 0.574) and the growth off the faces at 0.2036 for 0.2 - nothing to correct; the third (ring_lattice 0.3.0, a 0.1 seed re-distanced at 0.05 and grown 0.25) read it at median 0.600 (p1 0.587): confirmed"
+    },
+    "print_layer_mm": {
+      "value": 0.05,
+      "status": "default",
+      "source": "the printer's layer height (Elegoo Mars 5 Ultra, Siraya Tech Royal Blue): the print preparation slices at it to find islands and suction cups; set to what the slicer prints"
+    },
+    "print_overhang_deg": {
+      "value": 45.0,
+      "status": "default",
+      "source": "the shallowest down-facing surface, from horizontal, that prints without a support: a face flatter than this (or any island) needs one; the usual figure for a bottom-up resin printer, to confirm on the test prints"
+    },
+    "support_tip_mm": {
+      "value": 0.25,
+      "status": "default",
+      "source": "a support's diameter where it touches the part - the breakaway neck, the narrowest point, so it snaps at the surface; light tips leave less of the swelling seen at the first prints' contacts (6 Nov), too light and a tip lets go mid-print"
+    },
+    "support_contact_depth_mm": {
+      "value": 0.1,
+      "status": "default",
+      "source": "how far a tip reaches into the part (more on a sloped face, so the whole tip is in): enough to fuse, little enough that the nub sands off flush"
+    },
+    "support_tip_length_mm": {
+      "value": 1.0,
+      "status": "default",
+      "source": "the cone from the tip to the column: the column's bulk stays this far from the part"
+    },
+    "support_column_mm": {
+      "value": 0.8,
+      "status": "default",
+      "source": "a support column's diameter (a long one thickens to a fifteenth of its length, at most 1.6)"
+    },
+    "support_spacing_mm": {
+      "value": 1.5,
+      "status": "default",
+      "source": "contacts at least this far apart along an overhang; a contact holds the overhang within three quarters of it"
+    },
+    "support_lift_mm": {
+      "value": 5.0,
+      "status": "default",
+      "source": "the part's lowest point above the raft: clear of the bottom layers' long exposure and room to cut the supports"
+    },
+    "support_clearance_mm": {
+      "value": 0.3,
+      "status": "default",
+      "source": "the gap kept between a support column and the part, away from its own tip"
+    },
+    "support_keepoff_mm": {
+      "value": 0.5,
+      "status": "default",
+      "source": "no contact nearer a feature (beads, engraving, texture, head, panels, knots) than this: the nub and its sanding stay on plain metal"
+    },
+    "raft_thickness_mm": {
+      "value": 0.8,
+      "status": "default",
+      "source": "the raft under the supports, its top edge chamfered for the scraper"
+    },
+    "raft_margin_mm": {
+      "value": 1.0,
+      "status": "default",
+      "source": "the raft's reach past the outermost support base"
     }
   },
   "calibration_log": [

@@ -36,7 +36,7 @@ def spec_id(design: dict) -> str:
 
 
 WINDOWS_MAX_PATH = 259                   # MAX_PATH - 1: the longest path a Windows API call takes without long paths
-LONGEST_SUFFIX = ".print_sterling.stl"    # the longest file name a run writes beside <stem>.stl
+LONGEST_SUFFIX = ".supported_sterling.stl"    # the longest file name a run writes beside <stem>.stl (printprep's print file)
 RUN_ID_CHARS = len("YYYYmmdd-HHMMSS-9")
 
 
@@ -66,7 +66,7 @@ def fresh_run_dir(out_dir: Path, stem: str, max_path: int | None = None) -> tupl
     """A directory no run has used: <out_dir>/<stem>/<YYYYmmdd-HHMMSS>[-n]. Returns (dir, run id).
 
     Refused (RunPathError) before anything is made when the longest file the run will write,
-    `<dir>/<stem>/<run id>/<stem>.print_sterling.stl`, would exceed `max_path` (default: 259 on
+    `<dir>/<stem>/<run id>/<stem>.supported_sterling.stl`, would exceed `max_path` (default: 259 on
     Windows without the LongPathsEnabled policy, no limit elsewhere): a stem appears twice in every
     file's path and a solitaire's runs to 90 characters, so a deep `--out` hits Windows' MAX_PATH
     with a FileNotFoundError from the middle of a build (seen 2026-11-03 under pytest's temp dir)."""

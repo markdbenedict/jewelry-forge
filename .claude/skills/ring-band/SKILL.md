@@ -71,6 +71,8 @@ one. `--deliver` copies a **PASSED** part with all of that and a `manifest.json`
 `OneDrive\Documents\Jewelry\<project>\<stem>\`; a FAILED or INCOMPLETE part is never delivered
 (the note says `not delivered: status ...`).
 
+**The print file**: add `--prep` to any build (or `--prep-stl <the STL>` with the arguments it was built with) for `<stem>.supported.stl` - oriented, supported on polished faces and the bore only, on a raft, one body to slice as it is (`--bore avoid`, `--orient`, `--metal`; see `jewelry-design-rules`, "Printing").
+
 ## Report back
 
 Paste the gate text (PASS / FAIL / INCOMPLETE, inner Ø, outer Ø, width, wall, volume,

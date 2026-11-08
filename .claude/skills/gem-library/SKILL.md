@@ -188,6 +188,8 @@ The 10 x 7 x 4.5 pear is an illustrative fixture, not the photo's stone (unmeasu
 triangles (264 MB), past the gate's 5 M `mesh density` limit (triangles ∝ 1/tolerance²: 0.06 gives ~3.7 M; its 0.03 mm
 voxel still resolves the 0.65 mm walls and 0.3 mm blends).
 
+**The print file**: add `--prep` to any build (or `--prep-stl <the STL>` with the arguments it was built with) for `<stem>.supported.stl` - oriented, supported on polished faces and the bore only, on a raft, one body to slice as it is (`--bore avoid`, `--orient`, `--metal`; see `jewelry-design-rules`, "Printing").
+
 ## The solitaire (`solitaire.ntop`, `solitaire_outline.ntop`, `solitaire_bezel.ntop`, `ntopjewel.solitaire`)
 
 ```powershell

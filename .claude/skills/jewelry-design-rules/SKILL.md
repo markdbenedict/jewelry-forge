@@ -87,6 +87,36 @@ castable resin ≈ 1.15. Weight = volume (mm³) × density / 1000. `tables.weigh
 - Linear shrink, model → cast: sterling ≈ 1.7 %, gold alloys ≈ 1.4 %, platinum ≈ 1.0 %,
   bronze ≈ 1.5 % (`tables.shrink_scale(metal)`). Applied as a uniform scale before meshing.
 
+## Printing: orientation and supports (`--prep`, `printprep.py`)
+
+The printer gets a file already oriented and supported - Mark slices it as it is and adds nothing. Every number is a
+`default` in the tables' settings until the test prints set it:
+
+| Setting | Default | What it is |
+| --- | --- | --- |
+| `print_layer_mm` | 0.05 | the slicer's layer; the preparation slices at it for islands and suction cups |
+| `print_overhang_deg` | 45 | a down-facing surface flatter than this (from level) needs a support; any island does |
+| `support_tip_mm` | 0.25 | the contact's diameter, the breakaway neck at the surface (light tips swell less where they meet the part) |
+| `support_contact_depth_mm` | 0.1 | how far the tip reaches in (more on a slope, so the whole tip is in) |
+| `support_tip_length_mm` / `support_column_mm` | 1.0 / 0.8 | the cone to the column; a long column thickens to 1/15 of its length (≤ 1.6) |
+| `support_spacing_mm` | 1.5 | contacts along an overhang; one holds the overhang within ¾ of it |
+| `support_lift_mm` / `raft_thickness_mm` | 5.0 / 0.8 | the part's lowest point above the raft; the raft, chamfered for the scraper |
+| `support_clearance_mm` | 0.3 | columns kept this far off the part |
+| `support_keepoff_mm` | 0.5 | no contact nearer a feature than this |
+
+- **Contacts on plain metal only**: polished faces (dome, side faces, rims) and the bore - never on beads, engraving,
+  texture, lattice, relief panels, knots, prongs, seats, arches. The classes come from the design (the plain section
+  and the family's zones), not from the mesh. `--bore avoid` keeps the bore clear too (a calibration ring read on the
+  mandrel); then its overhangs count as unsupportable.
+- **Orientation**: whatever leaves the fewest feature islands (a piece of a layer touching nothing printed before it -
+  it prints on the film, not on the part, and the feature comes out short) and the least feature overhang no contact
+  covers, then the fewest contacts, then no suction cups (resin walled in by a layer and sealed below - a knot's lobe,
+  a bezel cup facing the film), small layers, low height. Milgrain on both edges always leaves some bead islands; a
+  hammered or textured band prints flat on a side face; a solitaire stands head up, the bore held from the raft past
+  the shank's bottom or by struts on the bore's floor.
+- Report and warnings name what is left unsupported in the ring's own angles (θ from the head, r, z), so the test
+  prints can be read against them.
+
 ## Before any export
 
 1. Gate floors set for the metal (`--wall-floor`), expected inner diameter and width given.

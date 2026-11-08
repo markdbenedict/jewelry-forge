@@ -95,6 +95,8 @@ known unit, Polar Array takes `Angular Spacing` / `Count` / `Axis`, Axis takes `
 confirm with nTopCL: Import Mesh's default length unit (the gate's volume and the engraving
 note catch a wrong unit).
 
+**The print file**: add `--prep` to any build (or `--prep-stl <the STL>` with the arguments it was built with) for `<stem>.supported.stl` - oriented, supported on polished faces and the bore only, on a raft, one body to slice as it is (`--bore avoid`, `--orient`, `--metal`; see `jewelry-design-rules`, "Printing").
+
 ## Report back
 
 The gate text with its `status:` line (PASSED / FAILED / INCOMPLETE), the engraving note

@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 GREEN, RED, YELLOW, BOLD, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[1m", "\033[0m"
-FAMILIES = ("band", "ring", "shank", "seat", "head", "solitaire")
+FAMILIES = ("band", "ring", "shank", "seat", "head", "solitaire", "prep")
 _vt_ready = False
 
 
@@ -55,17 +55,38 @@ def _short(detail: str, limit: int = 70) -> str:
     return d if len(d) <= limit else d[:limit - 1] + "…"
 
 
-def verdict(res, stream=None) -> str:
-    """The one line that says how a build went: PASSED / FAILED with the failing checks named."""
+def verdict(res, stream=None, prep=None) -> str:
+    """The one line that says how a build went: PASSED / FAILED with the failing checks named - and, after a print
+    preparation (`prep`, printprep.PrepResult), what it made or why it failed."""
     stem = Path(getattr(res, "stl", "") or "").stem or getattr(getattr(res, "spec", None), "stem", "?")
     status = str(getattr(res, "status", "failed")).lower()
     if status == "passed":
-        return paint(f"==> PASSED  {stem}", GREEN, stream) + (f"  (delivered to {res.delivered})" if getattr(res, "delivered", None) else "")
+        if prep is not None and not prep.ok:
+            return paint(f"==> FAILED  {stem}", RED, stream) + f": print prep ({_prep_failures(prep)})"
+        line = paint(f"==> PASSED  {stem}", GREEN, stream) + (f"  (delivered to {res.delivered})" if getattr(res, "delivered", None) else "")
+        if prep is not None:
+            line += f"  print file: {prep.headline()}" + (f"; {prep.cautions()}" if prep.cautions() else "")
+        return line
     fails = _failures(getattr(res, "gate", None))
     word = "INCOMPLETE" if status == "incomplete" else "FAILED"
     why = "; ".join(f"{c.name} ({_short(c.detail)})" for c in fails) or ("the nTop run failed" if not getattr(getattr(res, "run", None), "ok", True)
                                                                           else "see the report above")
     return paint(f"==> {word}  {stem}", RED if word == "FAILED" else YELLOW, stream) + f": {why}"
+
+
+def _prep_failures(prep) -> str:
+    return "; ".join(f"{c.name} ({_short(c.detail)})" for c in prep.checks if c.hard and c.status != "passed") or "see the report above"
+
+
+def prep_verdict(prep, delivered=None, stream=None) -> str:
+    """The verdict of a print preparation on its own (`--prep-stl`): PASSED when the supported file is one sound body
+    standing on the plate with every contact on plain metal and every plain island held; what it could not support is
+    said beside it."""
+    stem = f"{prep.stem}.supported" + (f"_{prep.metal}" if prep.metal else "")
+    if prep.ok:
+        return (paint(f"==> PASSED  {stem}", GREEN, stream) + f"  ({prep.headline()}" + (f"; {prep.cautions()}" if prep.cautions() else "")
+                + ")" + (f"  (delivered to {delivered})" if delivered else ""))
+    return paint(f"==> FAILED  {stem}", RED, stream) + f": {_prep_failures(prep)}"
 
 
 def error_line(what: str, err, stream=None) -> str:
@@ -88,14 +109,14 @@ def scan_runs(out_dir: Path, since: datetime | None = None, last: int | None = N
     time, or the `last` N, or all."""
     rows = []
     for fam in FAMILIES:
-        for rep in Path(out_dir, fam).glob("*/*/*.report.json"):
+        for rep in Path(out_dir, fam).glob("*/*/*.prep.json" if fam == "prep" else "*/*/*.report.json"):
             run_dir = rep.parent
             try:
-                when = datetime.strptime(run_dir.name, "%Y%m%d-%H%M%S")
+                when = datetime.strptime(run_dir.name[:15], "%Y%m%d-%H%M%S")
                 doc = json.loads(rep.read_text(encoding="utf-8"))
             except (ValueError, OSError):
                 continue
-            g = doc.get("gate") or {}
+            g = doc.get("gate") or {"checks": doc.get("checks", [])}
             fails = [f"{c['name']} ({_short(c.get('detail', ''), 48)})" for c in g.get("checks", [])
                      if c.get("status", "passed" if c.get("ok") else "failed") != "passed" and c.get("hard", True)]
             rows.append(RunRow(when, fam, doc.get("stem", run_dir.parent.name), str(doc.get("status", "?")).lower(), fails, run_dir))

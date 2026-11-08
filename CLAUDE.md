@@ -85,7 +85,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   a file. Every run writes into a fresh `out\<family>\<stem>\<run id>\` directory and the
   export must have been written by that run (`runs.require_fresh`). The report JSON records
   the inputs, the notebook's sha256 and recipe, and the tool versions.
-- **A stem appears twice in every run file's path** (`out\<family>\<stem>\<run id>\<stem>.print_sterling.stl`),
+- **A stem appears twice in every run file's path** (`out\<family>\<stem>\<run id>\<stem>.supported_sterling.stl`, the longest),
   and a solitaire's is up to 90 characters, so a deep `--out` passes Windows' MAX_PATH (260) and a build
   dies mid-way with FileNotFoundError (2026-11-03, pytest's temp dir). `runs.fresh_run_dir` refuses such a
   run before making anything (`RunPathError`, an `==> ERROR`) unless the LongPathsEnabled policy is on
@@ -94,6 +94,24 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 - Deliverables go to Mark's `OneDrive\Documents\Jewelry\<project>\<stem>\` only when the status
   is PASSED (`--deliver`; `runs.deliver` refuses anything else): the STL with the input JSON,
   the gate and build reports and `manifest.json`. `out/` is scratch and git-ignored.
+- **The printer gets a prepared file** (`--prep` on every ring command after a PASSED build; `--prep-stl <stl>` with the
+  arguments a part was built with, for one built earlier; `printprep.py`, `raster.py`). Every face is classed from the
+  DESIGN - a polished face (on the plain band's or shank's section), the bore (on it, facing the axis), a feature (off
+  it: beads, engraving, prongs, seat, arches, knots, relief, a slot's walls; or in a family zone: a texture, the
+  lattice, panels, pavé, the text) - and contacts go on polished faces and the bore only, none within
+  `support_keepoff_mm` of a feature (`--bore avoid`: the bore stays clear too, e.g. a ring the mandrel measures).
+  Build directions are scored from the normals, the best sliced exactly in height (`raster.Columns`): islands,
+  overhangs flatter than `print_overhang_deg`, suction cups, the largest layer, the height; feature islands and
+  uncovered feature overhang cost most. At the best (`--orient N` or `TILT,HEAD` for another) every island on plain
+  metal gets a contact and every plain overhang one per `support_spacing_mm`: breakaway tips `support_tip_mm` across,
+  columns `support_clearance_mm` off the part, standing on the part (plain metal) where it lies below, else on a
+  chamfered raft. The print file is ONE manifold, part ∪ supports ∪ raft on z = 0 - `<stem>.supported.stl`
+  (`<stem>.supported_<metal>.stl` with `--metal`, scaled by `tables.print_scale`) - sliced as it is, no supports added
+  in the slicer; beside it `<stem>.prep.json` (every candidate and support, what stays unsupported in ring angles)
+  and `<stem>.prep.png`. PASSED = one watertight body on the plate, every contact on plain metal, every plain island
+  held; feature islands and feature overhang are warnings. With `--deliver` the files join the design's PASSED
+  delivery (manifest `prep`). Settings `print_*`, `support_*`, `raft_*` in the tables, all `default` until the test
+  prints calibrate them.
 - **Shrink is a scale, allowance is fit.** Casting and resin shrink are isotropic (width,
   thickness and seats shrink too), so they are never folded into `allowance_mm`. Every part is
   designed and gated at its finished size; `--deliver --metal sterling` adds
@@ -392,7 +410,7 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
 | `catalog/` | YAML schema of every runner notebook's inputs (types, units, ranges, defaults) |
 | `data/jewelry_tables.json` | The one source of engineering numbers (metals, floors, casting, sprue allowance) with status and provenance, for Python and Blender |
 | `docs/plan.md` | Plan of record: phases and gates, what exists, limitations, next milestone, real-check list |
-| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`: the faceted shapes incl. the asscher, a cabochon, a half-drilled pearl), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), partial bezels - two walls and a hood over each point, built in nTop from primitives (`partial_bezel.py`), pavé layouts, seats and beads (`pave.py`), multi-stone rings (`multistone.py`: heads spun, placed and turned, side angles solved), artwork on the band (`artwork.py`: 2-D motifs in relief in sunk panels on any face, built in the bar frame and wrapped; under a solitaire's head too), knot ornaments standing on a band (`ornament.py`: a closed trinity knot woven in two pieces on the outer face, wider than the band - the Seraphine's shoulders), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`; its shank a bar from `shank.py`, carved by the artwork before the arches and the head join it), shaped shanks (`shank.py`: the ring unrolled as a bar for nTop to wrap), Celtic knotwork (`knotwork.py`: strands interlaced in the ring's surface - crossings incl. self-crossings, the alternating over/under, the radial laws, the trefoil motif, ribbon sweeps that share rings and caps), surface textures (`texture.py`: a hammered band - seeded strikes of one hammer face, gated against the band less the spheres; `texture_probe.py` + `nb_texture.py`: nTop's own texture blocks measured against the band's section and drawn as depth maps; `fieldtex.py`: nTop's own textures - voronoi deboss, frost / pitted / cellular noises, the ribbed wave - on a band's outer face, gated by an envelope), lattice bands (`lattice.py` + `nb_lattice.py`: nTop's walled gyroid between a bore skin and the rims, open to the outside; Python's exact model of it - the gyroid's distance, the wrap, the opening at the dome -, the gate that matches the built mesh to it point by point and flood-fills every void from the outer face), shared independent geometry (`geom.py`), CLI |
+| `python/ntopjewel/` | Runner, catalog validation, tables, mesh gate, run identity + delivery (`runs.py`), Notebook API client + `nb_jewel` build helpers (incl. the generic block `harness`), band/features specs, engraving meshes, stones and seats (`gems.py`: the faceted shapes incl. the asscher, a cabochon, a half-drilled pearl), prong heads incl. outline heads for fancy stones and bezels (`heads.py`), partial bezels - two walls and a hood over each point, built in nTop from primitives (`partial_bezel.py`), pavé layouts, seats and beads (`pave.py`), multi-stone rings (`multistone.py`: heads spun, placed and turned, side angles solved), artwork on the band (`artwork.py`: 2-D motifs in relief in sunk panels on any face, built in the bar frame and wrapped; under a solitaire's head too), knot ornaments standing on a band (`ornament.py`: a closed trinity knot woven in two pieces on the outer face, wider than the band - the Seraphine's shoulders), the solitaire assembly (`solitaire.py`, notebook body `nb_solitaire.py`; its shank a bar from `shank.py`, carved by the artwork before the arches and the head join it), shaped shanks (`shank.py`: the ring unrolled as a bar for nTop to wrap), Celtic knotwork (`knotwork.py`: strands interlaced in the ring's surface - crossings incl. self-crossings, the alternating over/under, the radial laws, the trefoil motif, ribbon sweeps that share rings and caps), surface textures (`texture.py`: a hammered band - seeded strikes of one hammer face, gated against the band less the spheres; `texture_probe.py` + `nb_texture.py`: nTop's own texture blocks measured against the band's section and drawn as depth maps; `fieldtex.py`: nTop's own textures - voronoi deboss, frost / pitted / cellular noises, the ribbed wave - on a band's outer face, gated by an envelope), the print preparation (`printprep.py`: the faces classed from the design, the orientation search, supports and raft, one manifold print file; `raster.py`: triangles to columns - the slicer - and the preview renderer), lattice bands (`lattice.py` + `nb_lattice.py`: nTop's walled gyroid between a bore skin and the rims, open to the outside; Python's exact model of it - the gyroid's distance, the wrap, the opening at the dome -, the gate that matches the built mesh to it point by point and flood-fills every void from the outer face), shared independent geometry (`geom.py`), CLI |
 | `python/tests/` | pytest, offline: `fake_ntopcl.py` simulates nTop (builds the designed geometry with `pseudo_blend.py`'s blended booleans, can be told to misbehave), `fake_notebook.py` the Notebook API; nTop runs would be marked `slow` |
 | `python/constraints.txt` | The pinned, known-working dependency set (bootstrap and CI install with `-c`) |
 | `.github/workflows/tests.yml` | The offline suite on every push and PR, Linux and Windows |
@@ -483,6 +501,8 @@ python -m ntopjewel texture --kind frost --thickness 1.6 --tolerance 0.05 --grai
 python -m ntopjewel solitaire --size 6 --length 6.5 --hammered        # a hammered solitaire: the band struck before the arches and the head join it, none within their reach (all four solitaire notebooks; not with artwork, shoulder knots or a knot shank)
 python -m ntopjewel lattice --dry-run                                 # a lattice band: flat US6 7 x 3.5, nTop's walled gyroid (3.5 mm cells, 0.6 sheets) from a 0.8 skin to the outer face between 0.75 rims, every void open; --cell --member --skin --rim; --write-design writes Python's mesh of it
 python -m ntopjewel lattice --width 6 --thickness 3.3                 # ... through ring_lattice.ntop + the lattice gate: match against the model, sheets, pores, open voids (flood fill), design volume (out\lattice)
+python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --prep --bore avoid   # ... and its print file: oriented, supported on plain metal only (not the bore), on a raft -> <stem>.supported.stl + .prep.json + .prep.png in the run dir
+python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity --leaf-tilt 7.5 --leaf-stem 0.5 --stem-width 0.15 --width-bottom 2 --thickness-bottom 1.5 --prep-stl "<...\Solitaires\<stem>\<stem>.stl>" --deliver   # prepare a part built earlier (its own arguments; out\prep), added to its PASSED delivery; --orient 2 / --orient 45,45 for another orientation, --metal sterling to scale it for casting
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests
@@ -505,7 +525,7 @@ pytest python\tests -q -m slow                  # tests that run nTop
 
 - `ntop-automate` — anything that runs a notebook, builds input JSON, reads a log, or
   authors a notebook through the Notebook API.
-- `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers.
+- `jewelry-design-rules` — sizes, walls, prongs, bezels, chains, casting numbers, print orientation and supports.
 - `ring-band` — the band family (Phase 0 hello band, profiles from Phase 1, shaped shanks from Phase 3).
 - `ring-features` — milgrain, channel groove and wrapped engraving on a band (`ring` command); artwork in relief in sunk panels on its faces (`artwork`); surface textures (`texture`: hammered, nTop's own); open lattice bands (`lattice`: a gyroid between a bore skin and the rims).
 - `gem-library` — stone bodies, seats, prong heads, the solitaire, multi-stone rings and pavé (`gem`, `seat`, `head`, `solitaire`, `multistone`, `pave`).
