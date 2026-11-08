@@ -433,7 +433,7 @@
     "support_spacing_mm": {
       "value": 1.5,
       "status": "default",
-      "source": "contacts at least this far apart along an overhang; a contact holds the overhang within three quarters of it"
+      "source": "contacts at least this far apart along an overhang; a contact holds the overhang within three quarters of it (and a feature's overhang beside it)"
     },
     "support_lift_mm": {
       "value": 5.0,
@@ -459,6 +459,21 @@
       "value": 1.0,
       "status": "default",
       "source": "the raft's reach past the outermost support base"
+    },
+    "test_print_size": {
+      "value": 4.5,
+      "status": "default",
+      "source": "the US size every test print is built at (`testprint`): Mark, 8 Nov - test prints are rings someone can wear (the 6 Nov round was US 6)"
+    },
+    "test_print_hammered_spacing_mm": {
+      "value": 3.0,
+      "status": "default",
+      "source": "the hammered test band's support spacing: Mark, 8 Nov - the 33 contacts at 1.5 mm (a ring of them round its side face, lying flat) would swell where they meet the part; 3.0 gives 16 on the US 6 band, about half (its contacts lie along one narrow strip, so their number goes as 1 / spacing)"
+    },
+    "test_print_seraphine_spacing_mm": {
+      "value": 2.2,
+      "status": "default",
+      "source": "the Seraphine's support spacing: Mark, 8 Nov - 36 contacts at 1.5 mm too dense; 2.2 gives 20 on the US 6 part (2.5 gave 15), about half (on areas their number goes as 1 / spacing²)"
     }
   },
   "calibration_log": [

@@ -279,11 +279,14 @@ def _add_prep_args(p: argparse.ArgumentParser) -> None:
                         "raft -> <stem>.supported.stl (scaled for casting with --metal: .supported_<metal>.stl) + .prep.json, .prep.png")
     g.add_argument("--prep-stl", metavar="STL",
                    help="prepare an existing STL of this design instead of building it (its file name must carry this design's "
-                        "stem); files in out\\prep, --deliver adds them to the design's PASSED delivery")
+                        "stem; 'delivered': the design's own delivery); files in out\\prep, --deliver adds them to the design's "
+                        "PASSED delivery")
     g.add_argument("--bore", choices=("allow", "avoid"), default="allow",
                    help="supports in the bore: allow (default), or avoid (a bore the mandrel reads)")
     g.add_argument("--orient", help="force the orientation: a rank from the search (2 = the runner-up), or TILT,HEAD in degrees "
                                     "(the ring axis to the plate, the head above level)")
+    g.add_argument("--support-spacing", type=float, metavar="MM",
+                   help="contacts at least this far apart along an overhang, for this run (default: the tables' support_spacing_mm)")
 
 
 def _parse_orient(text):
@@ -303,7 +306,8 @@ def _prep(a: argparse.Namespace, spec, stl: Path, out_dir: Path):
     from . import printprep
     try:
         res = printprep.prepare(stl, spec, out_dir, stem=spec.stem, metal=getattr(a, "metal", None), bore=a.bore,
-                                orient=_parse_orient(a.orient), progress=lambda m: print(f"  ... {m}", file=sys.stderr, flush=True))
+                                orient=_parse_orient(a.orient), settings={"support_spacing_mm": getattr(a, "support_spacing", None)},
+                                progress=lambda m: print(f"  ... {m}", file=sys.stderr, flush=True))
     except (ValueError, OSError) as e:
         return None, e
     print(res.text())
@@ -331,8 +335,13 @@ def _add_to_delivery(folder: Path, prep, bore: str) -> Path | None:
     return Path(folder)
 
 
+_LAST_RUN: dict | None = None     # what the last build or preparation made: {spec, res, prep, delivered} (testprint reads it)
+
+
 def _finish(a: argparse.Namespace, spec, res) -> int:
     """The end of a build command: the report, the print preparation when asked (a PASSED part only), ONE verdict line."""
+    global _LAST_RUN
+    _LAST_RUN = {"spec": spec, "res": res, "prep": None, "delivered": res.delivered}
     print(res.text())
     prep = None
     if getattr(a, "prep", False):
@@ -342,6 +351,7 @@ def _finish(a: argparse.Namespace, spec, res) -> int:
                 print(f"print prep failed: {err}")
                 print(summary.error_line(f"{spec.stem} print prep", err))
                 return 2
+            _LAST_RUN["prep"] = prep
             if res.delivered and prep.ok:
                 _add_to_delivery(Path(res.delivered).parent, prep, a.bore)
         else:
@@ -351,8 +361,17 @@ def _finish(a: argparse.Namespace, spec, res) -> int:
 
 
 def _prep_only(a: argparse.Namespace, spec) -> int:
-    """--prep-stl: the print preparation of an existing STL of this design (nothing is built)."""
-    stl = Path(a.prep_stl)
+    """--prep-stl: the print preparation of an existing STL of this design (nothing is built); `--prep-stl delivered`
+    takes the design's own delivery (<Jewelry>/<project>/<stem>/<stem>.stl)."""
+    global _LAST_RUN
+    _LAST_RUN = {"spec": spec, "res": None, "prep": None, "delivered": None}
+    if a.prep_stl == "delivered":
+        stl = config.deliver_dir() / a.project / spec.stem / f"{spec.stem}.stl"
+        if not stl.is_file():
+            print(summary.error_line("prep", f"no delivery of {spec.stem} in {stl.parent} (build it with --deliver first)"))
+            return 2
+    else:
+        stl = Path(a.prep_stl)
     if not stl.is_file():
         print(summary.error_line("prep", f"{stl} is not a file"))
         return 2
@@ -370,14 +389,51 @@ def _prep_only(a: argparse.Namespace, spec) -> int:
         print(f"print prep failed: {err}")
         print(summary.error_line("prep", err))
         return 2
+    _LAST_RUN["prep"] = prep
     delivered = None
     if getattr(a, "deliver", False):
         folder = config.deliver_dir() / a.project / spec.stem
         delivered = _add_to_delivery(folder, prep, a.bore) if prep.ok else None
         if delivered is None:
             print(f"  not delivered: " + (f"{folder} holds no PASSED delivery of this design" if prep.ok else f"status {prep.status}"))
+    _LAST_RUN["delivered"] = delivered
     print(summary.prep_verdict(prep, delivered))
     return 0 if prep.ok else 1
+
+
+def _run_part(args: list[str]) -> dict:
+    """One part of a test print through its own command: {code, spec, res, prep, delivered}."""
+    global _LAST_RUN
+    _LAST_RUN = None
+    code = main(args)
+    rec = dict(_LAST_RUN or {})
+    rec["code"] = code
+    return rec
+
+
+def cmd_testprint(a: argparse.Namespace) -> int:
+    """The test-print round: every part of testprint.PARTS at one size (the tables' test_print_size, US 4.5), built and
+    prepared through its own command, delivered, and the round's folder written (Jewelry/Test Print/<date> US<size>)."""
+    from . import testprint
+    try:
+        parts = testprint.select(a.parts)
+    except ValueError as e:
+        print(summary.error_line("testprint", e))
+        return 2
+    size = a.size or testprint.size()
+    if a.dry_run:
+        for p in parts:
+            print(f"python -m ntopjewel {' '.join(_quote(x) for x in testprint.args_for(p, size, a.metal, a.support_spacing, a.reprep))}")
+        print(f"  -> {testprint.folder_for(config.deliver_dir(), size)}")
+        return 0
+    folder, done = testprint.run(size, parts, _run_part, config.deliver_dir(), metal=a.metal, spacing=a.support_spacing,
+                                 reprep=a.reprep)
+    print(summary.testprint_verdict(size, folder, done, testprint.ok))
+    return 0 if all(testprint.ok(rec) for _, rec in done) else 1
+
+
+def _quote(x: str) -> str:
+    return f'"{x}"' if (" " in x or not x) else x
 
 
 def cmd_ring(a: argparse.Namespace) -> int:
@@ -1506,6 +1562,19 @@ def main(argv: list[str] | None = None) -> int:
     rr.add_argument("--since", help="runs from this local time on: HH:MM today, or YYYY-MM-DD[ HH:MM]")
     rr.add_argument("--out", help="the output root (default: out/)")
     rr.set_defaults(fn=cmd_runs)
+
+    tp = sub.add_parser("testprint", help="the test-print round: the court band, the hammered band and the Seraphine at US 4.5, each "
+                                          "built, gated, prepared (oriented, supported on plain metal, on a raft) and delivered, "
+                                          "and Jewelry/Test Print/<date> US<size> written: print files, previews, README, sheet")
+    tp.add_argument("--size", default=None, help="the ring size of the round (default: the tables' test_print_size, US 4.5)")
+    tp.add_argument("--parts", help="only these parts (comma list: court, hammered, seraphine)")
+    tp.add_argument("--reprep", action="store_true", help="prepare the parts already delivered again (no nTop run): after a "
+                                                          "change to the supports")
+    tp.add_argument("--metal", help="scale the print files for this metal's casting shrink (the parts are designed and gated "
+                                    "at their finished size)")
+    tp.add_argument("--support-spacing", type=float, metavar="MM", help="one spacing for every part (default: each part's own)")
+    tp.add_argument("--dry-run", action="store_true", help="the commands it would run, and the folder")
+    tp.set_defaults(fn=cmd_testprint)
 
     api = sub.add_parser("api", help="nTop Notebook API through the Python Console (SSH localhost:2222)")
     api.add_argument("--key", help="SSH private key (default: NTOP_SSH_KEY or ~/.ssh/id_ntopcli)")

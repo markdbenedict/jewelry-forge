@@ -749,6 +749,19 @@ then calibrate `print_overhang_deg`, `support_tip_mm` and `support_spacing_mm` (
 *Open:* angled tips (a contact's approach along the surface normal rather than straight up), braces between tall
 columns, supporting a feature island on demand, the slicer's exposure kept out of it (bloom is the printer's).
 
+**8 Nov - fewer contacts, test prints at US 4.5.** Mark looked at the previews: 33 contacts on the hammered band and 36
+on the Seraphine would still swell where so much support meets one face - about half. Their counts fall differently
+(the band's contacts run along one narrow strip, ∝ 1 / spacing; the Seraphine's sit on areas, ∝ 1 / spacing²), so each
+carries its own spacing in the tables: 3.0 mm gave the hammered band 16, 2.2 mm the Seraphine 20 (on the US 6 STLs;
+the court band keeps its 14 at 1.5). And every test print is now US 4.5: `python -m ntopjewel testprint` builds the
+three, gates, prepares and delivers each, and writes `Jewelry\Test Print\<date> US4.5\` with README.md and
+measurements.md (the design numbers from the specs and the built parts). Simulated through the fake nTopCL at US 4.5:
+court band 13 supports, hammered band 15, Seraphine 17-18, all PASSED. Also: the best three orientations are sliced
+again at the printer's layer before one is chosen (a 71° tilt won the coarse search and had a feature island at
+0.05 mm); a band is searched by tilt alone; a support's neck crosses the face it meets (a tip ring lying in a flat face
+read back from STL non-manifold); the print file is read back before it is called sound.
+*Real check:* `testprint` on the laptop (nTop for the three builds), then print the round from its folder.
+
 ## Notebook readability (2026-11-04)
 
 Mark's ask: the notebooks simpler and readable by a person, without restructuring the codebase. Done:

@@ -64,6 +64,7 @@ SEARCH_DIRECTIONS = 600          # build directions scored from the normals (abo
 NORMAL_BINS = 2000               # the faces' normals binned on the sphere for that
 CANDIDATES = 10                  # ... the best this many, at least CANDIDATE_SEPARATION_DEG apart, are sliced
 CANDIDATE_SEPARATION_DEG = 15.0
+FINALISTS = 3                    # ... and the best this many sliced again at the printer's layer, the best of them chosen
 SEARCH_PIXEL_MM = 0.1            # their slicing: columns this far apart, layers this thick
 FINAL_PIXEL_MM = 0.05            # the chosen direction's, at the printer's layer
 W_FEATURE_ISLAND = 30.0          # the score, lower better: a feature island (it fails or prints deformed)
@@ -73,7 +74,8 @@ W_BORE_CONTACT = 1.5             # ... per contact in the bore (a strut inside t
 W_CUP = 4.0                      # ... per mm² of the largest suction cup
 W_PEEL = 0.03                    # ... per mm² of the largest layer
 W_HEIGHT = 0.05                  # ... per mm of height
-COVER = 0.75                     # a contact holds the overhang within this fraction of the spacing
+COVER = 0.75                     # a contact holds the overhang - a feature's beside it too - within this fraction of the
+                                 # spacing: the density chosen is the sag accepted, on plain metal and features alike
 
 # ---- the supports
 STRUT_EXTRA_MM = 0.4             # a support standing on the part is at least two tips and this long
@@ -371,21 +373,29 @@ def rough_scores(part, classes, s: dict, n_dirs: int = SEARCH_DIRECTIONS):
 
 
 def candidate_directions(D, score, top_deg, n: int = CANDIDATES, sep_deg: float = CANDIDATE_SEPARATION_DEG):
-    """The best-scored directions at least sep_deg apart, and the usual orientations of a ring beside them."""
-    picked = []
-    cos_sep = math.cos(math.radians(sep_deg))
+    """The best-scored directions at least sep_deg apart, and the usual orientations of a ring beside them. A band
+    without a head (top_deg None) looks alike from every side round its axis, so its candidates differ by TILT: two
+    directions at the same angle to the axis are one candidate (8 Nov: three finalists at 67-71° on the hammered band)."""
+    if top_deg is None:
+        def axis_tilt(u):
+            return math.degrees(math.asin(min(1.0, abs(float(u[2])))))
+
+        def apart(u, v, deg):
+            return abs(axis_tilt(u) - axis_tilt(v)) >= deg / 3.0
+    else:
+        def apart(u, v, deg):
+            return float(u @ v) < math.cos(math.radians(deg))
+    out = []
     for i in np.argsort(score):
-        if all(float(D[i] @ D[j]) < cos_sep for j in picked):
-            picked.append(int(i))
-            if len(picked) == n:
+        if all(apart(D[i], o, sep_deg) for o in out):
+            out.append(D[i])
+            if len(out) == n:
                 break
-    out = [D[i] for i in picked]
     usual = [np.array([0.0, 0.0, 1.0]), np.array([0.0, 0.0, -1.0])]
-    for tilt in (0.0, 30.0, 45.0, 60.0):
-        usual.append(direction_for(tilt, 90.0 - tilt, top_deg))
-    cos5 = math.cos(math.radians(5.0))
-    for u in usual:
-        if all(float(u @ o) < cos5 for o in out):
+    for t in (0.0, 30.0, 45.0, 60.0):
+        usual.append(direction_for(t, 90.0 - t, top_deg))
+    for u in usual:                                              # the usual ones unless already there
+        if all(apart(u, o, 3.0 if top_deg is None else 5.0) for o in out):
             out.append(u)
     return out
 
@@ -414,6 +424,24 @@ class Analysis:
     terms: dict
     score: float
     top_deg: float | None = None
+
+    def slim(self) -> "Analysis":
+        """Let the columns go once the analysis is scored (a runner-up's 16 slicings of a 3 M-triangle part held at once
+        ran a 7 GB machine out of memory, 2026-11-08): only the trouble spots stay, for the preview."""
+        if self.cols is not None:
+            self.trouble = self.trouble_points()
+            self.cols = None
+            self.u = self.u_cls = None
+            for isl in self.islands:
+                isl["supportable"] = None
+        return self
+
+    def trouble_points(self) -> np.ndarray:
+        """The feature overhang no contact covers and the feature islands' lowest points (printer frame)."""
+        if getattr(self, "trouble", None) is not None:
+            return self.trouble
+        bad = list(self.feature_uncovered[:4000]) + [isl["lowest"] for isl in self.feature_islands]
+        return self.point(bad) if bad else np.empty((0, 3))
 
     def point(self, idx) -> np.ndarray:
         """The 3-D points (printer frame) of crossings."""
@@ -764,21 +792,20 @@ def place_supports(an: Analysis, part, classes, s: dict):
 
 
 def coverage(an: Analysis, supports, s: dict) -> dict:
-    """What the supports leave: supportable overhang no contact covers, feature overhang no contact covers, islands
-    without a contact (crossing index arrays / lists)."""
+    """What the supports leave: plain overhang farther than the spacing from every contact (where the greedy pick was
+    refused), feature overhang farther than COVER x the spacing from every contact, islands without a contact
+    (crossing index arrays / lists)."""
     from scipy.spatial import cKDTree
-    radius = COVER * s["support_spacing_mm"]
     C = np.array([[sp.x, sp.y, sp.z_top] for sp in supports]) if supports else np.empty((0, 3))
     tree = cKDTree(C) if len(C) else None
 
-    def uncovered(idx):
-        if not len(idx):
-            return idx
-        if tree is None:
+    def uncovered(idx, radius):
+        if not len(idx) or tree is None:
             return idx
         return idx[tree.query(an.point(idx))[0] > radius]
     sup = an.u[SUPPORTABLE[an.u_cls]]
     feat = an.u[~SUPPORTABLE[an.u_cls]]
+    reach = s["support_spacing_mm"] + 2 * an.pixel
     lost = []
     for isl in an.islands:
         if not len(isl["supportable"]):
@@ -786,7 +813,8 @@ def coverage(an: Analysis, supports, s: dict) -> dict:
         P = an.point(isl["supportable"])
         if tree is None or tree.query(P)[0].min() > s["support_tip_mm"] + an.pixel * 2:
             lost.append(isl)
-    return {"supportable_uncovered": uncovered(sup), "feature_uncovered": uncovered(feat), "islands_lost": lost}
+    return {"supportable_uncovered": uncovered(sup, reach), "feature_uncovered": uncovered(feat, COVER * s["support_spacing_mm"]),
+            "islands_lost": lost}
 
 
 # ============================================================================ meshes
@@ -821,19 +849,25 @@ def _revolve(profile, x: float, y: float, segments: int = SEGMENTS):
     return m
 
 
+NECK_OUT_MM = 0.05               # the neck's straight run reaches this far out of the part (and a base this far above the raft):
+                                 # a ring of the solid's vertices lying IN a flat face pinched the union, and the file came
+                                 # back non-manifold from STL (8 Nov, a band lying at 73°); crossing the face, it does not
+
+
 def support_mesh(sp: Support, s: dict):
     r_tip = s["support_tip_mm"] / 2.0
     L = s["support_tip_length_mm"]
     rc = sp.diameter / 2.0
     zc = sp.z_top
+    n = NECK_OUT_MM
     if sp.kind == "raft":
         zr = sp.z_bottom
         rb = BASE_FLARE * sp.diameter
-        prof = [(0.0, zr - 0.3), (rb, zr - 0.3), (rb, zr), (rc, zr + 0.6), (rc, zc - L), (r_tip, zc), (r_tip, zc + sp.depth_top),
-                (0.0, zc + sp.depth_top)]
+        prof = [(0.0, zr - 0.3), (rb, zr - 0.3), (rb, zr + 2 * n), (rc, zr + 0.6 + 2 * n), (rc, zc - L), (r_tip, zc - n),
+                (r_tip, zc + sp.depth_top), (0.0, zc + sp.depth_top)]
     else:
         zf = sp.z_bottom
-        prof = [(0.0, zf - sp.depth_bottom), (r_tip, zf - sp.depth_bottom), (r_tip, zf), (rc, zf + L), (rc, zc - L), (r_tip, zc),
+        prof = [(0.0, zf - sp.depth_bottom), (r_tip, zf - sp.depth_bottom), (r_tip, zf + n), (rc, zf + L), (rc, zc - L), (r_tip, zc - n),
                 (r_tip, zc + sp.depth_top), (0.0, zc + sp.depth_top)]
     return _revolve(prof, sp.x, sp.y)
 
@@ -921,6 +955,9 @@ class PrepResult:
     seconds: float = 0.0
     forced: bool = False
     bodies: int = 0
+    finalists: list = field(default_factory=list)   # the search's best few, sliced again at the printer's layer
+    part_volume_mm3: float = 0.0     # the part as built (design size, specks dropped)
+    part_extents_mm: list = field(default_factory=list)   # its extents along the ring frame's X (head), Y, Z (axis)
 
     @property
     def status(self) -> str:
@@ -969,6 +1006,10 @@ class PrepResult:
         lines.append("  orientations (best first):")
         for i, an in enumerate(self.ranked[:6]):
             lines.append(f"    {i + 1}. {an.line()}")
+        if len(self.finalists) > 1:
+            lines.append(f"  the best {len(self.finalists)} sliced again at {self.finalists[0].layer:g} mm:")
+            for an in self.finalists:
+                lines.append(f"    {'*' if an is self.chosen else ' '} {an.line()}")
         lines.append(f"  chosen{' (as asked)' if self.forced else ''}: {self.headline()}")
         c = self.cover
         if self.chosen.feature_islands:
@@ -1013,9 +1054,11 @@ class PrepResult:
                         "length_mm": round(sp.length, 2), "diameter_mm": round(sp.diameter, 2), "island": sp.island})
         p2 = an.pixel ** 2
         return {"stem": self.stem, "source": str(self.source), "model": self.model.label, "metal": self.metal, "scale": self.scale,
+                "part_volume_mm3": round(self.part_volume_mm3, 2), "part_extents_mm": [round(v, 2) for v in self.part_extents_mm],
                 "settings": self.settings, "surface_mm2": {CLASS_NAMES[i]: round(a, 1) for i, a in self.class_area.items()},
                 "zones": self.model.zone_counts, "forced": self.forced,
-                "candidates": [a.summary() for a in self.ranked], "chosen": an.summary(), "supports": sup,
+                "candidates": [a.summary() for a in self.ranked], "finalists": [a.summary() for a in self.finalists],
+                "chosen": an.summary(), "supports": sup,
                 "unsupported": {"feature_islands": [self._where(isl["lowest"]) for isl in an.feature_islands],
                                 "feature_overhang_mm2": round(len(self.cover["feature_uncovered"]) * p2, 3),
                                 "plain_overhang_missed_mm2": round(len(self.cover["supportable_uncovered"]) * p2, 3),
@@ -1049,6 +1092,7 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
     say(f"classing {len(part.faces):,} faces")
     classes = model.classify(part, bore=bore, keepoff_mm=s["support_keepoff_mm"])
     area = _class_area(part, classes)
+    part_volume, part_extents = float(part.volume), [float(v) for v in part.extents]     # at the design's size
     warnings = []
     scale = 1.0
     if metal:
@@ -1060,11 +1104,19 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
     ranked = []
     for i, b in enumerate(dirs):
         say(f"slicing candidate {i + 1}/{len(dirs)}")
-        ranked.append(analyse(part, classes, b, s, SEARCH_PIXEL_MM, SEARCH_PIXEL_MM, model.top_deg))
+        ranked.append(analyse(part, classes, b, s, SEARCH_PIXEL_MM, SEARCH_PIXEL_MM, model.top_deg).slim())
     ranked.sort(key=lambda a: a.score)
     forced = orient is not None
+    finalists = []
     if orient is None:
-        b = ranked[0].b
+        b = None
+        for i, cand in enumerate(ranked[:FINALISTS]):            # the coarse slicing misses small islands (8 Nov: a 71° tilt
+            say(f"slicing finalist {i + 1}/{min(FINALISTS, len(ranked))} at the printer's layer")    # won at 0.1 mm, and
+            finalists.append(analyse(part, classes, cand.b, s, FINAL_PIXEL_MM, s["print_layer_mm"], model.top_deg))  # had one at 0.05)
+        final = min(finalists, key=lambda a: a.score)
+        for f in finalists:
+            if f is not final:
+                f.slim()
     elif isinstance(orient, int):
         if not 1 <= orient <= len(ranked):
             raise ValueError(f"--orient {orient}: the search ranked {len(ranked)} orientations")
@@ -1073,8 +1125,9 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
         b = direction_for(float(orient[0]), float(orient[1]), model.top_deg)
     else:
         b = np.asarray(orient, float) / np.linalg.norm(orient)
-    say("slicing the chosen orientation at the printer's layer")
-    final = analyse(part, classes, b, s, FINAL_PIXEL_MM, s["print_layer_mm"], model.top_deg)
+    if b is not None:
+        say("slicing the chosen orientation at the printer's layer")
+        final = analyse(part, classes, b, s, FINAL_PIXEL_MM, s["print_layer_mm"], model.top_deg)
     say("placing supports")
     supports, misses = place_supports(final, part, classes, s)
     cover = coverage(final, supports, s)
@@ -1120,7 +1173,7 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
     checks.append(gate.Check("plain overhang reached", so < 0.5, f"{so:.2f} mm² of plain overhang no support could reach"
                              + (f" ({len(misses)} contacts refused: {misses[0][1]}, ...)" if misses else ""), hard=False))
     res = PrepResult(stem, stl, model, s, ranked, final, supports, misses, cover, checks, files, area, metal, scale, warnings,
-                     forced=forced, bodies=bodies)
+                     forced=forced, bodies=bodies, part_volume_mm3=part_volume, part_extents_mm=part_extents, finalists=finalists)
     res._lift = lift
     if specks:
         res.warnings.append(f"{specks} degenerate speck(s) of the mesher dropped from the part")
@@ -1129,6 +1182,11 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
         path = out_dir / f"{stem}{suffix}"
         whole.export(str(path))
         files["print file"] = path
+        say("reading the print file back")
+        back = trimesh.load(str(path), force="mesh")                 # what the slicer gets: float32, vertices merged
+        sound = bool(back.is_watertight) and int(back.body_count) == 1
+        checks.insert(1, gate.Check("file reads back sound", sound, f"{len(back.faces):,} triangles, watertight {back.is_watertight}, "
+                                    f"{int(back.body_count)} bod{'y' if int(back.body_count) == 1 else 'ies'}"))
     if picture:
         say("drawing the preview")
         try:
@@ -1201,9 +1259,9 @@ def preview(res: PrepResult, part_pr, classes, supports, raft, lift, path: Path)
         t_img, proj = raster.render([m], [CLASS_RGB[np.asarray(classes)]], view=(0.55, 0.72, -0.42), size_px=tw - 10)
         timg = Image.fromarray(t_img)
         td = ImageDraw.Draw(timg)
-        bad = list(an.feature_uncovered[:4000]) + [isl["lowest"] for isl in an.feature_islands]
-        if bad:
-            for cx, cy in raster.project(an.point(bad), proj):
+        bad = an.trouble_points()
+        if len(bad):
+            for cx, cy in raster.project(bad, proj):
                 td.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=(210, 40, 40))
         xx = 20 + i * (tw + 3)
         img.paste(timg, (xx, y1))
