@@ -18,12 +18,13 @@ dependencies = [
     "matplotlib>=3.8", # glyph outlines for engraving text (TextPath + DejaVu fonts)
     "shapely>=2.0",    # text polygons -> solids
     "mapbox-earcut>=1.0",  # trimesh's triangulation engine for extrude_polygon
+    "manifold3d>=3.0",     # mesh booleans and level sets: the print file's union (printprep), the lattice's model, geom
+    "pillow>=10.1",        # the print preparation's preview picture (a sized default font)
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "manifold3d>=3.0",   # boolean engine for the simulated nTop in the tests (tests/fake_ntopcl.py)
 ]
 
 [project.scripts]

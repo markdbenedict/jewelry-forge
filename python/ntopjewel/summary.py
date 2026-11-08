@@ -89,6 +89,26 @@ def prep_verdict(prep, delivered=None, stream=None) -> str:
     return paint(f"==> FAILED  {stem}", RED, stream) + f": {_prep_failures(prep)}"
 
 
+def testprint_verdict(size, folder, done, ok, stream=None) -> str:
+    """The verdict of a test-print round: PASSED when every part built, passed its gate and was prepared; else the
+    parts that did not, and why (their own verdicts above say more)."""
+    bad = [(p, rec) for p, rec in done if not ok(rec)]
+    if not bad:
+        return paint(f"==> PASSED  test print US {size}", GREEN, stream) + f"  ({len(done)} parts in {folder})"
+    why = []
+    for p, rec in bad:
+        res, prep = rec.get("res"), rec.get("prep")
+        if res is not None and not res.ok:
+            why.append(f"{p.key} (" + ("; ".join(c.name for c in _failures(getattr(res, "gate", None))) or "the build failed") + ")")
+        elif prep is not None and not prep.ok:
+            why.append(f"{p.key} (print prep: {_prep_failures(prep)})")
+        else:
+            why.append(f"{p.key} (exit {rec.get('code')}: nothing came back)")
+    good = len(done) - len(bad)
+    return (paint(f"==> FAILED  test print US {size}", RED, stream) + ": " + "; ".join(why)
+            + (f"  ({good} part{'s' if good != 1 else ''} in {folder})" if good else ""))
+
+
 def error_line(what: str, err, stream=None) -> str:
     """The verdict when nothing was built: the command stopped before or inside nTop."""
     return paint(f"==> ERROR   {what}", YELLOW, stream) + f": {str(err).splitlines()[0] if str(err) else type(err).__name__}"

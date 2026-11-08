@@ -102,16 +102,27 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   `support_keepoff_mm` of a feature (`--bore avoid`: the bore stays clear too, e.g. a ring the mandrel measures).
   Build directions are scored from the normals, the best sliced exactly in height (`raster.Columns`): islands,
   overhangs flatter than `print_overhang_deg`, suction cups, the largest layer, the height; feature islands and
-  uncovered feature overhang cost most. At the best (`--orient N` or `TILT,HEAD` for another) every island on plain
-  metal gets a contact and every plain overhang one per `support_spacing_mm`: breakaway tips `support_tip_mm` across,
+  uncovered feature overhang cost most; the best three are sliced again at the printer's layer and the best of those
+  wins (the coarse slicing misses small islands); a band without a head is searched by tilt alone. At the best
+  (`--orient N` or `TILT,HEAD` for another) every island on plain metal gets a contact and every plain overhang one per
+  `support_spacing_mm` (`--support-spacing` for one run): breakaway tips `support_tip_mm` across,
   columns `support_clearance_mm` off the part, standing on the part (plain metal) where it lies below, else on a
   chamfered raft. The print file is ONE manifold, part ∪ supports ∪ raft on z = 0 - `<stem>.supported.stl`
   (`<stem>.supported_<metal>.stl` with `--metal`, scaled by `tables.print_scale`) - sliced as it is, no supports added
   in the slicer; beside it `<stem>.prep.json` (every candidate and support, what stays unsupported in ring angles)
-  and `<stem>.prep.png`. PASSED = one watertight body on the plate, every contact on plain metal, every plain island
-  held; feature islands and feature overhang are warnings. With `--deliver` the files join the design's PASSED
-  delivery (manifest `prep`). Settings `print_*`, `support_*`, `raft_*` in the tables, all `default` until the test
+  and `<stem>.prep.png`. PASSED = one watertight body on the plate that reads back from the STL as one (a support's
+  neck crosses the face it meets, never ends in it: a ring of vertices lying in a flat face came back non-manifold,
+  2026-11-08), every contact on plain metal, every plain island held; feature islands and feature overhang are
+  warnings. With `--deliver` the files join the design's PASSED delivery (manifest `prep`); `--prep-stl delivered`
+  prepares that delivery again. Settings `print_*`, `support_*`, `raft_*` in the tables, all `default` until the test
   prints calibrate them.
+- **Test prints are one command and US 4.5** (`python -m ntopjewel testprint`, `testprint.py`; Mark, 2026-11-08): the
+  court band (bore kept clear), the hammered band and the Seraphine at the tables' `test_print_size`, each built,
+  gated, prepared and delivered through its own command, then `Jewelry\Test Print\<date> US<size>\` written - the
+  print files, their previews, README.md and measurements.md with the design numbers. The hammered band and the
+  Seraphine carry their own spacings (`test_print_hammered_spacing_mm` 3.0, `test_print_seraphine_spacing_mm` 2.2:
+  about half the 33 / 36 contacts that 1.5 mm gave, which Mark judged would swell); `--reprep` prepares the delivered
+  parts again without nTop; earlier rounds' folders stay as they are.
 - **Shrink is a scale, allowance is fit.** Casting and resin shrink are isotropic (width,
   thickness and seats shrink too), so they are never folded into `allowance_mm`. Every part is
   designed and gated at its finished size; `--deliver --metal sterling` adds
@@ -503,6 +514,7 @@ python -m ntopjewel lattice --dry-run                                 # a lattic
 python -m ntopjewel lattice --width 6 --thickness 3.3                 # ... through ring_lattice.ntop + the lattice gate: match against the model, sheets, pores, open voids (flood fill), design volume (out\lattice)
 python -m ntopjewel ring --size 6 --profile court --milgrain --groove 0.25 --engrave "M+K 2026" --prep --bore avoid   # ... and its print file: oriented, supported on plain metal only (not the bore), on a raft -> <stem>.supported.stl + .prep.json + .prep.png in the run dir
 python -m ntopjewel solitaire --profile flat --width 2.8 --thickness 2 --prongs 4 --no-arches --sides scroll-leaves --outer scroll --shoulder-knot trinity --leaf-tilt 7.5 --leaf-stem 0.5 --stem-width 0.15 --width-bottom 2 --thickness-bottom 1.5 --prep-stl "<...\Solitaires\<stem>\<stem>.stl>" --deliver   # prepare a part built earlier (its own arguments; out\prep), added to its PASSED delivery; --orient 2 / --orient 45,45 for another orientation, --metal sterling to scale it for casting
+python -m ntopjewel testprint                                         # the test-print round at US 4.5: court band, hammered band, Seraphine built, gated, prepared, delivered + Jewelry\Test Print\<date> US4.5 (README, sheet, print files); --dry-run lists the commands, --parts court,hammered, --reprep (no nTop: the delivered parts prepared again)
 python -m ntopjewel gate out\band\<stem>\<run id>\<stem>.stl --expect-inner 16.51 --expect-width 4
 python -m ntopjewel runs                        # one line per run today: PASSED / FAILED and the failing checks (--since 16:00, --last 5, --all)
 pytest python\tests -q                          # offline tests

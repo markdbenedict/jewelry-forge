@@ -99,7 +99,7 @@ The printer gets a file already oriented and supported - Mark slices it as it is
 | `support_tip_mm` | 0.25 | the contact's diameter, the breakaway neck at the surface (light tips swell less where they meet the part) |
 | `support_contact_depth_mm` | 0.1 | how far the tip reaches in (more on a slope, so the whole tip is in) |
 | `support_tip_length_mm` / `support_column_mm` | 1.0 / 0.8 | the cone to the column; a long column thickens to 1/15 of its length (≤ 1.6) |
-| `support_spacing_mm` | 1.5 | contacts along an overhang; one holds the overhang within ¾ of it |
+| `support_spacing_mm` | 1.5 | contacts along an overhang; one holds the overhang within ¾ of it (`--support-spacing` for one run; the test prints' hammered band 3.0 and Seraphine 2.2 - about half the contacts, Mark 8 Nov: denser would swell) |
 | `support_lift_mm` / `raft_thickness_mm` | 5.0 / 0.8 | the part's lowest point above the raft; the raft, chamfered for the scraper |
 | `support_clearance_mm` | 0.3 | columns kept this far off the part |
 | `support_keepoff_mm` | 0.5 | no contact nearer a feature than this |
