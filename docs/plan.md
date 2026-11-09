@@ -760,7 +760,34 @@ court band 13 supports, hammered band 15, Seraphine 17-18, all PASSED. Also: the
 again at the printer's layer before one is chosen (a 71° tilt won the coarse search and had a feature island at
 0.05 mm); a band is searched by tilt alone; a support's neck crosses the face it meets (a tip ring lying in a flat face
 read back from STL non-manifold); the print file is read back before it is called sound.
-*Real check:* `testprint` on the laptop (nTop for the three builds), then print the round from its folder.
+**Real check 8-9 Nov (`testprint` on the laptop, the three built in nTop, printed overnight):** the hammered band
+printed well (15 contacts, flat on its rim, 3 mm) - post-processing, measurements to come; the Seraphine printed (18
+contacts, head up) and then flew off the platform and across the room when it was popped off, not found; **the court
+band stayed on the film: the supports printed, the ring did not.** Its preview says why: leaning 53° with the bore
+kept clear, its lowest point was the bottom bead row, beads take no contact, and the first contact (on a side-face
+strip) came 0.5-0.6 mm - twelve layers - above it. Until the first contact nothing but the film holds a part; twelve
+layers of bead row cured onto the film became the part's foot and every later layer stayed with the film.
+
+**9 Nov - the part starts on its supports, every layer is held, the court band's bore takes struts.** Two rules in
+`printprep`, both in the search and as checks: (1) `print_start_gap_mm` (0.1, two layers): the first contact must come
+within it of the part's lowest point, else `W_START` per layer of the lead in the score (one layer outweighs every other
+term) and the hard check `starts on its supports` FAILS when such an orientation is forced; (2) `support_hold_area_mm2`
+(5): a layer needs a contact at or under its height (or within the gap above it) per 5 mm² of its area, and `hold_layers`
+adds contacts under the lowest layers (half the spacing, then a quarter, columns never in one another) where the spacing
+left fewer - the hammered band's rim printed on 4.7 mm² per tip, and a ring standing on edge at 3 mm would have hung
+24 mm² of its first half millimetre on one tip. On the real US 4.5 court band (its delivered STL): with beads on both
+edges only the dome between the groove and the beads can start it, and only standing on edge (the beads reach within
+0.06 mm of the crest; at any lean they lead) - `--bore avoid` then leaves the bore's crown (55 mm²) to print
+unsupported, so the test part allows the bore: 17 supports at 3 mm (9 on the dome, 4 of them added under the lowest
+layers, 8 struts crown to floor; 34 at 1.5, 21 at 2.5), the first contact 0.04 mm up, every layer under 4.6 mm² per
+tip, PASSED; the mandrel reads the bore after the nubs are sanded flush. The hammered band and the Seraphine keep their
+files (their starts were held: the rim, the shank's bottom). Also: a part's nanometre slivers are collapsed before it is
+rotated (the fake nTopCL's court band, rotated upright and read back from float32, came back with an edge shared by
+four faces; the real meshes never did). The laptop's 25 build stamps are in git (11 were missing, solitaire 0.12.0 and
+ring_shank 0.4.0 were newer than the committed ones).
+*Real check:* `testprint --parts court --reprep` on the laptop (no nTop: the delivered STL prepared again), print it and
+the Seraphine's file again; the hammered band's sheet. Then `print_start_gap_mm` and `support_hold_area_mm2` get their
+first evidence (a clean start on a one-layer lead; the start held by 4-5 tips).
 
 ## Notebook readability (2026-11-04)
 

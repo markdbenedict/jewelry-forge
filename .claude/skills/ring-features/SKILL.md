@@ -95,7 +95,7 @@ known unit, Polar Array takes `Angular Spacing` / `Count` / `Axis`, Axis takes `
 confirm with nTopCL: Import Mesh's default length unit (the gate's volume and the engraving
 note catch a wrong unit).
 
-**The print file**: add `--prep` to any build (or `--prep-stl <the STL>` / `--prep-stl delivered` with the arguments it was built with) for `<stem>.supported.stl` - oriented, supported on polished faces and the bore only, on a raft, one body to slice as it is (`--bore avoid`, `--orient`, `--metal`; see `jewelry-design-rules`, "Printing").
+**The print file**: add `--prep` to any build (or `--prep-stl <the STL>` / `--prep-stl delivered` with the arguments it was built with) for `<stem>.supported.stl` - oriented, supported on polished faces and the bore only, on a raft, one body to slice as it is, its first contact within two layers of its lowest point and every layer held (`--bore avoid`, `--orient`, `--metal`; see `jewelry-design-rules`, "Printing"). A band with milgrain on both edges can start only on its dome, standing on edge, and then its bore's crown needs struts: `--bore avoid` leaves the crown unsupported (the 8 Nov court band, leaning with the bore clear, started on its bead row and stayed on the film).
 
 ## Report back
 

@@ -1,8 +1,9 @@
 """The test-print set and its round folder (2026-11-08).
 
 Every round of test prints is the same three parts, built at one size - the tables' test_print_size, US 4.5 since
-8 Nov (Mark's call), the hammered band's and the Seraphine's contacts thinned to about half (their own spacings in the
-tables: 33 and 36 contacts at 1.5 mm would swell where they meet the part, Mark judged) - each through its own command
+8 Nov (Mark's call), each part's contacts thinned to about half (their own spacings in the tables: 33 and 36 contacts
+at 1.5 mm would swell where they meet the part, Mark judged; the court band's bore takes struts since the 8 Nov round,
+when it leaned on its bead row and stayed on the film) - each through its own command
 with `--prep --deliver` (or `--prep-stl delivered`, `--reprep`: the parts already delivered, prepared again), and the
 round's folder `Jewelry\\Test Print\\<date> US<size>\\` written from what came back: the print files
 (`<stem>.supported.stl`, oriented and supported, sliced as they are), their previews, README.md (what each part is
@@ -41,15 +42,20 @@ class Part:
     questions: tuple = ()            # its yes / no feature questions
 
 
+# The court band's bore takes supports since 9 Nov: with beads on both edges, nothing but its dome can start the print
+# (leaning, the bead row led its first contact by 12 layers and the ring stayed on the film, 8 Nov), so it stands on
+# edge, and then the bore's crown needs struts. The mandrel reads it after the nubs are sanded flush.
 PARTS = (
     Part("court", 'Court band, 4 × 1.3 mm: milgrain on both edges, a 0.25 mm channel groove outside, "M+K 2026" engraved inside',
          ("ring", "--profile", "court", "--milgrain", "--groove", "0.25", "--engrave", "M+K 2026"),
-         "the calibration piece: the bore on the mandrel, width and thickness; 0.5 mm beads; letters 0.25 deep, 0.6 mm strokes",
-         bore="avoid",
+         "the calibration piece: the bore on the mandrel (nubs sanded flush first), width and thickness; 0.5 mm beads; "
+         "letters 0.25 deep, 0.6 mm strokes",
+         spacing_key="test_print_court_spacing_mm",
          rows=("Outer Ø over the beads (×3)", "Width over the beads (×2)", "Width between the faces, beside a bead (×2)"),
          questions=("Beads: all present? ____  Missing or merged in a quarter turn: ____  Shape (round / blobby / flat): ____",
                     "Groove: continuous and crisp-edged? ____",
                     "Engraving: every letter legible (M + K 2 0 2 6)? ____  Strokes open to the floor or filled? ____",
+                    "Bore nubs (crown and floor): how many ____  sanded flush before the mandrel? ____  bore read before / after: ____",
                     "Sits flat on glass (no rocking)? ____")),
     Part("hammered", "Hammered court band, 4 × 1.6 mm: about 150 strikes 0.10–0.19 mm deep, polished rims",
          ("texture", "--thickness", "1.6", "--tolerance", "0.05"),
@@ -169,10 +175,13 @@ def write_round(folder: Path, size_, done, metal=None, today=None) -> Path:
              f"{len(good)} part{'s' if len(good) != 1 else ''}{scale}, prepared for the Mars 5 Ultra in Royal Blue: each "
              "`.supported.stl` is the part on its supports and a raft, already oriented - **slice it as it is: add no "
              "supports, do not rotate it**; the raft takes the bottom layers. Supports touch polished faces and the bore "
-             f"only (the court band's bore not at all: the mandrel reads it), each a {tip:g} mm breakaway tip, spaced as the "
-             "table says (the hammered band's and the Seraphine's about half as densely as the slicer-style 1.5 mm, so "
-             "fewer contacts crowd one face). The `.prep.png` beside each shows where they are; the `.prep.json` in the "
-             "part's own folder (Rings\\, Bands\\, Solitaires\\) lists every support and every spot that prints unsupported.", "",
+             f"only, each a {tip:g} mm breakaway tip, spaced as the table says (about half as densely as the slicer-style "
+             "1.5 mm, so fewer contacts crowd one face; a few more sit under each part's lowest layers, which nothing else "
+             "holds off the film). Every part starts on a support within two layers of its lowest point - the 8 Nov court "
+             "band leaned on its bead row for twelve layers first and stayed on the film. The court band's bore carries "
+             "struts for its crown: sand their nubs flush before the mandrel reads it. The `.prep.png` beside each shows "
+             "where the supports are; the `.prep.json` in the part's own folder (Rings\\, Bands\\, Solitaires\\) lists every "
+             "support and every spot that prints unsupported.", "",
              "| File | What it is | Design numbers to measure against | How it prints | Tests |", "| --- | --- | --- | --- | --- |"]
     for p, rec in good:
         prep = rec["prep"]

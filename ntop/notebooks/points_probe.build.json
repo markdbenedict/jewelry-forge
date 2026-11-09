@@ -1,0 +1,10 @@
+{
+  "notebook": "points_probe.ntop",
+  "sha256": "0befb2e46396e430523aea0c3ad5d17b2806e1868a0d68677291d288d4641421",
+  "built": "2026-11-06T01:16:04.660813+00:00",
+  "catalogs": {
+    "points_probe": "0.2.1"
+  },
+  "git_commit": "06497ee2723d",
+  "ntopjewel": "0.3.0"
+}

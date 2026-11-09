@@ -96,10 +96,12 @@ The printer gets a file already oriented and supported - Mark slices it as it is
 | --- | --- | --- |
 | `print_layer_mm` | 0.05 | the slicer's layer; the preparation slices at it for islands and suction cups |
 | `print_overhang_deg` | 45 | a down-facing surface flatter than this (from level) needs a support; any island does |
+| `print_start_gap_mm` | 0.1 | the first contact within this of the part's lowest point (two layers): until it, nothing but the film holds the part |
+| `support_hold_area_mm2` | 5 | a layer needs a contact at or under its height per this much area; more go under the lowest layers where the spacing left fewer |
 | `support_tip_mm` | 0.25 | the contact's diameter, the breakaway neck at the surface (light tips swell less where they meet the part) |
 | `support_contact_depth_mm` | 0.1 | how far the tip reaches in (more on a slope, so the whole tip is in) |
 | `support_tip_length_mm` / `support_column_mm` | 1.0 / 0.8 | the cone to the column; a long column thickens to 1/15 of its length (≤ 1.6) |
-| `support_spacing_mm` | 1.5 | contacts along an overhang; one holds the overhang within ¾ of it (`--support-spacing` for one run; the test prints' hammered band 3.0 and Seraphine 2.2 - about half the contacts, Mark 8 Nov: denser would swell) |
+| `support_spacing_mm` | 1.5 | contacts along an overhang; one holds the overhang within ¾ of it (`--support-spacing` for one run; the test prints' court band 3.0, hammered band 3.0 and Seraphine 2.2 - about half the contacts, Mark 8 Nov: denser would swell) |
 | `support_lift_mm` / `raft_thickness_mm` | 5.0 / 0.8 | the part's lowest point above the raft; the raft, chamfered for the scraper |
 | `support_clearance_mm` | 0.3 | columns kept this far off the part |
 | `support_keepoff_mm` | 0.5 | no contact nearer a feature than this |
@@ -108,12 +110,24 @@ The printer gets a file already oriented and supported - Mark slices it as it is
   texture, lattice, relief panels, knots, prongs, seats, arches. The classes come from the design (the plain section
   and the family's zones), not from the mesh. `--bore avoid` keeps the bore clear too (a calibration ring read on the
   mandrel); then its overhangs count as unsupportable.
-- **Orientation**: whatever leaves the fewest feature islands (a piece of a layer touching nothing printed before it -
-  it prints on the film, not on the part, and the feature comes out short) and the least feature overhang no contact
-  covers, then the fewest contacts, then no suction cups (resin walled in by a layer and sealed below - a knot's lobe,
-  a bezel cup facing the film), small layers, low height. Milgrain on both edges always leaves some bead islands; a
-  hammered or textured band prints flat on a side face; a solitaire stands head up, the bore held from the raft past
-  the shank's bottom or by struts on the bore's floor.
+- **The part starts on its supports.** Until its first contact, nothing but the film holds a part: a feature that
+  leads the first contact cures onto the film, the part grows from it there, and every later layer stays with the film
+  while the supports print alone. The 8 Nov 2026 court band did exactly that - leaning 53°, its bottom bead row (no
+  contact on a bead) led by twelve layers; "the ring itself stuck to the film, not the supports". So an orientation
+  whose first contact comes later than `print_start_gap_mm` after the part's lowest point is shunned by the search and
+  refused if forced (a layer or two of a feature on the film comes away with the tips; a stack of them is the part's
+  foot). A band with milgrain on both edges can start only on its dome, standing on edge - and then its bore's crown
+  needs struts, so the bore cannot be kept clear (`--bore avoid` leaves the crown to print unsupported).
+- **Every layer is held.** The contacts engaged under a layer are all that hold it off the film: one per
+  `support_hold_area_mm2` of its area at least, added under the lowest layers (half the spacing, then a quarter) where
+  the spacing left fewer. The hammered band's rim printed on 4.7 mm² per tip (15 tips, flat); a ring standing on edge at
+  3 mm spacing would have hung 24 mm² of its first half millimetre on the one tip at its lowest point.
+- **Orientation**: after those, whatever leaves the fewest feature islands (a piece of a layer touching nothing printed
+  before it - it prints on the film, not on the part, and the feature comes out short) and the least feature overhang
+  no contact covers, then the fewest contacts, then no suction cups (resin walled in by a layer and sealed below - a
+  knot's lobe, a bezel cup facing the film), small layers, low height. Milgrain on both edges always leaves some bead
+  islands; a hammered or textured band prints flat on a side face; a solitaire stands head up, the bore held from the
+  raft past the shank's bottom or by struts on the bore's floor.
 - Report and warnings name what is left unsupported in the ring's own angles (θ from the head, r, z), so the test
   prints can be read against them.
 

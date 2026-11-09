@@ -73,6 +73,28 @@ def test_a_t_overhangs_and_its_foot_is_the_first_island():
     assert len(flip.islands) == 1 and flip.islands[0]["px"] * 0.01 == pytest.approx(16.0, rel=0.1)
 
 
+def test_a_part_whose_foot_is_a_feature_starts_on_the_film_and_that_outweighs_everything():
+    """8 Nov 2026: the court band's bottom bead row (no contact allowed on beads) led its first contact by 12 layers
+    and the ring stayed on the film while the supports printed. A T whose foot is a feature: tip down, the first
+    contact is the cap's underside 3 mm up - the start term dwarfs the rest; cap down it starts on a held island."""
+    pillar = trimesh.creation.box((1.0, 1.0, 3.0))
+    pillar.apply_translation([0, 0, 1.5])
+    cap = trimesh.creation.box((4.0, 4.0, 0.5))
+    cap.apply_translation([0, 0, 3.25])
+    t = _union(pillar, cap)
+    cls = _all(t)
+    cls[t.triangles_center[:, 2] < 0.4] = printprep.FEATURE                          # a knob on the pillar's end
+    down = printprep.analyse(t, cls, [0, 0, 1], S, 0.1, 0.1)
+    assert len(down.feature_islands) == 1 and down.z_first_mm == pytest.approx(3.0, abs=0.06)
+    assert down.start_islands == down.feature_islands and down.terms["start"] >= printprep.W_START * 28
+    assert down.terms["start"] > 10 * sum(v for k, v in down.terms.items() if k != "start")
+    assert "STARTS ON THE FILM" in down.line() and "first contact 3.0" in down.line()
+    up = printprep.analyse(t, cls, [0, 0, -1], S, 0.1, 0.1)                           # the cap first: held from its first layer
+    assert up.z_first_mm == pytest.approx(0.0, abs=1e-6) and up.terms["start"] == 0 and not up.start_islands
+    assert printprep.start_gap_layers(math.inf, S) == 100.0 and printprep.start_gap_layers(0.05, S) == 0.0
+    assert printprep.start_gap_layers(0.6, S) == pytest.approx((0.6 - S["print_start_gap_mm"]) / S["print_layer_mm"])
+
+
 def test_a_cone_tip_down_is_an_island_and_a_steep_one_needs_nothing_else():
     for half_angle, flat in ((60.0, True), (25.0, False)):
         h = 2.0
@@ -229,6 +251,64 @@ def test_a_forced_orientation_is_kept_and_a_standing_band_holds_its_bore_on_stru
     assert np.allclose(by_rank.chosen.b, by_rank.ranked[1].b)
     with pytest.raises(ValueError, match="ranked"):
         printprep.prepare(stl, spec, tmp_path / "bad", orient=99, picture=False)
+
+
+def test_a_beaded_band_stands_on_its_dome_and_a_leaning_one_that_starts_on_its_beads_is_refused(tmp_path):
+    """The court band of 8 Nov 2026 in miniature: beads (a rim) on both edges take no contact, so leaning, the ring's
+    first half millimetre is bead row on the film and the search must not choose it; standing on edge its dome leads
+    and the first contact is on it within the allowed gap. Forced to lean, the preparation fails and says why."""
+    spec = band.BandSpec(size=6, profile="court")
+    ring = geom.band_mesh(spec.notebook_inputs(""))
+    rims = []
+    for z in (-spec.width_mm / 2, spec.width_mm / 2):
+        t = trimesh.creation.torus(major_radius=9.05, minor_radius=0.25, major_sections=240, minor_sections=20)
+        t.apply_translation([0, 0, z])
+        rims.append(t)
+    part = _union(ring, *rims)
+    stl = tmp_path / f"{spec.stem}.stl"
+    part.export(str(stl))
+    cls = printprep.surface_model(spec).classify(part, bore="avoid")
+    assert (cls == printprep.FEATURE).sum() > 0.2 * len(cls)                        # the rims and the keep-off round them
+    res = printprep.prepare(stl, spec, tmp_path / "search", bore="avoid", picture=False)
+    assert res.ok, res.text()
+    tilt, _ = printprep.tilt_and_head(res.chosen.b, None)
+    assert tilt < 10 and res.chosen.z_first_mm <= S["print_start_gap_mm"]           # standing on edge, the dome first
+    assert res.chosen.terms["start"] == 0 and res.ranked[0].terms["start"] == 0
+    assert any(a.terms["start"] > 0 for a in res.ranked)                              # the leaning ones were seen and shunned
+    start = [c for c in res.checks if c.name == "starts on its supports"][0]
+    assert start.status == gate.PASSED and "first contact 0.0" in start.detail
+    held = [c for c in res.checks if c.name == "layers held"][0]
+    assert held.status == gate.PASSED, held.detail
+    worst, _ = printprep.layers_hold(res.chosen, res.supports, S)
+    assert worst <= S["support_hold_area_mm2"] + 1e-6
+    lean = printprep.prepare(stl, spec, tmp_path / "lean", bore="avoid", orient=(37.0, 53.0), picture=False)
+    assert lean.status == gate.FAILED and lean.chosen.z_first_mm > S["print_start_gap_mm"]
+    start = [c for c in lean.checks if c.name == "starts on its supports"][0]
+    assert start.status == gate.FAILED and "prints on nothing but the film" in start.detail and lean.chosen.start_islands
+    assert "STARTS ON THE FILM" in lean.text()
+    assert summary.prep_verdict(lean).startswith("==> FAILED") and "starts on its supports" in summary.prep_verdict(lean)
+    doc = json.loads(lean.files["report"].read_text(encoding="utf-8"))
+    assert doc["status"] == "failed" and doc["unsupported"]["start_islands"] and doc["chosen"]["terms"]["start"] > 0
+
+
+def test_a_wide_spacing_still_holds_the_lowest_layers(tmp_path):
+    """A ring standing on edge at a wide spacing would hang its first half millimetre on the one tip at its lowest
+    point: hold_layers adds contacts under the lowest layers until no layer has more than support_hold_area_mm2 per
+    tip engaged below it, and leaves the spacing alone above."""
+    spec = band.BandSpec(size=6, profile="flat")
+    stl = _band_stl(tmp_path, spec)
+    res = printprep.prepare(stl, spec, tmp_path / "wide", orient=(0.0, 90.0), settings={"support_spacing_mm": 4.0}, picture=False)
+    assert res.ok, res.text()
+    hold = [sp for sp in res.supports if sp.hold]
+    assert hold and max(sp.z_top for sp in hold) < 2.0                                 # added low down only
+    worst, _ = printprep.layers_hold(res.chosen, res.supports, res.settings)
+    assert worst <= S["support_hold_area_mm2"] + 1e-6
+    bare = [sp for sp in res.supports if not sp.hold]
+    without, _ = printprep.layers_hold(res.chosen, bare, res.settings)
+    assert without > S["support_hold_area_mm2"]                                       # the spacing alone left a layer hanging
+    assert "added under the lowest layers" in res.headline()
+    doc = json.loads(res.files["report"].read_text(encoding="utf-8"))
+    assert sum(s["hold"] for s in doc["supports"]) == len(hold)
 
 
 # ---------------------------------------------------------------- the CLI

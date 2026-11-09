@@ -16,7 +16,8 @@ def test_the_set_is_built_at_the_tables_size_with_each_parts_own_rules():
     court, hammered, seraphine = (testprint.args_for(p) for p in testprint.PARTS)
     for a in (court, hammered, seraphine):
         assert a[a.index("--size") + 1] == "4.5" and "--prep" in a and "--deliver" in a
-    assert court[court.index("--bore") + 1] == "avoid" and "--support-spacing" not in court          # its 14 contacts kept
+    assert court[court.index("--bore") + 1] == "allow"                     # 9 Nov: struts in the crown; it stands on its dome
+    assert court[court.index("--support-spacing") + 1] == f"{tables.SETTINGS['test_print_court_spacing_mm']:g}" == "3"
     assert hammered[hammered.index("--support-spacing") + 1] == f"{tables.SETTINGS['test_print_hammered_spacing_mm']:g}" == "3"
     assert seraphine[seraphine.index("--support-spacing") + 1] == "2.2"
     again = testprint.args_for(testprint.PARTS[1], "6", metal="sterling", spacing=2.0, reprep=True)
@@ -39,14 +40,19 @@ def test_dry_run_prints_the_three_commands_and_the_folder(capsys, tmp_path, monk
 
 
 def _stand_in(args, tmp_path, capsys):
-    """The design's stem from its own command (refused for another file, it names the design), and a band mesh
-    in a file of that name: the real preparation then runs with the design's own surface model."""
+    """The design's spec and stem from its own command (refused for another file, it names the design), and the
+    design's plain body - its band, or its shank for a solitaire - in a file of that name: the real preparation then
+    runs with the design's own surface model, and the part can start on plain metal as the design does."""
     other = tmp_path / "other.stl"
     other.write_bytes(b"solid x\nendsolid x\n")
-    assert cli.main(args + ["--prep-stl", str(other)]) == 2
+    rec = cli._run_part(args + ["--prep-stl", str(other)])
+    assert rec["code"] == 2
     stem = capsys.readouterr().out.strip().splitlines()[-1].split("these arguments describe ")[1].split(" ")[0]
+    spec = rec["spec"]
+    assert spec.stem == stem
     stl = tmp_path / f"{stem}.stl"
-    geom.band_mesh(band.BandSpec(size=4.5).notebook_inputs("")).export(str(stl))
+    sh = getattr(spec, "shank_spec", None)
+    (sh.design_mesh() if sh is not None else geom.band_mesh(spec.band.notebook_inputs(""))).export(str(stl))
     return stl
 
 
@@ -68,18 +74,19 @@ def test_a_round_writes_its_folder_from_the_parts_that_came_back(tmp_path, out_d
     assert folder == tmp_path / "Jewelry" / "Test Print" / "2026-11-08 US4.5"
     assert [testprint.ok(rec) for _, rec in done] == [True, False, True]
     court, seraphine = seen[0][1], seen[1][1]
-    assert court["prep"].settings["support_spacing_mm"] == tables.SETTINGS["support_spacing_mm"]
+    assert court["prep"].settings["support_spacing_mm"] == pytest.approx(3.0)
     assert seraphine["prep"].settings["support_spacing_mm"] == pytest.approx(2.2)
-    assert all(sp.cls == 0 for sp in court["prep"].supports)                         # --bore avoid: none in the bore
+    assert all(sp.cls in (0, 1) for sp in court["prep"].supports)                    # the bore allowed since 9 Nov
     names = sorted(p.name for p in folder.iterdir())
     for rec in (court, seraphine):
         assert rec["prep"].files["print file"].name in names and rec["prep"].files["preview"].name in names
     readme = (folder / "README.md").read_text(encoding="utf-8")
     assert readme.startswith("# Test Print — 8 Nov 2026, US 4.5") and "slice it as it is" in readme
     assert "bore Ø 15.288" in readme and "Not in this round" in readme and "hammered" in readme.split("Not in this round")[1]
+    assert "sand their nubs flush" in readme and "within two layers of its lowest point" in readme
     sheet = (folder / "measurements.md").read_text(encoding="utf-8")
     assert "## 1. Court band" in sheet and "## 2. The Seraphine" in sheet and sheet.count("swelling where they met the part") == 2
-    assert "Width over the beads" in sheet and "g of resin" in sheet and "2.2 mm apart" in sheet
+    assert "Width over the beads" in sheet and "g of resin" in sheet and "2.2 mm apart" in sheet and "Bore nubs" in sheet
     line = summary.testprint_verdict("4.5", folder, done, testprint.ok)
     assert line.startswith("==> FAILED  test print US 4.5: hammered (exit 1") and "2 parts in" in line
 

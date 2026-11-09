@@ -1,0 +1,10 @@
+{
+  "notebook": "ring_lattice.ntop",
+  "sha256": "17472c0eeb0156d3f6ac07470fa28b136ad6c1d682da681647c8041d0902dd44",
+  "built": "2026-11-07T22:48:16.857655+00:00",
+  "catalogs": {
+    "ring_lattice": "0.3.0"
+  },
+  "git_commit": "89bb9a89fcdd",
+  "ntopjewel": "0.3.0"
+}

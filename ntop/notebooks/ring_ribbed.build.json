@@ -1,0 +1,10 @@
+{
+  "notebook": "ring_ribbed.ntop",
+  "sha256": "98ab881706fe8185725916155a8525586d31f2c24d4781d817c945a3a8fc718e",
+  "built": "2026-11-06T18:50:54.340278+00:00",
+  "catalogs": {
+    "ring_ribbed": "0.1.0"
+  },
+  "git_commit": "e41a5a3bcd4c",
+  "ntopjewel": "0.3.0"
+}

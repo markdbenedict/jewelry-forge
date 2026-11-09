@@ -1,0 +1,10 @@
+{
+  "notebook": "texture_probe.ntop",
+  "sha256": "fb777a6f28294bfaed0c81a5d0a2808dd8eff52fc58d3a6995e483176165ad86",
+  "built": "2026-11-06T16:40:11.090983+00:00",
+  "catalogs": {
+    "texture_probe": "0.3.0"
+  },
+  "git_commit": "1b7c1255a29a",
+  "ntopjewel": "0.3.0"
+}

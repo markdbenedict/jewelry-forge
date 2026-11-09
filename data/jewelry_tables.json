@@ -410,6 +410,11 @@
       "status": "default",
       "source": "the shallowest down-facing surface, from horizontal, that prints without a support: a face flatter than this (or any island) needs one; the usual figure for a bottom-up resin printer, to confirm on the test prints"
     },
+    "print_start_gap_mm": {
+      "value": 0.1,
+      "status": "default",
+      "source": "how far above the part's lowest point its first support contact may be - until it the part prints on nothing but the film. Two layers: a layer or two of a feature cured on the film comes away with the tips once they hold; a stack of them is the part's foot, and the part then grows on the film while the supports print alone. 8 Nov 2026, the first US 4.5 court band: leaning 53°, its bottom bead row (beads take no contact) led the first contact by 0.6 mm, 12 layers - 'the ring itself stuck to the film, not the supports'. An orientation whose first contact is higher than this is refused (the search avoids it); the figure is a guess until a test print starts on a one-layer lead"
+    },
     "support_tip_mm": {
       "value": 0.25,
       "status": "default",
@@ -434,6 +439,11 @@
       "value": 1.5,
       "status": "default",
       "source": "contacts at least this far apart along an overhang; a contact holds the overhang within three quarters of it (and a feature's overhang beside it)"
+    },
+    "support_hold_area_mm2": {
+      "value": 5.0,
+      "status": "default",
+      "source": "the most of a layer's area one contact engaged below it may hold off the film: a layer needs a contact at or under its height per this much area, and where the spacing leaves fewer, more go on the overhang below it (half the spacing, then a quarter). The two 8 Nov 2026 prints that held: the hammered band's rim, 70 mm² on 15 tips (4.7 each); the Seraphine's shank bottom on two or three. A ring standing on edge at 3 mm spacing would hang 24 mm² of its first half millimetre on the single tip at its lowest point; this is what adds the others"
     },
     "support_lift_mm": {
       "value": 5.0,
@@ -465,10 +475,15 @@
       "status": "default",
       "source": "the US size every test print is built at (`testprint`): Mark, 8 Nov - test prints are rings someone can wear (the 6 Nov round was US 6)"
     },
+    "test_print_court_spacing_mm": {
+      "value": 3.0,
+      "status": "default",
+      "source": "the court test band's support spacing, its bore allowed (9 Nov 2026): standing on edge with struts in the bore's crown, 1.5 mm gave 34 supports (16 struts) on the US 4.5 part, 2.5 gave 21, 3.0 gives 17 - 9 on the dome (4 of them added under the lowest layers) and 8 struts - about the 14 Mark accepted on 8 Nov. The 8 Nov file (bore kept clear, leaning 53°, 11 contacts) started on its bead row and stayed on the film"
+    },
     "test_print_hammered_spacing_mm": {
       "value": 3.0,
       "status": "default",
-      "source": "the hammered test band's support spacing: Mark, 8 Nov - the 33 contacts at 1.5 mm (a ring of them round its side face, lying flat) would swell where they meet the part; 3.0 gives 16 on the US 6 band, about half (its contacts lie along one narrow strip, so their number goes as 1 / spacing)"
+      "source": "the hammered test band's support spacing: Mark, 8 Nov - the 33 contacts at 1.5 mm (a ring of them round its side face, lying flat) would swell where they meet the part; 3.0 gives 16 on the US 6 band, about half (its contacts lie along one narrow strip, so their number goes as 1 / spacing). Printed well on 9 Nov: 15 contacts, lying flat on its rim"
     },
     "test_print_seraphine_spacing_mm": {
       "value": 2.2,

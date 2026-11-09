@@ -13,11 +13,19 @@ and no orientation found by hand kept them off the features).
                    class, height), the best few then sliced (raster.Columns, exact in height): every down-facing
                    point flatter than print_overhang_deg (no solid within that angle below it), every island (a
                    layer's piece touching nothing printed before it), every suction cup (resin walled in by the
-                   layer and sealed below), the largest layer and the height. A feature island and a feature
-                   overhang that no contact covers cost the most, then the contacts (the bore's a little more),
-                   then suction, peel and height.
+                   layer and sealed below), the largest layer and the height. THE PART MUST START ON ITS SUPPORTS:
+                   until its first contact nothing but the film holds it, so a first contact later than
+                   print_start_gap_mm (two layers) above its lowest point is fatal and outweighs everything - the
+                   feature leading it cures onto the film, the part grows from it there, and every later layer
+                   stays with the film while the supports print alone (the court band's first US 4.5 print,
+                   8 Nov 2026: leaning 53°, its bottom bead row led its first contact by 12 layers; "the ring
+                   itself stuck to the film, not the supports"). Then a feature island and a feature overhang
+                   that no contact covers cost the most, then the contacts (the bore's a little more), then
+                   suction, peel and height.
     supports       at the best direction: a contact on every island (its lowest supportable point) and along every
-                   supportable overhang at support_spacing_mm, lowest first; each a breakaway tip - support_tip_mm
+                   supportable overhang at support_spacing_mm, lowest first, then more under any layer that would
+                   hang on fewer than one contact per support_hold_area_mm2 of its area (hold_layers: the lowest
+                   layers of a ring standing on edge); each a breakaway tip - support_tip_mm
                    across at the surface, reaching support_contact_depth_mm in -, a cone to the column, the column
                    straight down to the raft or, where the part lies below, standing on it with a tip at that end too
                    (on a polished face or the bore only); every column kept support_clearance_mm off the part. The
@@ -47,9 +55,9 @@ from . import gate, raster, tables
 POLISH, BORE, FEATURE, CLEAR = 0, 1, 2, 3
 CLASS_NAMES = ("polished face", "bore", "feature", "kept clear")
 SUPPORTABLE = np.array([True, True, False, False])
-SETTING_KEYS = ("print_layer_mm", "print_overhang_deg", "support_tip_mm", "support_contact_depth_mm", "support_tip_length_mm",
-                "support_column_mm", "support_spacing_mm", "support_lift_mm", "support_clearance_mm", "support_keepoff_mm",
-                "raft_thickness_mm", "raft_margin_mm")
+SETTING_KEYS = ("print_layer_mm", "print_overhang_deg", "print_start_gap_mm", "support_tip_mm", "support_contact_depth_mm",
+                "support_tip_length_mm", "support_column_mm", "support_spacing_mm", "support_hold_area_mm2", "support_lift_mm",
+                "support_clearance_mm", "support_keepoff_mm", "raft_thickness_mm", "raft_margin_mm")
 
 # ---- the surface model
 SECTION_STEP_DEG = 2.0           # a shaped shank's plain section sampled this often round the ring (interpolated between)
@@ -67,7 +75,10 @@ CANDIDATE_SEPARATION_DEG = 15.0
 FINALISTS = 3                    # ... and the best this many sliced again at the printer's layer, the best of them chosen
 SEARCH_PIXEL_MM = 0.1            # their slicing: columns this far apart, layers this thick
 FINAL_PIXEL_MM = 0.05            # the chosen direction's, at the printer's layer
-W_FEATURE_ISLAND = 30.0          # the score, lower better: a feature island (it fails or prints deformed)
+W_START = 10000.0                # the score, lower better: per layer the part prints on the film alone before its first
+                                 # contact, beyond print_start_gap_mm - it starts on the film and is lost (8 Nov), so one
+                                 # layer of that outweighs every other term
+W_FEATURE_ISLAND = 30.0          # ... a feature island (it fails or prints deformed)
 W_FEATURE_AREA = 40.0            # ... per mm² of feature overhang no contact covers
 W_CONTACT = 1.0                  # ... per contact on a polished face
 W_BORE_CONTACT = 1.5             # ... per contact in the bore (a strut inside the ring, the bore to clean)
@@ -424,6 +435,9 @@ class Analysis:
     terms: dict
     score: float
     top_deg: float | None = None
+    start_islands: list = field(default_factory=list)   # the feature islands below the first contact: the part starts on them
+    z_first_mm: float = math.inf                        # the lowest contact's height above the part's lowest point (estimated)
+    layer_mm2: np.ndarray = field(default_factory=lambda: np.empty(0))   # every layer's area, bottom up (the sweep's layers)
 
     def slim(self) -> "Analysis":
         """Let the columns go once the analysis is scored (a runner-up's 16 slicings of a 3 M-triangle part held at once
@@ -459,6 +473,8 @@ class Analysis:
                 "tilt_deg": round(tilt_and_head(self.b, self.top_deg)[0], 1),
                 "head_deg": (None if self.top_deg is None else round(tilt_and_head(self.b, self.top_deg)[1], 1)),
                 "score": round(self.score, 2), "terms": {k: round(v, 2) for k, v in self.terms.items()},
+                "start_islands": len(self.start_islands),
+                "first_contact_mm": (None if not math.isfinite(self.z_first_mm) else round(self.z_first_mm, 3)),
                 "feature_islands": len(self.feature_islands),
                 "feature_overhang_mm2": round(len(self.feature_uncovered) * self.pixel ** 2, 3),
                 "contacts_estimate": self.contacts_est, "suction_cup_max_mm2": round(self.cup_max_mm2, 2),
@@ -468,6 +484,10 @@ class Analysis:
     def line(self) -> str:
         e = self.contacts_est
         bits = [f"~{e['polish'] + e['bore']} contacts" + (f" ({e['bore']} in the bore)" if e["bore"] else "")]
+        if self.terms.get("start", 0.0) > 0:
+            bits.append("STARTS ON THE FILM: " + ("no contact at all" if not math.isfinite(self.z_first_mm) else
+                        f"the first contact {self.z_first_mm:.2f} mm up, {len(self.start_islands)} feature island"
+                        f"{'s' if len(self.start_islands) != 1 else ''} before it"))
         fo = len(self.feature_uncovered) * self.pixel ** 2
         bits.append(f"{len(self.feature_islands)} feature island{'s' if len(self.feature_islands) != 1 else ''}"
                     if self.feature_islands else "no feature islands")
@@ -529,7 +549,7 @@ def _sweep(cols: raster.Columns, h: float, classes, tan_s: float):
                     cl = np.asarray(classes)[cols.tri[ii]]
                     ok = SUPPORTABLE[cl]
                     lowest = int(ii[np.argmin(cols.z[ii])])
-                    islands.append({"layer": k, "z": float(zk), "px": int(b - a), "lowest": lowest,
+                    islands.append({"layer": k, "z": float(zk), "z_low": float(cols.z[lowest]), "px": int(b - a), "lowest": lowest,
                                     "cls": int(np.asarray(classes)[cols.tri[lowest]]),
                                     "supportable": ii[ok][np.argsort(cols.z[ii[ok]])]})
         air = ~occ
@@ -552,7 +572,7 @@ def _sweep(cols: raster.Columns, h: float, classes, tan_s: float):
         vented_prev = vented
         prev = occ
     p2 = cols.pixel ** 2
-    return islands, cup_best * p2, cup_total * p2 * h, cup_at, (max(layer_px) if layer_px else 0) * p2
+    return islands, cup_best * p2, cup_total * p2 * h, cup_at, np.asarray(layer_px, float) * p2
 
 
 def _thin(P: np.ndarray, cell: float) -> np.ndarray:
@@ -597,6 +617,23 @@ def _poisson(P: np.ndarray, spacing: float, order=None) -> list[int]:
     return out
 
 
+def start_islands(feature_islands: list, z_first: float) -> list:
+    """The feature islands that begin below the first contact (z_first, the part's lowest point at 0): what prints on
+    nothing but the film before any support has hold of the part."""
+    return [isl for isl in feature_islands if isl["z_low"] < z_first]
+
+
+def start_gap_layers(z_first: float, s: dict) -> float:
+    """How many layers the part prints on the film alone beyond what it survives: the first contact's height above the
+    part's lowest point less print_start_gap_mm, in layers (0 when the start is held in time; capped when there is no
+    contact at all). Nothing but the film holds the part until the first contact: a layer or two of a feature cured onto
+    the film comes away with the tips, but a stack of them is the part's foot, and the part then grows on the film while
+    the supports print alone (the court band, 8 Nov 2026: leaning 53°, its bottom bead row led by 0.6 mm, 12 layers)."""
+    if not math.isfinite(z_first):
+        return 100.0
+    return min(100.0, max(0.0, (z_first - s["print_start_gap_mm"]) / s["print_layer_mm"]))
+
+
 def printer_triangles(part, b):
     """The part's triangles in the printer frame for build direction b, its lowest point at z = 0, and what that took."""
     R = frame(b)
@@ -617,9 +654,10 @@ def analyse(part, classes, b, s: dict, pixel: float = SEARCH_PIXEL_MM, layer: fl
     tan_s = math.tan(math.radians(s["print_overhang_deg"]))
     u = _unsupported(cols, cols.starts, tan_s)
     u_cls = classes[cols.tri[u]]
-    islands, cup_max, cup_mm3, cup_at, layer_max = _sweep(cols, layer, classes, tan_s)
+    islands, cup_max, cup_mm3, cup_at, layer_mm2 = _sweep(cols, layer, classes, tan_s)
+    layer_max = float(layer_mm2.max()) if len(layer_mm2) else 0.0
     an = Analysis(np.asarray(b, float) / np.linalg.norm(b), R, z_shift, pixel, layer, cols, u, u_cls, islands, cup_max, cup_mm3,
-                  cup_at, layer_max, float(tri[:, :, 2].max()), {}, np.empty(0, np.int64), [], {}, 0.0, top_deg)
+                  cup_at, layer_max, float(tri[:, :, 2].max()), {}, np.empty(0, np.int64), [], {}, 0.0, top_deg, layer_mm2=layer_mm2)
     sup = u[SUPPORTABLE[u_cls]]
     feat = u[~SUPPORTABLE[u_cls]]
     P = an.point(sup)
@@ -629,6 +667,9 @@ def analyse(part, classes, b, s: dict, pixel: float = SEARCH_PIXEL_MM, layer: fl
     held = [isl for isl in islands if len(isl["supportable"])]
     an.feature_islands = [isl for isl in islands if not len(isl["supportable"])]
     seeds = [an.point([isl["supportable"][0]])[0] for isl in held]
+    lows = ([float(P[:, 2].min())] if len(P) else []) + [float(p[2]) for p in seeds]   # where the first contact would be
+    an.z_first_mm = min(lows) if lows else math.inf
+    an.start_islands = start_islands(an.feature_islands, an.z_first_mm)
     extra = 0
     if seeds:
         tree = cKDTree(P[picks]) if picks else None
@@ -647,7 +688,8 @@ def analyse(part, classes, b, s: dict, pixel: float = SEARCH_PIXEL_MM, layer: fl
         else:
             an.feature_uncovered = feat
     p2 = pixel ** 2
-    an.terms = {"feature islands": W_FEATURE_ISLAND * len(an.feature_islands),
+    an.terms = {"start": W_START * start_gap_layers(an.z_first_mm, s),
+                "feature islands": W_FEATURE_ISLAND * len(an.feature_islands),
                 "feature overhang": W_FEATURE_AREA * len(an.feature_uncovered) * p2,
                 "contacts": W_CONTACT * an.contacts_est["polish"] + W_BORE_CONTACT * an.contacts_est["bore"],
                 "suction": W_CUP * cup_max, "peel": W_PEEL * layer_max, "height": W_HEIGHT * an.height_mm}
@@ -669,6 +711,7 @@ class Support:
     depth_top: float
     depth_bottom: float
     island: bool = False
+    hold: bool = False           # added by hold_layers: a layer below would have hung on too few tips
 
     @property
     def length(self) -> float:
@@ -788,7 +831,87 @@ def place_supports(an: Analysis, part, classes, s: dict):
             continue
         supports.append(sp)
         add(np.array([sp.x, sp.y, sp.z_top]))
+    hold_layers(an, supports, sup, P, classes, nz_faces, s)
     return supports, misses
+
+
+def hold_layers(an: Analysis, supports: list, sup, P, classes, nz_faces, s: dict) -> list:
+    """Contacts added where a layer would hang on too few tips. Nothing but the contacts engaged below a layer holds
+    it off the film, so, bottom up, every layer needs a contact at or under its height per support_hold_area_mm2 of
+    its area; where it has fewer, the supportable overhang at or below that height takes more, lowest first, at half
+    the spacing and then a quarter. A flat rim on its spacing's contacts usually has enough (the hammered band, 15 tips
+    under 70 mm²); a ring standing on edge at a wide spacing would hang its first half millimetre - 24 mm² of dome -
+    on the one tip at its lowest point (the court band at 3 mm, 9 Nov 2026). Appends to `supports` (flagged `hold`)
+    and returns what it added."""
+    cols = an.cols
+    spacing = s["support_spacing_mm"]
+    per = s["support_hold_area_mm2"]
+    gap = s["print_start_gap_mm"]                                # a contact this little above a layer still holds it (as at the start)
+    if cols is None or not len(an.layer_mm2) or per <= 0 or not len(P):
+        return []
+    order = _thin(P, spacing / 8.0)
+    order = order[np.argsort(P[order, 2], kind="stable")]
+    z_cand = P[order, 2]
+    taken = [np.array([sp.x, sp.y, sp.z_top]) for sp in supports]
+    tops = sorted(sp.z_top for sp in supports)
+    failed: set = set()
+    added = []
+    h = an.layer
+    import bisect
+
+    floor = 1.5 * s["support_column_mm"]                         # never two columns in one another (columns are vertical: in plan)
+
+    def far(p, d):
+        return all(float(np.sum((q - p) ** 2)) >= d * d and float(np.sum((q[:2] - p[:2]) ** 2)) >= floor * floor for q in taken)
+    stages = (spacing / 2.0, spacing / 4.0)
+    for k, area in enumerate(an.layer_mm2):
+        if area <= 0:
+            continue
+        zk = cols.zmin + (k + 1.0) * h                           # the layer's top: contacts at or under it hold it
+        need = int(math.ceil(area / per))
+        engaged = bisect.bisect_right(tops, zk + gap + 1e-9)
+        if engaged >= need:
+            continue
+        last = int(np.searchsorted(z_cand, zk + gap + 1e-9, side="right"))
+        for fine in stages:
+            for j in range(last):
+                if engaged >= need:
+                    break
+                i = int(order[j])
+                if i in failed or not far(P[i], fine):
+                    continue
+                sp, why = build_support(an, int(sup[i]), classes, nz_faces, s)
+                if sp is None:
+                    failed.add(i)
+                    continue
+                sp.hold = True
+                supports.append(sp)
+                added.append(sp)
+                taken.append(np.array([sp.x, sp.y, sp.z_top]))
+                bisect.insort(tops, sp.z_top)
+                engaged += 1
+            if engaged >= need:
+                break
+    return added
+
+
+def layers_hold(an: Analysis, supports, s: dict):
+    """(the most mm² of a layer per contact engaged under it, the height of that layer) - what hold_layers left."""
+    import bisect
+    cols = an.cols
+    if cols is None or not len(an.layer_mm2):
+        return 0.0, 0.0
+    tops = sorted(sp.z_top for sp in supports)
+    worst, at = 0.0, 0.0
+    for k, area in enumerate(an.layer_mm2):
+        if area <= 0:
+            continue
+        zk = cols.zmin + (k + 1.0) * an.layer
+        engaged = bisect.bisect_right(tops, zk + s["print_start_gap_mm"] + 1e-9)
+        ratio = area / engaged if engaged else math.inf
+        if ratio > worst:
+            worst, at = ratio, zk
+    return worst, at
 
 
 def coverage(an: Analysis, supports, s: dict) -> dict:
@@ -910,10 +1033,24 @@ def assemble(part_printer, supports, raft, s: dict):
 
 
 # ============================================================================ the part
+HEAL_DIGITS = 5                  # vertices within 10 nm are one: ten times the float32 STL's own quantum at 10 mm
+
+
 def load_part(stl):
-    """The gated part without the mesher's specks (gate.is_speck): one closed body."""
+    """The gated part without the mesher's specks (gate.is_speck): one closed body, its nanometre slivers collapsed
+    (vertices within 10^-HEAL_DIGITS mm merged and the triangles that lose a vertex dropped - the mesh stays closed and
+    its volume the same to 1e-8; a boolean's slivers a few nanometres wide, rotated into the printer frame, united and
+    read back from float32, came back as edges shared by four faces, 9 Nov 2026 - the fake nTopCL's court band; nTop's
+    meshes have none). `metadata["collapsed"]` counts them."""
     import trimesh
     m = gate.load_mesh(Path(stl))
+    n0 = len(m.faces)
+    m.merge_vertices(digits_vertex=HEAL_DIGITS)
+    f = np.asarray(m.faces)
+    m.update_faces((f[:, 0] != f[:, 1]) & (f[:, 1] != f[:, 2]) & (f[:, 0] != f[:, 2]))
+    m.remove_unreferenced_vertices()
+    collapsed = n0 - len(m.faces)
+    m.metadata["collapsed"] = collapsed
     labels = trimesh.graph.connected_component_labels(m.face_adjacency, node_count=len(m.faces))
     counts = np.bincount(labels)
     if len(counts) <= 1:
@@ -931,6 +1068,7 @@ def load_part(stl):
             dropped += 1
     if dropped:
         m = m.submesh([np.flatnonzero(keep)], append=True, repair=False)
+        m.metadata["collapsed"] = collapsed
     return m, dropped
 
 
@@ -973,10 +1111,11 @@ class PrepResult:
         return self.status == gate.PASSED
 
     def counts(self) -> dict:
-        n = {"polish": 0, "bore": 0, "on the part": 0}
+        n = {"polish": 0, "bore": 0, "on the part": 0, "hold": 0}
         for sp in self.supports:
             n["bore" if sp.cls == BORE else "polish"] += 1
             n["on the part"] += sp.kind == "part"
+            n["hold"] += sp.hold
         return n
 
     def cautions(self) -> str:
@@ -997,6 +1136,7 @@ class PrepResult:
         if n["bore"]:
             where.append(f"{n['bore']} in the bore")
         tail = f", {n['on the part']} standing on the part" if n["on the part"] else ""
+        tail += f", {n['hold']} added under the lowest layers" if n["hold"] else ""
         return f"{len(self.supports)} supports ({', '.join(where) or 'none'}{tail}), {describe(self.chosen.b, self.model.top_deg)}"
 
     def text(self) -> str:
@@ -1012,6 +1152,11 @@ class PrepResult:
                 lines.append(f"    {'*' if an is self.chosen else ' '} {an.line()}")
         lines.append(f"  chosen{' (as asked)' if self.forced else ''}: {self.headline()}")
         c = self.cover
+        if self.chosen.terms.get("start", 0.0) > 0:
+            lines.append("  STARTS ON THE FILM: " + ("no contact holds the part" if not self.supports else
+                         f"the first contact {self.chosen.z_first_mm:.2f} mm above the part's lowest point; before it "
+                         f"{len(self.chosen.start_islands)} island(s) on features - "
+                         + "; ".join(self._where(isl["lowest"]) for isl in self.chosen.start_islands[:6])))
         if self.chosen.feature_islands:
             lines.append(f"  unsupported: {len(self.chosen.feature_islands)} island(s) on features - "
                          + "; ".join(self._where(isl["lowest"]) for isl in self.chosen.feature_islands[:6]))
@@ -1051,7 +1196,7 @@ class PrepResult:
             sup.append({"contact": [round(sp.x, 3), round(sp.y, 3), round(sp.z_top + self._lift, 3)],
                         "contact_ring": [round(float(v), 3) for v in ring], "theta_deg": round(math.degrees(math.atan2(ring[1], ring[0])), 1),
                         "on": CLASS_NAMES[sp.cls], "stands_on": "raft" if sp.kind == "raft" else CLASS_NAMES[sp.foot_cls],
-                        "length_mm": round(sp.length, 2), "diameter_mm": round(sp.diameter, 2), "island": sp.island})
+                        "length_mm": round(sp.length, 2), "diameter_mm": round(sp.diameter, 2), "island": sp.island, "hold": sp.hold})
         p2 = an.pixel ** 2
         return {"stem": self.stem, "source": str(self.source), "model": self.model.label, "metal": self.metal, "scale": self.scale,
                 "part_volume_mm3": round(self.part_volume_mm3, 2), "part_extents_mm": [round(v, 2) for v in self.part_extents_mm],
@@ -1059,7 +1204,9 @@ class PrepResult:
                 "zones": self.model.zone_counts, "forced": self.forced,
                 "candidates": [a.summary() for a in self.ranked], "finalists": [a.summary() for a in self.finalists],
                 "chosen": an.summary(), "supports": sup,
-                "unsupported": {"feature_islands": [self._where(isl["lowest"]) for isl in an.feature_islands],
+                "unsupported": {"start_islands": [self._where(isl["lowest"]) for isl in an.start_islands],
+                                "first_contact_mm": (None if not math.isfinite(an.z_first_mm) else round(an.z_first_mm, 3)),
+                                "feature_islands": [self._where(isl["lowest"]) for isl in an.feature_islands],
                                 "feature_overhang_mm2": round(len(self.cover["feature_uncovered"]) * p2, 3),
                                 "plain_overhang_missed_mm2": round(len(self.cover["supportable_uncovered"]) * p2, 3),
                                 "islands_missed": len(self.cover["islands_lost"]),
@@ -1160,6 +1307,32 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
     on_plain = all(SUPPORTABLE[sp.cls] and (sp.foot_cls is None or SUPPORTABLE[sp.foot_cls]) for sp in supports)
     checks.append(gate.Check("contacts on plain metal", on_plain, f"{len(supports)} contacts, every one on a polished face or the bore"
                              if on_plain else "a contact on a feature"))
+    z_first = min((sp.z_top for sp in supports), default=math.inf)        # the contacts as placed, not the search's estimate
+    final.z_first_mm, final.start_islands = z_first, start_islands(final.feature_islands, z_first)
+    final.terms["start"] = W_START * start_gap_layers(z_first, s)
+    final.score = float(sum(final.terms.values()))
+    gap = s["print_start_gap_mm"]
+    if not supports:
+        start_detail = "no support holds the part at all"
+    elif z_first > gap:
+        start_detail = (f"the first contact only {z_first:.2f} mm above the part's lowest point ({z_first / s['print_layer_mm']:.0f} layers, "
+                        f"{gap:g} mm allowed): the part prints on nothing but the film until then and is lost"
+                        + (" - on the film before it: " + "; ".join(_where_text(final, isl["lowest"], scale) for isl in final.start_islands[:4])
+                           if final.start_islands else ""))
+    else:
+        start_detail = f"the first contact {z_first:.2f} mm above the part's lowest point ({gap:g} allowed)" + (
+            f"; {len(final.start_islands)} feature island(s) cure on the film a layer before it" if final.start_islands else "")
+    checks.append(gate.Check("starts on its supports", bool(supports) and z_first <= gap, start_detail))
+    worst, at = layers_hold(final, supports, s)
+    held = [sp for sp in supports if sp.hold]
+    per = s["support_hold_area_mm2"]
+    checks.append(gate.Check("layers held", worst <= per + 1e-6,
+                             f"no layer hangs on more than {worst:.1f} mm² per contact engaged under it ({per:g} allowed)"
+                             + (f"; {len(held)} contact{'s' if len(held) != 1 else ''} added for that, the highest {max(sp.z_top for sp in held):.2f} mm up"
+                                if held else "")
+                             if worst <= per + 1e-6 else
+                             f"the layer {at:.2f} mm up hangs on {worst:.1f} mm² per contact ({per:g} allowed) and no more overhang below it "
+                             f"takes a contact" + (f"; {len(held)} added" if held else ""), hard=False))
     lost = cover["islands_lost"]
     checks.append(gate.Check("islands held", not lost, "every island on plain metal has a support" if not lost
                              else f"{len(lost)} island(s) on plain metal no support could reach"))
@@ -1177,6 +1350,8 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
     res._lift = lift
     if specks:
         res.warnings.append(f"{specks} degenerate speck(s) of the mesher dropped from the part")
+    if part.metadata.get("collapsed"):
+        res.warnings.append(f"{part.metadata['collapsed']} sliver triangle(s) under {10 ** -HEAL_DIGITS:g} mm collapsed before the part was rotated")
     suffix = f".supported_{metal}.stl" if metal else ".supported.stl"
     if whole is not None:
         path = out_dir / f"{stem}{suffix}"
@@ -1265,7 +1440,9 @@ def preview(res: PrepResult, part_pr, classes, supports, raft, lift, path: Path)
                 td.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=(210, 40, 40))
         xx = 20 + i * (tw + 3)
         img.paste(timg, (xx, y1))
-        d.text((xx, y1 + timg.size[1] + 4), f"{i + 1}. {describe(an.b, res.model.top_deg)}", fill=(30, 30, 30), font=small)
+        film = an.terms.get("start", 0.0) > 0
+        d.text((xx, y1 + timg.size[1] + 4), f"{i + 1}. {describe(an.b, res.model.top_deg)}" + (" - STARTS ON THE FILM" if film else ""),
+               fill=(190, 40, 40) if film else (30, 30, 30), font=small)
         d.text((xx, y1 + timg.size[1] + 22), f"score {an.score:.1f}: ~{an.contacts_est['polish'] + an.contacts_est['bore']} contacts, "
                f"{len(an.feature_islands)} feat. islands", fill=(80, 80, 80), font=small)
     path = Path(path)

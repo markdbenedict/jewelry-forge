@@ -1,0 +1,10 @@
+{
+  "notebook": "partial_bezel_head_harness.ntop",
+  "sha256": "ec5bddf681c2d6146023192f79637b3a470a4c4a096acca8b6fa7940a4333e82",
+  "built": "2026-11-05T16:46:25.801603+00:00",
+  "catalogs": {
+    "partial_bezel_head_harness": "0.1.0"
+  },
+  "git_commit": "040e90742296",
+  "ntopjewel": "0.3.0"
+}

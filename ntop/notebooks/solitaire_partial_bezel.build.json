@@ -1,0 +1,10 @@
+{
+  "notebook": "solitaire_partial_bezel.ntop",
+  "sha256": "6fc2b060b848d8196ca11ccb0bc0e5704ce930f8df36494e964a598462dabae5",
+  "built": "2026-11-05T16:50:19.426516+00:00",
+  "catalogs": {
+    "solitaire_partial_bezel": "0.1.0"
+  },
+  "git_commit": "040e90742296",
+  "ntopjewel": "0.3.0"
+}

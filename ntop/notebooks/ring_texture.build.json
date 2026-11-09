@@ -1,0 +1,10 @@
+{
+  "notebook": "ring_texture.ntop",
+  "sha256": "937b5b3cae84cd32a22538f24d25c138a958cfb91367566260d7929f69bb898a",
+  "built": "2026-11-06T01:29:43.660828+00:00",
+  "catalogs": {
+    "ring_texture": "0.1.0"
+  },
+  "git_commit": "7bbd0f46a032",
+  "ntopjewel": "0.3.0"
+}
