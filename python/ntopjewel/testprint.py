@@ -203,9 +203,11 @@ def write_round(folder: Path, size_, done, metal=None, today=None) -> Path:
     lines += ["", "Please note when they are out: the bore reading (mandrel size or mm), width and thickness with calipers at the "
               "mid-plane, which features survived, the weight of each, and at the supports: any swelling where they met the "
               "part, how cleanly they broke, whether anything sagged where the preview marks it unsupported. "
-              "`measurements.md` has the blanks."]
+              "`measurements.xlsx` has the cells to fill (yellow); `measurements.md` is the same sheet as text."]
     (folder / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     (folder / "measurements.md").write_text(_sheet(size_, good, when), encoding="utf-8")
+    from . import calibrate                                      # (imports testprint itself)
+    calibrate.workbook_for_round(folder)                         # the same sheet as a workbook, yellow cells to fill
     return folder
 
 

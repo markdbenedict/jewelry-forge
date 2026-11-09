@@ -20,6 +20,7 @@ dependencies = [
     "mapbox-earcut>=1.0",  # trimesh's triangulation engine for extrude_polygon
     "manifold3d>=3.0",     # mesh booleans and level sets: the print file's union (printprep), the lattice's model, geom
     "pillow>=10.1",        # the print preparation's preview picture (a sized default font)
+    "openpyxl>=3.1",       # the test-print round's measurement workbook (testprint writes it, calibrate reads it back)
 ]
 
 [project.optional-dependencies]

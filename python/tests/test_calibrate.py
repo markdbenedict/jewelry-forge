@@ -17,8 +17,9 @@ HAMMER_STEM = "ring_texture_hammered_court_US4.5_w4_t1.6_d1.6x0.15_fd82f637"
 TRUE_SHRINK, TRUE_BLOOM = 0.006, 0.03          # what the synthetic prints "did": 0.6 % shrink, 0.03 mm bloom
 
 
-def _sheet(court_rows: dict, hammer_rows: dict, settings: dict | None = None, part_lines: bool = True) -> str:
-    """A round's sheet in testprint._sheet's format, the given rows filled in."""
+def _sheet(court_rows: dict, hammer_rows: dict, settings: dict | None = None, part_lines: bool = True, blank_answers: bool = False) -> str:
+    """A round's sheet in testprint._sheet's format, the given rows filled in (the court band's feature answers given too,
+    unless blank_answers)."""
     st = {"layer": "50", "exposure": "2.5", "bottom": "5", "bottom_s": "30", "as_is": "yes", "wash": "4", "cure": "15",
           "after": "2", "scale": "0.001", "calipers": "Mitutoyo digital"}
     st.update(settings or {})
@@ -43,10 +44,14 @@ def _sheet(court_rows: dict, hammer_rows: dict, settings: dict | None = None, pa
     lines += ["Design: bore Ø 15.288, width 4.000 (4.51 over the beads), thickness 1.300, outer Ø 17.89; 227.1 mm³ (0.26 g of resin).",
               "Printed: 11 supports (11 on polished faces), axis 37° to the plate, 1.5 mm apart.", ""]
     lines += table(court, court_rows)
-    lines += ["", "Features (yes / no, a few words):", "- Beads: all present? yes  Missing or merged in a quarter turn: none  Shape (round / blobby / flat): round",
+    b = "____"
+    lines += ["", "Features (yes / no, a few words):",
+              f"- Beads: all present? {b if blank_answers else 'yes'}  Missing or merged in a quarter turn: {b if blank_answers else 'none'}  "
+              f"Shape (round / blobby / flat): {b if blank_answers else 'round'}",
               "- Groove: continuous and crisp-edged? ____",
-              "- Supports: swelling where they met the part? slight at two tips  Broke off clean at the tip? yes  Nubs sanded flush? yes",
-              "- Anything sagged or missing where the preview marks it unsupported? no", "", f"## 2. {hammer.title}", ""]
+              f"- Supports: swelling where they met the part? {b if blank_answers else 'slight at two tips'}  Broke off clean at the tip? "
+              f"{b if blank_answers else 'yes'}  Nubs sanded flush? {b if blank_answers else 'yes'}",
+              f"- Anything sagged or missing where the preview marks it unsupported? {b if blank_answers else 'no'}", "", f"## 2. {hammer.title}", ""]
     if part_lines:
         lines.append(f"Part: {HAMMER_STEM} (hammered)")
     lines += ["Design: bore Ø 15.288, width 4.000, thickness 1.600, outer Ø 18.49; 271.7 mm³ (0.31 g of resin).",
@@ -229,3 +234,88 @@ def test_the_cli_reads_the_newest_round_and_dry_run_leaves_the_tables(tmp_path, 
     assert "3 table entries updated" in out and json.loads(tcopy.read_text(encoding="utf-8"))["settings"]["print_bloom_mm"]["status"] == "calibrated"
     assert cli.main(["calibrate", str(tmp_path / "nowhere")]) == 2
     assert "no measurement sheet" in capsys.readouterr().out
+
+
+def _fill_workbook(path, court_rows, hammer_rows, settings=None, answers=None):
+    """What Mark does in Excel: numbers into the yellow cells of the tables, words into the answers, values on the settings sheet."""
+    from openpyxl import load_workbook
+    wb = load_workbook(path)
+    ws = wb["Print settings"]
+    for i, (label, key) in enumerate(calibrate.SETTINGS_ROWS):
+        if settings and key in settings:
+            ws.cell(row=5 + i, column=2, value=settings[key])
+    for name, rows in (("1 Court band", court_rows), ("2 Hammered band", hammer_rows)):
+        w = wb[name]
+        r = calibrate.TABLE_ROW
+        while w.cell(row=r, column=1).value:
+            label = str(w.cell(row=r, column=1).value)
+            for j, v in enumerate(rows.get(label, [])):
+                w.cell(row=r, column=2 + j, value=float(v))
+            r += 1
+        if answers and name in answers:
+            r += 2                                                   # past the blank row and the Features header
+            for a in answers[name]:
+                if a is not None:
+                    w.cell(row=r, column=2, value=a)
+                r += 1
+    wb.save(path)
+
+
+def test_the_workbook_is_written_from_the_sheet_and_read_back_with_what_was_typed_in_it(tmp_path):
+    jewelry, folder = _round(tmp_path, _sheet({}, {}, part_lines=False, blank_answers=True))   # a blank round, as testprint leaves it
+    xlsx = calibrate.workbook_for_round(folder)
+    assert xlsx == folder / "measurements.xlsx"
+    from openpyxl import load_workbook
+    wb = load_workbook(xlsx)
+    assert wb.sheetnames == ["Print settings", "1 Court band", "2 Hammered band", calibrate.MD_SHEET] and wb[calibrate.MD_SHEET].sheet_state == "hidden"
+    w = wb["1 Court band"]
+    assert w["B1"].value == COURT_STEM and w["A7"].value == "Bore Ø, inside jaws (×3)" and w["E7"].value == 15.288    # the stem from the README
+    assert w["A8"].value == "Mandrel size it stops at" and w["E8"].value == 4.5 and w["E12"].value == 0.26            # a size; the weight's resin g
+    assert w["F7"].value.startswith("=IF(COUNT(B7:D7)") and w["G7"].value.startswith("=IF(OR(")
+    labels = [w.cell(row=r, column=1).value for r in range(7, 13)]
+    assert labels == [l for l, _ in testprint.COMMON_ROWS + tuple(testprint.PARTS[0].rows) + (testprint.WEIGHT_ROW,)]
+    feats = [w.cell(row=r, column=1).value for r in range(15, 23)]
+    assert feats[0] == "Beads: all present?" and feats[1] == "Missing or merged in a quarter turn:" and "Nubs sanded flush?" in feats
+    assert len([f for f in feats if f]) == 8                                       # one row per blank: 3 + 1 + 3 + 1
+    blank = calibrate.read_round(folder)
+    assert not any(ps.rows for ps in blank.parts)                                  # the workbook holds nothing yet: the md is read
+    court, hammer = _filled()
+    _fill_workbook(xlsx, court, hammer, settings={"layer_um": 50, "exposure_s": "2.5", "as_is": "yes", "scale_g": 0.001},
+                   answers={"1 Court band": ["yes", "none", "round", None, "slight at two tips", "yes", "yes", "no"]})
+    sheet = calibrate.read_round(folder)
+    assert sheet.path == xlsx and [ps.stem for ps in sheet.parts] == [COURT_STEM, HAMMER_STEM]
+    assert sheet.settings["layer_um"] == "50" and sheet.settings["exposure_s"] == "2.5" and sheet.settings["scale_g"] == "0.001"
+    assert sheet.parts[0].rows["Bore Ø, inside jaws (×3)"] == [float(x) for x in court["Bore Ø, inside jaws (×3)"]]
+    assert sheet.parts[1].rows["Mandrel size it stops at"] == [4.25, 4.25, 4.25] and sheet.parts[1].rows["Weight (g)"] == [0.306, 0.306]
+    assert sheet.parts[0].lines[0] == "Beads: all present? yes  Missing or merged in a quarter turn: none  Shape (round / blobby / flat): round"
+    assert sheet.parts[0].lines[-2].endswith("Nubs sanded flush? yes") and sheet.parts[0].lines[-1].endswith("unsupported? no")
+    assert sheet.parts[0].unanswered == 1 and sheet.parts[1].unanswered == 3
+    cal = calibrate.calibrate(folder)
+    assert cal.fit.sound and cal.fit.shrink_pct == pytest.approx(100 * TRUE_SHRINK, abs=0.1) and cal.parts[0].supports["swelling"] == "slight at two tips"
+    assert cal.fit.bloom_mm == pytest.approx(TRUE_BLOOM, abs=0.006) and cal.density is not None
+
+
+def test_the_cli_writes_a_workbook_for_a_round_and_testprint_writes_one_with_every_round(tmp_path, monkeypatch, capsys):
+    jewelry, folder = _round(tmp_path, _sheet({}, {}), with_manifest=False)
+    monkeypatch.setenv("JEWELRY_DELIVER", str(jewelry))
+    assert cli.main(["calibrate", str(folder), "--workbook"]) == 0
+    out = capsys.readouterr().out
+    assert (folder / "measurements.xlsx").exists() and out.strip().splitlines()[-1].startswith("==> PASSED  workbook")
+    assert "write_round" in dir(testprint) and "calibrate.workbook_for_round" in Path(testprint.__file__).read_text(encoding="utf-8")
+
+
+def test_each_part_tab_carries_its_measurement_sketch(tmp_path):
+    """Mark, 9 Nov: "terms like width are vague" - a picture per part of where each row is measured, in the sheet's words,
+    on its tab and in the folder."""
+    from openpyxl import load_workbook
+    from ntopjewel import sketch
+    jewelry, folder = _round(tmp_path, _sheet({}, {}, part_lines=False, blank_answers=True))
+    xlsx = calibrate.workbook_for_round(folder)
+    pngs = sorted(p.name for p in folder.glob("measure_*.png"))
+    assert pngs == ["measure_court.png", "measure_hammered.png"]
+    wb = load_workbook(xlsx)
+    assert [len(wb[n]._images) for n in ("1 Court band", "2 Hammered band")] == [1, 1] and len(wb["Print settings"]._images) == 0
+    assert "Where each row is measured" in str(wb["1 Court band"]["I4"].value)
+    ser = calibrate.parse_design("bore Ø 15.288; band 2.8 wide × 2 thick at the head, 2 × 1.5 at the bottom; 21.8 × 19.3 × 6.2 mm overall; 272.6 mm³ (0.31 g of resin).")
+    out = sketch.sketch("seraphine", ser, tmp_path / "s.png", "4.5")
+    assert out.exists() and out.stat().st_size > 20000

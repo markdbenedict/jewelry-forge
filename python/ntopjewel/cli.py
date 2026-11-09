@@ -438,10 +438,19 @@ def cmd_calibrate(a: argparse.Namespace) -> int:
     written into the round's folder and, unless --dry-run, the tables updated with dated calibration_log entries."""
     from . import calibrate
     folder = Path(a.folder) if a.folder else calibrate.newest_round(config.deliver_dir())
-    if folder is None or not (Path(folder) / "measurements.md").exists():
+    if folder is None or not ((Path(folder) / "measurements.md").exists() or (Path(folder) / calibrate.WORKBOOK).exists()):
         print(summary.error_line("calibrate", f"no measurement sheet in {folder or config.deliver_dir() / 'Test Print'}"
-                                              " (a round's folder holds measurements.md; `testprint` writes it)"))
+                                              " (a round's folder holds measurements.md / measurements.xlsx; `testprint` writes them)"))
         return 2
+    if a.workbook:
+        try:
+            out = calibrate.workbook_for_round(folder)
+        except (OSError, ValueError) as e:
+            print(summary.error_line("calibrate", e))
+            return 2
+        print(f"  workbook: {out}")
+        print(summary.paint(f"==> PASSED  workbook {Path(folder).name}", summary.GREEN) + "  (fill the yellow cells, then `calibrate`)")
+        return 0
     try:
         cal = calibrate.calibrate(folder)
     except (OSError, ValueError) as e:
@@ -1607,6 +1616,8 @@ def main(argv: list[str] | None = None) -> int:
     cb.add_argument("folder", nargs="?", help="the round's folder (default: the newest under Jewelry/Test Print with a sheet)")
     cb.add_argument("--dry-run", action="store_true", help="the analysis and the round's report only; the tables untouched")
     cb.add_argument("--tables", help="another tables file to write (default: data/jewelry_tables.json)")
+    cb.add_argument("--workbook", action="store_true", help="write the round's measurements.xlsx from its measurements.md and stop "
+                                                            "(a round made before the workbook existed, or a fresh copy)")
     cb.set_defaults(fn=cmd_calibrate)
 
     api = sub.add_parser("api", help="nTop Notebook API through the Python Console (SSH localhost:2222)")

@@ -803,6 +803,12 @@ folder and, when the fit is sound, the tables - `resin_shrink_pct`, `print_bloom
 ± 0.02 and 0.029 ± 0.001 read back from 21 readings with 6 µm noise; a 0.3 mm slip dropped; no bore reading → nothing
 written). *Open:* applying the bloom - today a bore is compensated by `--allowance` (the report names the figure for the
 round's size); eroding the whole design by δ in nTop (an Offset input on every runner) would compensate every surface.
+The sheet is a workbook too (Mark, 9 Nov: Excel): `measurements.xlsx` beside the md - Print settings, a tab per part
+with the readings table (Built column, Mean and difference formulas), one row per question, the md on a hidden sheet so
+`calibrate` rebuilds the round from it and lays the typed cells over; `testprint` writes both, `calibrate --workbook`
+makes one for an older round. openpyxl is a runtime dependency for it. Each part's tab carries a sketch of where every
+row is measured, labelled in the row's words (`sketch.py`, matplotlib: the ring along its axis for the diameters, a
+cross-section or an elevation for the widths, the mandrel and the scale as notes) - "terms like width are vague", Mark.
 *Real check:* the hammered band's sheet, then the court band's and the Seraphine's reprints.
 
 ## Notebook readability (2026-11-04)

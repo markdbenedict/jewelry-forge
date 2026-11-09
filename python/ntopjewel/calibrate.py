@@ -15,6 +15,10 @@ and weighs less than a caliper. Least squares gives s and delta with their uncer
 reading that stands out (a slipped caliper) is named and the fit repeated without it. The weights give the resin's
 density, the printed volume being built x (1 - s)^3 plus the bloom over the surface.
 
+The sheet is read from the round's `measurements.xlsx` when it holds a reading (the workbook testprint writes beside the
+md: the same rows and questions with yellow cells to fill, the md itself on a hidden sheet so the reader rebuilds from it),
+else from `measurements.md`.
+
 What comes out: `calibration.md` and `calibration.json` in the round's folder (every reading, the fit, the answers
 about supports and features as given), and - unless --dry-run, and only when the fit is sound - the tables
 (`data/jewelry_tables.json`): settings.resin_shrink_pct and settings.print_bloom_mm calibrated, metals.resin's density
@@ -70,6 +74,8 @@ class PartSheet:
     rows: dict                   # label -> [readings]  (only rows with a number)
     lines: list                  # the feature / support bullets as filled in
     unanswered: int              # bullets still holding a blank
+    row_labels: list = field(default_factory=list)   # every table row, in order (the workbook is built from them)
+    design_line: str = ""        # the Design: line verbatim
 
 
 @dataclass
@@ -144,10 +150,10 @@ def _settings(lines: list[str]) -> dict:
     return out
 
 
-def read_sheet(path: Path) -> Sheet:
-    """The measurement sheet of a round, as filled in."""
+def read_sheet(path: Path, text: str | None = None) -> Sheet:
+    """The measurement sheet of a round (measurements.md), as filled in; `text` instead of reading the file."""
     path = Path(path)
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8") if text is None else text
     m = re.search(r"\(US ([\d.]+),", text)
     size = m.group(1) if m else None
     parts: list[PartSheet] = []
@@ -169,7 +175,8 @@ def read_sheet(path: Path) -> Sheet:
                 mm = re.match(r"(\d+)\.\s+(.*)", head)
                 section = "part"
                 cur = {"index": int(mm.group(1)) if mm else len(parts) + 1, "title": (mm.group(2) if mm else head).strip(),
-                       "stem": None, "key": None, "design": {}, "printed": "", "rows": {}, "lines": []}
+                       "stem": None, "key": None, "design": {}, "design_line": "", "printed": "", "rows": {}, "row_labels": [],
+                       "lines": []}
             continue
         if section == "settings":
             settings_lines.append(line)
@@ -181,11 +188,13 @@ def read_sheet(path: Path) -> Sheet:
                     cur["stem"], cur["key"] = mm.group(1), mm.group(2)
             elif line.startswith("Design:"):
                 cur["design"] = parse_design(line)
+                cur["design_line"] = line[len("Design:"):].strip()
             elif line.startswith("Printed:"):
                 cur["printed"] = line[len("Printed:"):].strip().rstrip(".")
             elif line.startswith("|") and not line.startswith("| ---") and not line.startswith("| Measure"):
                 cells = [c.strip() for c in line.strip().strip("|").split("|")]
-                if cells:
+                if cells and cells[0]:
+                    cur["row_labels"].append(cells[0])
                     vals = [v for v in (parse_number(c) for c in cells[1:]) if v is not None]
                     if vals:
                         cur["rows"][cells[0]] = vals
@@ -199,7 +208,8 @@ def read_sheet(path: Path) -> Sheet:
 def _part(cur: dict, titles: dict) -> PartSheet:
     key = cur["key"] or titles.get(cur["title"])
     unanswered = sum(1 for l in cur["lines"] if BLANK in l)
-    return PartSheet(cur["index"], cur["title"], key, cur["stem"], cur["design"], cur["printed"], cur["rows"], cur["lines"], unanswered)
+    return PartSheet(cur["index"], cur["title"], key, cur["stem"], cur["design"], cur["printed"], cur["rows"], cur["lines"], unanswered,
+                     cur["row_labels"], cur["design_line"])
 
 
 def stems_from_readme(folder: Path) -> list[str]:
@@ -241,6 +251,251 @@ def row_key(label: str, part_key: str | None) -> str | None:
     if "width" in low:
         return "width"
     return None
+
+
+# ============================================================================ the workbook
+WORKBOOK = "measurements.xlsx"
+MD_SHEET = "_sheet"              # hidden: the measurements.md the workbook was built from, a line per row - the reader rebuilds from it
+FONT = "Arial"
+INPUT_FILL = "FFF2CC"            # the cells to fill in
+EXAMPLE_FILL = "EDEDED"
+SETTINGS_ROWS = (("Printer / resin", "printer"), ("Layer height (µm)", "layer_um"), ("Exposure (s)", "exposure_s"),
+                 ("Bottom layers (count)", "bottom_layers"), ("Bottom exposure (s)", "bottom_s"),
+                 ("Printed from the .supported.stl files as they are (no supports added, not rotated)? yes / no", "as_is"),
+                 ("Wash, IPA (min)", "wash_min"), ("Cure (min)", "cure_min"), ("Measured how long after the cure (h)", "after_cure_h"),
+                 ("Scale resolution (g)", "scale_g"), ("Calipers (make, resolution)", "calipers"))
+SHEET_NAMES = {"court": "Court band", "hammered": "Hammered band", "seraphine": "Seraphine"}
+TABLE_ROW = 7                    # the first measure row of a part sheet (5 headers, 6 the example)
+
+
+def _design_value(key: str | None, design: dict, size: str | None):
+    """The Built column of the workbook: what the measure should read as designed (the mandrel row reads a size)."""
+    if key == "mandrel":
+        return float(size) if size else None
+    if key == "height":
+        return design.get("extents", [None])[0]
+    if key == "weight":
+        return design.get("resin_g")
+    return design.get(key) if key else None
+
+
+def write_workbook(sheet: Sheet, path: Path, md_text: str, sketches: dict | None = None) -> Path:
+    """The round's measurement sheet as a workbook: Print settings, one sheet per part (the readings table with a Built
+    column and Mean / difference formulas, the feature questions one per row, the part's measurement sketch beside
+    them - `sketches`: part key -> PNG), the md it came from on a hidden sheet. Yellow cells are the ones to fill in."""
+    from openpyxl import Workbook
+    from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    bold = Font(name=FONT, bold=True, size=10)
+    plain = Font(name=FONT, size=10)
+    note = Font(name=FONT, size=9, italic=True, color="555555")
+    blue = Font(name=FONT, size=10, color="0000FF")
+    fill_in = PatternFill("solid", fgColor=INPUT_FILL)
+    grey = PatternFill("solid", fgColor=EXAMPLE_FILL)
+    wrap = Alignment(wrap_text=True, vertical="top")
+
+    def text(ws, ref, value, font=plain, fill=None, fmt=None, align=None):
+        c = ws[ref]
+        c.value = value
+        c.font = font
+        if fill is not None:
+            c.fill = fill
+        if fmt:
+            c.number_format = fmt
+        if align is not None:
+            c.alignment = align
+        return c
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Print settings"
+    m = re.search(r"^# (.+)$", md_text, re.M)
+    text(ws, "A1", m.group(1) if m else "Test Print — measurements", Font(name=FONT, bold=True, size=12))
+    text(ws, "A2", "Fill the yellow cells - the settings here, the readings and answers on each part's sheet - save, and run "
+                   "`python -m ntopjewel calibrate`, which reads this workbook back (the grey example rows are not read; a "
+                   "mandrel size is a number: 4.5, not 4 1/2). Readings to 0.01 mm, three round the ring where the sheet says ×3; "
+                   "measure after the wash and the full UV cure and say how long after.", note, align=wrap)
+    ws.merge_cells("A2:C2")
+    ws.row_dimensions[2].height = 64
+    text(ws, "A4", "Setting", bold)
+    text(ws, "B4", "Value", bold)
+    for i, (label, key) in enumerate(SETTINGS_ROWS):
+        r = 5 + i
+        text(ws, f"A{r}", label, plain, align=wrap)
+        v = sheet.settings.get(key)
+        text(ws, f"B{r}", v if v else None, blue, fill_in)
+    ws.column_dimensions["A"].width = 60
+    ws.column_dimensions["B"].width = 34
+    ws.column_dimensions["C"].width = 20
+    for ps in sheet.parts:
+        name = f"{ps.index} {SHEET_NAMES.get(ps.key or '', ps.title[:25])}"
+        w = wb.create_sheet(name[:31])
+        text(w, "A1", "Part", bold)
+        text(w, "B1", ps.stem or "", plain)
+        text(w, "A2", "Design", bold)
+        text(w, "B2", ps.design_line, plain)
+        text(w, "A3", "Printed", bold)
+        text(w, "B3", ps.printed, plain)
+        for col, head in zip("ABCDEFG", ("Measure", "1", "2", "3", "Built (as designed)", "Mean", "Mean − built")):
+            text(w, f"{col}5", head, bold)
+        text(w, "A6", "example (not read)", note, grey)
+        for col, v in zip("BCD", (15.27, 15.26, 15.28)):
+            text(w, f"{col}6", v, Font(name=FONT, size=10, italic=True, color="555555"), grey, "0.000")
+        text(w, "E6", 15.288, note, grey, "0.000")
+        text(w, "F6", '=IF(COUNT(B6:D6)=0,"",AVERAGE(B6:D6))', note, grey, "0.000")
+        text(w, "G6", '=IF(F6="","",F6-E6)', note, grey, "+0.000;-0.000;0.000")
+        r = TABLE_ROW
+        for label in ps.row_labels:
+            text(w, f"A{r}", label, plain)
+            vals = ps.rows.get(label, [])
+            for j, col in enumerate("BCD"):
+                text(w, f"{col}{r}", vals[j] if j < len(vals) else None, blue, fill_in, "0.000")
+            built = _design_value(row_key(label, ps.key), ps.design, sheet.size)
+            text(w, f"E{r}", built, plain, fmt="0.000")
+            text(w, f"F{r}", f'=IF(COUNT(B{r}:D{r})=0,"",AVERAGE(B{r}:D{r}))', plain, fmt="0.000")
+            text(w, f"G{r}", f'=IF(OR(F{r}="",E{r}=""),"",F{r}-E{r})', plain, fmt="+0.000;-0.000;0.000")
+            r += 1
+        r += 1
+        text(w, f"A{r}", "Features (yes / no, a few words)", bold)
+        text(w, f"B{r}", "Answer", bold)
+        r += 1
+        for line in ps.lines:
+            frags = line.split(BLANK)
+            if len(frags) == 1:                                   # a line with no blank (already answered in the md)
+                text(w, f"A{r}", line, plain, align=wrap)
+                r += 1
+                continue
+            for frag in frags[:-1]:
+                text(w, f"A{r}", frag.strip(), plain, align=wrap)
+                text(w, f"B{r}", None, blue, fill_in)
+                for col in "CD":
+                    text(w, f"{col}{r}", None, blue, fill_in)
+                w.merge_cells(f"B{r}:D{r}")                          # room for a few words; the value sits in B
+                r += 1
+        png = (sketches or {}).get(ps.key or "")
+        if png and Path(png).exists():
+            img = XLImage(str(png))
+            scale = 760.0 / img.width
+            img.width, img.height = 760, int(img.height * scale)
+            w.add_image(img, "I5")                                   # the sketch of where each row is measured
+            text(w, "I4", "Where each row is measured (measure_<part>.png in this folder):", note)
+        w.column_dimensions["A"].width = 56
+        for col in "BCD":
+            w.column_dimensions[col].width = 12
+        w.column_dimensions["E"].width = 18
+        w.column_dimensions["F"].width = 10
+        w.column_dimensions["G"].width = 13
+        w.freeze_panes = "B7"
+    hidden = wb.create_sheet(MD_SHEET)
+    for i, line in enumerate(md_text.splitlines(), start=1):
+        hidden.cell(row=i, column=1, value=line if line else None)
+    hidden.sheet_state = "hidden"
+    wb.save(path)
+    return Path(path)
+
+
+def _cell_number(v) -> float | None:
+    import datetime as _dt
+    if v is None or isinstance(v, (_dt.datetime, _dt.date, _dt.time)):   # "4 1/2" turned into a date by Excel: not a reading
+        return None
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    return parse_number(str(v))
+
+
+def read_workbook(path: Path) -> Sheet:
+    """The workbook as filled in, rebuilt from the md on its hidden sheet with the readings and answers laid over."""
+    from openpyxl import load_workbook
+    path = Path(path)
+    wb = load_workbook(path, data_only=True, read_only=True)
+    if MD_SHEET not in wb.sheetnames:
+        raise ValueError(f"{path.name} has no '{MD_SHEET}' sheet: not a workbook testprint or calibrate wrote")
+    md_lines = []
+    for row in wb[MD_SHEET].iter_rows(min_col=1, max_col=1, values_only=True):
+        md_lines.append("" if row[0] is None else str(row[0]))
+    base = read_sheet(path, text="\n".join(md_lines))
+    if "Print settings" in wb.sheetnames:
+        ws = wb["Print settings"]
+        for i, (label, key) in enumerate(SETTINGS_ROWS):
+            v = ws.cell(row=5 + i, column=2).value
+            if v is not None and str(v).strip() and BLANK not in str(v):
+                base.settings[key] = str(v).strip() if not isinstance(v, float) else f"{v:g}"
+    part_sheets = [n for n in wb.sheetnames if n not in ("Print settings", MD_SHEET)]
+    for ps, name in zip(base.parts, part_sheets):
+        ws = wb[name]
+        head = list(ws.iter_rows(min_row=1, max_row=1, max_col=2, values_only=True))
+        if ps.stem is None and head and len(head[0]) > 1 and head[0][1]:
+            ps.stem = str(head[0][1]).strip()                    # B1: the stem the workbook was written with
+        rows = list(ws.iter_rows(min_row=TABLE_ROW, values_only=True))
+        answers: list = []
+        in_features = False
+        for row in rows:
+            label = row[0] if row else None
+            label = "" if label is None else str(label).strip()
+            if not in_features:
+                if label.startswith("Features"):
+                    in_features = True
+                    continue
+                if not label or label.startswith("example"):
+                    continue
+                vals = [v for v in (_cell_number(c) for c in row[1:4]) if v is not None]
+                if vals:
+                    ps.rows[label] = vals
+                elif label in ps.rows:
+                    del ps.rows[label]
+            else:
+                if not label:
+                    continue
+                a = row[1] if len(row) > 1 else None
+                answers.append(None if a is None or not str(a).strip() else str(a).strip())
+        k = 0
+        rebuilt = []
+        for line in ps.lines:
+            frags = line.split(BLANK)
+            if len(frags) == 1:
+                rebuilt.append(line)
+                continue
+            out = ""
+            for frag in frags[:-1]:
+                a = answers[k] if k < len(answers) else None
+                k += 1
+                out += frag + (a if a else BLANK)
+            rebuilt.append(out + frags[-1])
+        ps.lines = rebuilt
+        ps.unanswered = sum(1 for l in rebuilt if BLANK in l)
+    wb.close()
+    return base
+
+
+def read_round(folder: Path) -> Sheet:
+    """The round's sheet as filled in: the workbook when it holds a reading, else measurements.md."""
+    folder = Path(folder)
+    xlsx, md = folder / WORKBOOK, folder / "measurements.md"
+    if xlsx.exists():
+        sheet = read_workbook(xlsx)
+        if any(ps.rows for ps in sheet.parts) or not md.exists():
+            return sheet
+    return read_sheet(md)
+
+
+def workbook_for_round(folder: Path) -> Path:
+    """measurements.xlsx written from the round's measurements.md (a round made before the workbook existed, or again)."""
+    folder = Path(folder)
+    md = folder / "measurements.md"
+    text = md.read_text(encoding="utf-8")
+    sheet = read_sheet(md, text=text)
+    stems = stems_from_readme(folder)                            # sheets before 9 Nov carry no Part: line
+    for i, ps in enumerate(sheet.parts):
+        if ps.stem is None and i < len(stems):
+            ps.stem = stems[i]
+    from . import sketch
+    pics = {}
+    for ps in sheet.parts:
+        if ps.key in sketch.PARTS:
+            pics[ps.key] = sketch.sketch(ps.key, ps.design, folder / f"measure_{ps.key}.png", sheet.size)
+    return write_workbook(sheet, folder / WORKBOOK, text, pics)
 
 
 # ============================================================================ the parts as built
@@ -565,7 +820,7 @@ def calibrate(folder: Path, deliver_dir: Path | None = None, today: datetime.dat
     folder = Path(folder)
     today = today or datetime.date.today()
     deliver_dir = Path(deliver_dir) if deliver_dir else folder.parent.parent
-    sheet = read_sheet(folder / "measurements.md")
+    sheet = read_round(folder)
     readme_stems = stems_from_readme(folder)
     parts: list[PartResult] = []
     readings: list[Reading] = []
@@ -714,10 +969,11 @@ def newest_round(deliver_dir: Path) -> Path | None:
     root = Path(deliver_dir) / testprint.FOLDER
     if not root.exists():
         return None
-    with_sheet = [d for d in sorted((p for p in root.iterdir() if p.is_dir()), reverse=True) if (d / "measurements.md").exists()]
+    with_sheet = [d for d in sorted((p for p in root.iterdir() if p.is_dir()), reverse=True)
+                  if (d / "measurements.md").exists() or (d / WORKBOOK).exists()]
     for d in with_sheet:
         try:
-            if any(ps.rows for ps in read_sheet(d / "measurements.md").parts):
+            if any(ps.rows for ps in read_round(d).parts):
                 return d
         except (OSError, ValueError):
             continue
