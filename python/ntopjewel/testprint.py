@@ -38,8 +38,13 @@ class Part:
     tests: str
     bore: str = "allow"
     spacing_key: str | None = None   # the tables' setting of its own support spacing (None: support_spacing_mm)
-    rows: tuple = ()                 # the part's own rows of the measurement table
+    rows: tuple = ()                 # the part's own rows of the measurement table: (label, what it measures - a key of
+                                     # calibrate.MEASURES: outer, width, over_beads, width_bottom, height)
     questions: tuple = ()            # its yes / no feature questions
+
+
+COMMON_ROWS = (("Bore Ø, inside jaws (×3)", "bore"), ("Mandrel size it stops at", "mandrel"))   # every part's first rows
+WEIGHT_ROW = ("Weight (g)", "weight")                                                           # ... and its last
 
 
 # The court band's bore takes supports since 9 Nov: with beads on both edges, nothing but its dome can start the print
@@ -51,7 +56,8 @@ PARTS = (
          "the calibration piece: the bore on the mandrel (nubs sanded flush first), width and thickness; 0.5 mm beads; "
          "letters 0.25 deep, 0.6 mm strokes",
          spacing_key="test_print_court_spacing_mm",
-         rows=("Outer Ø over the beads (×3)", "Width over the beads (×2)", "Width between the faces, beside a bead (×2)"),
+         rows=(("Outer Ø over the beads (×3)", "outer"), ("Width over the beads (×2)", "over_beads"),
+               ("Width between the faces, beside a bead (×2)", "width")),
          questions=("Beads: all present? ____  Missing or merged in a quarter turn: ____  Shape (round / blobby / flat): ____",
                     "Groove: continuous and crisp-edged? ____",
                     "Engraving: every letter legible (M + K 2 0 2 6)? ____  Strokes open to the floor or filled? ____",
@@ -61,7 +67,7 @@ PARTS = (
          ("texture", "--thickness", "1.6", "--tolerance", "0.05"),
          "does a texture this shallow read after printing (and later after casting)",
          spacing_key="test_print_hammered_spacing_mm",
-         rows=("Outer Ø across the rims (×3)", "Width (×2)"),
+         rows=(("Outer Ø across the rims (×3)", "outer"), ("Width (×2)", "width")),
          questions=("Dimples read by eye at arm's length? ____  Under a loupe? ____",
                     "The facet creases between strikes visible? ____  The lightest strikes (0.10) visible? ____",
                     "Do layer lines compete with the texture? ____",
@@ -73,7 +79,8 @@ PARTS = (
           "--stem-width", "0.15", "--width-bottom", "2", "--thickness-bottom", "1.5"),
          "every prong intact (the Phase 2 gate), 0.15 mm relief lines, the knots; a 6.5 mm stone should drop into the seat",
          spacing_key="test_print_seraphine_spacing_mm",
-         rows=("Overall height, bottom of the band to the prong tips", "Band width at the bottom", "Band width at the head"),
+         rows=(("Overall height, bottom of the band to the prong tips", "height"), ("Band width at the bottom", "width_bottom"),
+               ("Band width at the head", "width")),
          questions=("All four prongs intact and the same height? ____  Tips (sharp / rounded / blobbed): ____",
                     "A 6.5 mm stone (or a 6.5 mm drill shank) drops into the seat and sits level? ____",
                     "Knots: the over / under crossings readable, the strands separate? ____  Anything filled in: ____",
@@ -204,8 +211,9 @@ def write_round(folder: Path, size_, done, metal=None, today=None) -> Path:
 
 def _sheet(size_, good, when) -> str:
     out = [f"# Test Print — measurements (US {size_}, {when})", "",
-           "Fill the blanks and tell Claude the sheet is in (it reads this file from the folder), or paste the numbers in",
-           "the chat. Calipers to 0.01 mm. \"×3\" means three readings round the ring, about 120° apart; \"mandrel\" the size",
+           "Fill the blanks in place (replace each ____ and the empty table cells; leave what you did not measure) and run",
+           "`python -m ntopjewel calibrate`, which reads this file back - or tell Claude the sheet is in. Calipers to 0.01 mm.",
+           "\"×3\" means three readings round the ring, about 120° apart; \"mandrel\" the size",
            "mark the ring stops at (half sizes count). Measure after the wash and the full UV cure — that is the pattern the",
            "investment will see — and say how long after the cure. Photos (phone macro) of a support scar on each, the",
            "engraving, a milgrain edge, the hammered face in raking light, the Seraphine's head and one shoulder.", "",
@@ -218,12 +226,12 @@ def _sheet(size_, good, when) -> str:
     for i, (p, rec) in enumerate(good, 1):
         prep = rec["prep"]
         n = numbers(rec["spec"], prep)
-        out += [f"## {i}. {p.title}", "", f"Design: {_design_line(n)}.", f"Printed: {prep.headline()}, "
-                f"{prep.settings['support_spacing_mm']:g} mm apart" + (f"; {prep.cautions()}" if prep.cautions() else "") + ".", "",
-                "| Measure | 1 | 2 | 3 |", "| --- | --- | --- | --- |",
-                "| Bore Ø, inside jaws (×3) | | | |", "| Mandrel size it stops at | | | |"]
-        out += [f"| {r} | | | |" for r in p.rows]
-        out += ["| Weight (g) | | | |", "", "Features (yes / no, a few words):"]
+        out += [f"## {i}. {p.title}", "", f"Part: {rec['spec'].stem} ({p.key})", f"Design: {_design_line(n)}.",
+                f"Printed: {prep.headline()}, {prep.settings['support_spacing_mm']:g} mm apart"
+                + (f"; {prep.cautions()}" if prep.cautions() else "") + ".", "",
+                "| Measure | 1 | 2 | 3 |", "| --- | --- | --- | --- |"]
+        out += [f"| {label} | | | |" for label, _ in COMMON_ROWS + tuple(p.rows) + (WEIGHT_ROW,)]
+        out += ["", "Features (yes / no, a few words):"]
         out += [f"- {q}" for q in p.questions]
         out += ["- Supports: swelling where they met the part? ____  Broke off clean at the tip? ____  Nubs sanded flush? ____",
                 "- Anything sagged or missing where the preview marks it unsupported? ____", ""]

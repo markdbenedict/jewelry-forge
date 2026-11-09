@@ -17,10 +17,13 @@ entry). Quote the table, not memory.
   A = 12.04 mm. `python -m ntopjewel sizes` prints the table.
 - Size is applied to the **bore at the band's narrowest point** (the mid-plane of a
   comfort-fit band). Wide bands (> 6 mm) wear tight: add ¼ size for 6–8 mm, ½ size above.
-- Print/cast allowance: unknown until calibrated. First printed band set: sizes 5, 6, 7
-  with `--allowance 0`; measure on the mandrel; set the allowance from the difference.
-  Cast rings typically come out ¼–½ size under the model; record the measured offset in
-  `tables.CASTING["cast_ring_size_offset"]`.
+- Print/cast allowance: a printed dimension moves two ways - the resin's shrink (`settings.resin_shrink_pct`, a scale
+  of everything) and its bloom (`settings.print_bloom_mm`: every surface grows past the layer's outline, so outer
+  dimensions come out larger and bores smaller by twice it). Both come from a test-print round's sheet through
+  `python -m ntopjewel calibrate` (a reading across a bore and one across metal tell them apart); until then they are
+  `uncalibrated`. A bore is compensated by `--allowance` (the intake's report names the figure for the round's size:
+  bore × shrink + 2 × bloom). Cast rings typically come out ¼–½ size under the model; record the measured offset in
+  `tables.CASTING["cast_ring_size_offset"]` (Phase 5).
 - Band floors: thickness ≥ 1.0 mm (1.3 mm is a comfortable default), width ≥ 1.5 mm.
 
 ## Walls and features (castable resin print → investment cast)

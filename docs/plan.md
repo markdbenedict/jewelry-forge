@@ -789,6 +789,22 @@ ring_shank 0.4.0 were newer than the committed ones).
 the Seraphine's file again; the hammered band's sheet. Then `print_start_gap_mm` and `support_hold_area_mm2` get their
 first evidence (a clean start on a one-layer lead; the start held by 4-5 tips).
 
+**9 Nov - the calibration intake (`calibrate`).** The loop the Phase 1 gate names (measure, set the allowance, record)
+had no software: the sheet would have been read by hand. Now `python -m ntopjewel calibrate [round]` reads the
+filled-in `measurements.md`, sets every reading against the part as built (the gate's measurement of the printed STL
+from the delivery's manifest; the sheet's design line where there is no delivery) and fits the round to two numbers:
+the resin's shrink, a scale of everything, and its bloom - every surface grown past the layer's outline, so outer
+dimensions come out larger and bores smaller by twice it. `measured = built × (1 − s) + 2 n δ`, least squares over every
+reading of every part, a mandrel reading a diameter at a third of a caliper's weight, a slipped caliper dropped once and
+named; the weights give the resin's density from the printed volume. It writes `calibration.md` / `.json` into the round's
+folder and, when the fit is sound, the tables - `resin_shrink_pct`, `print_bloom_mm` (new), the resin's density - as
+`calibrated` with dated `calibration_log` entries keeping the previous value, plus an `evidence` entry per part printed
+(what it printed with, what the sheet says of its supports). Tested on a synthetic round (0.6 % and 0.03 mm put in, 0.60 %
+± 0.02 and 0.029 ± 0.001 read back from 21 readings with 6 µm noise; a 0.3 mm slip dropped; no bore reading → nothing
+written). *Open:* applying the bloom - today a bore is compensated by `--allowance` (the report names the figure for the
+round's size); eroding the whole design by δ in nTop (an Offset input on every runner) would compensate every surface.
+*Real check:* the hammered band's sheet, then the court band's and the Seraphine's reprints.
+
 ## Notebook readability (2026-11-04)
 
 Mark's ask: the notebooks simpler and readable by a person, without restructuring the codebase. Done:
@@ -829,10 +845,13 @@ variables stay at the top level (layout only; rebuild a runner to see its sectio
    and `ntop\recipes\ring_features.recipe.json`.
 2. Choose the band to print (profile, size, with or without features); `python -m ntopjewel ring … --deliver`
    produces `OneDrive\Documents\Jewelry\Rings\<stem>\` with the STL, inputs, reports and manifest.
-3. Print it from its prepared file (`--prep`, the bore kept clear: `--bore avoid`); measure the inner diameter on the mandrel; set `allowance_mm` (and, if the
-   printer under-sizes bores consistently, a calibrated `print_bore_offset` entry in the tables).
+3. Print it from its prepared file (`testprint`); fill in the round's `measurements.md` (bore with inside jaws and on the
+   mandrel, outer diameter, width, weight); `python -m ntopjewel calibrate` fits the resin's shrink and bloom and the
+   resin's density from the round and writes them into the tables (`calibration_log`); its report names the
+   `--allowance` that compensates the bore at that size.
 4. Cast it; weigh it; record the cast size offset and the measured density in
-   `data/jewelry_tables.json` with a dated `calibration_log` entry and `status: calibrated`.
+   `data/jewelry_tables.json` with a dated `calibration_log` entry and `status: calibrated` (the casting side of the
+   intake is Phase 5's).
 5. The gate passes when the cast band sits on the mandrel at the designed size (±0.1 mm) and
    weighs within 5 % of the gate's prediction.
 

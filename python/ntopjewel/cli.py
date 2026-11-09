@@ -432,6 +432,31 @@ def cmd_testprint(a: argparse.Namespace) -> int:
     return 0 if all(testprint.ok(rec) for _, rec in done) else 1
 
 
+def cmd_calibrate(a: argparse.Namespace) -> int:
+    """The calibration intake: a round's filled-in measurement sheet read back, every reading set against the part as
+    built, the resin's shrink and bloom fitted over the round, the weights turned into a density; calibration.md / .json
+    written into the round's folder and, unless --dry-run, the tables updated with dated calibration_log entries."""
+    from . import calibrate
+    folder = Path(a.folder) if a.folder else calibrate.newest_round(config.deliver_dir())
+    if folder is None or not (Path(folder) / "measurements.md").exists():
+        print(summary.error_line("calibrate", f"no measurement sheet in {folder or config.deliver_dir() / 'Test Print'}"
+                                              " (a round's folder holds measurements.md; `testprint` writes it)"))
+        return 2
+    try:
+        cal = calibrate.calibrate(folder)
+    except (OSError, ValueError) as e:
+        print(summary.error_line("calibrate", e))
+        return 2
+    if cal.measured_parts and not a.dry_run:
+        calibrate.apply(cal, Path(a.tables) if a.tables else None)
+    print(cal.text())
+    if cal.measured_parts:
+        md, js = calibrate.write_round(cal)
+        print(f"  report: {md}")
+    print(cal.verdict(dry_run=a.dry_run))
+    return 0 if (cal.measured_parts and cal.fit.sound) else (2 if not cal.measured_parts else 1)
+
+
 def _quote(x: str) -> str:
     return f'"{x}"' if (" " in x or not x) else x
 
@@ -1575,6 +1600,14 @@ def main(argv: list[str] | None = None) -> int:
     tp.add_argument("--support-spacing", type=float, metavar="MM", help="one spacing for every part (default: each part's own)")
     tp.add_argument("--dry-run", action="store_true", help="the commands it would run, and the folder")
     tp.set_defaults(fn=cmd_testprint)
+
+    cb = sub.add_parser("calibrate", help="read a test-print round's filled-in measurements.md: every reading against the part as "
+                                          "built, the resin's shrink and bloom fitted over the round, the weights into a density; "
+                                          "calibration.md in the round's folder and the tables updated (calibration_log)")
+    cb.add_argument("folder", nargs="?", help="the round's folder (default: the newest under Jewelry/Test Print with a sheet)")
+    cb.add_argument("--dry-run", action="store_true", help="the analysis and the round's report only; the tables untouched")
+    cb.add_argument("--tables", help="another tables file to write (default: data/jewelry_tables.json)")
+    cb.set_defaults(fn=cmd_calibrate)
 
     api = sub.add_parser("api", help="nTop Notebook API through the Python Console (SSH localhost:2222)")
     api.add_argument("--key", help="SSH private key (default: NTOP_SSH_KEY or ~/.ssh/id_ntopcli)")

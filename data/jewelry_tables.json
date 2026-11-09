@@ -303,7 +303,7 @@
     "resin_shrink_pct": {
       "value": 0.0,
       "status": "uncalibrated",
-      "source": "castable resin post-cure + burnout shrink, model -> pattern; measure on the first print"
+      "source": "castable resin post-cure shrink, model -> pattern, a scale of the whole part (width, thickness and bores alike); `calibrate` fits it from a test-print round's readings together with print_bloom_mm, which is the other way a printed dimension moves"
     },
     "seat_drop_mm": {
       "value": 8.0,
@@ -409,6 +409,11 @@
       "value": 45.0,
       "status": "default",
       "source": "the shallowest down-facing surface, from horizontal, that prints without a support: a face flatter than this (or any island) needs one; the usual figure for a bottom-up resin printer, to confirm on the test prints"
+    },
+    "print_bloom_mm": {
+      "value": 0.0,
+      "status": "uncalibrated",
+      "source": "how far every printed surface grows past the layer's outline (the light cures a little beyond it): a distance across metal - an outer diameter, a width - comes out larger by twice this, a bore smaller by twice this, on top of the resin's shrink, which is a scale. `calibrate` fits the two together from a test-print round's readings (a reading across a bore and one across metal tell them apart). To compensate a bore, enlarge it by twice this (`--allowance`); eroding the whole design by it is not built yet"
     },
     "print_start_gap_mm": {
       "value": 0.1,
@@ -559,6 +564,7 @@
   ],
   "notes": [
     "Change a number here, never in a notebook, a skill or a script; add a dated calibration_log entry and set the entry's status.",
-    "Python reads this file through ntopjewel.tables; Blender's jewelry_kit.py reads it when it can find the repo (JEWELRY_FORGE_ROOT, its own path, or a 'jewelry_tables.json' text block) and otherwise uses an embedded copy that python/tests/test_blender_scripts.py keeps identical to this file."
+    "Python reads this file through ntopjewel.tables; Blender's jewelry_kit.py reads it when it can find the repo (JEWELRY_FORGE_ROOT, its own path, or a 'jewelry_tables.json' text block) and otherwise uses an embedded copy that python/tests/test_blender_scripts.py keeps identical to this file.",
+    "A calibration_log entry with status `evidence` changes no value: a print or a cast that bore on a default or calibrated setting, written by `calibrate` from a test-print round's sheet, kept for when the setting is calibrated or questioned."
   ]
 }
