@@ -811,6 +811,28 @@ row is measured, labelled in the row's words (`sketch.py`, matplotlib: the ring 
 cross-section or an elevation for the widths, the mandrel and the scale as notes) - "terms like width are vague", Mark.
 *Real check:* the hammered band's sheet, then the court band's and the Seraphine's reprints.
 
+**Real check 9-13 Nov (Mark, Supercast resin; photos 13 Nov):** the court band (17 supports, on edge) and the Seraphine
+printed whole and started on their supports - the start rule held. Both came out with a "thickened downside": the lower
+arc of each ring swollen and a blob at its lowest point, among the cluster of tips. A longer layer exposure and a 2 s
+rest between layers gave "the exact same outcomes". Back on Siraya Tech Royal Blue the first print stuck to the film
+and not the platform (a bottom-layer adhesion fault: the profile's bottom exposure, wax residue of the castable resin
+on the platform, a cold room - not the preparation's). Two causes read from the photos, neither measured yet: the
+resin's cure-through (light past each new layer; worst where a ring on edge lies flat to the vat), and the hold rule's
+tips 0.75 mm apart there, bridged by resin.
+
+**13 Nov - tips spread, cure-through compensated, both the default.** `support_min_spacing_mm` (1.5): no two contacts
+nearer, the hold rule stops at half the spacing, hard check `contacts spread`; a layer it leaves hanging is a warning.
+`print_cure_through_mm` (0, uncalibrated): above 0 the chosen orientation's part becomes part ∩ (part moved that depth
+along the build direction) - an erosion by a segment, exact for a resin that cures a fixed depth past every vat-facing
+surface - healed (the real court band's cut left 3016 slivers and a crumb; unhealed it read back with 1073 open
+edges), every face keeping the class of the face it came from; `--cure-through` for one run; hard check `cure-through
+compensated`. On the real US 4.5 court band at a trial 0.2 mm: 30.6 mm³ (13.5 %) taken off, 16 supports none nearer
+than 1.51 mm, PASSED. `calibrate` reads the depth from two new rows on the court band's sheet (thickness at the
+printed bottom, at the side) and writes it when within 0-0.6 mm. *Limits:* the model is a fixed depth - a thin section
+with little solid above it cures through less, so fine vat-facing detail may come out under size; the depth is one
+resin at one exposure. *Real check:* lower the Supercast exposure first; print the court band; measure the two
+thicknesses; `calibrate`; reprint and compare bottom with side.
+
 ## Notebook readability (2026-11-04)
 
 Mark's ask: the notebooks simpler and readable by a person, without restructuring the codebase. Done:

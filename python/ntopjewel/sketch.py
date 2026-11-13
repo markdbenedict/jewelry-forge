@@ -37,7 +37,7 @@ def _dim(ax, p, q, text, side="above", offset=0.0, align="center", **kw):
     ax.text(pos[0], pos[1], text, **props)
 
 
-def _ring_face(ax, r_in, r_out, title, outer_label, bead_ring=None, head=None):
+def _ring_face(ax, r_in, r_out, title, outer_label, bead_ring=None, head=None, thickness=False):
     """The ring seen along its axis: the bore and the outer diameter."""
     from matplotlib.patches import Circle, Polygon
     ax.set_aspect("equal")
@@ -61,6 +61,13 @@ def _ring_face(ax, r_in, r_out, title, outer_label, bead_ring=None, head=None):
     ax.plot([-r_out, x + 0.3], [-r_out, -r_out], color="#1f4e79", lw=0.6, ls=":")
     ax.plot([-r_out, x + 0.3], [r_out, r_out], color="#1f4e79", lw=0.6, ls=":")
     _dim(ax, (x, -r_out), (x, r_out), outer_label, side="right", offset=0.3, rotation=90, rotation_mode="anchor", ha="center", va="top")
+    if thickness:
+        ax.annotate("", xy=(0, -r_in), xytext=(0, -r_out), arrowprops=dict(ARROW, lw=1.1, mutation_scale=6))
+        ax.annotate("thickness at the printed bottom\n(where it stood on its supports)", xy=(0.1, -(r_in + r_out) / 2),
+                    xytext=(2.2, -r_out - 1.6), arrowprops=dict(arrowstyle="-", color="#1f4e79", lw=0.6), ha="left", va="center", **LABEL)
+        ax.annotate("", xy=(-r_in, 0.9), xytext=(-r_out, 0.9), arrowprops=dict(ARROW, lw=1.1, mutation_scale=6))
+        ax.annotate("thickness at the side,\nhalf way up as printed", xy=(-(r_in + r_out) / 2, 1.0),
+                    xytext=(-r_in + 0.8, 3.2), arrowprops=dict(arrowstyle="-", color="#1f4e79", lw=0.6), ha="left", va="center", **LABEL)
     ax.set_title(title, fontsize=9.5, color="#222222", loc="left")
     lim = r_out + 4.2
     ax.set_xlim(-r_out - 1.2, lim + 1.5)
@@ -194,7 +201,7 @@ def sketch(key: str, design: dict, path: Path, size: str | None = None, labels: 
     if key == "court":
         ax1 = fig.add_axes([0.02, 0.20, 0.46, 0.75])
         ax2 = fig.add_axes([0.50, 0.20, 0.48, 0.75])
-        _ring_face(ax1, r_in, r_out, "Seen along the axis", labels.get("outer", "Outer Ø over the beads (×3)"), bead_ring=r_out - 0.22)
+        _ring_face(ax1, r_in, r_out, "Seen along the axis", labels.get("outer", "Outer Ø over the beads (×3)"), bead_ring=r_out - 0.22, thickness=True)
         _section_court(ax2, design.get("width", 4.0), design.get("thickness", 1.3), 0.5, 0.6, 0.25, design.get("over_beads"),
                        {"over_beads": labels.get("over_beads", "Width over the beads (×2)"),
                         "width": labels.get("width", "Width between the faces, beside a bead (×2)")})

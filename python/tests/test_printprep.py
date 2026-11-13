@@ -311,6 +311,48 @@ def test_a_wide_spacing_still_holds_the_lowest_layers(tmp_path):
     assert sum(s["hold"] for s in doc["supports"]) == len(hold)
 
 
+def test_cure_through_thins_only_what_faces_the_vat_and_keeps_each_faces_class():
+    """13 Nov 2026 (Mark's Supercast prints: "a thickened downside"): the file is the part less what the resin cures
+    beyond each layer - a box loses exactly the depth off its underside, nothing off its top or its walls."""
+    box = trimesh.creation.box((4.0, 3.0, 2.0))
+    cls = _all(box)
+    cls[box.triangles_center[:, 2] < -0.99] = printprep.BORE                         # its underside, to follow
+    out, ocls, removed, bodies = printprep.compensate_cure_through(box, cls, [0, 0, 1], 0.25)
+    assert bodies == 1 and out.is_watertight and removed == pytest.approx(4 * 3 * 0.25, rel=1e-4)
+    assert out.bounds[0][2] == pytest.approx(-0.75, abs=1e-5) and out.bounds[1][2] == pytest.approx(1.0, abs=1e-5)
+    assert np.allclose(out.bounds[:, :2], box.bounds[:, :2], atol=1e-5)
+    low = out.triangles_center[:, 2] < -0.74
+    assert low.any() and (ocls[low] == printprep.BORE).all() and (ocls[~low] == printprep.POLISH).all()
+    with pytest.raises(ValueError, match="nothing is left"):
+        printprep.compensate_cure_through(box, cls, [0, 0, 1], 2.5)
+    plate = _union(box, trimesh.creation.box((1.0, 1.0, 0.2)).apply_translation([0, 0, -1.6]),
+                   trimesh.creation.box((0.3, 0.3, 0.6)).apply_translation([0, 0, -1.25]))
+    _, _, _, pieces = printprep.compensate_cure_through(plate, _all(plate), [1, 0, 0], 0.5)   # the 0.3 stalk is thinner than 0.5 along x
+    assert pieces == 2
+
+
+def test_the_prepared_file_is_compensated_and_its_tips_stay_apart(tmp_path):
+    spec = band.BandSpec(size=6, profile="flat")
+    stl = _band_stl(tmp_path, spec)
+    plain = printprep.prepare(stl, spec, tmp_path / "plain", orient=(0.0, 90.0), settings={"support_spacing_mm": 4.0}, picture=False)
+    res = printprep.prepare(stl, spec, tmp_path / "comp", orient=(0.0, 90.0), picture=False,
+                            settings={"support_spacing_mm": 4.0, "print_cure_through_mm": 0.2})
+    assert res.ok and plain.ok, res.text()
+    names = [c.name for c in res.checks]
+    assert "cure-through compensated" in names and "cure-through compensated" not in [c.name for c in plain.checks]
+    comp = [c for c in res.checks if c.name == "cure-through compensated"][0]
+    assert comp.status == gate.PASSED and "0.2 mm into the part" in comp.detail
+    a, b = trimesh.load(str(plain.files["print file"]), force="mesh"), trimesh.load(str(res.files["print file"]), force="mesh")
+    assert b.volume < a.volume - 1.0 and a.extents[2] - b.extents[2] == pytest.approx(0.2, abs=0.02)   # the underside moved up, the top where it was
+    for r in (plain, res):                                                           # 13 Nov: no cluster under the lowest point
+        spread = [c for c in r.checks if c.name == "contacts spread"][0]
+        assert spread.status == gate.PASSED, spread.detail
+        pts = np.array([(sp.x, sp.y, sp.z_top) for sp in r.supports if not sp.island])
+        d = np.linalg.norm(pts[:, None] - pts[None], axis=2) + np.eye(len(pts)) * 99
+        assert d.min() >= 0.9 * S["support_min_spacing_mm"]
+    assert json.loads(res.files["report"].read_text(encoding="utf-8"))["settings"]["print_cure_through_mm"] == 0.2
+
+
 # ---------------------------------------------------------------- the CLI
 def test_band_prep_after_a_passed_build_and_into_the_delivery(fake_ntopcl, profile_notebook, out_dir, tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("JEWELRY_DELIVER", str(tmp_path / "Jewelry"))

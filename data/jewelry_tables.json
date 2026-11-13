@@ -420,6 +420,11 @@
       "status": "default",
       "source": "how far above the part's lowest point its first support contact may be - until it the part prints on nothing but the film. Two layers: a layer or two of a feature cured on the film comes away with the tips once they hold; a stack of them is the part's foot, and the part then grows on the film while the supports print alone. 8 Nov 2026, the first US 4.5 court band: leaning 53°, its bottom bead row (beads take no contact) led the first contact by 0.6 mm, 12 layers - 'the ring itself stuck to the film, not the supports'. An orientation whose first contact is higher than this is refused (the search avoids it); the figure is a guess until a test print starts on a one-layer lead"
     },
+    "print_cure_through_mm": {
+      "value": 0.0,
+      "status": "uncalibrated",
+      "source": "how far the resin cures beyond a layer, towards the vat: every vat-facing surface prints this much thicker (light passes through the new layer into the resin under the part). 13 Nov 2026, Mark's Supercast prints: 'the resin seems to want to swell when starting a surface ... a thickened downside', the same with a longer exposure (which deepens it) and a 2 s rest - worst at the bottom of a ring standing on edge. When above 0 the preparation thins every vat-facing surface by it (the part ∩ the part moved this far along the build direction), so the print comes out at size; `--cure-through` for one run. Measure it on a ring printed standing on edge: band thickness at the printed bottom less the thickness at the printed top (calibrate reads those two rows). It belongs to a resin and its exposure: measure again when either changes, and lower the exposure first - compensation is for what a sound exposure still leaves"
+    },
     "support_tip_mm": {
       "value": 0.25,
       "status": "default",
@@ -445,10 +450,15 @@
       "status": "default",
       "source": "contacts at least this far apart along an overhang; a contact holds the overhang within three quarters of it (and a feature's overhang beside it)"
     },
+    "support_min_spacing_mm": {
+      "value": 1.5,
+      "status": "default",
+      "source": "no two contacts nearer than this, whatever asks for more (the hold rule, a narrow spacing): about two column diameters. 13 Nov 2026: the hold rule had gone down to a quarter of the 3 mm spacing and packed five tips 0.75 mm apart under the court band's and the Seraphine's lowest point; resin bridged the cones and cured into a blob there. Islands keep their one contact each regardless"
+    },
     "support_hold_area_mm2": {
       "value": 5.0,
       "status": "default",
-      "source": "the most of a layer's area one contact engaged below it may hold off the film: a layer needs a contact at or under its height per this much area, and where the spacing leaves fewer, more go on the overhang below it (half the spacing, then a quarter). The two 8 Nov 2026 prints that held: the hammered band's rim, 70 mm² on 15 tips (4.7 each); the Seraphine's shank bottom on two or three. A ring standing on edge at 3 mm spacing would hang 24 mm² of its first half millimetre on the single tip at its lowest point; this is what adds the others"
+      "source": "the most of a layer's area one contact engaged below it may hold off the film: a layer needs a contact at or under its height per this much area, and where the spacing leaves fewer, more go on the overhang below it (half the spacing, then a quarter). The two 8 Nov 2026 prints that held: the hammered band's rim, 70 mm² on 15 tips (4.7 each); the Seraphine's shank bottom on two or three. A ring standing on edge at 3 mm spacing would hang 24 mm² of its first half millimetre on the single tip at its lowest point; this is what adds the others. Since 13 Nov 2026 the minimum spacing wins over it: contacts are added at half the spacing but never nearer than support_min_spacing_mm, and a layer left hanging is a warning"
     },
     "support_lift_mm": {
       "value": 5.0,

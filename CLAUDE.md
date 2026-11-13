@@ -113,14 +113,28 @@ claude.ai doc "nTop Jewelry Skills — Development Plan" is its narrative compan
   (`--support-spacing` for one run), and then **every layer is held**: a contact at or under its height per
   `support_hold_area_mm2` (5) of its area, more added under the lowest layers (half the spacing, then a quarter) where
   the spacing left fewer - a ring standing on edge at 3 mm would hang 24 mm² of its first half millimetre on one tip
-  (`hold_layers`; the hammered band's rim printed on 4.7 mm² per tip). Breakaway tips `support_tip_mm` across,
+  (`hold_layers`; the hammered band's rim printed on 4.7 mm² per tip). **Tips are spread, never clustered - the default
+  for every part**: no two contacts nearer than `support_min_spacing_mm` (1.5), whatever asks for more; the hold rule adds
+  at half the spacing and stops there, and a layer it leaves hanging is a warning (13 Nov: it had gone to a quarter of
+  the spacing and packed five tips 0.75 mm apart under the court band's and the Seraphine's lowest point, where the
+  surface lies flat to the vat - resin bridged the cones and cured into a blob; hard check `contacts spread`). **And the
+  file is compensated for cure-through - the default whenever `print_cure_through_mm` is above 0**: light passes through
+  each new layer and cures resin beyond it, so every vat-facing surface prints thicker by that depth (Mark's Supercast
+  prints, 13 Nov: "a thickened downside", the same with a longer exposure - which deepens it - and a rest between
+  layers); once the orientation is chosen the part becomes part ∩ (part moved that depth along the build direction),
+  healed, each face keeping its class (`compensate_cure_through`; `--cure-through MM` for one run, 0 for none; hard check
+  `cure-through compensated` fails if it cuts the part in two - something thinner than the depth along the build
+  direction). The depth belongs to a resin at an exposure: `calibrate` reads it from a ring printed on edge (thickness
+  at the printed bottom less at the side, two rows on the court band's sheet) and it is measured again when either
+  changes; lower the exposure first, compensate what a sound exposure still leaves. Breakaway tips `support_tip_mm` across,
   columns `support_clearance_mm` off the part, standing on the part (plain metal) where it lies below, else on a
   chamfered raft. The print file is ONE manifold, part ∪ supports ∪ raft on z = 0 - `<stem>.supported.stl`
   (`<stem>.supported_<metal>.stl` with `--metal`, scaled by `tables.print_scale`) - sliced as it is, no supports added
   in the slicer; beside it `<stem>.prep.json` (every candidate and support, what stays unsupported in ring angles)
   and `<stem>.prep.png`. PASSED = one watertight body on the plate that reads back from the STL as one (a support's
   neck crosses the face it meets, never ends in it: a ring of vertices lying in a flat face came back non-manifold,
-  2026-11-08), every contact on plain metal, the start held, every plain island held; feature islands, feature
+  2026-11-08), every contact on plain metal and none nearer another than the minimum spacing, the compensation in one
+  piece, the start held, every plain island held; feature islands, feature
   overhang and a layer left hanging are warnings. With `--deliver` the files join the design's PASSED delivery
   (manifest `prep`); `--prep-stl delivered` prepares that delivery again. Settings `print_*`, `support_*`, `raft_*` in
   the tables, all `default` until the test prints calibrate them.

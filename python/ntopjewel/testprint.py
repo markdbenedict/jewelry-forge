@@ -57,7 +57,9 @@ PARTS = (
          "letters 0.25 deep, 0.6 mm strokes",
          spacing_key="test_print_court_spacing_mm",
          rows=(("Outer Ø over the beads (×3)", "outer"), ("Width over the beads (×2)", "over_beads"),
-               ("Width between the faces, beside a bead (×2)", "width")),
+               ("Width between the faces, beside a bead (×2)", "width"),
+               ("Band thickness at the printed bottom, where it stood on its supports (×2)", "thickness_low"),   # the two give the
+               ("Band thickness at the side, half way up as printed (×2)", "thickness_side")),                  # resin's cure-through
          questions=("Beads: all present? ____  Missing or merged in a quarter turn: ____  Shape (round / blobby / flat): ____",
                     "Groove: continuous and crisp-edged? ____",
                     "Engraving: every letter legible (M + K 2 0 2 6)? ____  Strokes open to the floor or filled? ____",

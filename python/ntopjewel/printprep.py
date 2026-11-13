@@ -55,9 +55,10 @@ from . import gate, raster, tables
 POLISH, BORE, FEATURE, CLEAR = 0, 1, 2, 3
 CLASS_NAMES = ("polished face", "bore", "feature", "kept clear")
 SUPPORTABLE = np.array([True, True, False, False])
-SETTING_KEYS = ("print_layer_mm", "print_overhang_deg", "print_start_gap_mm", "support_tip_mm", "support_contact_depth_mm",
-                "support_tip_length_mm", "support_column_mm", "support_spacing_mm", "support_hold_area_mm2", "support_lift_mm",
-                "support_clearance_mm", "support_keepoff_mm", "raft_thickness_mm", "raft_margin_mm")
+SETTING_KEYS = ("print_layer_mm", "print_overhang_deg", "print_start_gap_mm", "print_cure_through_mm", "support_tip_mm",
+                "support_contact_depth_mm", "support_tip_length_mm", "support_column_mm", "support_spacing_mm",
+                "support_min_spacing_mm", "support_hold_area_mm2", "support_lift_mm", "support_clearance_mm", "support_keepoff_mm",
+                "raft_thickness_mm", "raft_margin_mm")
 
 # ---- the surface model
 SECTION_STEP_DEG = 2.0           # a shaped shank's plain section sampled this often round the ring (interpolated between)
@@ -802,7 +803,7 @@ def place_supports(an: Analysis, part, classes, s: dict):
                 misses.append((int(cands[0]), f"island: {why}"))
     sup = an.u[SUPPORTABLE[an.u_cls]]
     P = an.point(sup)
-    spacing = s["support_spacing_mm"]
+    spacing = max(s["support_spacing_mm"], s["support_min_spacing_mm"])
     th = _thin(P, spacing / 4.0)
     order = th[np.argsort(P[th, 2], kind="stable")]
     grid: dict = {}
@@ -839,10 +840,14 @@ def hold_layers(an: Analysis, supports: list, sup, P, classes, nz_faces, s: dict
     """Contacts added where a layer would hang on too few tips. Nothing but the contacts engaged below a layer holds
     it off the film, so, bottom up, every layer needs a contact at or under its height per support_hold_area_mm2 of
     its area; where it has fewer, the supportable overhang at or below that height takes more, lowest first, at half
-    the spacing and then a quarter. A flat rim on its spacing's contacts usually has enough (the hammered band, 15 tips
-    under 70 mm²); a ring standing on edge at a wide spacing would hang its first half millimetre - 24 mm² of dome -
-    on the one tip at its lowest point (the court band at 3 mm, 9 Nov 2026). Appends to `supports` (flagged `hold`)
-    and returns what it added."""
+    the spacing - but NEVER nearer another contact than support_min_spacing_mm. A flat rim on its spacing's contacts
+    usually has enough (the hammered band, 15 tips under 70 mm²); a ring standing on edge at a wide spacing would hang
+    its first half millimetre - 24 mm² of dome - on the one tip at its lowest point (the court band at 3 mm, 9 Nov
+    2026). The first version went down to a quarter of the spacing and packed five tips 0.75 mm apart under the ring's
+    lowest point, where the surface lies flat to the vat: resin bridged from cone to cone and cured into a blob
+    (Mark's prints, 13 Nov 2026). Spread tips beat a held layer: what the minimum spacing leaves hanging is reported
+    by the soft check `layers held`, not fixed by crowding. Appends to `supports` (flagged `hold`) and returns what it
+    added."""
     cols = an.cols
     spacing = s["support_spacing_mm"]
     per = s["support_hold_area_mm2"]
@@ -860,10 +865,11 @@ def hold_layers(an: Analysis, supports: list, sup, P, classes, nz_faces, s: dict
     import bisect
 
     floor = 1.5 * s["support_column_mm"]                         # never two columns in one another (columns are vertical: in plan)
+    least = s["support_min_spacing_mm"]                          # ... nor two tips near enough for resin to bridge them
 
     def far(p, d):
         return all(float(np.sum((q - p) ** 2)) >= d * d and float(np.sum((q[:2] - p[:2]) ** 2)) >= floor * floor for q in taken)
-    stages = (spacing / 2.0, spacing / 4.0)
+    stages = (max(spacing / 2.0, least),)
     for k, area in enumerate(an.layer_mm2):
         if area <= 0:
             continue
@@ -1030,6 +1036,54 @@ def assemble(part_printer, supports, raft, s: dict):
     m = u.to_mesh()
     out = trimesh.Trimesh(np.asarray(m.vert_properties)[:, :3].astype(float), np.asarray(m.tri_verts, np.int64), process=False)
     return out, len(u.decompose())
+
+
+# ============================================================================ cure-through
+def compensate_cure_through(part, classes, b, depth: float):
+    """The part thinned where it faces the vat, so that it prints at size. Light passes through each new layer and
+    cures resin beyond it: every surface facing the vat grows towards it by the cure-through depth (the "thickened
+    downside" of Mark's Supercast prints, 13 Nov 2026 - worst where a ring standing on edge lies flat to the vat). The
+    printed solid is the sliced one swept that far towards the vat, so the file is the part less that sweep: the part ∩
+    the part moved `depth` along the build direction b (an erosion by a segment - exact for this model; whatever is
+    thinner than `depth` along b is gone, so the depth must stay well under the thinnest feature). Up-facing surfaces
+    and walls parallel to b do not move. Returns (mesh in the part's frame, its faces' classes - each face keeps the
+    class of the face it came from -, the volume removed, the bodies it is in)."""
+    import manifold3d as mf
+    import trimesh
+    from . import geom
+    b = np.asarray(b, float) / np.linalg.norm(b)
+    a = geom._manifold(part)
+    if a.status() != mf.Error.NoError:
+        raise ValueError(f"manifold3d could not read the part for the cure-through compensation ({a.status()})")
+    out = a ^ a.translate(tuple(float(v) for v in b * depth))
+    m = out.to_mesh()
+    faces = np.asarray(m.tri_verts, np.int64)
+    if not len(faces):
+        raise ValueError(f"nothing is left of the part after a cure-through compensation of {depth:g} mm")
+    mesh = trimesh.Trimesh(np.asarray(m.vert_properties)[:, :3].astype(float), faces, process=False)
+    cls = np.asarray(classes)[np.asarray(m.face_id, np.int64)]   # the part's triangle each one came from (either copy)
+    # the cut leaves slivers where a wall runs along b and zero-volume crumbs where the two copies kiss (the real court
+    # band, 13 Nov 2026: 3016 slivers, one 6-triangle crumb; unhealed it read back from STL with 1073 open edges)
+    mesh.merge_vertices(digits_vertex=HEAL_DIGITS)
+    f = np.asarray(mesh.faces)
+    keep = (f[:, 0] != f[:, 1]) & (f[:, 1] != f[:, 2]) & (f[:, 0] != f[:, 2])
+    mesh.update_faces(keep)
+    cls = cls[keep]
+    labels = trimesh.graph.connected_component_labels(mesh.face_adjacency, node_count=len(mesh.faces))
+    counts = np.bincount(labels)
+    bodies = 0
+    keep = np.ones(len(mesh.faces), bool)
+    for lab in np.flatnonzero(counts):
+        sel = labels == lab
+        if len(counts) > 1 and gate.is_speck(mesh.submesh([np.flatnonzero(sel)], append=True, repair=False)):
+            keep &= ~sel
+        else:
+            bodies += 1
+    if not keep.all():
+        mesh.update_faces(keep)
+        cls = cls[keep]
+    mesh.remove_unreferenced_vertices()
+    return mesh, cls, float(a.volume() - mesh.volume), bodies
 
 
 # ============================================================================ the part
@@ -1275,6 +1329,18 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
     if b is not None:
         say("slicing the chosen orientation at the printer's layer")
         final = analyse(part, classes, b, s, FINAL_PIXEL_MM, s["print_layer_mm"], model.top_deg)
+    cure = s["print_cure_through_mm"]
+    cure_check = None
+    if cure > 0:
+        say(f"thinning the vat-facing surfaces by the cure-through depth ({cure:g} mm)")
+        before = float(part.volume)
+        part, classes, removed, comp_bodies = compensate_cure_through(part, classes, final.b, cure)
+        final = analyse(part, classes, final.b, s, FINAL_PIXEL_MM, s["print_layer_mm"], model.top_deg)
+        cure_check = gate.Check("cure-through compensated", comp_bodies == 1,
+                                f"vat-facing surfaces moved {cure:g} mm into the part ({removed:.2f} mm³, {100 * removed / before:.1f} % "
+                                f"of it, for the resin to cure back)" if comp_bodies == 1 else
+                                f"a compensation of {cure:g} mm cuts the part into {comp_bodies} pieces: something is thinner than "
+                                f"that along the build direction - another orientation, or a smaller depth")
     say("placing supports")
     supports, misses = place_supports(final, part, classes, s)
     cover = coverage(final, supports, s)
@@ -1304,7 +1370,15 @@ def prepare(stl, spec, out_dir, stem: str | None = None, metal: str | None = Non
         checks.append(gate.Check("on the plate", abs(zmin) < 1e-3 and raft is not None,
                                  f"the raft's underside at z {zmin:.3f}, the part's lowest point {lift:.2f} above it"
                                  if raft is not None else "nothing stands on the raft: the part's lowest point has no support"))
+    if cure_check is not None:
+        checks.append(cure_check)
     on_plain = all(SUPPORTABLE[sp.cls] and (sp.foot_cls is None or SUPPORTABLE[sp.foot_cls]) for sp in supports)
+    apart = min((math.dist((p.x, p.y, p.z_top), (q.x, q.y, q.z_top)) for i, p in enumerate(supports) for q in supports[i + 1:]
+                 if not (p.island or q.island)), default=math.inf)
+    least = s["support_min_spacing_mm"]
+    checks.append(gate.Check("contacts spread", apart >= 0.9 * least,       # (a tip sits a contact depth off the point picked)
+                             (f"no two contacts nearer than {apart:.2f} mm ({least:g} at least: nearer, resin bridges the tips and "
+                              f"cures into a blob)") if math.isfinite(apart) else "fewer than two contacts"))
     checks.append(gate.Check("contacts on plain metal", on_plain, f"{len(supports)} contacts, every one on a polished face or the bore"
                              if on_plain else "a contact on a feature"))
     z_first = min((sp.z_top for sp in supports), default=math.inf)        # the contacts as placed, not the search's estimate

@@ -59,7 +59,10 @@ MEASURES = {
     "width_bottom": (+1, "the band's width at the bottom of a shaped shank"),
     "height": (+1, "the overall height, the bottom of the band to the prong tips"),
     "weight": (0, "the weight"),
+    "thickness_low": (0, "the band's thickness (bore to outer face) at the printed bottom - thickened by the cure-through"),
+    "thickness_side": (0, "the band's thickness at the side, half way up as printed - its walls stand upright there: no cure-through"),
 }
+CURE_SOUND_MM = (0.0, 0.6)       # a cure-through outside this is not written (a reading slip, or an exposure to fix first)
 
 
 # ============================================================================ the sheet
@@ -234,6 +237,8 @@ def row_key(label: str, part_key: str | None) -> str | None:
     if label in rows:
         return rows[label]
     low = label.lower()
+    if "thickness" in low:
+        return "thickness_low" if "bottom" in low else "thickness_side"
     if "mandrel" in low:
         return "mandrel"
     if "bore" in low:
@@ -668,12 +673,15 @@ class Calibration:
     density_n: int
     density_note: str | None
     date: datetime.date
+    cure_through: float | None = None                # mm: thickness at the printed bottom less at the side (a ring on edge)
+    cure_note: str | None = None
     applied: dict = field(default_factory=dict)      # entry -> (from, to) once written to the tables
     notes: list = field(default_factory=list)
 
     @property
     def measured_parts(self) -> list:
-        return [p for p in self.parts if p.readings or p.weight_g is not None]
+        return [p for p in self.parts if p.readings or p.weight_g is not None or any(
+            row_key(l, p.sheet.key) in ("thickness_low", "thickness_side") for l in p.sheet.rows)]
 
     def to_dict(self) -> dict:
         return {"folder": str(self.folder), "sheet": str(self.sheet.path), "date": self.date.isoformat(), "size": self.sheet.size,
@@ -681,7 +689,7 @@ class Calibration:
                 "fit": {"shrink_pct": self.fit.shrink_pct, "shrink_pct_sd": self.fit.shrink_pct_sd, "bloom_mm": self.fit.bloom_mm,
                         "bloom_mm_sd": self.fit.bloom_mm_sd, "rms_mm": self.fit.rms_mm, "readings": self.fit.n,
                         "separable": self.fit.separable, "outliers": self.fit.outliers, "unsound": self.fit.why_unsound},
-                "density_g_cm3": self.density, "density_parts": self.density_n, "density_note": self.density_note,
+                "cure_through_mm": self.cure_through, "cure_note": self.cure_note, "density_g_cm3": self.density, "density_parts": self.density_n, "density_note": self.density_note,
                 "parts": [{"index": p.sheet.index, "title": p.sheet.title, "key": p.sheet.key, "stem": p.sheet.stem,
                            "delivery": str(p.delivery) if p.delivery else None, "built": p.built,
                            "readings": [{"label": r.label, "measures": r.key, "measured_mm": r.measured, "built_mm": r.built,
@@ -747,6 +755,10 @@ class Calibration:
             lines.append(f"  resin density {self.density:.3f} g/cm³ from {self.density_n} part(s)" + (f" ({self.density_note})" if self.density_note else ""))
         elif self.density_note:
             lines.append(f"  resin density: {self.density_note}")
+        if self.cure_through is not None:
+            ok = CURE_SOUND_MM[0] < self.cure_through <= CURE_SOUND_MM[1]
+            lines.append(f"  cure-through {self.cure_through:+.3f} mm ({self.cure_note})" + ("" if ok else
+                         f" - not written: outside {CURE_SOUND_MM[0]:g}..{CURE_SOUND_MM[1]:g} (nothing to compensate, or an exposure to lower first)"))
         for k, (a, b) in self.applied.items():
             lines.append(f"  tables: {k} {a} -> {b}")
         lines += [f"  note: {n}" for n in self.notes]
@@ -824,6 +836,7 @@ def calibrate(folder: Path, deliver_dir: Path | None = None, today: datetime.dat
     readme_stems = stems_from_readme(folder)
     parts: list[PartResult] = []
     readings: list[Reading] = []
+    cures: list = []
     for i, ps in enumerate(sheet.parts):
         if ps.stem is None and i < len(readme_stems):
             ps.stem = readme_stems[i]
@@ -852,6 +865,10 @@ def calibrate(folder: Path, deliver_dir: Path | None = None, today: datetime.dat
                 rs.append(Reading(ps.index, ps.stem, key, label, float(measured), float(built[key]), sign,
                                   MANDREL_WEIGHT if key == "mandrel" else 1.0))
         readings += rs
+        low = [v for l, vs in ps.rows.items() if row_key(l, ps.key) == "thickness_low" for v in vs]
+        side = [v for l, vs in ps.rows.items() if row_key(l, ps.key) == "thickness_side" for v in vs]
+        if low and side:
+            cures.append((ps.index, float(np.mean(low)) - float(np.mean(side)), float(np.mean(low)), float(np.mean(side))))
         sup = _support_answers(ps.lines)
         sup["printed_with"] = _printed_with(delivery, ps.stem)
         parts.append(PartResult(ps, delivery, built, rs, weight, None, None, sup))
@@ -877,7 +894,11 @@ def calibrate(folder: Path, deliver_dir: Path | None = None, today: datetime.dat
         note_all = "no density to trust" + (": the scale is too coarse for parts this light" if scale_g else "")
     elif density is not None and scale_g is None:
         note_all = "the scale's resolution was not given: taken as fine enough"
-    return Calibration(folder, sheet, parts, fit, density, len(dens), note_all, today)
+    cal = Calibration(folder, sheet, parts, fit, density, len(dens), note_all, today)
+    if cures:
+        cal.cure_through = float(np.mean([c[1] for c in cures]))
+        cal.cure_note = "; ".join(f"part {i}: {lo:.3f} at the printed bottom, {si:.3f} at the side ({d:+.3f})" for i, d, lo, si in cures)
+    return cal
 
 
 # ============================================================================ the tables
@@ -920,6 +941,15 @@ def apply(cal: Calibration, tables_path: Path | None = None) -> dict:
                     "evidence": f"{where}: {parts}; the printed volume taken as built x (1 - shrink)^3 + bloom over the surface. "
                                 + _settings_text(cal.sheet.settings)})
         applied["metals.resin.density_g_cm3"] = (before, value)
+    if cal.cure_through is not None and CURE_SOUND_MM[0] < cal.cure_through <= CURE_SOUND_MM[1]:
+        entry = doc["settings"]["print_cure_through_mm"]
+        before, value = entry.get("value"), round(cal.cure_through, 2)
+        entry["value"], entry["status"] = value, "calibrated"
+        if "Calibrated" not in entry["source"]:
+            entry["source"] = entry["source"].rstrip(". ") + f". Calibrated {date}: see calibration_log"
+        log.append({"date": date, "entry": "settings.print_cure_through_mm", "from": before, "to": value, "status": "calibrated",
+                    "evidence": f"{where}: {cal.cure_note}. " + _settings_text(cal.sheet.settings)})
+        applied["settings.print_cure_through_mm"] = (before, value)
     for p in cal.measured_parts:
         sup = p.supports
         said = ", ".join(f"{k.replace('_', ' ')}: {sup[k]}" for k in ("swelling", "clean_break", "nubs", "sagged") if sup.get(k))

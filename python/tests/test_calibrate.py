@@ -270,11 +270,11 @@ def test_the_workbook_is_written_from_the_sheet_and_read_back_with_what_was_type
     assert wb.sheetnames == ["Print settings", "1 Court band", "2 Hammered band", calibrate.MD_SHEET] and wb[calibrate.MD_SHEET].sheet_state == "hidden"
     w = wb["1 Court band"]
     assert w["B1"].value == COURT_STEM and w["A7"].value == "Bore Ø, inside jaws (×3)" and w["E7"].value == 15.288    # the stem from the README
-    assert w["A8"].value == "Mandrel size it stops at" and w["E8"].value == 4.5 and w["E12"].value == 0.26            # a size; the weight's resin g
+    assert w["A8"].value == "Mandrel size it stops at" and w["E8"].value == 4.5 and w["E14"].value == 0.26            # a size; the weight's resin g
     assert w["F7"].value.startswith("=IF(COUNT(B7:D7)") and w["G7"].value.startswith("=IF(OR(")
-    labels = [w.cell(row=r, column=1).value for r in range(7, 13)]
+    labels = [w.cell(row=r, column=1).value for r in range(7, 15)]
     assert labels == [l for l, _ in testprint.COMMON_ROWS + tuple(testprint.PARTS[0].rows) + (testprint.WEIGHT_ROW,)]
-    feats = [w.cell(row=r, column=1).value for r in range(15, 23)]
+    feats = [w.cell(row=r, column=1).value for r in range(17, 25)]
     assert feats[0] == "Beads: all present?" and feats[1] == "Missing or merged in a quarter turn:" and "Nubs sanded flush?" in feats
     assert len([f for f in feats if f]) == 8                                       # one row per blank: 3 + 1 + 3 + 1
     blank = calibrate.read_round(folder)
@@ -319,3 +319,25 @@ def test_each_part_tab_carries_its_measurement_sketch(tmp_path):
     ser = calibrate.parse_design("bore Ø 15.288; band 2.8 wide × 2 thick at the head, 2 × 1.5 at the bottom; 21.8 × 19.3 × 6.2 mm overall; 272.6 mm³ (0.31 g of resin).")
     out = sketch.sketch("seraphine", ser, tmp_path / "s.png", "4.5")
     assert out.exists() and out.stat().st_size > 20000
+
+
+def test_two_thickness_rows_give_the_cure_through_depth(tmp_path):
+    """13 Nov 2026: the resin cures beyond each layer, so a ring printed on edge is thicker at its printed bottom than at
+    its side; the difference is print_cure_through_mm, which the preparation then takes off every vat-facing surface."""
+    court, hammer = _filled()
+    court["Band thickness at the printed bottom, where it stood on its supports (×2)"] = ["1.52", "1.50"]
+    court["Band thickness at the side, half way up as printed (×2)"] = ["1.31", "1.29"]
+    jewelry, folder = _round(tmp_path, _sheet(court, hammer))
+    cal = calibrate.calibrate(folder, today=datetime.date(2026, 11, 13))
+    assert cal.cure_through == pytest.approx(0.21, abs=1e-6) and cal.fit.sound and cal.fit.n == 21      # the two rows are not in the fit
+    assert "cure-through +0.210 mm" in cal.text()
+    tcopy = tmp_path / "tables.json"
+    tcopy.write_text(tables.TABLES_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    assert "settings.print_cure_through_mm" in calibrate.apply(cal, tcopy)
+    doc = json.loads(tcopy.read_text(encoding="utf-8"))
+    assert doc["settings"]["print_cure_through_mm"] == {**doc["settings"]["print_cure_through_mm"], "value": 0.21, "status": "calibrated"}
+    assert tables.SETTINGS["print_cure_through_mm"] == 0.0 and tables.SETTINGS["support_min_spacing_mm"] == 1.5
+    court["Band thickness at the printed bottom, where it stood on its supports (×2)"] = ["2.4"]          # a slip: not written
+    j2, f2 = _round(tmp_path / "b", _sheet(court, hammer))
+    cal = calibrate.calibrate(f2)
+    assert "settings.print_cure_through_mm" not in calibrate.apply(cal, tcopy) and "not written" in cal.text()

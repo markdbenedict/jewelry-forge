@@ -100,6 +100,8 @@ The printer gets a file already oriented and supported - Mark slices it as it is
 | `print_layer_mm` | 0.05 | the slicer's layer; the preparation slices at it for islands and suction cups |
 | `print_overhang_deg` | 45 | a down-facing surface flatter than this (from level) needs a support; any island does |
 | `print_start_gap_mm` | 0.1 | the first contact within this of the part's lowest point (two layers): until it, nothing but the film holds the part |
+| `print_cure_through_mm` | 0 (uncalibrated) | how far the resin cures beyond a layer, towards the vat; above 0 the file's vat-facing surfaces are thinned by it |
+| `support_min_spacing_mm` | 1.5 | no two contacts nearer than this, whatever asks for more: nearer, resin bridges the tips |
 | `support_hold_area_mm2` | 5 | a layer needs a contact at or under its height per this much area; more go under the lowest layers where the spacing left fewer |
 | `support_tip_mm` | 0.25 | the contact's diameter, the breakaway neck at the surface (light tips swell less where they meet the part) |
 | `support_contact_depth_mm` | 0.1 | how far the tip reaches in (more on a slope, so the whole tip is in) |
@@ -125,6 +127,20 @@ The printer gets a file already oriented and supported - Mark slices it as it is
   `support_hold_area_mm2` of its area at least, added under the lowest layers (half the spacing, then a quarter) where
   the spacing left fewer. The hammered band's rim printed on 4.7 mm² per tip (15 tips, flat); a ring standing on edge at
   3 mm spacing would have hung 24 mm² of its first half millimetre on the one tip at its lowest point.
+- **Tips are spread, never clustered** (default for every part). Two tips nearer than `support_min_spacing_mm` hold
+  resin between their cones, and under a surface lying flat to the vat it cures into a blob (13 Nov 2026: five tips
+  0.75 mm apart under the lowest point of the court band and the Seraphine). The minimum spacing wins over the hold
+  rule: fewer, spread tips and a warning, never a cluster.
+- **Cure-through is compensated in the file** (default whenever `print_cure_through_mm` is above 0). Light passes
+  through each new layer and cures resin beyond it; every vat-facing surface comes out thicker by that depth - "the
+  resin wants to swell when starting a surface" (Mark, Supercast, 13 Nov 2026). A longer exposure deepens it and a rest
+  between layers does nothing for it. The order of remedies: (1) the exposure - step the normal-layer exposure DOWN
+  until fine detail begins to fail, then one step back; (2) measure what is left on a ring printed on edge (band
+  thickness at the printed bottom less at the side; `calibrate` writes it to the tables); (3) the preparation then
+  takes that depth off every vat-facing surface, so the print comes out at size. The depth belongs to one resin at one
+  exposure - measure again when either changes. A feature thinner than the depth along the build direction is cut
+  away (the prep fails and says so); vat-facing fine detail (beads, engraving) is the first to suffer, so keep it
+  facing up or sideways where the orientation allows.
 - **Orientation**: after those, whatever leaves the fewest feature islands (a piece of a layer touching nothing printed
   before it - it prints on the film, not on the part, and the feature comes out short) and the least feature overhang
   no contact covers, then the fewest contacts, then no suction cups (resin walled in by a layer and sealed below - a

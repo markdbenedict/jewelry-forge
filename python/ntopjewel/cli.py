@@ -287,6 +287,9 @@ def _add_prep_args(p: argparse.ArgumentParser) -> None:
                                     "(the ring axis to the plate, the head above level)")
     g.add_argument("--support-spacing", type=float, metavar="MM",
                    help="contacts at least this far apart along an overhang, for this run (default: the tables' support_spacing_mm)")
+    g.add_argument("--cure-through", type=float, metavar="MM",
+                   help="thin every vat-facing surface by this much, for this run: what the resin cures beyond a layer "
+                        "(default: the tables' print_cure_through_mm; 0 = none)")
 
 
 def _parse_orient(text):
@@ -306,7 +309,8 @@ def _prep(a: argparse.Namespace, spec, stl: Path, out_dir: Path):
     from . import printprep
     try:
         res = printprep.prepare(stl, spec, out_dir, stem=spec.stem, metal=getattr(a, "metal", None), bore=a.bore,
-                                orient=_parse_orient(a.orient), settings={"support_spacing_mm": getattr(a, "support_spacing", None)},
+                                orient=_parse_orient(a.orient), settings={"support_spacing_mm": getattr(a, "support_spacing", None),
+                                                                 "print_cure_through_mm": getattr(a, "cure_through", None)},
                                 progress=lambda m: print(f"  ... {m}", file=sys.stderr, flush=True))
     except (ValueError, OSError) as e:
         return None, e
